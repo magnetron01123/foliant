@@ -115,7 +115,7 @@ Jede Quelle wird zuerst nach Markdown normalisiert, danach **eine** Pipeline (Ch
 Namensschema `foliant_<verb>_<nomen>` (kollisionsfrei neben anderen Connectoren). Suche liefert
 **knappe** Treffer, Detail-Tools die volle Ausgabe.
 
-- **Nachschlagen:** `foliant_suche_regeln`, `foliant_hol_regel`, `foliant_hol_zauber`,
+- **Nachschlagen:** `foliant_suche_bestand`, `foliant_hol_regel`, `foliant_hol_zauber`,
   `foliant_hol_monster`, `foliant_hol_gegenstand`, `foliant_uebersetze_begriff`.
 - **Charaktererstellung:** `foliant_liste_klassen|spezies|hintergruende|talente`,
   `foliant_hol_klasse|spezies|hintergrund|talent`, `foliant_hol_attributswerte`,

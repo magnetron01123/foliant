@@ -337,8 +337,9 @@ def foliant_hol_spezies(name: str, edition: str = "2024",
         eintrag_id: int | None = None) -> dict:
     """Vollstaendige Spezies-Beschreibung aus dem Bestand (Merkmale, Groesse, Bewegungsrate),
     mit Zitat (Quelle, ggf. Seite, Regelversion). Name deutsch oder englisch. Spezies ist
-    Schritt 3 der 2024-Erstellung (B7). KERNREGELN: nur aus dem Bestand antworten; Quelle
-    und Regelversion nennen; Deutsch-first, englisches Original in Klammern."""
+    Schritt 3 der 2024-Erstellung (B7).
+    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
+    Deutsch-first (Original in Klammern)."""
     return _ns._hole_detail("spezies", name, edition, aggregiere_kinder=True, eintrag_id=eintrag_id)
 
 
@@ -346,16 +347,18 @@ def foliant_hol_hintergrund(name: str, edition: str = "2024",
         eintrag_id: int | None = None) -> dict:
     """Vollstaendiger Hintergrund aus dem Bestand (Attributswerte, Ursprungstalent,
     Fertigkeiten, Ausruestung), mit Zitat (Quelle, ggf. Seite, Regelversion). Name deutsch
-    oder englisch. Hintergrund ist Schritt 2 der 2024-Erstellung (B7). KERNREGELN: nur aus
-    dem Bestand antworten; Quelle und Regelversion nennen; Deutsch-first."""
+    oder englisch. Hintergrund ist Schritt 2 der 2024-Erstellung (B7).
+    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
+    Deutsch-first (Original in Klammern)."""
     return _ns._hole_detail("hintergrund", name, edition, eintrag_id=eintrag_id)
 
 
 def foliant_hol_talent(name: str, edition: str = "2024",
         eintrag_id: int | None = None) -> dict:
     """Vollstaendige Talent-Beschreibung (Feat) aus dem Bestand, mit Zitat (Quelle, ggf.
-    Seite, Regelversion). Name deutsch oder englisch. KERNREGELN: nur aus dem Bestand
-    antworten; Quelle und Regelversion nennen; Deutsch-first, Original in Klammern."""
+    Seite, Regelversion). Name deutsch oder englisch.
+    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
+    Deutsch-first (Original in Klammern)."""
     return _ns._hole_detail("talent", name, edition, aggregiere_kinder=True, eintrag_id=eintrag_id)
 
 
@@ -365,8 +368,9 @@ def foliant_hol_klasse(name: str, edition: str = "2024",
     (Quelle, ggf. Seite, Regelversion). Name deutsch oder englisch ('Kaempfer', 'Champion').
     Liefert bei Klassen zusaetzlich die verwandten Abschnitte (Klassenmerkmale, Zauberliste,
     Unterklassen) als Namen - bei Bedarf einzeln per foliant_hol_klasse nachladen (haelt die
-    Antwort knapp). Klasse ist Schritt 1 der 2024-Erstellung (B7). KERNREGELN: nur aus dem
-    Bestand antworten; Quelle und Regelversion nennen; Deutsch-first."""
+    Antwort knapp). Klasse ist Schritt 1 der 2024-Erstellung (B7).
+    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
+    Deutsch-first (Original in Klammern)."""
     d = _ns._hole_detail("klasse", name, edition, eintrag_id=eintrag_id)
     if not d.get("gefunden") or not d.get("name_de"):
         return d
@@ -387,22 +391,22 @@ def foliant_hol_klasse(name: str, edition: str = "2024",
         con.close()
 
 
-def foliant_hol_attributswerte(methode: Literal["standard_array",
+def foliant_hol_attributswerte(attributsmethode: Literal["standard_array",
         "point_buy"] = "standard_array") -> dict:
     """Regeln zur Attributswert-Vergabe nach 2024: 'standard_array' (Standardsatz) oder
     'point_buy' (Punktkosten). Die Werte werden am BESTAND belegt ('Schritt 3:
     Attributswerte') - fehlt die importierte Regelquelle, gibt es KEINE Werte aus
     Allgemeinwissen (B1/A5). Die Zuteilung auf Attribute macht Claude im Gespraech;
     danach foliant_pruefe_build aufrufen. KERNREGELN: nur Bestand; Deutsch-first."""
-    if methode not in ("standard_array", "point_buy"):
-        return {"fehler": "methode muss 'standard_array' oder 'point_buy' sein"}
-    beleg, kosten_geprueft = _attributsregel_beleg(methode)
+    if attributsmethode not in ("standard_array", "point_buy"):
+        return {"fehler": "attributsmethode muss 'standard_array' oder 'point_buy' sein"}
+    beleg, kosten_geprueft = _attributsregel_beleg(attributsmethode)
     if beleg is None:
-        return {"verfuegbar": False, "methode": methode,
+        return {"verfuegbar": False, "methode": attributsmethode,
                 "hinweis": ("Keine importierte 2024-Attributsregel im Bestand ('Schritt 3: "
                             "Attributswerte') - ich gebe keine Werte aus Allgemeinwissen "
                             "aus (B1/A5). Erst die Regelquelle importieren.")}
-    if methode == "standard_array":
+    if attributsmethode == "standard_array":
         return {"methode": "standard_array", "werte": STANDARD_ARRAY, "beleg": beleg}
     if kosten_geprueft is False:
         # SYN-P2-003: der Bestand widerspricht den Konstanten -> NIE die Konstanten

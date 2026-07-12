@@ -72,28 +72,27 @@ def _knapp(t: dict) -> dict:
     return k
 
 
-def foliant_suche_regeln(suchbegriff: str, kategorie: Kategorie | None = None,
-                         edition: str = "2024", quelle: str | None = None) -> dict:
-    """Volltextsuche im importierten Regelbestand (Kampf UND ausserhalb): Regeln, Zauber,
-    Monster, Gegenstaende, Spezies, Klassen, Hintergruende, Talente. Deutsch UND Englisch
-    moeglich, auch Abkuerzungen (AoO) und kleine Tippfehler. Liefert KNAPPE Treffer
-    (Name, Auszug, Quelle, ggf. Seite, Regelversion) - Details per foliant_hol_*.
+def foliant_suche_bestand(suchbegriff: str, kategorie: Kategorie | None = None,
+                          edition: str = "2024", quelle_kuerzel: str | None = None) -> dict:
+    """Volltextsuche ueber den GESAMTEN Bestand (nicht nur Regeln): Regeln, Zauber, Monster,
+    Gegenstaende, Spezies, Klassen, Hintergruende, Talente - Kampf UND ausserhalb. Deutsch
+    UND Englisch moeglich, auch Abkuerzungen (AoO) und kleine Tippfehler. Liefert KNAPPE
+    Treffer (Name, Auszug, Quelle, ggf. Seite, Regelversion) - Details per foliant_hol_*.
     kategorie optional: regel|zauber|monster|gegenstand|spezies|klasse|hintergrund|talent
-    (exakt diese Werte). quelle optional: das QUELLEN-KUERZEL (z. B. 'srd-de'), nicht der
-    Titel. edition Standard '2024'; andere Regelversionen (z. B. '2014') explizit angeben.
-    Ungueltige Parameterwerte werden mit 'fehler' abgelehnt - das bedeutet NICHT 'nicht
-    im Bestand'. Beim 2024-Standard kommen aeltere
-    Staende getrennt als 'aeltere_staende'; bei explizit anderer Edition heissen weitere
-    Fassungen neutral 'andere_fassungen'. KERNREGELN: Antworte NUR aus dem Bestand
-    (nichts erfinden); nenne stets Quelle und Regelversion; Deutsch-first mit englischem
-    Original in Klammern."""
+    (exakt diese Werte). quelle_kuerzel optional: das QUELLEN-KUERZEL (z. B. 'srd-de', wie
+    im Ausgabefeld 'quelle_kuerzel'), NICHT der Titel. edition Standard '2024'; andere
+    Regelversionen (z. B. '2014') explizit angeben. Ungueltige Parameterwerte werden mit
+    'fehler' abgelehnt - das bedeutet NICHT 'nicht im Bestand'. Beim 2024-Standard kommen
+    aeltere Staende getrennt als 'aeltere_staende'; bei explizit anderer Edition heissen
+    weitere Fassungen neutral 'andere_fassungen'. KERNREGELN: nur aus dem Bestand; Quelle
+    + Regelversion nennen; Deutsch-first (Original in Klammern)."""
     con = _verbinde()
     if con is None:
         return {"treffer": [], "hinweis": HINWEIS_DB_FEHLT}
     try:
         try:
             ergebnis = _db.fts_suche(con, suchbegriff, kategorie=kategorie,
-                                     edition=edition, quelle=quelle)
+                                     edition=edition, quelle=quelle_kuerzel)
         except ValueError as fehler:
             # SYN-P0-006: Parameterfehler (Edition/Kategorie/Quelle) sind KEIN leerer
             # Befund - vor dem Fix bekam das Modell hier den B1-Leerhinweis und meldete
@@ -163,6 +162,26 @@ def _anzeige_name(con: sqlite3.Connection, e: dict) -> str:
     return name_en
 
 
+def _facetten_von(con: sqlite3.Connection, e: dict) -> dict | None:
+    """Strukturierte Filter-Facetten aus dem zauber_meta/monster_meta-Seitenwagen (heute nur
+    aus Open5e befuellt): ADDITIV zum verbatim body_md, ersetzen den Regeltext nie. Zauber ->
+    grad/schule/klassen, Monster -> hg/typ. None, wenn keine Zeile/Tabelle vorhanden ist
+    (dann fehlt das Feld schlicht - kein Raten)."""
+    spez = {"zauber": ("zauber_meta", ("grad", "schule", "klassen")),
+            "monster": ("monster_meta", ("hg", "typ"))}.get(e["kategorie"])
+    if not spez:
+        return None
+    tabelle, felder = spez
+    try:
+        row = con.execute(f"SELECT {', '.join(felder)} FROM {tabelle} WHERE eintrag_id = ?",
+                          (e["id"],)).fetchone()
+    except sqlite3.OperationalError:
+        return None                                   # Alt-DB ohne Facetten-Tabelle
+    if not row:
+        return None
+    return {f: row[f] for f in felder if row[f] is not None} or None
+
+
 def _detail(e: dict, con: sqlite3.Connection) -> dict:
     d = {"anzeige_name": _anzeige_name(con, e),
          "name_de": e["name_de"], "name_en": e["name_en"], "kategorie": e["kategorie"],
@@ -200,6 +219,9 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
         d["hinweis_uebersetzung"] = ("Regeltext liegt nur englisch vor. Auf Deutsch antworten, "
                                      "offizielle deutsche Begriffe verwenden (Original in "
                                      "Klammern), fehlende mit * markieren (S3/S5).")
+    fac = _facetten_von(con, e)
+    if fac:
+        d["facetten"] = fac
     return d
 
 
@@ -445,8 +467,8 @@ def foliant_hol_zauber(name: str, edition: str = "2024",
     Regelversion). Name deutsch oder englisch. edition Standard '2024'; eine andere
     Regelversion (z. B. '2014') laesst sich gezielt anfordern und wird nie still ersetzt.
     Bei Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
-    KERNREGELN: nur aus dem Bestand antworten; Quelle und Regelversion nennen;
-    Deutsch-first, englisches Original in Klammern."""
+    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
+    Deutsch-first (Original in Klammern)."""
     return _hole_detail("zauber", name, edition, eintrag_id=eintrag_id)
 
 
@@ -456,8 +478,8 @@ def foliant_hol_monster(name: str, edition: str = "2024",
     Regelversion). Name deutsch oder englisch. edition Standard '2024'; eine andere
     Regelversion (z. B. '2014') laesst sich gezielt anfordern und wird nie still ersetzt.
     Bei Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
-    KERNREGELN: nur aus dem Bestand antworten; Quelle und Regelversion nennen;
-    Deutsch-first, englisches Original in Klammern."""
+    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
+    Deutsch-first (Original in Klammern)."""
     return _hole_detail("monster", name, edition, eintrag_id=eintrag_id)
 
 
@@ -466,9 +488,9 @@ def foliant_hol_gegenstand(name: str, edition: str = "2024",
     """Gegenstands-Steckbrief aus dem Bestand, mit Zitat (Quelle, ggf. Seite, Regelversion).
     Name deutsch oder englisch. edition Standard '2024'; eine andere Regelversion
     (z. B. '2014') laesst sich gezielt anfordern und wird nie still ersetzt. Bei
-    Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten. KERNREGELN:
-    nur aus dem Bestand antworten; Quelle und Regelversion nennen; Deutsch-first,
-    englisches Original in Klammern."""
+    Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
+    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
+    Deutsch-first (Original in Klammern)."""
     return _hole_detail("gegenstand", name, edition, eintrag_id=eintrag_id)
 
 
@@ -479,9 +501,9 @@ def foliant_hol_regel(name: str, edition: str = "2024",
     Seite, Regelversion) - die Suche liefert nur knappe Auszuege, dieses Tool den ganzen
     Abschnitt (A2). Name deutsch oder englisch. edition Standard '2024'; eine andere
     Regelversion laesst sich gezielt anfordern und wird nie still ersetzt. Bei
-    Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten. KERNREGELN:
-    nur aus dem Bestand antworten; Quelle und Regelversion nennen; Deutsch-first,
-    englisches Original in Klammern."""
+    Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
+    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
+    Deutsch-first (Original in Klammern)."""
     return _hole_detail("regel", name, edition, eintrag_id=eintrag_id)
 
 

@@ -276,6 +276,51 @@ def _body_md(endpunkt: str, r: dict) -> str:
     return _md_generisch(r)  # rules, conditions
 
 
+def _facetten(endpunkt: str, r: dict) -> dict | None:
+    """Strukturierte Filter-Facetten NUR aus den bereits geparsten Open5e-Feldern
+    (KEIN Prosa-Parsing -> B1-risikoarm): Zauber grad/schule/klassen, Monster HG/typ.
+    Seitenwagen zur eintraege-Zeile (zauber_meta/monster_meta), ersetzt body_md nie.
+    Fehlt ein Feld, bleibt es None (ein Filter mis-filtert dann bloss, statt zu raten).
+    HG als String (Open5e liefert Dezimal '0.25'/'0.5'/'1.0' bzw. Zahl - vereinheitlicht)."""
+    if endpunkt == "spells":
+        klassen = ", ".join(k.get("name", "") for k in r.get("classes") or []).strip(", ")
+        grad = r.get("level")
+        return {"tabelle": "zauber_meta",
+                "werte": (grad if isinstance(grad, int) else None,
+                          (r.get("school") or {}).get("name") or None,
+                          klassen or None)}
+    if endpunkt == "creatures":
+        cr = r.get("challenge_rating")
+        return {"tabelle": "monster_meta",
+                "werte": (str(cr) if cr is not None else None,
+                          (r.get("type") or {}).get("name") or None)}
+    return None
+
+
+def _schreibe_facetten(con: sqlite3.Connection, quelle_id: int, chunks: dict) -> tuple[int, int]:
+    """Befuellt zauber_meta/monster_meta additiv aus den in den chunks abgelegten
+    Facetten (c['meta'] aus _facetten). Verknuepfung ueber (kategorie, name_en) ->
+    eintrag_id - innerhalb EINER Quelle eindeutig, weil chunks nach (kat, name) dedupt.
+    Alte *_meta-Zeilen wurden bereits vom DELETE der eintraege per FK ON DELETE CASCADE
+    entfernt (setzt PRAGMA foreign_keys=ON voraus - _db.connect() aktiviert es).
+    Gibt (Zauber-Facetten, Monster-Facetten) zurueck."""
+    id_je = {(kat, ne): eid for eid, kat, ne in con.execute(
+        "SELECT id, kategorie, name_en FROM eintraege WHERE quelle_id = ?", (quelle_id,))}
+    z_meta, m_meta = [], []
+    for c in chunks.values():
+        meta, eid = c.get("meta"), id_je.get((c["kategorie"], c["name"]))
+        if not meta or eid is None:
+            continue
+        (z_meta if meta["tabelle"] == "zauber_meta" else m_meta).append((eid, *meta["werte"]))
+    if z_meta:
+        con.executemany("INSERT INTO zauber_meta (eintrag_id, grad, schule, klassen) "
+                        "VALUES (?, ?, ?, ?)", z_meta)
+    if m_meta:
+        con.executemany("INSERT INTO monster_meta (eintrag_id, hg, typ) VALUES (?, ?, ?)",
+                        m_meta)
+    return len(z_meta), len(m_meta)
+
+
 # --------------------------------- API-Zugriff & Import ---------------------------------
 
 def _dok_key(r: dict) -> str:
@@ -377,7 +422,8 @@ def import_open5e(con: sqlite3.Connection, dokumente: list[str] | None = None,
                         # Waffen-/Ruestungsmechanik in den vorhandenen items-Eintrag mergen
                         chunks[key]["body"] += f"\n\n{body}"
                     elif key not in chunks:
-                        chunks[key] = {"name": name, "kategorie": kategorie, "body": body}
+                        chunks[key] = {"name": name, "kategorie": kategorie, "body": body,
+                                       "meta": _facetten(endpunkt, r)}
                 print(f"  {dokument}/{endpunkt}: {len(rohe)} Datensaetze")
             if not chunks:
                 raise ValueError(f"{dokument}: kein einziger Datensatz von der API - "
@@ -405,7 +451,9 @@ def import_open5e(con: sqlite3.Connection, dokumente: list[str] | None = None,
             "edition, seite, body_md) VALUES (?, ?, NULL, ?, 'en', ?, NULL, ?)",
             [(quelle_id, c["kategorie"], c["name"], edition, c["body"])
              for c in chunks.values()])
-        print(f"{dokument}: {len(chunks)} Eintraege vorbereitet (Edition {edition})")
+        z_n, m_n = _schreibe_facetten(con, quelle_id, chunks)
+        print(f"{dokument}: {len(chunks)} Eintraege vorbereitet (Edition {edition}), "
+              f"{z_n} Zauber- + {m_n} Monster-Facetten")
         gesamt += len(chunks)
     # FTS-Rebuild in DERSELBEN Transaktion (Leitplanke + A7).
     con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")

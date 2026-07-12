@@ -77,7 +77,7 @@ def test_a3_genau_ein_kanonischer_feuerball(bestand):
     """'Fireball' UND 'Feuerball' liefern je genau EINEN kanonischen Feuerball-Treffer
     (2024): deutscher Text (kleinste prioritaet), Open5e als weitere Quelle."""
     for suchbegriff in ("Fireball", "Feuerball"):
-        s = ns.foliant_suche_regeln(suchbegriff)
+        s = ns.foliant_suche_bestand(suchbegriff)
         feuerbaelle = [t for t in _zauber_2024(s)
                        if (t["name_de"] or t["name_en"]) in ("Feuerball", "Fireball")]
         assert len(feuerbaelle) == 1, (suchbegriff, feuerbaelle)
@@ -90,21 +90,21 @@ def test_a3_genau_ein_kanonischer_feuerball(bestand):
 
 def test_a3_aehnliche_zauber_bleiben_getrennt(bestand):
     """'Verzögerter Feuerball' ist KEINE Dublette von 'Feuerball' (kein Uebermerge)."""
-    s = ns.foliant_suche_regeln("Feuerball")
+    s = ns.foliant_suche_bestand("Feuerball")
     namen = {t["name_de"] or t["name_en"] for t in _zauber_2024(s)}
     assert "Feuerball" in namen and "Verzögerter Feuerball" in namen
 
 
 def test_a3_kategorien_bleiben_getrennt(bestand):
     """'Schild' als Zauber und als Gegenstand bleiben zwei Treffer (B4/T8)."""
-    s = ns.foliant_suche_regeln("Schild")
+    s = ns.foliant_suche_bestand("Schild")
     kategorien = {t["kategorie"] for t in s["treffer"] if t["name_de"] == "Schild"}
     assert kategorien == {"zauber", "gegenstand"}
 
 
 def test_a3_editionen_bleiben_getrennt(bestand):
     """Der 2014-Feuerball wird nie in den 2024-Treffer gemergt (V5)."""
-    s = ns.foliant_suche_regeln("Feuerball")
+    s = ns.foliant_suche_bestand("Feuerball")
     assert all(t["edition"] == "2024" for t in s["treffer"])
     assert any(t["edition"] == "2014" for t in s.get("aeltere_staende", []))
     d = ns.foliant_hol_zauber("Feuerball", edition="2014")
@@ -117,7 +117,7 @@ def test_p0_gleichnamige_abschnitte_derselben_quelle_bleiben_getrennt(bestand):
     wird der AUSFUEHRLICHSTE Kernabschnitt geliefert (codex-Kriterium 'Kernabschnitt
     priorisieren'), die uebrigen bleiben als nachladbare weitere_abschnitte sichtbar -
     kein stilles Fragment, aber auch keine unnoetige Mehrdeutigkeit."""
-    s = ns.foliant_suche_regeln("Reaktionen")
+    s = ns.foliant_suche_bestand("Reaktionen")
     reaktionen = [t for t in s["treffer"] if t["name_de"] == "Reaktionen"]
     assert len(reaktionen) == 2, reaktionen                 # beide Abschnitte sichtbar
     d = ns.foliant_hol_regel("Reaktionen")
@@ -131,10 +131,10 @@ def test_p0_gleichnamige_abschnitte_derselben_quelle_bleiben_getrennt(bestand):
 def test_a3_fuzzy_brueckt_keine_dublette(bestand):
     """Nur fuzzy-nahe Glossar-Zeilen ('Eisstrahlen'-Plural) verschmelzen 'Eisstrahl' und
     'Ray of Frost' NICHT - beide bleiben eigenstaendige Treffer."""
-    s = ns.foliant_suche_regeln("Eisstrahl")
+    s = ns.foliant_suche_bestand("Eisstrahl")
     namen = {t["name_de"] or t["name_en"] for t in s["treffer"]}
     assert "Eisstrahl" in namen
-    s_en = ns.foliant_suche_regeln("Ray of Frost")
+    s_en = ns.foliant_suche_bestand("Ray of Frost")
     namen_en = {t["name_de"] or t["name_en"] for t in s_en["treffer"]}
     assert "Ray of Frost" in namen_en
     # und der englische Eintrag traegt NICHT ploetzlich den deutschen Namen:

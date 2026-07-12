@@ -65,7 +65,7 @@ def bestand(tmp_path, monkeypatch):
 def test_a1_flut_verdraengt_2024_nicht(bestand):
     """>40 gut rankende 2014-Treffer + 1 schwacher 2024-Treffer: Die 2024-Suche muss den
     2024-Treffer finden (Editionsfilter VOR dem Roh-Limit)."""
-    s = ns.foliant_suche_regeln("Blitz")
+    s = ns.foliant_suche_bestand("Blitz")
     namen = [t["name_de"] for t in s["treffer"]]
     assert "Donnerkeil" in namen, f"2024-Treffer von 2014-Flut verdraengt: {namen}"
     assert all(t["edition"] == "2024" for t in s["treffer"])
@@ -74,7 +74,7 @@ def test_a1_flut_verdraengt_2024_nicht(bestand):
 def test_a1_explizite_2014_suche_ohne_falschen_altstand(bestand):
     """Explizite 2014-Suche: angeforderte Edition unter 'treffer'; 2024er neutral als
     'andere_fassungen', NICHT als 'aeltere_staende' mit 'Keine 2024-Fassung'-Text."""
-    s = ns.foliant_suche_regeln("Feuerball", edition="2014")
+    s = ns.foliant_suche_bestand("Feuerball", edition="2014")
     assert s["treffer"] and s["treffer"][0]["edition"] == "2014"
     assert "aeltere_staende" not in s
     assert all("2024-Fassung" not in str(v) for v in s.values() if isinstance(v, str))
@@ -82,7 +82,7 @@ def test_a1_explizite_2014_suche_ohne_falschen_altstand(bestand):
         assert all(t["edition"] != "2014" for t in s["andere_fassungen"])
 
     # Explizite 2014-Suche nach einem NUR-2024-Inhalt: ehrlich leer, kein Altstand-Text.
-    s2 = ns.foliant_suche_regeln("Nebelschritt", edition="2014")
+    s2 = ns.foliant_suche_bestand("Nebelschritt", edition="2014")
     assert s2["treffer"] == []
     assert "Keine 2024-Fassung" not in s2.get("hinweis", "")
 
@@ -104,13 +104,13 @@ def test_a1_ungueltige_edition_strukturiert(bestand):
     """Leere und unbekannte Editionsangaben: klarer Validierungsfehler, keine stille
     editionsuebergreifende Suche, keine Exception nach aussen."""
     for kaputt in ("", "  ", "2034", "3e"):
-        s = ns.foliant_suche_regeln("Feuerball", edition=kaputt)
+        s = ns.foliant_suche_bestand("Feuerball", edition=kaputt)
         assert s["treffer"] == [] and "fehler" in s, f"edition={kaputt!r} nicht abgelehnt"
     # SYN-P2-001: '5.5e'/'5e' sind AKZEPTIERTE Aliasse (das Projekt nennt 2024 selbst
     # so), keine Fehler - sie normalisieren auf die kanonische Edition.
-    s55 = ns.foliant_suche_regeln("Feuerball", edition="5.5e")
+    s55 = ns.foliant_suche_bestand("Feuerball", edition="5.5e")
     assert s55["treffer"] and s55["treffer"][0]["edition"] == "2024"
-    s5 = ns.foliant_suche_regeln("Feuerball", edition="5e")
+    s5 = ns.foliant_suche_bestand("Feuerball", edition="5e")
     assert s5["treffer"] and s5["treffer"][0]["edition"] == "2014"
     d = ns.foliant_hol_zauber("Feuerball", edition="quatsch")
     assert d["gefunden"] is False and "fehler" in d
@@ -138,7 +138,7 @@ def test_p0_klammerloser_zustand_faellt_nie_auf_2014(bestand):
     assert d14["gefunden"] is True and d14["edition"] == "2014"
     assert d14["name_en"] == "Exhaustion"
 
-    s = ns.foliant_suche_regeln("Erschöpfung")
+    s = ns.foliant_suche_bestand("Erschöpfung")
     assert s["treffer"] and s["treffer"][0]["edition"] == "2024"
     assert s["treffer"][0]["name_de"] == "Erschöpfung (Zustand)"
 
@@ -146,7 +146,7 @@ def test_p0_klammerloser_zustand_faellt_nie_auf_2014(bestand):
 def test_a6_fuzzy_ohne_prefix_und_score_ordnung(bestand):
     """Buchstabendreher OHNE Prefix-Match ('Nebelschirtt') laeuft ueber den Fuzzy-Fallback;
     der bessere Fuzzy-Score gewinnt (Nebelschritt vor Nebelschrei)."""
-    s = ns.foliant_suche_regeln("Nebelschirtt")
+    s = ns.foliant_suche_bestand("Nebelschirtt")
     namen = [t["name_de"] for t in s["treffer"]]
     assert namen and namen[0] == "Nebelschritt", namen
     assert s.get("hinweis_suchweg", "").startswith("Aehnliche Schreibweise")
@@ -156,10 +156,10 @@ def test_a6_deterministische_sortierung(bestand):
     """Gleiche Eingabe -> exakt gleiche Reihenfolge, auch ueber Glossar-/FTS-Laeufe
     hinweg (kein Vergleich unvergleichbarer bm25-Scores)."""
     laeufe = [tuple((t["name_de"], t["edition"]) for t in
-                    ns.foliant_suche_regeln("Blitz")["treffer"]) for _ in range(3)]
+                    ns.foliant_suche_bestand("Blitz")["treffer"]) for _ in range(3)]
     assert laeufe[0] == laeufe[1] == laeufe[2]
     # Flut-Namen untereinander deterministisch (Namens-Tiebreak):
-    s14 = ns.foliant_suche_regeln("Blitz", edition="2014")
+    s14 = ns.foliant_suche_bestand("Blitz", edition="2014")
     namen = [t["name_de"] for t in s14["treffer"]]
     assert namen == sorted(namen), "2014-Flut nicht deterministisch sortiert"
 
@@ -175,10 +175,10 @@ def test_c1_editionszustaende_leer_und_2014only(tmp_path, monkeypatch):
     c = sqlite3.connect(leer); c.executescript(schema); c.commit()
     c.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')"); c.commit(); c.close()
     monkeypatch.setattr(adb, "standard_pfad", lambda: leer)
-    s = ns.foliant_suche_regeln("Feuerball")                 # 2024-Default auf leerer DB
+    s = ns.foliant_suche_bestand("Feuerball")                 # 2024-Default auf leerer DB
     assert s["treffer"] == [] and "hinweis" in s             # ehrlich leer, kein Crash
     assert "fehler" not in s                                 # 2024 ist unterstützt, nicht ungültig
-    r = ns.foliant_suche_regeln("Feuerball", edition="2027")  # nicht unterstützt
+    r = ns.foliant_suche_bestand("Feuerball", edition="2027")  # nicht unterstützt
     assert "fehler" in r
 
     # reiner 2014-Bestand
@@ -191,7 +191,7 @@ def test_c1_editionszustaende_leer_und_2014only(tmp_path, monkeypatch):
     c.commit(); c.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
     c.commit(); c.close()
     monkeypatch.setattr(adb, "standard_pfad", lambda: nur14)
-    s2 = ns.foliant_suche_regeln("Hexenpfeil")               # 2024-Default, nur 2014 da
+    s2 = ns.foliant_suche_bestand("Hexenpfeil")               # 2024-Default, nur 2014 da
     assert s2["treffer"] == []                               # kein 2024-Treffer
     assert s2.get("aeltere_staende"), s2                     # aber 2014 als Altstand sichtbar
     assert "2024-Fassung" in s2["hinweis"]

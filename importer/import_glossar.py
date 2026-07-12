@@ -259,9 +259,13 @@ def seed_glossar_aus_bestand(con: sqlite3.Connection) -> int:
     Eintragsnamen des Bestands durch die dnddeutsch-API schicken - damit deutsche Suchen
     ('Feuerball') ueber die Glossar-Bruecke die englischen Eintraege treffen. Dank Cache
     sind Re-Runs offline; die Drossel macht den Erstlauf bewusst langsam (hoeflich)."""
+    # Deutsch-Qualitaet 12.07.2026: 'regel' JETZT mitseeden - Zustaende/Kampf-/Proben-
+    # Abschnittsnamen sind echte Fachbegriffe, die dnddeutsch kennt (frueher ausgeschlossen,
+    # obwohl der groesste englischsprachige Anteil des bedienten Korpus regel ist). Nicht-
+    # Begriffe (lange Kapiteltitel) liefern schlicht keinen Treffer - harmlos, gecacht.
     namen = [r[0] for r in con.execute(
         "SELECT DISTINCT name_en FROM eintraege WHERE name_en IS NOT NULL "
-        "AND kategorie IN ('zauber','monster','gegenstand','spezies','klasse',"
+        "AND kategorie IN ('regel','zauber','monster','gegenstand','spezies','klasse',"
         "'hintergrund','talent') ORDER BY name_en")]
     print(f"Vollseeding: {len(namen)} Bestandsnamen (Drossel {_PAUSE_S}s; Cache macht "
           f"Re-Runs offline).", file=sys.stderr)
@@ -285,6 +289,35 @@ def seed_srd_paare(con: sqlite3.Connection) -> int:
     return len(SRD_2024_BEGRIFFSPAARE)
 
 
+def kanonisiere_konflikte(con: sqlite3.Connection) -> int:
+    """Deutsch-Qualitaet 12.07.2026: wo eine KURATIERTE Fassung (SRD-Paar / Kern-Singular =
+    handverifiziert am Bestand) existiert, ist SIE die kanonische offizielle 2024-Fassung.
+    Konkurrierende Glossarzeilen mit demselben term_en, aber ABWEICHENDEM term_de
+    (dnddeutsch-Alt-/Schweizer-ss-/Tippfehler-Formen wie 'Kugelblitz' statt 'Kettenblitz',
+    'Redegewandheit' statt 'Redegewandtheit', 'Windstoss' statt 'Windstoß') werden auf
+    offiziell=0 demotet - sie bleiben als Such-/Schreibvariante erhalten, konkurrieren aber
+    nicht mehr als zweiter 'offizieller' Begriff (das war das 'falsches Deutsch'-Risiko,
+    schlimmer als *). HOMONYME OHNE kuratierte Fassung (Hide -> Fell/Verstecken, Divination ->
+    Erkenntnismagie/Weissagung) bleiben UNBERUEHRT. Gibt die Zahl demoteter Zeilen zurueck."""
+    kuratiert: dict[str, set[str]] = {}
+    for term_en, term_de in SRD_2024_BEGRIFFSPAARE:
+        kuratiert.setdefault(term_en.lower(), set()).add(term_de)
+    for term_en, term_de, _ed in KERN_SINGULAR_PAARE:
+        kuratiert.setdefault(term_en.lower(), set()).add(term_de)
+    demotet = 0
+    for te, kanonische_de in kuratiert.items():
+        for rid, tde in con.execute(
+                "SELECT id, term_de FROM glossar WHERE lower(term_en)=? AND offiziell=1",
+                (te,)).fetchall():
+            if tde not in kanonische_de:
+                con.execute("UPDATE glossar SET offiziell=0, "
+                            "quelle=coalesce(quelle,'')||' (demotet: kuratierte Fassung ist offiziell)' "
+                            "WHERE id=?", (rid,))
+                demotet += 1
+    con.commit()
+    return demotet
+
+
 if __name__ == "__main__":
     from app import db as _db
     pfad = _db.standard_pfad()
@@ -295,8 +328,10 @@ if __name__ == "__main__":
         n = seed_glossar(con, KERNBEGRIFFE_EN)
         a = seed_abkuerzungen(con)
         p = seed_srd_paare(con)
+        k = seed_kern_singulare(con)
         b = seed_glossar_aus_bestand(con)
-        print(f"Fertig: {n} Kern-Zeilen, {a} Abkuerzungen, {p} SRD-Paare, "
-              f"{b} Zeilen aus Bestandsnamen.")
+        d = kanonisiere_konflikte(con)
+        print(f"Fertig: {n} Kern-Zeilen, {a} Abkuerzungen, {p} SRD-Paare, {k} Kern-Singulare, "
+              f"{b} Zeilen aus Bestandsnamen, {d} Konflikte kanonisiert.")
     finally:
         con.close()

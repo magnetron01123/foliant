@@ -77,7 +77,7 @@ async def ready(_: Request) -> JSONResponse:
 # (Kanal 2); die Grounding-Hinweise stecken in den Tool-AUSGABEN (Kanal 3).
 from app.tools import nachschlagen as _nachschlagen
 
-mcp.tool(_nachschlagen.foliant_suche_regeln, annotations=_NUR_LESEND)
+mcp.tool(_nachschlagen.foliant_suche_bestand, annotations=_NUR_LESEND)
 mcp.tool(_nachschlagen.foliant_hol_regel, annotations=_NUR_LESEND)
 mcp.tool(_nachschlagen.foliant_hol_zauber, annotations=_NUR_LESEND)
 mcp.tool(_nachschlagen.foliant_hol_monster, annotations=_NUR_LESEND)

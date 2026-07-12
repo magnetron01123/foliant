@@ -134,7 +134,7 @@ def test_t1_quelle_seite_version(bestand):
     assert "SRD 5.2.1" in d["zitat"] and "S. 142" in d["zitat"] and "2024" in d["zitat"]
     assert d["lizenz"] == "CC-BY-4.0" and "CC-BY-4.0" in d["attribution"]     # A12
     assert "Wizards of the Coast" in d["attribution"]
-    s = ns.foliant_suche_regeln("Gelegenheitsangriff")
+    s = ns.foliant_suche_bestand("Gelegenheitsangriff")
     t = s["treffer"][0]
     assert t["quelle"] and t["edition"] and t["seite"]
 
@@ -142,7 +142,7 @@ def test_t1_quelle_seite_version(bestand):
 def test_t2_ehrliches_nicht_gefunden(bestand):
     """SERVER-Seite von B1/B2: leerer Befund liefert leere Treffer + expliziten
     Grounding-Hinweis in der AUSGABE (Kanal 3). Das Claude-VERHALTEN dazu -> Checkliste oben."""
-    s = ns.foliant_suche_regeln("Aasimar")
+    s = ns.foliant_suche_bestand("Aasimar")
     assert s["treffer"] == [] and "aeltere_staende" not in s
     assert "ehrlich" in s["hinweis"] and "Allgemeinwissen" in s["hinweis"]
     d = ns.foliant_hol_zauber("Wunsch des Chronomanten")
@@ -170,7 +170,7 @@ def test_t4_altbuch_begriff_ohne_stern(bestand):
 
 def test_t5_alter_stand_klar(bestand):
     """Nur 2014 vorhanden -> klar als alter Stand ausgegeben (V2/V4/B5)."""
-    s = ns.foliant_suche_regeln("Hexenpfeil")
+    s = ns.foliant_suche_bestand("Hexenpfeil")
     assert s["treffer"] == [] and s["aeltere_staende"][0]["edition"] == "2014"
     assert "2024-Fassung" in s["hinweis"]
     d = ns.foliant_hol_zauber("Hexenpfeil")
@@ -180,7 +180,7 @@ def test_t5_alter_stand_klar(bestand):
 
 def test_t6_2024_primaer(bestand):
     """2024+2014-Treffer -> 2024 primär, 2014 nur als markierter Zusatz (Q1)."""
-    s = ns.foliant_suche_regeln("Feuerball")
+    s = ns.foliant_suche_bestand("Feuerball")
     assert s["treffer"][0]["edition"] == "2024" and s["treffer"][0]["name_de"] == "Feuerball"
     assert all(t["edition"] == "2024" for t in s["treffer"])
     assert any(t["edition"] == "2014" for t in s["aeltere_staende"])
@@ -193,7 +193,7 @@ def test_t7_zweisprachig_tolerant(bestand):
     """'opportunity attack' / 'Gelegenheitsangriff' / 'AoO' -> selber Eintrag (B3)."""
     erwartet = "Gelegenheitsangriff"
     for eingabe in ("opportunity attack", "Gelegenheitsangriff", "AoO", "Gelegenheitsangrif"):
-        s = ns.foliant_suche_regeln(eingabe)
+        s = ns.foliant_suche_bestand(eingabe)
         assert s["treffer"], f"'{eingabe}' fand nichts"
         assert s["treffer"][0]["name_de"] == erwartet, f"'{eingabe}' -> {s['treffer'][0]}"
 
@@ -202,7 +202,7 @@ def test_t7b_bruecke_deutscher_begriff_englischer_bestand(bestand):
     """Verschaerfung von T7 (Regressionsfall vom 10.07.2026): Der reale Bestand ist rein
     englisch, das Glossar liefert teils PLURALFORMEN. Ein deutscher Singular-Suchbegriff
     muss ueber die normalisierende Glossar-Bruecke den englischen Eintrag finden."""
-    s = ns.foliant_suche_regeln("Todesrettungswurf")   # Singular; Glossar hat nur Plural
+    s = ns.foliant_suche_bestand("Todesrettungswurf")   # Singular; Glossar hat nur Plural
     assert s["treffer"], "Bruecke Deutsch->Englisch (mit Flexions-Normalisierung) gebrochen"
     assert s["treffer"][0]["name_en"] == "Death Saving Throws"
     assert "hinweis_suchweg" in s  # Suchweg wird transparent gemacht
@@ -215,7 +215,7 @@ def test_t7b_bruecke_deutscher_begriff_englischer_bestand(bestand):
 
 def test_t8_mehrdeutigkeit(bestand):
     """'Schild' -> Kandidaten mit Unterscheidungsmerkmal, kein Raten (B4)."""
-    s = ns.foliant_suche_regeln("Schild")
+    s = ns.foliant_suche_bestand("Schild")
     kategorien = {t["kategorie"] for t in s["treffer"] if t["name_de"] == "Schild"}
     assert {"zauber", "gegenstand"} <= kategorien  # Unterscheidungsmerkmal sichtbar
     d = ns.foliant_hol_zauber("Feuer")  # kein exakter Name -> nicht raten
@@ -227,7 +227,7 @@ def test_a2_hol_regel_vollstaendig(bestand):
     """A2: Ein Regel-Chunk, dessen relevante Aussage AUSSERHALB des Such-Snippets liegt,
     laesst sich ueber foliant_hol_regel vollstaendig abrufen (Text+Quelle+Edition+Seite);
     Mehrdeutigkeit verhaelt sich wie bei den bestehenden Detail-Tools."""
-    s = ns.foliant_suche_regeln("Unterwasserkampf")
+    s = ns.foliant_suche_bestand("Unterwasserkampf")
     assert s["treffer"] and "Dreizack" not in s["treffer"][0]["auszug"]
     d = ns.foliant_hol_regel("Unterwasserkampf")
     assert d["gefunden"] is True and "Dreizack" in d["regeltext_md"]

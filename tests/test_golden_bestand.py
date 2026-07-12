@@ -101,7 +101,7 @@ def test_golden_beeinflussen_und_attributswurf_getrennt():
 
 def test_golden_parameterfehler_ist_kein_leerbefund():
     """SYN-P0-006 am echten Bestand: vorhandener Inhalt + falscher Kategoriewert."""
-    s = ns.foliant_suche_regeln("Feuerball", kategorie="spell")
+    s = ns.foliant_suche_bestand("Feuerball", kategorie="spell")
     assert "fehler" in s and "Nichts im Bestand" not in s.get("hinweis", "")
 
 
@@ -138,7 +138,7 @@ def test_golden_gleichnamige_regelabschnitte_liefern_kernabschnitt():
     # Todesrettungswurf: das Regelglossar fuehrt nur einen Verweis-Stub; der VOLLE
     # Abschnitt heisst 'Auf 0 Trefferpunkte sinken' und muss ueber die Suche sichtbar
     # sein (RAW-treu: das Glossar verweist mit 'Siehe auch').
-    treffer = {t["name_de"] for t in ns.foliant_suche_regeln("Todesrettungswurf")["treffer"]}
+    treffer = {t["name_de"] for t in ns.foliant_suche_bestand("Todesrettungswurf")["treffer"]}
     assert "Auf 0 Trefferpunkte sinken" in treffer
     voll = ns.foliant_hol_regel("Auf 0 Trefferpunkte sinken")
     assert "10" in voll["regeltext_md"] and "drei" in voll["regeltext_md"]
@@ -156,7 +156,7 @@ def test_golden_b6_findability_top3():
         "Verstecken": "Verstecken (Aktion)",                  # die Aktion, nicht 'Hide Armor'
     }
     for begriff, ziel in faelle.items():
-        s = ns.foliant_suche_regeln(begriff)
+        s = ns.foliant_suche_bestand(begriff)
         top3 = [t["name_de"] or t["name_en"] for t in s["treffer"][:3]]
         assert ziel in top3, (begriff, top3)
     # Die 8 Meisterschaftseigenschaften sind zweisprachig aufloesbar:

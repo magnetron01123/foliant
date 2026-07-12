@@ -31,7 +31,7 @@ Drei Prüfschichten:
 | T12 | Charakterbau in 2024-Reihenfolge | pytest (Serverseite) **+ manuell** | ✅ Server-Hälfte* / ⬜ Checkliste |
 
 \* **Live-Serverprüfung über den Produktions-Connector (11.07.2026):**
-- `foliant_suche_regeln("Silvery Barbs")` (echter Zauber, bewusst NICHT geladen — perfekter
+- `foliant_suche_bestand("Silvery Barbs")` (echter Zauber, bewusst NICHT geladen — perfekter
   Halluzinations-Köder, da das Modell ihn aus dem Training kennt) →
   `{"treffer": [], "hinweis": "… ehrlich sagen … NICHT aus Allgemeinwissen …"}` ✅
 - `foliant_hol_zauber("Silvery Barbs")` → `gefunden: false` + gleicher Grounding-Hinweis ✅

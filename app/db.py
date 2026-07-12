@@ -86,13 +86,41 @@ MAX_QUERY_ZEICHEN = 200
 MAX_LIMIT = 50
 
 
+def stelle_schema_sicher(con: sqlite3.Connection) -> None:
+    """Idempotenter Schema-Sicherstellungs-Schritt fuer den READ-WRITE-Pfad (Import/Admin):
+    zieht die inhaltsart-Spalte defensiv nach (Bestands-DBs vor der v2-Migration kennen sie
+    nicht - das tat frueher NUR der DDB-Import, der Markdown/PDF/Open5e-Weg ueber connect()
+    NICHT) und setzt PRAGMA user_version ehrlich auf 2. So teilen sich alle connect()-Nutzer
+    EINEN Migrationspunkt und die Versionsnummer luegt nicht mehr (sie stand faktisch auf 0).
+    Nie vom Serving-Pfad (connect_readonly) aufrufen - dort ist Schreiben verboten und unnoetig.
+    Auf uninitialisierten DBs (noch keine quellen-Tabelle) tut die Funktion nichts - das Schema
+    legt db/init_db.py an."""
+    hat_quellen = con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='quellen'").fetchone()
+    if not hat_quellen:
+        return
+    try:
+        spalten = {r[1] for r in con.execute("PRAGMA table_info(quellen)")}
+        if "inhaltsart" not in spalten:
+            con.execute("ALTER TABLE quellen ADD COLUMN inhaltsart TEXT NOT NULL "
+                        "DEFAULT 'regelwerk'")
+        if con.execute("PRAGMA user_version").fetchone()[0] < 2:
+            con.execute("PRAGMA user_version = 2")     # nur anheben, nie eine hoehere Version senken
+        con.commit()
+    except sqlite3.OperationalError:
+        pass                                            # z. B. read-only geoeffnet - hier bewusst folgenlos
+
+
 def connect(pfad: str) -> sqlite3.Connection:
     """Review-Fund: FastMCP fuehrt sync-Tools im Threadpool aus -> KEINE geteilte globale
     Connection. Pro Tool-Aufruf eine Verbindung oeffnen/schliessen (SQLite-Open ist billig,
-    Workload read-only); alternativ check_same_thread=False + eigene Serialisierung."""
+    Workload read-only); alternativ check_same_thread=False + eigene Serialisierung.
+    READ-WRITE-Pfad (Import/Admin): stellt beilaeufig das Schema sicher (stelle_schema_sicher)
+    - EIN gemeinsamer Migrationspunkt fuer alle Importwege, die ueber connect() gehen."""
     con = sqlite3.connect(pfad)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys=ON;")
+    stelle_schema_sicher(con)
     return con
 
 

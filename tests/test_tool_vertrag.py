@@ -58,7 +58,7 @@ def test_p1_rundlauf_per_eintrag_id(bestand):
     """SYN-P1-002: Treffer tragen eintrag_id/quelle_kuerzel; der Detailabruf per
     Referenz liefert EXAKT diesen Eintrag - auch wenn die Namensaufloesung eine andere
     (Prioritaets-)Quelle waehlen wuerde."""
-    s = ns.foliant_suche_regeln("Nightmare")
+    s = ns.foliant_suche_bestand("Nightmare")
     t = s["treffer"][0]
     assert t["eintrag_id"] and t["quelle_kuerzel"] == "srd-de"   # kanonisch: Prio 10
     # Open5e-Fassung gezielt: ueber fremdsprachige_fassungen/Konflikt-Referenz laden.
@@ -115,9 +115,9 @@ def test_p1_schemas_tragen_enums_und_annotations(bestand):
             if "enum" in variante:
                 return set(variante["enum"])
         return set()
-    assert "zauber" in enum_von("foliant_suche_regeln", "kategorie")
+    assert "zauber" in enum_von("foliant_suche_bestand", "kategorie")
     assert enum_von("foliant_uebersetze_begriff", "richtung") == {"en_de", "de_en", "auto"}
-    assert enum_von("foliant_hol_attributswerte", "methode") == {"standard_array", "point_buy"}
+    assert enum_von("foliant_hol_attributswerte", "attributsmethode") == {"standard_array", "point_buy"}
     assert "herkunft" in enum_von("foliant_liste_talente", "kategorie")
     for name, t in tools.items():
         ann = t.annotations

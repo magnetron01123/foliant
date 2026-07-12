@@ -16,8 +16,8 @@ from pathlib import Path
 from app import db as _db
 
 
-def _con() -> sqlite3.Connection:
-    pfad = _db.standard_pfad()
+def _con(pfad_override: str | None = None) -> sqlite3.Connection:
+    pfad = Path(pfad_override) if pfad_override else _db.standard_pfad()
     if not pfad.exists():
         sys.exit(f"DB fehlt: {pfad}  ->  erst `python db/init_db.py {pfad}` ausfuehren.")
     return _db.connect(str(pfad))
@@ -61,21 +61,23 @@ def cmd_import(args) -> None:
     Nach jedem Import wird die FTS neu aufgebaut (Leitplanke)."""
     kuerzel = args.quelle
     if kuerzel == "glossar":
-        from importer.import_glossar import (KERNBEGRIFFE_EN, seed_abkuerzungen,
-                                             seed_glossar, seed_glossar_aus_bestand,
-                                             seed_kern_singulare, seed_srd_paare)
-        c = _con()
+        from importer.import_glossar import (KERNBEGRIFFE_EN, kanonisiere_konflikte,
+                                             seed_abkuerzungen, seed_glossar,
+                                             seed_glossar_aus_bestand, seed_kern_singulare,
+                                             seed_srd_paare)
+        c = _con(getattr(args, "db", None))
         n = seed_glossar(c, KERNBEGRIFFE_EN)
         a = seed_abkuerzungen(c)
         p = seed_srd_paare(c)
         k = seed_kern_singulare(c)
         b = seed_glossar_aus_bestand(c)
+        d = kanonisiere_konflikte(c)   # zuletzt: kuratierte Fassung schlaegt konkurrierende (Deutsch-Qualitaet)
         print(f"Glossar: {n} Kern-Zeilen, {a} Abkuerzungen, {p} SRD-Paare, "
-              f"{k} Kern-Singulare, {b} Zeilen aus Bestandsnamen.")
+              f"{k} Kern-Singulare, {b} Zeilen aus Bestandsnamen, {d} Konflikte kanonisiert.")
         c.close()
         return
 
-    c = _con()
+    c = _con(getattr(args, "db", None))
     try:
         force = bool(getattr(args, "force", False))
         if kuerzel.startswith("open5e"):
@@ -334,12 +336,17 @@ def cmd_check(_args) -> None:
     # check UND Tool-Validierung (db.KATEGORIEN, SYN-P0-006).
     bad_kat = [r[0] for r in c.execute("SELECT DISTINCT kategorie FROM eintraege")
                if r[0] not in _db.KATEGORIEN]
-    bad_ed = [r[0] for r in c.execute("SELECT DISTINCT edition FROM eintraege")
-              if r[0] not in ("2024", "2014")]
+    # kategorie ist ein geschlossener Invariant (CHECK/db.KATEGORIEN) -> harter Fehler.
+    # edition ist dagegen bewusst ERWEITERBAR (V7, freies TEXT); Referenz ist die EINE
+    # Liste db.UNTERSTUETZTE_EDITIONEN (kein hartkodiertes Duplikat mehr). Eine legitime,
+    # noch nicht eingetragene Regelversion darf das QS-Gate NICHT hart brechen -> WARNUNG.
+    unerwartete_ed = [r[0] for r in c.execute("SELECT DISTINCT edition FROM eintraege")
+                      if r[0] not in _db.UNTERSTUETZTE_EDITIONEN]
     if bad_kat:
         print(f"Unerlaubte Kategorien: {bad_kat}  FEHLER"); fehler += len(bad_kat)
-    if bad_ed:
-        print(f"Unerwartete Editionen: {bad_ed}  FEHLER"); fehler += len(bad_ed)
+    if unerwartete_ed:
+        print(f"Unerwartete Editionen (nicht in UNTERSTUETZTE_EDITIONEN): {unerwartete_ed}  "
+              f"WARNUNG - falls beabsichtigt, db.UNTERSTUETZTE_EDITIONEN ergaenzen")
     # Textmuell (HTML-Reste/interne Links) - Warnung, kein harter Fehler.
     html = c.execute("SELECT count(*) FROM eintraege WHERE body_md LIKE '%<br%' "
                      "OR body_md LIKE '%<p>%' OR body_md LIKE '%<div%' OR body_md LIKE '%<span%' "
@@ -401,6 +408,149 @@ def cmd_manifest(_args) -> None:
         c.close()
 
 
+def cmd_glossar_audit(args) -> None:
+    """Deutsch-Qualitaets-Audit (READ-ONLY, schreibt nichts). Fuer den bedienten Bestand:
+    deutsche Eintraege sind per se deutsch; die deutsche ANZEIGE englischer Eintraege haengt
+    an einer Glossar-Bruecke (term_en -> term_de). Je Kategorie:
+      en_offiziell = engl. Namen mit EXAKTer offizieller Bruecke (sauberes Deutsch, kein *)
+      en_stern     = nur inoffizielle Bruecke (-> *-Kennzeichnung)
+      en_ohne      = KEINE Bruecke (-> nur Englisch; die eigentliche Deutsch-Luecke)
+    Plus Konflikte (ein EN-Begriff -> mehrere OFFIZIELLE dt. Begriffe = 'falsches Deutsch'-
+    Risiko, schlimmer als *). Hinweis: dedupt der Bestand einen engl. Eintrag ohnehin gegen
+    einen deutschen (gleiches Konzept), erscheint dem Nutzer die deutsche Fassung - die
+    Roh-en_ohne-Zahl ist daher eine OBERGRENZE der real sichtbaren Luecke. --luecken N listet
+    je Kategorie bis zu N fehlende Namen (Kuratier-Kandidaten fuer #4). --json fuer Maschinen."""
+    import json as _json
+
+    c = _con(getattr(args, "db", None))
+    try:
+        de_je = {r[0]: r[1] for r in c.execute(
+            "SELECT kategorie, count(*) FROM eintraege WHERE sprache='de' GROUP BY kategorie")}
+        # 'gedeckt' = Glossar-Bruecke ODER gleichnamiger deutscher Eintrag (das Query-Dedup
+        # zeigt dann ohnehin Deutsch). Ohne den d-Join ueberzeichnet en_ohne (z. B. Aboleth=Aboleth).
+        deckung = {r["kategorie"]: dict(r) for r in c.execute(
+            """SELECT e.kategorie,
+                      count(DISTINCT lower(e.name_en)) AS en,
+                      count(DISTINCT CASE WHEN g.mx=1 OR d.hit=1 THEN lower(e.name_en) END) AS off,
+                      count(DISTINCT CASE WHEN g.mx=0 AND d.hit IS NULL THEN lower(e.name_en) END) AS stern,
+                      count(DISTINCT CASE WHEN g.mx IS NULL AND d.hit IS NULL THEN lower(e.name_en) END) AS ohne
+               FROM eintraege e
+               LEFT JOIN (SELECT lower(term_en) t, max(offiziell) mx FROM glossar
+                          GROUP BY lower(term_en)) g ON g.t = lower(e.name_en)
+               LEFT JOIN (SELECT DISTINCT lower(name_de) nd, 1 AS hit FROM eintraege
+                          WHERE sprache='de' AND name_de IS NOT NULL) d ON d.nd = lower(e.name_en)
+               WHERE e.sprache='en' AND e.name_en IS NOT NULL
+               GROUP BY e.kategorie""")}
+        # Abkuerzungs-Zeilen (quelle='abkuerzung', z. B. Armor Class->RK) sind BEABSICHTIGT,
+        # kein Konflikt - ausschliessen, damit nur echte Term-Konflikte fuer die Review bleiben.
+        konflikte = [dict(kandidat=r[0], anzahl=r[1], deutsche=r[2]) for r in c.execute(
+            "SELECT term_en, count(DISTINCT term_de) AS n, group_concat(DISTINCT term_de) "
+            "FROM glossar WHERE offiziell=1 AND coalesce(quelle,'') NOT LIKE 'abkuerzung%' "
+            "GROUP BY lower(term_en) HAVING n > 1 ORDER BY n DESC, term_en")]
+
+        bericht = {"kategorien": [], "konflikte": konflikte}
+        for kat in _db.KATEGORIEN:
+            d = deckung.get(kat, {})
+            eintrag = {"kategorie": kat, "de": de_je.get(kat, 0),
+                       "en": d.get("en", 0), "en_offiziell": d.get("off", 0),
+                       "en_stern": d.get("stern", 0), "en_ohne": d.get("ohne", 0)}
+            if getattr(args, "luecken", 0):
+                eintrag["luecken_namen"] = [r[0] for r in c.execute(
+                    "SELECT DISTINCT e.name_en FROM eintraege e "
+                    "LEFT JOIN glossar g ON lower(g.term_en)=lower(e.name_en) "
+                    "WHERE e.sprache='en' AND e.kategorie=? AND e.name_en IS NOT NULL "
+                    "AND g.id IS NULL "
+                    "AND NOT EXISTS (SELECT 1 FROM eintraege d WHERE d.sprache='de' "
+                    "AND lower(d.name_de)=lower(e.name_en)) "
+                    "ORDER BY e.name_en LIMIT ?", (kat, int(args.luecken)))]
+            bericht["kategorien"].append(eintrag)
+
+        if getattr(args, "json", False):
+            print(_json.dumps(bericht, ensure_ascii=False, indent=2))
+            return
+
+        print("Deutsch-Qualitaets-Audit (bediente DB)\n")
+        print(f"  {'Kategorie':<12} {'de':>6} {'en':>6} {'en+off':>7} {'en*':>6} "
+              f"{'en_ohne':>8} {'*-Quote':>8}")
+        ges = {"de": 0, "en": 0, "off": 0, "stern": 0, "ohne": 0}
+        for e in bericht["kategorien"]:
+            offen = e["en_stern"] + e["en_ohne"]
+            quote = f"{100 * offen // e['en']}%" if e["en"] else "-"
+            print(f"  {e['kategorie']:<12} {e['de']:>6} {e['en']:>6} {e['en_offiziell']:>7} "
+                  f"{e['en_stern']:>6} {e['en_ohne']:>8} {quote:>8}")
+            ges["de"] += e["de"]; ges["en"] += e["en"]; ges["off"] += e["en_offiziell"]
+            ges["stern"] += e["en_stern"]; ges["ohne"] += e["en_ohne"]
+            if e.get("luecken_namen"):
+                print(f"      Luecken: {', '.join(e['luecken_namen'][:12])}"
+                      + (" …" if len(e['luecken_namen']) >= int(args.luecken) else ""))
+        offen_ges = ges["stern"] + ges["ohne"]
+        gquote = f"{100 * offen_ges // ges['en']}%" if ges["en"] else "-"
+        print(f"  {'GESAMT':<12} {ges['de']:>6} {ges['en']:>6} {ges['off']:>7} "
+              f"{ges['stern']:>6} {ges['ohne']:>8} {gquote:>8}")
+        print(f"\n  Deutsche Eintraege: {ges['de']} · englische: {ges['en']} · "
+              f"davon mit offiziellem Deutsch: {ges['off']}, mit * : {ges['stern']}, "
+              f"nur Englisch: {ges['ohne']}")
+        if konflikte:
+            print(f"\n  ⚠️ {len(konflikte)} Konflikt(e) (ein EN -> mehrere offizielle DE - pruefen!):")
+            for k in konflikte[:15]:
+                print(f"     {k['kandidat']} -> {k['deutsche']}")
+        else:
+            print("\n  Keine EN->mehrere-offizielle-DE-Konflikte. ✓")
+    finally:
+        c.close()
+
+
+def cmd_backup(args) -> None:
+    """Online-Backup der SQLite-Datei ueber die SQLite-Backup-API - konsistent AUCH bei
+    laufendem Import (anders als cp/rsync auf eine offene DB). Danach eine selbst-enthaltene
+    Verifikation (integrity_check + FTS-Zeilengleichheit + nicht leer), sonst wird das Backup
+    verworfen. Aufbewahrung: nur die neuesten --behalten Dateien. Fuer Off-Site: dieses
+    Kommando per Cron laufen lassen und danach das Ziel-Verzeichnis auf ein zweites Geraet
+    rsyncen (docs/RUNBOOK.md) - der eigentliche M3-Schutz gegen Datenverlust."""
+    import datetime
+
+    quelle = _db.standard_pfad()
+    if not quelle.exists():
+        sys.exit(f"DB fehlt: {quelle}  ->  nichts zu sichern.")
+    ziel_dir = Path(args.ziel) if args.ziel else (quelle.parent / "backups")
+    ziel_dir.mkdir(parents=True, exist_ok=True)
+    stempel = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    ziel = ziel_dir / f"{quelle.stem}-{stempel}.sqlite"
+
+    src = _db.connect_readonly(str(quelle))              # read-only Quelle, konsistenter Snapshot
+    try:
+        dst = sqlite3.connect(str(ziel))
+        try:
+            src.backup(dst)                             # SQLite-Online-Backup (atomar konsistent)
+        finally:
+            dst.close()
+    finally:
+        src.close()
+
+    v = sqlite3.connect(f"file:{ziel}?mode=ro", uri=True)
+    try:
+        integ = v.execute("PRAGMA integrity_check").fetchone()[0]
+        n = v.execute("SELECT count(*) FROM eintraege").fetchone()[0]
+        n_fts = v.execute("SELECT count(*) FROM eintraege_fts").fetchone()[0]
+    finally:
+        v.close()
+    if integ != "ok" or n == 0 or n != n_fts:
+        ziel.unlink(missing_ok=True)
+        sys.exit(f"backup: Verifikation FEHLGESCHLAGEN (integrity={integ}, "
+                 f"{n} Eintraege / {n_fts} FTS-Zeilen) - Backup verworfen, nichts geschrieben.")
+    print(f"Backup OK: {ziel} ({ziel.stat().st_size // 1024} KiB, {n} Eintraege, "
+          f"FTS {n_fts}, integrity ok)")
+
+    if args.behalten > 0:
+        alle = sorted(ziel_dir.glob(f"{quelle.stem}-*.sqlite"))   # Zeitstempel sortiert = chronologisch
+        entfernt = 0
+        for alt in alle[:-args.behalten]:
+            alt.unlink(missing_ok=True)
+            entfernt += 1
+        if entfernt:
+            print(f"Aufbewahrung: {entfernt} aeltere Backup(s) entfernt (behalte {args.behalten}).")
+
+
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(prog="foliant-admin", description="Foliant Admin-CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -409,6 +559,8 @@ def main(argv=None) -> None:
                    ).set_defaults(func=cmd_manifest)
     pi = sub.add_parser("import", help="Quelle importieren")
     pi.add_argument("--quelle", required=True, help="kuerzel aus config, z. B. srd-de")
+    pi.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad); z. B. die private DB "
+                                 "fuer ein Glossar-Reseeding nach einem DDB-Import")
     pi.add_argument("--force", action="store_true",
                     help="Schrumpf-Schutz uebergehen (A7): Import auch dann ersetzen, "
                          "wenn er deutlich kleiner ist als der Altbestand")
@@ -433,6 +585,19 @@ def main(argv=None) -> None:
     po.set_defaults(func=cmd_ocr_pdf)
     sub.add_parser("reindex-fts", help="FTS-Index neu aufbauen").set_defaults(func=cmd_reindex)
     sub.add_parser("check", help="Smoke-/Qualitaetschecks").set_defaults(func=cmd_check)
+    pg = sub.add_parser("glossar-audit",
+                        help="Deutsch-Qualitaet messen: offiziell-Deckung/*-Quote/Luecken + Konflikte (read-only)")
+    pg.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad)")
+    pg.add_argument("--luecken", type=int, default=0,
+                    help="je Kategorie bis zu N fehlende EN-Namen listen (Kuratier-Kandidaten)")
+    pg.add_argument("--json", action="store_true", help="Maschinenlesbare JSON-Ausgabe")
+    pg.set_defaults(func=cmd_glossar_audit)
+    pb = sub.add_parser("backup",
+                        help="Online-Backup der SQLite (konsistent) + Verifikation (M3)")
+    pb.add_argument("--ziel", help="Zielverzeichnis (Standard: <db-Ordner>/backups)")
+    pb.add_argument("--behalten", type=int, default=14,
+                    help="nur die neuesten N Backups behalten (0 = alle behalten)")
+    pb.set_defaults(func=cmd_backup)
     pp = sub.add_parser("ddb-pruefe", help="DDB-Artefakt validieren (ohne DB-Zugriff)")
     pp.add_argument("--artefakt", required=True, help="Artefakt-Verzeichnis")
     pp.set_defaults(func=cmd_ddb_pruefe)

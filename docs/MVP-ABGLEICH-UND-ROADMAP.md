@@ -34,7 +34,7 @@ Der Rest ist da. Die Roadmap unten schließt genau diese Lücken.
 ### Funktional (§4)
 | Anf. | Inhalt | Status | Anmerkung |
 |---|---|---|---|
-| F1 | Regeln nachschlagen (Kampf + außerhalb) | ✅ | `foliant_suche_regeln`, FTS5 + bm25, Exact-Name-Boost |
+| F1 | Regeln nachschlagen (Kampf + außerhalb) | ✅ | `foliant_suche_bestand`, FTS5 + bm25, Exact-Name-Boost |
 | F2 | Steckbriefe Zauber/Monster/Gegenstand | ✅ | `foliant_hol_*`; Detail vollständig (inkl. DDB-Options-Aggregation) |
 | F3 | Charaktererstellung + Build-Prüfung | ✅ | Listen/Details/`foliant_pruefe_build`; DDB-Optionen in Listen |
 | F4 | Import eigener PDFs | ✅ | dt. SRD 5.2.1 live; PyMuPDF4LLM + Docling-Fallback |
