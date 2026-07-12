@@ -1,0 +1,9 @@
+# DDB-Exporter-Abhaengigkeiten - GETRENNT von requirements.txt: SQLite3MC gehoert nie in
+# die dauerhafte Runtime (Vorschlag §6.1). Installation in eine eigene Umgebung:
+#   python3 -m venv .venv-ddb && .venv-ddb/bin/pip install -r requirements-ddb.txt
+# Version gepinnt laut docs/VORSCHLAG-DDB-IMPORT-RASPBERRY-PI.md; liefert ARM64-Wheels.
+apsw-sqlite3mc==3.53.2.0
+httpx==0.28.1
+markdownify==0.13.1
+rapidfuzz==3.13.0
+pytest==9.1.1          # Testabhaengigkeit DEKLARIERT (make test-ddb; war nur implizit installiert)

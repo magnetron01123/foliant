@@ -1,0 +1,18 @@
+# DDB-Exporter - kurzlebiger Einmal-Container (Vorschlag §6/§15). GETRENNT vom
+# Runtime-Image: SQLite3MC/Netz-Werkzeuge gehoeren nie in den dauerhaften Service.
+# Python 3.12-slim laeuft als linux/arm64 nativ auf Pi 4 und Apple Silicon.
+FROM python:3.12-slim
+
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+COPY requirements-ddb.txt .
+RUN pip install --no-cache-dir -r requirements-ddb.txt
+
+# Nur was der Exporter braucht: CLI + Artefaktvertrag + Config-Auflösung (app.db).
+COPY app/ app/
+COPY config/stil.py config/stil.py
+COPY importer/ importer/
+COPY db/schema.sql db/schema.sql
+
+ENTRYPOINT ["python", "-m", "importer.ddb_exporter"]

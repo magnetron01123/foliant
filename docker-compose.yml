@@ -1,0 +1,84 @@
+services:
+  foliant:
+    build: .
+    container_name: foliant
+    restart: unless-stopped
+    ports:
+      # NUR localhost (B2): nach aussen geht es ausschliesslich ueber cloudflared
+      # (erreicht foliant im Compose-Netz als http://foliant:8000); der Host-Port ist
+      # nur fuer lokale Tests und darf die Cloudflare-Regeln nicht umgehbar machen.
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/app/data            # SQLite-DB (persistent, beschreibbar; Importe laufen hier)
+      # SYN-P1-005: der oeffentlich getunnelte Serve-Container sah data/private (private
+      # Kandidaten-DB, Backups, DDB-Artefakte) beschreibbar. Ein anonymes leeres Volume
+      # UEBERDECKT das Unterverzeichnis - eine kompromittierte Runtime erreicht die
+      # privaten Rohdaten nicht mehr. DDB-Import braucht deshalb einen Einmal-Lauf mit
+      # explizitem Mount (docs/DEPLOY-raspberry-pi.md, Abschnitt DDB).
+      - /app/data/private
+      - ./quellen:/app/quellen:ro   # Quelldateien (read-only; bei Serve-only leer/optional)
+      - ./config:/app/config:ro     # Konfiguration (read-only)
+    # KEIN FOLIANT_COBALT mehr: der dauerhafte Service traegt nie ein DDB-Secret -
+    # der Export laeuft im kurzlebigen ddb-exporter-Profil mit verdeckter TTY-Eingabe.
+    environment:
+      # Zugang (M3, app/zugriff.py): Geheimpfad-Token aus .env (leer = /mcp, nur Dev)
+      # + IP-Allowlist (Anthropic-Egress; 'aus' nur zum Debuggen) + optionale Zusatz-CIDRs.
+      - FOLIANT_PFAD_TOKEN=${FOLIANT_PFAD_TOKEN:-}
+      - FOLIANT_IP_FILTER=${FOLIANT_IP_FILTER:-an}
+      - FOLIANT_ERLAUBTE_IPS=${FOLIANT_ERLAUBTE_IPS:-}
+      # SYN-P1-004: Der Container IST Produktion - ohne starkes Token (>=16 Zeichen)
+      # bricht der Start ab statt fail-open unter /mcp zu servieren.
+      - FOLIANT_PRODUKTION=${FOLIANT_PRODUKTION:-an}
+    healthcheck:
+      # /ready statt /health (SYN-P1-011): prueft DB+FTS, nicht nur den Prozess.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/ready').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: foliant-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - foliant
+
+  # Optionaler lokaler Admin-Blick (read-only) auf die Daten - NUR localhost (SSH-Tunnel),
+  # NICHT ueber den Cloudflare Tunnel. Start: docker compose --profile admin up -d datasette
+  # Falls kein ARM64-Image verfuegbar ist, stattdessen im foliant-Container:
+  #   docker compose exec foliant sh -c "pip install datasette && datasette data/foliant.sqlite -h 127.0.0.1 -p 8001"
+  datasette:
+    image: datasetteproject/datasette:latest
+    container_name: foliant-admin
+    profiles: ["admin"]
+    command: ["datasette", "/data/foliant.sqlite", "-h", "0.0.0.0", "-p", "8001"]
+    ports:
+      - "127.0.0.1:8001:8001"     # nur lokal erreichbar
+    volumes:
+      - ./data:/data:ro
+    restart: unless-stopped
+
+  # DDB-Buch-Export: kurzlebiger Einmal-Container (Netz + Secret, KEIN DB-Zugriff).
+  # Start (interaktiv, Cobalt wird verdeckt abgefragt - nie argv/.env):
+  #   docker compose --profile ddb run --rm ddb-exporter list-owned
+  #   docker compose --profile ddb run --rm ddb-exporter export --quelle <kuerzel> --dry-run
+  ddb-exporter:
+    profiles: ["ddb"]
+    build:
+      context: .
+      dockerfile: Dockerfile.ddb-import
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,noexec,nosuid,nodev
+    volumes:
+      - ./config:/app/config:ro
+      - ./data/private/ddb-work:/app/data/private/ddb-work
+      - ./data/private/ddb-artifacts:/app/data/private/ddb-artifacts
+      # BEWUSST kein ./data-Mount: der Exporter kann keine Foliant-DB erreichen.
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true

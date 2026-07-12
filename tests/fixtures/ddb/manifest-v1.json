@@ -1,0 +1,18 @@
+{
+ "schema_version": 1,
+ "status": "complete",
+ "source_key": "ddb-synthetic-en",
+ "ddb_source_id": 999999,
+ "title": "Synthetic Handbook (Fixture)",
+ "language": "en",
+ "edition": "2024",
+ "license": "privat",
+ "exported_at": "2026-07-10T12:00:00Z",
+ "exporter_version": "fixture",
+ "book_version": null,
+ "entry_count": 3,
+ "empty_content_count": 0,
+ "unknown_category_count": 0,
+ "entries_sha256": "280e749cd1ecfa5ea01bee8f8b8eb4ae014a66f01cb129f64a2a4df58e81d12e",
+ "archive_sha256": "fixture"
+}

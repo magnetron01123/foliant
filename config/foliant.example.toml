@@ -1,0 +1,86 @@
+# Foliant - Beispiel-Konfiguration. Kopieren nach config/foliant.toml (gitignored).
+# KEINE Secrets hier ablegen (Cobalt-Cookie via Umgebungsvariable FOLIANT_COBALT).
+
+[db]
+pfad = "data/foliant.sqlite"
+
+[server]
+name = "Foliant für D&D"
+pfad = "/mcp"
+stateless_http = true
+
+[glossar]
+# Echte API (verifiziert 10.07.2026) - ein "/api/" existiert auf dnddeutsch.de nicht:
+api_url = "https://www.dnddeutsch.de/tools/json.php"
+
+# Quellen-Register: was importiert wird, mit welcher Version/Priorität.
+# prioritaet: kleiner = Vorrang bei Dubletten (Q2).
+[[quelle]]
+kuerzel = "srd-de"
+titel = "SRD 5.2.1 (Deutsch)"
+sprache = "de"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "CC-BY-4.0"
+prioritaet = 10
+dateipfad = "quellen/SRD_5.2.1_DE.pdf"
+
+[[quelle]]
+# GESCANNTE PDFs: erst die OCR-Vorstufe fahren (admin pdf-triage -> admin ocr-pdf),
+# dann zeigt dateipfad auf die OCR-Fassung unter data/ocr/ (Original bleibt in quellen/).
+kuerzel = "phb-2024-de"
+titel = "Spielerhandbuch 2024 (Deutsch)"
+sprache = "de"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 20
+dateipfad = "quellen/PHB_2024_DE.pdf"   # bei Scan: "data/ocr/PHB_2024_DE.ocr.pdf"
+
+[[quelle]]
+kuerzel = "srd-en"
+titel = "SRD 5.2.1 (English, Markdown)"
+sprache = "en"
+edition = "2024"
+herkunft = "srd-md"
+lizenz = "CC-BY-4.0"
+prioritaet = 30
+dateipfad = "quellen/srd-en-markdown/"
+
+[[quelle]]
+# Kuerzel-Schema des Importers: "open5e-<dokument-key>" (Quelle wird beim Import angelegt)
+kuerzel = "open5e-srd-2024"
+titel = "System Reference Document 5.2 (Open5e)"
+sprache = "en"
+edition = "2024"
+herkunft = "open5e"
+lizenz = "CC-BY-4.0 / OGL"
+prioritaet = 60          # geringer als deutsche Quellen -> fuellt Luecken, gewinnt nicht (Q2)
+# dateipfad entfaellt: API-Quelle (siehe [open5e])
+
+# DDB-Buchimport: zweistufig - kurzlebiger Exporter (Netz+Secret, KEIN DB-Zugriff)
+# erzeugt Artefakte; der Offline-Import schreibt in die DB. KEINE Secrets hier: Cobalt
+# wird zur Laufzeit verdeckt gelesen (Keychain/Datei/TTY, nie .env/argv). Automatik:
+# 'ddb-exporter sync' + 'admin ddb-import-all' (Anleitung: docs/DDB-IMPORT-anleitung.md).
+# Architektur: docs/ddb-architektur-entscheidung.md (der ddb-proxy-Weg ist verworfen).
+[ddb]
+artifact_dir = "data/private/ddb-artifacts"
+work_dir = "data/private/ddb-work"
+min_reimport_ratio = 0.70
+
+# ZIEL des DDB-Imports:
+# - Standard (Vorsicht, B2): separate private DB, NICHT ueber den authlosen Tunnel bedient.
+#   private_db = "data/private/foliant-private.sqlite"
+# - Bewusste Bereitstellung (Eigentuemer-Entscheidung): DDB-Buecher in die BEDIENTE DB
+#   mergen. Auf dem Pi (Betriebsort) gesetzt:
+# ins_hauptbestand = true
+
+# [[ddb.buch]]-Bloecke sind NICHT mehr noetig - 'sync' loest eigene Buecher automatisch
+# ueber das oeffentliche DDB-Verzeichnis auf (Titel/Edition). Nur fuer Sonderfaelle
+# (uebersprungene Buecher bewusst erzwingen) hier ein Block mit id/kuerzel/titel/
+# sprache/edition/prioritaet.
+
+[open5e]
+api_base = "https://api.open5e.com/v2/"
+# Nur gewuenschte Dokumente importieren, editionsgetaggt:
+dokumente = ["srd-2024"]   # optional zusaetzlich "srd-2014" (dann als 2014 getaggt)

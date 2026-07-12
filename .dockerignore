@@ -1,0 +1,15 @@
+# Nicht ins Image kopieren - Daten kommen ueber Volumes, nicht einbacken (Bloat + Datenleck):
+.git/
+.gitignore
+__pycache__/
+*.pyc
+.venv/
+.venv-ddb/
+venv/
+*.zip
+.pytest_cache/
+data/
+*.sqlite
+*.sqlite-*
+quellen/
+.env

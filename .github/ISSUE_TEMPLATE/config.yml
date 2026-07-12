@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Sicherheitslücke melden
+    url: https://github.com/magnetron01123/foliant/security/advisories/new
+    about: Bitte Sicherheitslücken NICHT als öffentliches Issue, sondern privat melden (siehe SECURITY.md).

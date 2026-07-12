@@ -1,0 +1,33 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+data/
+*.sqlite
+*.sqlite-*
+config/foliant.toml
+.env
+quellen/
+
+# Lokale Claude-Code-Einstellungen + Auslieferungs-Archive (entpackt, redundant)
+.claude/settings.local.json
+foliant-dokumente.zip
+foliant-mvp-geruest.zip
+
+# macOS-Finder-Metadaten
+.DS_Store
+.venv-ddb/
+
+# Test-/Build-Artefakte
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# ---------------------------------------------------------------------------
+# PRIVAT — aus DDB-Kaufbuechern abgeleitete Druck-Reparaturen (nicht im oeffentlichen
+# Repo; privater Eigenbedarf, DDB-ToS). Der oeffentliche Code laedt sie optional und
+# bleibt ohne sie voll nutzbar (nur die srd-de/CC-BY-Pipeline). Siehe SECURITY.md.
+importer/frhof_reparatur.py
+importer/reparatur_ddb_privat.py
+tests/test_ddb_druck_privat.py
