@@ -104,14 +104,28 @@ def test_name_sauber_filtert_kurzfragmente_nicht_komposita():
         assert ig._name_sauber(gut), gut
 
 
-def test_monster_name_reparatur_map_autoritativ():
+def test_srd_de_name_reparatur_map_autoritativ():
     from importer import import_glossar as ig
-    # Alle Ziele sind sauber (bestehen _name_sauber) und die 7 aus der srd-PDF bekannten
-    # Zerlege-Faelle sind abgedeckt:
-    assert len(ig.MONSTER_NAME_REPARATUR) == 7
-    assert all(ig._name_sauber(korrekt) for korrekt in ig.MONSTER_NAME_REPARATUR.values())
-    assert ig.MONSTER_NAME_REPARATUR["Gar l gy"] == "Gargyl"
-    assert ig.MONSTER_NAME_REPARATUR["Zu ferd gp"] == "Zugpferd"
+    # Alle Ziele sind sauber; die aus der srd-PDF bekannten Zerlege-Faelle (7 Monster +
+    # 2 Regelnamen) sind abgedeckt:
+    assert len(ig.SRD_DE_NAME_REPARATUR) == 9
+    assert all(ig._name_sauber(k) for k in ig.SRD_DE_NAME_REPARATUR.values())
+    assert ig.SRD_DE_NAME_REPARATUR["Gar l gy"] == "Gargyl"
+    assert ig.SRD_DE_NAME_REPARATUR["Kreaturent yp"] == "Kreaturentyp"
+    assert ig.SRD_DE_NAME_REPARATUR["Bewegungund Positionierung"] == "Bewegung und Positionierung"
+
+
+def test_kanon_schreibvariante_sicher():
+    from importer import import_glossar as ig
+    # ß vor ss; bekanntes Adjektiv klein:
+    assert ig._kanon_schreibvariante({"Junger Weisser Drache", "Junger weißer Drache"}) \
+        == "Junger weißer Drache"
+    assert ig._kanon_schreibvariante({"Riesentausendfüssler", "Riesentausendfüßler"}) \
+        == "Riesentausendfüßler"
+    # Substantiv-Fall ('Sehen') NICHT anfassen -> None (Review):
+    assert ig._kanon_schreibvariante({"Unsichtbares Sehen", "Unsichtbares sehen"}) is None
+    # Unterschiedliche Wortzahl / echte Uebersetzung -> None:
+    assert ig._kanon_schreibvariante({"Streitross", "Schlachtroß"}) is None
 
 
 def test_monster_typ_de_en_wortgrenze():

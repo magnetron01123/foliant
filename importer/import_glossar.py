@@ -328,12 +328,12 @@ def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]
     return paare
 
 
-# Monsternamen, die die srd-de-PDF auf ihren ZWEISPALTIGEN Kreatur-Seiten in der Statblock-
-# Ueberschrift zerlegt (Glyph-/Kerning-Reihenfolge). Die korrekte Form ist dem INHALTS-
-# VERZEICHNIS DERSELBEN PDF entnommen (dort steht sie sauber) - autoritativ, nicht geraten;
-# stimmt mit dnddeutsch ueberein, wo dort gefuehrt. Vollstaendig: ein Scan (<=3-Fragment)
-# ueber alle 339 srd-de-Monster findet genau diese sieben.
-MONSTER_NAME_REPARATUR = {
+# Namen, die die srd-de-PDF beim Extrahieren zerlegt hat (zweispaltige Kreatur-Seiten:
+# Glyph-Reihenfolge; sonst fehlende Leerzeichen). Die korrekte Form ist dem INHALTS-
+# VERZEICHNIS bzw. sauberen Fundstellen DERSELBEN PDF entnommen - autoritativ, nicht geraten
+# (stimmt mit dnddeutsch ueberein, wo dort gefuehrt). Vollstaendig: ein Fragment-/Merge-Scan
+# ueber ALLE srd-de-Namen findet genau diese - sieben Monster + zwei Regelnamen.
+SRD_DE_NAME_REPARATUR = {
     "Atterko pp": "Atterkopp",
     "Belebtesgfie endes Schwert": "Belebtes fliegendes Schwert",
     "Belebter Te ich des Erstickens pp": "Belebter Teppich des Erstickens",
@@ -341,24 +341,92 @@ MONSTER_NAME_REPARATUR = {
     "Har ie py": "Harpyie",
     "Pla erndes Hundertmaul pp": "Plapperndes Hundertmaul",
     "Zu ferd gp": "Zugpferd",
+    "Kreaturent yp": "Kreaturentyp",
+    "Bewegungund Positionierung": "Bewegung und Positionierung",
 }
 
 
-def repariere_monster_namen(con: sqlite3.Connection) -> int:
-    """Korrigiert die aus der srd-de-PDF zerlegten Monster-Namen (name_de) auf die autoritative
-    Form aus dem Inhaltsverzeichnis derselben Quelle. Idempotent (matcht nur die bekannten
-    korrupten Strings). Baut bei Aenderung die FTS neu auf (der Name ist mitindiziert, sonst
-    findet die Suche den korrigierten Namen nicht). Gibt die Zahl korrigierter Zeilen zurueck."""
+def repariere_srd_de_namen(con: sqlite3.Connection) -> int:
+    """Korrigiert die aus der srd-de-PDF zerlegten Eintragsnamen (name_de) auf die autoritative
+    Form aus derselben Quelle (kategorieuebergreifend - Monster UND Regeln). Idempotent
+    (matcht nur die bekannten korrupten Strings). Baut bei Aenderung die FTS neu auf (der Name
+    ist mitindiziert, sonst findet die Suche den korrigierten Namen nicht). Gibt die Zahl
+    korrigierter Zeilen zurueck."""
     n = 0
-    for korrupt, korrekt in MONSTER_NAME_REPARATUR.items():
-        cur = con.execute("UPDATE eintraege SET name_de = ? WHERE kategorie = 'monster' "
-                          "AND name_de = ?", (korrekt, korrupt))
+    for korrupt, korrekt in SRD_DE_NAME_REPARATUR.items():
+        cur = con.execute("UPDATE eintraege SET name_de = ? WHERE name_de = ?",
+                          (korrekt, korrupt))
         n += cur.rowcount
     con.commit()
     if n:
         from app import db as _db
         _db.fts_rebuild(con)
     return n
+
+
+# Deutsche Adjektive in Kreaturennamen (Farbe/Alter/Groesse), die grammatisch KLEIN stehen -
+# nur diese loesen einen Gross-/Klein-Konflikt in der Schreibvarianten-Kanonisierung auf.
+# Unbekannte Woerter (moegliche Substantive wie 'Sehen') bleiben bewusst unberuehrt.
+_KLEIN_ADJEKTIVE = {
+    "schwarzer", "blauer", "grüner", "roter", "weißer", "weisser", "silberner",
+    "kupferner", "goldener", "bronzener", "messingfarbener",
+    "junger", "alter", "ausgewachsener", "uralter", "riesiger", "grosser", "großer",
+    "kleiner", "gigantischer",
+}
+
+
+def _kanon_schreibvariante(formen: set[str]) -> str | None:
+    """Kanonische Schreibvariante mehrerer DE-Formen ODER None, wenn nicht SICHER bestimmbar.
+    Wort fuer Wort: gleich -> uebernehmen; nur ß/ss-Unterschied -> ß-Form; Gross-/Klein-
+    Unterschied NUR aufloesen, wenn die Kleinform ein bekanntes Adjektiv ist (sonst None ->
+    Review, keine Grammatik-Vermutung). Unterschiedliche Wortzahl -> None."""
+    wortlisten = [f.split() for f in formen]
+    if len({len(w) for w in wortlisten}) != 1:
+        return None
+    kanon: list[str] = []
+    for i, spalte in enumerate(zip(*wortlisten)):
+        varianten = set(spalte)
+        if len(varianten) == 1:
+            kanon.append(spalte[0]); continue
+        if len({w.replace("ß", "ss") for w in varianten}) == 1:   # nur ß/ss
+            kanon.append(next((w for w in varianten if "ß" in w), spalte[0])); continue
+        klein = {w for w in varianten if w[:1].islower()}         # Gross-/Klein
+        if i > 0 and len(klein) == 1 and next(iter(klein)).lower() in _KLEIN_ADJEKTIVE:
+            kanon.append(next(iter(klein))); continue
+        return None
+    return " ".join(kanon)
+
+
+def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
+    """Deutsch-Qualitaet: hat EIN englischer Begriff mehrere OFFIZIELLE deutsche Formen, die
+    sich NUR in ß/ss oder Gross-/Kleinschreibung unterscheiden ('Junger Weisser Drache' vs.
+    'Junger weißer Drache'), ist das dieselbe Bezeichnung. Kanonische Form bleibt offiziell,
+    die uebrigen -> offiziell=0 (bleiben Such-/Schreibvariante). NUR bei sicher bestimmbarem
+    Kanon (s. _kanon_schreibvariante) - echte Dual-Uebersetzungen bleiben unberuehrt. Gibt die
+    Zahl demoteter Zeilen zurueck."""
+    import unicodedata
+    def fold(s):
+        return "".join(c for c in unicodedata.normalize("NFKD", s.lower().replace("ß", "ss"))
+                       if not unicodedata.combining(c))
+    from collections import defaultdict
+    grp: dict[str, list] = defaultdict(list)
+    for r in con.execute("SELECT id, term_en, term_de FROM glossar WHERE offiziell=1 "
+                         "AND coalesce(quelle,'') NOT LIKE 'abkuerzung%'"):
+        grp[r["term_en"].lower()].append((r["id"], r["term_de"]))
+    demotet = 0
+    for zeilen in grp.values():
+        formen = {tde for _i, tde in zeilen}
+        if len(formen) < 2 or len({fold(f) for f in formen}) != 1:
+            continue                                  # keine reine Schreibvariante
+        kanon = _kanon_schreibvariante(formen)
+        if kanon is None:
+            continue                                  # nicht sicher -> Review, unberuehrt
+        for rid, tde in zeilen:
+            if tde != kanon:
+                con.execute("UPDATE glossar SET offiziell=0 WHERE id=?", (rid,))
+                demotet += 1
+    con.commit()
+    return demotet
 
 
 def seed_monster_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
