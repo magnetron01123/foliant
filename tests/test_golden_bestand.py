@@ -113,7 +113,12 @@ def test_golden_open5e_trigger_und_referenzlauf():
     assert d["gefunden"] and d["quelle"] == "SRD 5.2.1 (Deutsch)"   # kanonisch: Deutsch
     fremde = d.get("fremdsprachige_fassungen") or []
     assert fremde, "Open5e-Fassung nicht als Referenz ausgewiesen"
-    en = ns.foliant_hol_zauber("egal", eintrag_id=fremde[0]["eintrag_id"])
+    # Am VOLLEN Korpus stehen neben Open5e auch DDB-Fremdfassungen in der Liste (nach
+    # Quellen-Prioritaet, DDB vor Open5e) - die Open5e-Fassung gezielt heraussuchen statt
+    # fremde[0] anzunehmen (das galt nur am Mac-Subset ohne DDB, korpusabhaengig).
+    open5e = next((f for f in fremde if "Open5e" in (f.get("quelle") or "")), None)
+    assert open5e, ("Open5e-Fassung nicht unter den Fremdfassungen", fremde)
+    en = ns.foliant_hol_zauber("egal", eintrag_id=open5e["eintrag_id"])
     assert en["gefunden"] and "Open5e" in en["quelle"]
     assert "reaction" in en["regeltext_md"].lower()
     assert "you see" in en["regeltext_md"] or "which you take" in en["regeltext_md"], \
@@ -142,6 +147,36 @@ def test_golden_gleichnamige_regelabschnitte_liefern_kernabschnitt():
     assert "Auf 0 Trefferpunkte sinken" in treffer
     voll = ns.foliant_hol_regel("Auf 0 Trefferpunkte sinken")
     assert "10" in voll["regeltext_md"] and "drei" in voll["regeltext_md"]
+
+
+def test_golden_deutsch_first_schlaegt_laengeren_fremdeintrag():
+    """Regression Deutsch-first-Ranking (14.07.2026): ein exakter deutscher Namenstreffer
+    aus deutscher Quelle schlaegt einen fremdsprachigen Treffer - AUCH wenn der englische
+    Text laenger ist. Am vollen Korpus zog die EXAKTE Glossar-Bruecke 'Reactions'<->
+    'Reaktionen' den laengeren englischen DDB-'Reactions'-Abschnitt in die same-source-
+    Laengenwahl (SYN-P0-003) und verdraengte den srd-de-Kernabschnitt. Fix: die Laengenwahl
+    vergleicht nur gleichnamige Abschnitte DERSELBEN Quelle; verschiedene QUELLEN entscheidet
+    die Quellen-Prioritaet (Q2/S10). Am Mac-Subset (ohne DDB) haelt der Fall trivial - er
+    beisst erst am vollen Korpus (Pi-Container-Golden-Lauf, s. RUNBOOK)."""
+    faelle = ((ns.foliant_hol_regel, "Reaktionen", "Reaktionen"),
+              (ns.foliant_hol_regel, "Bonusaktionen", "Bonusaktionen"),
+              (ns.foliant_hol_zauber, "Counterspell", "Gegenzauber"))
+    for hol, begriff, name_de in faelle:
+        d = hol(begriff)
+        assert d.get("gefunden"), (begriff, d.get("kandidaten"))
+        # Der gewaehlte Haupttreffer ist die deutsche Quelle - nie der laengere Fremdeintrag.
+        assert d["sprache"] == "de", (begriff, d["quelle"], d.get("name_en"))
+        assert d["quelle"] == "SRD 5.2.1 (Deutsch)", (begriff, d["quelle"])
+        assert d["name_de"] == name_de, (begriff, d["name_de"])
+        # Fremdsprachige Fassungen bleiben ausgewiesen (per eintrag_id ladbar), aber NIE
+        # als Haupttreffer - und tauchen nie als Scheinkonflikt auf (Same-Source-Abschnitte
+        # sind gesondert 'weitere_abschnitte').
+        for f in d.get("fremdsprachige_fassungen") or []:
+            assert f.get("sprache") != "de", (begriff, f)
+    # Konkret 'Reaktionen': der srd-de-Spielregel-Kernabschnitt, nicht der engl. DDB-Text.
+    r = ns.foliant_hol_regel("Reaktionen")
+    assert "Certain special abilities" not in r["regeltext_md"], r["regeltext_md"][:120]
+    assert "Bestimmte Spezialfähigkeiten" in r["regeltext_md"]
 
 
 def test_golden_b6_findability_top3():

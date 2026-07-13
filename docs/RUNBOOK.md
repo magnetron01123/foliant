@@ -24,10 +24,20 @@ Schema v2 (zieht `inhaltsart` nach, setzt `user_version=2`) — jeder Import/Adm
 ## 2. Freigeben = testen (Pflicht-Gate)
 ```
 make test          # pytest (beide venvs) + admin check + smoke + GOLDEN-Suite am Bestand
+make test-golden-pi PI=pi@<host>   # Golden-Suite gegen den VOLLEN Pi-Korpus (Pflicht!)
 python -m app.admin manifest > korpus-manifest.json   # Fingerabdruck festhalten
 ```
 `make test` grün + Manifest festgehalten = der Bestand ist freigabefähig. Die
 Golden-Suite (`tests/test_golden_bestand.py`) prüft Regel-**Semantik**, nicht nur Struktur.
+
+**Korpus-Lücke (14.07.2026, verbindlich):** Die lokale Dev-DB ist oft nur ein **Subset**
+(z. B. ohne die englischen DDB-Bücher), deshalb ist `make test` am Mac bei
+**korpusabhängigen** Fällen trügerisch grün. Der Deutsch-first-Ranking-Bug
+(`foliant_hol_regel("Reaktionen")` lieferte den längeren englischen DDB-Eintrag statt des
+srd-de-Kernabschnitts) war am Subset unsichtbar und schlug erst am vollen Korpus zu. Darum
+läuft die Golden-Suite nach **jedem Deploy** und nach **jedem srd-de-Re-Import**
+zusätzlich im Pi-Container gegen den vollen Bestand: `make test-golden-pi PI=pi@<host>`
+(= `docker compose exec -T -w /app foliant python -m pytest -q tests/test_golden_bestand.py`).
 
 ## 3. Server starten
 - **Lokal (Dev):** `.venv/bin/uvicorn app.server:app --port 8000` → `GET /ready` == 200,
