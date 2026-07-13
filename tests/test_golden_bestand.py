@@ -176,3 +176,41 @@ def test_golden_alle_15_zustaende_klammerlos_2024():
         d = ns.foliant_hol_regel(z)
         assert d.get("gefunden") and d["edition"] == "2024", (z, d.get("kandidaten"))
         assert "hinweis_alter_stand" not in d, z
+
+
+def test_golden_filter_zauber_strukturiert():
+    """#3 (Finetuning 13.07.2026): strukturierter Zauber-Filter am echten Bestand.
+    Grad+Klasse+Schadensart UND-verknuepft; jeder Treffer traegt seinen Grad in kurzinfo;
+    Fehlwerte sind KEIN Leerbefund."""
+    r = ns.foliant_filter_zauber(grad=1, klasse="Hexenmeister", schadensart="feuer")
+    assert r["treffer"], r.get("hinweis")
+    assert all(t.get("kurzinfo") == "Grad 1" for t in r["treffer"]), r["treffer"]
+    # Höllischer Tadel (Hellish Rebuke) ist der Grad-1-Feuerzauber des Hexenmeisters:
+    namen = [t.get("name_de") or t.get("name_en") for t in r["treffer"]]
+    assert any("Tadel" in (n or "") for n in namen), namen
+    # Zaubertricks: grad=0 liefert etwas, alles als 'Zaubertrick' markiert.
+    z = ns.foliant_filter_zauber(grad=0, klasse="Magier")
+    assert z["treffer"] and all(t.get("kurzinfo") == "Zaubertrick" for t in z["treffer"])
+    # Fehlerpfade: kein Kriterium + unbekannte Schule -> 'fehler', KEIN 'nicht im Bestand'.
+    assert ns.foliant_filter_zauber().get("fehler") == "kein_kriterium"
+    ungueltig = ns.foliant_filter_zauber(schule="Zauberei")
+    assert "fehler" in ungueltig and ungueltig.get("gueltige_schulen")
+
+
+def test_golden_tippfehler_direkttreffer_statt_rauschen():
+    """#1 (Finetuning 13.07.2026): ein eindeutiger (auch vertippter) Namenstreffer wird
+    direkt geliefert - nicht als Mehrdeutigkeit mit blossen Body-Erwaehnungen (Schild,
+    Zauberplaetze) verrauscht. Deutsch-first bleibt gewahrt."""
+    d = ns.foliant_hol_zauber("Magic Missle")                  # Tippfehler: Missle
+    assert d.get("gefunden") and not d.get("mehrdeutig"), d.get("kandidaten")
+    assert d["quelle"] == "SRD 5.2.1 (Deutsch)"
+    assert "Magic Missile" in d["anzeige_name"] and "Magisches Geschoss" in d["anzeige_name"]
+
+
+def test_golden_suchtreffer_tragen_grad_und_hg():
+    """#2 (Finetuning 13.07.2026): knappe Zauber-/Monster-Treffer tragen die
+    Triage-Facette (Grad bzw. HG) aus dem Body."""
+    s = ns.foliant_suche_bestand("Feuerball", kategorie="zauber")
+    assert s["treffer"] and s["treffer"][0].get("kurzinfo", "").startswith("Grad"), s["treffer"][:1]
+    m = ns.foliant_suche_bestand("Goblin", kategorie="monster")
+    assert any((t.get("kurzinfo") or "").startswith("HG") for t in m["treffer"]), m["treffer"]

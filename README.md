@@ -20,7 +20,7 @@ Spieldeutsch (englischer Begriff in Klammern, `*` wenn keine offizielle Überset
 
 ## Stand (11.07.2026)
 **MVP komplett und live** auf dem Raspberry Pi: ~9490 Einträge aus 12 Quellen
-(dt. SRD 5.2.1, Open5e, 10 D&D-Beyond-Bücher), 16 Tools, Zugang über Geheimpfad +
+(dt. SRD 5.2.1, Open5e, 10 D&D-Beyond-Bücher), 17 Tools, Zugang über Geheimpfad +
 IP-Allowlist, Datenbank-QS abgeschlossen. Offene Schritte bis zur Gruppennutzung:
 `docs/MVP-ABGLEICH-UND-ROADMAP.md`.
 

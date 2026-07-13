@@ -100,7 +100,7 @@ def test_p1_gleichsprachiger_konflikt_wird_markiert(bestand):
 
 
 def test_p1_schemas_tragen_enums_und_annotations(bestand):
-    """SYN-P1-003: kategorie/richtung/methoden sind enums im JSON-Schema; alle 16 Tools
+    """SYN-P1-003: kategorie/richtung/methoden sind enums im JSON-Schema; alle 17 Tools
     tragen readOnlyHint/idempotentHint."""
     from app.server import mcp
 
@@ -108,7 +108,7 @@ def test_p1_schemas_tragen_enums_und_annotations(bestand):
         return await mcp.get_tools()
 
     tools = asyncio.run(hole())
-    assert len(tools) == 16
+    assert len(tools) == 17
     def enum_von(tool, feld):
         prop = tools[tool].parameters["properties"][feld]
         for variante in [prop, *prop.get("anyOf", [])]:

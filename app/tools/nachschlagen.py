@@ -10,7 +10,10 @@ import re
 import sqlite3
 from typing import Literal
 
+from rapidfuzz import fuzz
+
 from app import db as _db
+from app import facetten as _facetten
 from app import glossar as _glossar
 
 # SYN-P1-003: geschlossene Wertemengen als Literal -> FastMCP generiert daraus
@@ -70,6 +73,58 @@ def _knapp(t: dict) -> dict:
         # A3: fachliche Dublette kanonisch dedupliziert - Provenienz bleibt sichtbar.
         k["weitere_quellen"] = t["weitere_quellen"]
     return k
+
+
+def _reichere_facetten_an(con: sqlite3.Connection, *treffer_listen: list[dict]) -> None:
+    """#2: knappe Zauber-/Monster-Treffer um eine kompakte Facette ('Grad 3' bzw. 'HG 1')
+    anreichern - genau das Feld, nach dem ein Spieler triagiert. Aus dem Body geparst
+    (zauber_meta/monster_meta sind auf dem Bestand leer, s. app/facetten.py). EINE
+    Batch-Abfrage der Textkoepfe fuer alle gezeigten Treffer (BP #1: kein Body im Output)."""
+    ids = {k["eintrag_id"] for liste in treffer_listen for k in liste
+           if k.get("kategorie") in ("zauber", "monster")}
+    if not ids:
+        return
+    marker = ",".join("?" * len(ids))
+    koepfe = {r[0]: r[1] for r in con.execute(
+        f"SELECT id, substr(body_md, 1, 900) FROM eintraege WHERE id IN ({marker})",
+        tuple(ids))}
+    for liste in treffer_listen:
+        for k in liste:
+            body = koepfe.get(k["eintrag_id"])
+            if not body:
+                continue
+            if k["kategorie"] == "zauber":
+                info = _facetten.zauber_kurz(body)
+            elif k["kategorie"] == "monster":
+                info = _facetten.hg_kurz(body)
+            else:
+                info = None
+            if info:
+                k["kurzinfo"] = info
+
+
+# Fuzzy-Schwelle fuer die Namensrelevanz eines Kandidaten (#1). BEWUSST >= 90: die
+# Fuzzy-Naehe 'Aktionen'~'Reaktionen' (88.9, SYN-P0-001) darf NIE als Namenstreffer
+# zaehlen; kleine Tippfehler ('Missle'~'Missile' ~96) liegen klar darueber.
+_NAME_MIN = 90.0
+
+
+def _name_score(k: dict, ziele: set[str]) -> float:
+    """Relevanz des Kandidatennamens zur Anfrage (0-100): exakt/Praefix = 100, sonst der
+    beste rapidfuzz.ratio gegen die (normalisierten) Anfrage-Varianten `ziele`. Trennt
+    echte Namenstreffer von blossen Body-Erwaehnungen (deren Name gar nicht passt)."""
+    namen = _eintrag_namen(k)
+    if namen & ziele:
+        return 100.0
+    best = 0.0
+    for n in namen:
+        for z in ziele:
+            if not n or not z:
+                continue
+            if n.startswith(z) or z.startswith(n):
+                return 100.0
+            best = max(best, fuzz.ratio(n, z))
+    return best
 
 
 def foliant_suche_bestand(suchbegriff: str, kategorie: Kategorie | None = None,
@@ -133,6 +188,9 @@ def foliant_suche_bestand(suchbegriff: str, kategorie: Kategorie | None = None,
                                       f"'andere_fassungen') - klar unterscheiden (V5).")
             else:
                 antwort["hinweis"] = HINWEIS_LEER
+        _reichere_facetten_an(con, antwort["treffer"],
+                              antwort.get("aeltere_staende", []),
+                              antwort.get("andere_fassungen", []))
         return antwort
     finally:
         con.close()
@@ -401,9 +459,22 @@ def _hole_detail(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
                                        or kandidaten[0]["edition"] == edition):
             gewaehlt = kandidaten[0]
         if gewaehlt is None:
-            return {"gefunden": False, "mehrdeutig": True,
-                    "kandidaten": [_knapp(k) for k in kandidaten[:6]],
-                    "hinweis": HINWEIS_MEHRDEUTIG}
+            # #1: reine Body-Erwaehnungen (deren Name gar nicht zur Anfrage passt, z. B.
+            # 'Schild'/'Zauberplaetze' bei der Suche nach 'Magic Missile') aus der
+            # Kandidatenliste draengen. Bleibt genau EIN starker Namenstreffer der
+            # gewuenschten Edition (auch vertippt: 'Missle'->'Missile'), ihn direkt liefern
+            # statt rueckzufragen. Sonst die BEREINIGTE Kandidatenliste zeigen.
+            relevante = [k for k in kandidaten if _name_score(k, varianten) >= _NAME_MIN]
+            rel_std = [k for k in relevante if k["edition"] == edition]
+            if len(rel_std) == 1:
+                gewaehlt = rel_std[0]
+            elif len(relevante) == 1:
+                gewaehlt = relevante[0]
+            else:
+                anzeige = relevante or kandidaten
+                return {"gefunden": False, "mehrdeutig": True,
+                        "kandidaten": [_knapp(k) for k in anzeige[:6]],
+                        "hinweis": HINWEIS_MEHRDEUTIG}
 
         voll = _db.hole_eintrag(con, gewaehlt["id"])
         kinder = _kinder_texte(con, voll) if aggregiere_kinder else []
@@ -428,6 +499,15 @@ def _hole_detail(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
         andere = [k for k in exakt if k["edition"] != voll["edition"]]
         if andere:
             antwort["andere_fassungen"] = [_knapp(k) for k in andere]
+        # #5: Der pauschale hinweis_alter_stand ('keine 2024-Fassung im Bestand') ist FALSCH,
+        # wenn eine Standard-Fassung tatsaechlich vorliegt (Nutzer hat ausdruecklich die
+        # aeltere Edition angefragt). Dann korrekt formulieren statt in die Irre zu fuehren.
+        if (voll["edition"] != _db.STANDARD_EDITION
+                and any(k["edition"] == _db.STANDARD_EDITION for k in andere)):
+            antwort["hinweis_alter_stand"] = (
+                f"⚠️ Dies ist die {voll['edition']}-Fassung. Es gibt AUCH eine "
+                f"{_db.STANDARD_EDITION}-Fassung im Bestand (siehe 'andere_fassungen') - "
+                f"die aktuelle Version nennen, sofern nicht bewusst die aeltere gewuenscht ist.")
         # SYN-P1-009 (codex DND-011, Vampir 'weiss'/'unaware'): Dubletten GLEICHER
         # Edition aus anderen Quellen textlich vergleichen - weicht der Wortlaut
         # wesentlich ab, ist das ein QUELLKONFLIKT und darf nicht still von der
@@ -485,6 +565,105 @@ def foliant_hol_zauber(name: str, edition: str = "2024",
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
     Deutsch-first (Original in Klammern)."""
     return _hole_detail("zauber", name, edition, eintrag_id=eintrag_id)
+
+
+def foliant_filter_zauber(grad: int | None = None, schule: str | None = None,
+        klasse: str | None = None, schadensart: str | None = None,
+        edition: str = "2024", limit: int = 25) -> dict:
+    """Findet Zauber im Bestand nach STRUKTURIERTEN Kriterien - fuer Fragen wie 'welche
+    Grad-1-Feuerzauber kann ein Hexenmeister lernen?', die die Freitextsuche nur zufaellig
+    trifft. Mindestens EIN Kriterium angeben. Alle Kriterien werden UND-verknuepft; die
+    Werte werden aus dem Regeltext abgeleitet (nichts geraten - ohne erkennbaren Grad/Schule
+    faellt ein Zauber aus dem jeweiligen Filter).
+      grad: 0-9 (0 = Zaubertrick/Cantrip).
+      schule: deutsch oder englisch (Hervorrufung/Evocation, Nekromantie/Necromancy ...).
+      klasse: deutsch oder englisch (Hexenmeister/Warlock, Magier/Wizard ...).
+      schadensart: deutsch oder englisch (Feuer/fire, Kaelte/cold, Gift/poison ...).
+    Ungueltige Werte werden mit 'fehler' abgelehnt (das ist KEIN leerer Befund).
+    Liefert KNAPPE Treffer (mit Grad in 'kurzinfo') - Details per foliant_hol_zauber.
+    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
+    Deutsch-first (Original in Klammern)."""
+    if grad is None and not schule and not klasse and not schadensart:
+        return {"treffer": [], "fehler": "kein_kriterium",
+                "hinweis": "Mindestens ein Filter (grad/schule/klasse/schadensart) angeben - "
+                           "sonst waere es die ganze Zauberliste. KEIN 'nicht im Bestand'."}
+    con = _verbinde()
+    if con is None:
+        return {"treffer": [], "hinweis": HINWEIS_DB_FEHLT}
+    try:
+        try:
+            edition = _db.normalisiere_edition(edition)
+            _db._pruefe_edition(con, edition)
+        except ValueError as fehler:
+            return {"treffer": [], "fehler": str(fehler),
+                    "hinweis": "Ungueltiger PARAMETER - KEIN 'nicht im Bestand' (B1/B4)."}
+        if grad is not None and not (0 <= int(grad) <= 9):
+            return {"treffer": [], "fehler": "grad ausserhalb 0-9",
+                    "hinweis": "grad ist 0 (Zaubertrick) bis 9. KEIN 'nicht im Bestand'."}
+        schule_key = None
+        if schule:
+            schule_key = _facetten.schule_schluessel(schule)
+            if not schule_key:
+                return {"treffer": [], "fehler": f"unbekannte Schule {schule!r}",
+                        "gueltige_schulen": _facetten.schulen_anzeige(),
+                        "hinweis": "Gueltige Schule aus 'gueltige_schulen' nutzen (B1/B4)."}
+        schaden_key = None
+        if schadensart:
+            schaden_key = _facetten.schadensart_schluessel(schadensart)
+            if not schaden_key:
+                return {"treffer": [], "fehler": f"unbekannte Schadensart {schadensart!r}",
+                        "gueltige_schadensarten": _facetten.schadensarten_anzeige(),
+                        "hinweis": "Gueltige Schadensart aus 'gueltige_schadensarten' nutzen."}
+
+        rohtreffer: list[dict] = []
+        for r in con.execute(
+                """SELECT e.id, e.kategorie, e.name_de, e.name_en, e.sprache, e.edition,
+                          e.seite, e.body_md, q.kuerzel AS quelle, q.titel AS quelle_titel,
+                          q.prioritaet
+                   FROM eintraege e JOIN quellen q ON q.id = e.quelle_id
+                   WHERE e.kategorie = 'zauber' AND e.edition = ?""", (edition,)):
+            e = dict(r)
+            body = e["body_md"]
+            if grad is not None and _facetten.zauber_grad(body) != int(grad):
+                continue
+            if schule_key and _facetten.zauber_schule(body) != schule_key:
+                continue
+            if klasse and not _facetten.klasse_passt(_facetten.zauber_klassen(body), klasse):
+                continue
+            if schaden_key and not _facetten.hat_schadensart(body, schaden_key):
+                continue
+            e["auszug"] = body[:160]
+            e["lauf_rang"] = 0
+            rohtreffer.append(e)
+
+        # Deutsch-first-Dedup (DE/EN-Dublette -> ein Treffer, Provenienz bleibt); danach
+        # nach (Grad, Name) sortieren - fuer eine Filterliste die natuerliche Ordnung.
+        deduped = _db._dedupe_und_sortiere(con, rohtreffer, set())
+        deduped.sort(key=lambda t: (_facetten.zauber_grad(t.get("body_md") or "") or 0,
+                                    (t.get("name_de") or t.get("name_en") or "").lower()))
+        treffer = []
+        for t in deduped[: min(max(int(limit), 1), 50)]:
+            k = _knapp(t)
+            kz = _facetten.zauber_kurz(t.get("body_md") or "")
+            if kz:
+                k["kurzinfo"] = kz
+            treffer.append(k)
+
+        filter_echo = {"grad": grad, "schule": _facetten.schule_anzeige(schule_key),
+                       "klasse": klasse, "schadensart": schaden_key, "edition": edition}
+        filter_echo = {k: v for k, v in filter_echo.items() if v is not None}
+        antwort = {"treffer": treffer, "anzahl_gesamt": len(deduped), "filter": filter_echo}
+        if not treffer:
+            antwort["hinweis"] = ("Kein Zauber im Bestand passt auf ALLE Kriterien. Das ist "
+                                  "ein ehrlicher Filter-Nulltreffer (nicht raten, keine Zauber "
+                                  "aus Allgemeinwissen ergaenzen) - evtl. Kriterien lockern "
+                                  "oder ein Buch fehlt (B1/B2).")
+        elif len(deduped) > len(treffer):
+            antwort["hinweis_gekuerzt"] = (f"{len(deduped)} Treffer gefunden, {len(treffer)} "
+                                           f"gezeigt (limit={limit}) - bei Bedarf einschraenken.")
+        return antwort
+    finally:
+        con.close()
 
 
 def foliant_hol_monster(name: str, edition: str = "2024",

@@ -170,6 +170,12 @@ def markiere(begriff_de: str, term_en: str, offiziell: bool) -> str:
 # Rauschen erzeugen.
 _MIN_LEMMA = 4
 
+# Englische Lemmata, die als Alltagswort im Fliesstext viel haeufiger vorkommen als der
+# gleichnamige Spielbegriff - kontextfreies Matching mappt sie sonst falsch (beobachtet:
+# 'chest' [Brustkorb] -> 'Kiste'; 'ready' [bereit] -> 'Vorbereiten'). Als reines
+# Hinweisfeld ist Weglassen sicherer als ein irrefuehrender Vorschlag (S5).
+_HOMONYM_STOP = frozenset({"chest", "ready", "bear", "fell", "will", "arms", "wills"})
+
 
 def begriffe_im_text(con: sqlite3.Connection, text: str, *,
                      nur_offiziell: bool = True, max_treffer: int = 40) -> list[dict]:
@@ -191,7 +197,7 @@ def begriffe_im_text(con: sqlite3.Connection, text: str, *,
     beste: dict[str, dict] = {}
     for z in _alle_zeilen(con):                      # SYN-P2-004: gecacht
         en = z["term_en"]
-        if not en or len(en) < _MIN_LEMMA:
+        if not en or len(en) < _MIN_LEMMA or en.lower() in _HOMONYM_STOP:
             continue
         if nur_offiziell and not z["offiziell"]:
             continue

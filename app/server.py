@@ -23,7 +23,7 @@ from app.db import lade_konfig
 from app.zugriff import ZugriffsFilter
 from config.stil import INSTRUCTIONS
 
-# SYN-P1-003 (codex TECH-020): alle 16 Tools sind strikt lesend/idempotent -
+# SYN-P1-003 (codex TECH-020): alle 17 Tools sind strikt lesend/idempotent -
 # die Annotations machen das fuer Clients maschinenlesbar (Planung, Caching,
 # Sicherheitsheuristiken); openWorldHint=False: geschlossener lokaler Bestand.
 _NUR_LESEND = {"readOnlyHint": True, "idempotentHint": True,
@@ -80,6 +80,7 @@ from app.tools import nachschlagen as _nachschlagen
 mcp.tool(_nachschlagen.foliant_suche_bestand, annotations=_NUR_LESEND)
 mcp.tool(_nachschlagen.foliant_hol_regel, annotations=_NUR_LESEND)
 mcp.tool(_nachschlagen.foliant_hol_zauber, annotations=_NUR_LESEND)
+mcp.tool(_nachschlagen.foliant_filter_zauber, annotations=_NUR_LESEND)
 mcp.tool(_nachschlagen.foliant_hol_monster, annotations=_NUR_LESEND)
 mcp.tool(_nachschlagen.foliant_hol_gegenstand, annotations=_NUR_LESEND)
 mcp.tool(_nachschlagen.foliant_uebersetze_begriff, annotations=_NUR_LESEND)
