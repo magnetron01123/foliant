@@ -178,22 +178,25 @@ def test_golden_alle_15_zustaende_klammerlos_2024():
         assert "hinweis_alter_stand" not in d, z
 
 
-def test_golden_filter_zauber_strukturiert():
-    """#3 (Finetuning 13.07.2026): strukturierter Zauber-Filter am echten Bestand.
-    Grad+Klasse+Schadensart UND-verknuepft; jeder Treffer traegt seinen Grad in kurzinfo;
+def test_golden_struktur_filter_in_suche():
+    """#3 (Finetuning 13.07.2026): der Struktur-Filter ist in foliant_suche_bestand gefaltet
+    (kein eigenes Tool). Zauber (grad/schule/klasse/schadensart) UND Monster (hg/typ);
     Fehlwerte sind KEIN Leerbefund."""
-    r = ns.foliant_filter_zauber(grad=1, klasse="Hexenmeister", schadensart="feuer")
-    assert r["treffer"], r.get("hinweis")
-    assert all(t.get("kurzinfo") == "Grad 1" for t in r["treffer"]), r["treffer"]
-    # Höllischer Tadel (Hellish Rebuke) ist der Grad-1-Feuerzauber des Hexenmeisters:
-    namen = [t.get("name_de") or t.get("name_en") for t in r["treffer"]]
-    assert any("Tadel" in (n or "") for n in namen), namen
-    # Zaubertricks: grad=0 liefert etwas, alles als 'Zaubertrick' markiert.
-    z = ns.foliant_filter_zauber(grad=0, klasse="Magier")
-    assert z["treffer"] and all(t.get("kurzinfo") == "Zaubertrick" for t in z["treffer"])
-    # Fehlerpfade: kein Kriterium + unbekannte Schule -> 'fehler', KEIN 'nicht im Bestand'.
-    assert ns.foliant_filter_zauber().get("fehler") == "kein_kriterium"
-    ungueltig = ns.foliant_filter_zauber(schule="Zauberei")
+    # Zauber: Grad-1-Feuerzauber des Hexenmeisters = Höllischer Tadel (Hellish Rebuke).
+    r = ns.foliant_suche_bestand(grad=1, klasse="Hexenmeister", schadensart="feuer")
+    assert r["treffer"] and all(t.get("kurzinfo") == "Grad 1" for t in r["treffer"]), r
+    assert any("Tadel" in (t.get("name_de") or t.get("name_en") or "") for t in r["treffer"])
+    # Monster: Feenwesen mit HG 1/4 -> u. a. der Goblinkrieger.
+    m = ns.foliant_suche_bestand(hg="1/4", typ="Feenwesen")
+    assert m["treffer"] and all(t.get("kurzinfo") == "HG 1/4" for t in m["treffer"]), m
+    # Kombi Suchbegriff + Facette (UND): 'Feuerball' + grad=3 bleibt, grad=1 fällt raus.
+    assert ns.foliant_suche_bestand("Feuerball", kategorie="zauber", grad=3)["treffer"]
+    assert not ns.foliant_suche_bestand("Feuerball", kategorie="zauber", grad=1)["treffer"]
+    # Guards -> strukturierter 'fehler', nie 'nicht im Bestand'.
+    assert ns.foliant_suche_bestand().get("fehler") == "kein_kriterium"
+    assert ns.foliant_suche_bestand(grad=1, typ="Untoter").get("fehler") \
+        == "zauber_und_monster_filter_gemischt"
+    ungueltig = ns.foliant_suche_bestand(schule="Zauberei")
     assert "fehler" in ungueltig and ungueltig.get("gueltige_schulen")
 
 

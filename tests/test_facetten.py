@@ -73,3 +73,17 @@ def test_monster_hg_de_en():
     assert f.monster_hg("... Challenge 5 (1,800 XP) ...") == "5"
     assert f.hg_kurz("... **HG** 1/8 ...") == "HG 1/8"
     assert f.monster_hg("kein HG-Wert hier") is None
+    assert f.hg_passt("... **HG** 1/4 ...", "1/4")
+    assert not f.hg_passt("... **HG** 1/4 ...", "1")
+
+
+def test_monster_typ_de_en_wortgrenze():
+    goblin = "*Kontext*\n\n_Kleines Feenwesen (Goblinoide), chaotisch neutral_ **RK** 15"
+    assert f.monster_typ(goblin) == "feenwesen"
+    assert f.monster_typ("_Mittelgroßer Untoter, rechtschaffen böse_") == "untoter"
+    assert f.monster_typ("Medium Undead, Lawful Evil") == "untoter"
+    assert f.monster_typ("kein Typwort") is None
+    assert f.typ_schluessel("Undead") == "untoter"
+    assert f.typ_schluessel("Feenwesen") == "feenwesen"
+    assert f.typ_schluessel("Quatschwesen") is None
+    assert f.typ_anzeige("untoter") == "Untoter"

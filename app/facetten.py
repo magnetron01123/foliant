@@ -198,3 +198,65 @@ def monster_hg(body: str | None) -> str | None:
 def hg_kurz(body: str | None) -> str | None:
     hg = monster_hg(body)
     return f"HG {hg}" if hg else None
+
+
+def hg_passt(body: str | None, wunsch: str) -> bool:
+    """Trifft der geparste HG den Wunschwert ('1', '1/4', '0')? Exakter String-Vergleich."""
+    h = monster_hg(body)
+    return h is not None and h == wunsch.strip()
+
+
+# --- Monster-Typ (aus der Statblock-Kopfzeile '_Kleines Feenwesen (...), ...') ------
+_TYPEN: dict[str, set[str]] = {
+    "aberration":    {"aberration"},
+    "tier":          {"tier", "beast"},
+    "himmelswesen":  {"himmelswesen", "celestial"},
+    "konstrukt":     {"konstrukt", "construct"},
+    "drache":        {"drache", "dragon"},
+    "elementar":     {"elementar", "elemental"},
+    "feenwesen":     {"feenwesen", "fey"},
+    "unhold":        {"unhold", "fiend"},
+    "riese":         {"riese", "giant"},
+    "humanoider":    {"humanoide", "humanoider", "humanoid"},
+    "monstrositaet": {"monstrositat", "monstrosity"},
+    "schlick":       {"schlick", "ooze"},
+    "pflanzenwesen": {"pflanzenwesen", "plant"},
+    "untoter":       {"untoter", "untote", "undead"},
+}
+_TYP_ANZEIGE = {
+    "aberration": "Aberration", "tier": "Tier", "himmelswesen": "Himmelswesen",
+    "konstrukt": "Konstrukt", "drache": "Drache", "elementar": "Elementar",
+    "feenwesen": "Feenwesen", "unhold": "Unhold", "riese": "Riese",
+    "humanoider": "Humanoider", "monstrositaet": "Monstrosität", "schlick": "Schlick",
+    "pflanzenwesen": "Pflanzenwesen", "untoter": "Untoter",
+}
+
+
+def typ_schluessel(eingabe: str | None) -> str | None:
+    if not eingabe:
+        return None
+    n = _n(eingabe)
+    for key, syns in _TYPEN.items():
+        if n == key or n in syns:
+            return key
+    return None
+
+
+def typen_anzeige() -> list[str]:
+    return [_TYP_ANZEIGE[k] for k in _TYPEN]
+
+
+def typ_anzeige(schluessel: str | None) -> str | None:
+    return _TYP_ANZEIGE.get(schluessel) if schluessel else None
+
+
+def monster_typ(body: str | None) -> str | None:
+    """Kreaturentyp aus der Statblock-Kopfzeile; None ohne Muster. Wortgrenzen, damit
+    'Tier' nicht in einem laengeren Wort faelschlich anschlaegt."""
+    if not body:
+        return None
+    kopf = _n(body[:150])
+    for key, syns in _TYPEN.items():
+        if any(re.search(r"\b" + s + r"\b", kopf) for s in syns):
+            return key
+    return None

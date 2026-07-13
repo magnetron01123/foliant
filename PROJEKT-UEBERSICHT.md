@@ -1,6 +1,6 @@
 # Foliant — Projektübersicht
 
-**Stand: 11.07.2026 · MVP komplett und live** (Pi, ~9490 Einträge aus 12 Quellen, 17 Tools,
+**Stand: 11.07.2026 · MVP komplett und live** (Pi, ~9490 Einträge aus 12 Quellen, 16 Tools,
 Zugang über Geheimpfad + IP-Allowlist). Weg zu echten Nutzern: `docs/MVP-ABGLEICH-UND-ROADMAP.md`.
 
 Dieser Wegweiser fasst zusammen, was Foliant ist, wo das Projekt steht und **welches Dokument

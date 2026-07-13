@@ -25,7 +25,7 @@ Dies ist ein self-hosted Projekt ohne Release-Kadenz. Sicherheitsfixes fließen 
   des vorgesehenen Clients begrenzt (`CF-Connecting-IP`). `/health` bleibt offen.
   Token-Rotation: Wert in `.env` ändern → Image neu bauen → neue URL verteilen.
 - **Read-only-Betrieb:** Der Server öffnet die SQLite-Datenbank schreibgeschützt
-  (`mode=ro`, `query_only=ON`); alle 17 Tools sind als `readOnlyHint` deklariert.
+  (`mode=ro`, `query_only=ON`); alle 16 Tools sind als `readOnlyHint` deklariert.
 - **Fail-fast:** Mit `FOLIANT_PRODUKTION=an` verweigert der Server den Start, wenn das
   Pfad-Token zu kurz (< 16 Zeichen) ist.
 - **Eingabegrenzen:** Suchanfragen sind längenbegrenzt, `limit` wird gedeckelt (DoS-Schutz).

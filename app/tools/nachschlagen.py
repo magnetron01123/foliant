@@ -127,32 +127,184 @@ def _name_score(k: dict, ziele: set[str]) -> float:
     return best
 
 
-def foliant_suche_bestand(suchbegriff: str, kategorie: Kategorie | None = None,
-                          edition: str = "2024", quelle_kuerzel: str | None = None) -> dict:
-    """Volltextsuche ueber den GESAMTEN Bestand (nicht nur Regeln): Regeln, Zauber, Monster,
-    Gegenstaende, Spezies, Klassen, Hintergruende, Talente - Kampf UND ausserhalb. Deutsch
-    UND Englisch moeglich, auch Abkuerzungen (AoO) und kleine Tippfehler. Liefert KNAPPE
-    Treffer (Name, Auszug, Quelle, ggf. Seite, Regelversion) - Details per foliant_hol_*.
-    kategorie optional: regel|zauber|monster|gegenstand|spezies|klasse|hintergrund|talent
-    (exakt diese Werte). quelle_kuerzel optional: das QUELLEN-KUERZEL (z. B. 'srd-de', wie
-    im Ausgabefeld 'quelle_kuerzel'), NICHT der Titel. edition Standard '2024'; andere
-    Regelversionen (z. B. '2014') explizit angeben. Ungueltige Parameterwerte werden mit
-    'fehler' abgelehnt - das bedeutet NICHT 'nicht im Bestand'. Beim 2024-Standard kommen
-    aeltere Staende getrennt als 'aeltere_staende'; bei explizit anderer Edition heissen
-    weitere Fassungen neutral 'andere_fassungen'. KERNREGELN: nur aus dem Bestand; Quelle
-    + Regelversion nennen; Deutsch-first (Original in Klammern)."""
+def _facetten_vorbereiten(kategorie, grad, schule, klasse, schadensart, hg, typ):
+    """Validiert die STRUKTUR-Filter und baut ein Praedikat body->bool (fuer #3, in die
+    Suche gefaltet). Liefert (praedikat|None, kategorie|None, echo, fehler_antwort|None).
+    Zauber-Facetten (grad/schule/klasse/schadensart) und Monster-Facetten (hg/typ) sind
+    kategoriegebunden und nicht mischbar. Ungueltige Werte -> strukturierter 'fehler'."""
+    z_aktiv = grad is not None or bool(schule) or bool(klasse) or bool(schadensart)
+    m_aktiv = bool(hg) or bool(typ)
+    if not z_aktiv and not m_aktiv:
+        return None, None, {}, None
+    if z_aktiv and m_aktiv:
+        return None, None, {}, {"treffer": [], "fehler": "zauber_und_monster_filter_gemischt",
+                "hinweis": "Zauber-Facetten (grad/schule/klasse/schadensart) und Monster-"
+                           "Facetten (hg/typ) getrennt anfragen - eine Kategorie pro Suche."}
+    implizit = "zauber" if z_aktiv else "monster"
+    if kategorie and kategorie != implizit:
+        return None, None, {}, {"treffer": [], "fehler": "kategorie_passt_nicht_zu_filter",
+                "hinweis": f"Die gesetzten Filter gehoeren zu kategorie='{implizit}', nicht "
+                           f"'{kategorie}'. KEIN 'nicht im Bestand' (B1/B4)."}
+    echo: dict = {}
+    schule_key = schaden_key = typ_key = None
+    if grad is not None:
+        if not (0 <= int(grad) <= 9):
+            return None, None, {}, {"treffer": [], "fehler": "grad_ausserhalb_0_9",
+                    "hinweis": "grad ist 0 (Zaubertrick) bis 9. KEIN 'nicht im Bestand'."}
+        echo["grad"] = int(grad)
+    if schule:
+        schule_key = _facetten.schule_schluessel(schule)
+        if not schule_key:
+            return None, None, {}, {"treffer": [], "fehler": f"unbekannte Schule {schule!r}",
+                    "gueltige_schulen": _facetten.schulen_anzeige(),
+                    "hinweis": "Gueltige Schule aus 'gueltige_schulen' nutzen (B1/B4)."}
+        echo["schule"] = _facetten.schule_anzeige(schule_key)
+    if klasse:
+        echo["klasse"] = klasse
+    if schadensart:
+        schaden_key = _facetten.schadensart_schluessel(schadensart)
+        if not schaden_key:
+            return None, None, {}, {"treffer": [], "fehler": f"unbekannte Schadensart {schadensart!r}",
+                    "gueltige_schadensarten": _facetten.schadensarten_anzeige(),
+                    "hinweis": "Gueltige Schadensart aus 'gueltige_schadensarten' nutzen."}
+        echo["schadensart"] = schaden_key
+    if hg:
+        echo["hg"] = str(hg).strip()
+    if typ:
+        typ_key = _facetten.typ_schluessel(typ)
+        if not typ_key:
+            return None, None, {}, {"treffer": [], "fehler": f"unbekannter Typ {typ!r}",
+                    "gueltige_typen": _facetten.typen_anzeige(),
+                    "hinweis": "Gueltigen Kreaturentyp aus 'gueltige_typen' nutzen (B1/B4)."}
+        echo["typ"] = _facetten.typ_anzeige(typ_key)
+
+    def praedikat(body: str) -> bool:
+        if grad is not None and _facetten.zauber_grad(body) != int(grad):
+            return False
+        if schule_key and _facetten.zauber_schule(body) != schule_key:
+            return False
+        if klasse and not _facetten.klasse_passt(_facetten.zauber_klassen(body), klasse):
+            return False
+        if schaden_key and not _facetten.hat_schadensart(body, schaden_key):
+            return False
+        if hg and not _facetten.hg_passt(body, str(hg)):
+            return False
+        if typ_key and _facetten.monster_typ(body) != typ_key:
+            return False
+        return True
+
+    return praedikat, implizit, echo, None
+
+
+def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25) -> dict:
+    """Reiner Struktur-Filter (kein Suchbegriff): scannt eine Kategorie und filtert per
+    Praedikat aus dem Body. Deutsch-first-Dedup, knappe Treffer mit 'kurzinfo'."""
+    try:
+        edition = _db.normalisiere_edition(edition)
+        _db._pruefe_edition(con, edition)
+    except ValueError as fehler:
+        return {"treffer": [], "fehler": str(fehler),
+                "hinweis": "Ungueltiger PARAMETER - KEIN 'nicht im Bestand' (B1/B4)."}
+    roh: list[dict] = []
+    for r in con.execute(
+            """SELECT e.id, e.kategorie, e.name_de, e.name_en, e.sprache, e.edition,
+                      e.seite, e.body_md, q.kuerzel AS quelle, q.titel AS quelle_titel,
+                      q.prioritaet
+               FROM eintraege e JOIN quellen q ON q.id = e.quelle_id
+               WHERE e.kategorie = ? AND e.edition = ?""", (kategorie, edition)):
+        e = dict(r)
+        if not praedikat(e["body_md"] or ""):
+            continue
+        e["auszug"] = (e["body_md"] or "")[:160]
+        e["lauf_rang"] = 0
+        roh.append(e)
+    deduped = _db._dedupe_und_sortiere(con, roh, set())
+    if kategorie == "zauber":
+        deduped.sort(key=lambda t: (_facetten.zauber_grad(t.get("body_md") or "") or 0,
+                                    (t.get("name_de") or t.get("name_en") or "").lower()))
+    else:
+        deduped.sort(key=lambda t: (t.get("name_de") or t.get("name_en") or "").lower())
+    treffer = []
+    for t in deduped[: min(max(int(limit), 1), 50)]:
+        k = _knapp(t)
+        info = (_facetten.zauber_kurz(t.get("body_md") or "") if kategorie == "zauber"
+                else _facetten.hg_kurz(t.get("body_md") or ""))
+        if info:
+            k["kurzinfo"] = info
+        treffer.append(k)
+    antwort = {"treffer": treffer, "anzahl_gesamt": len(deduped),
+               "gefiltert_nach": {**echo, "kategorie": kategorie, "edition": edition}}
+    if not treffer:
+        antwort["hinweis"] = ("Kein Eintrag im Bestand passt auf ALLE Filter - ehrlicher "
+                              "Nulltreffer (nicht raten, nichts aus Allgemeinwissen ergaenzen); "
+                              "evtl. Filter lockern oder ein Buch fehlt (B1/B2).")
+    elif len(deduped) > len(treffer):
+        antwort["hinweis_gekuerzt"] = (f"{len(deduped)} Treffer, {len(treffer)} gezeigt "
+                                       f"(limit={limit}).")
+    return antwort
+
+
+def _nachfiltern_facetten(con, antwort, praedikat) -> None:
+    """Volltext-Treffer zusaetzlich strukturell filtern (Suchbegriff UND Facetten):
+    Eintraege, deren Body das Praedikat nicht erfuellt, aus allen Trefferlisten werfen."""
+    listen = [antwort.get("treffer", []), antwort.get("aeltere_staende", []),
+              antwort.get("andere_fassungen", [])]
+    ids = {k["eintrag_id"] for liste in listen for k in liste}
+    if not ids:
+        return
+    marker = ",".join("?" * len(ids))
+    body = {r[0]: r[1] for r in con.execute(
+        f"SELECT id, body_md FROM eintraege WHERE id IN ({marker})", tuple(ids))}
+    for liste in listen:
+        liste[:] = [k for k in liste if praedikat(body.get(k["eintrag_id"]) or "")]
+
+
+def foliant_suche_bestand(suchbegriff: str | None = None, kategorie: Kategorie | None = None,
+                          edition: str = "2024", quelle_kuerzel: str | None = None,
+                          grad: int | None = None, schule: str | None = None,
+                          klasse: str | None = None, schadensart: str | None = None,
+                          hg: str | None = None, typ: str | None = None) -> dict:
+    """Findet Eintraege im GESAMTEN Bestand - per Freitext ODER per STRUKTUR-Filter (oder
+    beides kombiniert). Liefert KNAPPE Treffer (Name, Auszug, Quelle, ggf. Seite,
+    Regelversion; Zauber/Monster zusaetzlich 'kurzinfo' mit Grad bzw. HG) - Details per
+    foliant_hol_*.
+    - Freitext: `suchbegriff` deutsch ODER englisch, auch Abkuerzungen (AoO) und Tippfehler.
+    - Struktur-Filter (fuer 'welche Grad-1-Feuerzauber kann ein Hexenmeister lernen?', die
+      der Freitext nur zufaellig trifft): Zauber ueber grad (0-9, 0=Zaubertrick), schule,
+      klasse, schadensart; Monster ueber hg ('1', '1/4') und typ. Werte deutsch ODER
+      englisch. Mehrere Filter werden UND-verknuepft; Zauber- und Monster-Facetten nicht
+      mischen. Ohne Suchbegriff genuegt EIN Filter.
+    kategorie optional: regel|zauber|monster|gegenstand|spezies|klasse|hintergrund|talent.
+    quelle_kuerzel optional: das QUELLEN-KUERZEL (z. B. 'srd-de'), NICHT der Titel. edition
+    Standard '2024'; andere Regelversionen (z. B. '2014') explizit angeben. Ungueltige
+    Parameterwerte werden mit 'fehler' abgelehnt - das bedeutet NICHT 'nicht im Bestand'.
+    Beim 2024-Standard kommen aeltere Staende getrennt als 'aeltere_staende'; bei explizit
+    anderer Edition heissen weitere Fassungen neutral 'andere_fassungen'. KERNREGELN: nur
+    aus dem Bestand; Quelle + Regelversion nennen; Deutsch-first (Original in Klammern)."""
     con = _verbinde()
     if con is None:
         return {"treffer": [], "hinweis": HINWEIS_DB_FEHLT}
     try:
+        praedikat, kat_filter, echo, fehler = _facetten_vorbereiten(
+            kategorie, grad, schule, klasse, schadensart, hg, typ)
+        if fehler is not None:
+            return fehler
+        hat_suchbegriff = bool(suchbegriff and suchbegriff.strip())
+        if not hat_suchbegriff and praedikat is None:
+            return {"treffer": [], "fehler": "kein_kriterium",
+                    "hinweis": "Bitte einen Suchbegriff ODER einen Filter (grad/schule/klasse/"
+                               "schadensart/hg/typ) angeben - sonst ist es weder Text- noch "
+                               "Struktursuche. KEIN 'nicht im Bestand'."}
+        if not hat_suchbegriff:
+            return _struktur_filter(con, kat_filter, edition, praedikat, echo)
         try:
-            ergebnis = _db.fts_suche(con, suchbegriff, kategorie=kategorie,
+            ergebnis = _db.fts_suche(con, suchbegriff, kategorie=(kat_filter or kategorie),
                                      edition=edition, quelle=quelle_kuerzel)
-        except ValueError as fehler:
+        except ValueError as fehler_v:
             # SYN-P0-006: Parameterfehler (Edition/Kategorie/Quelle) sind KEIN leerer
             # Befund - vor dem Fix bekam das Modell hier den B1-Leerhinweis und meldete
             # dem Nutzer ein falsches 'nicht im Bestand' fuer vorhandene Inhalte.
-            return {"treffer": [], "fehler": str(fehler),
+            return {"treffer": [], "fehler": str(fehler_v),
                     "hinweis": "Ungueltiger PARAMETER - das ist KEIN 'nicht im Bestand'. "
                                "Aufruf mit einem gueltigen Wert (siehe fehler) "
                                "wiederholen; dem Nutzer keine Fehlanzeige melden (B1/B4)."}
@@ -179,6 +331,11 @@ def foliant_suche_bestand(suchbegriff: str, kategorie: Kategorie | None = None,
                                           f"({suchbegriff} -> {ergebnis['suchweg'][8:]}).")
         elif ergebnis["suchweg"] == "fuzzy":
             antwort["hinweis_suchweg"] = "Aehnliche Schreibweise angenommen (Tippfehler-Toleranz)."
+        if praedikat is not None:
+            # Suchbegriff UND Struktur-Filter: die Volltext-Treffer zusaetzlich strukturell
+            # einschraenken (UND-Semantik), bevor der Leer-Hinweis entscheidet.
+            _nachfiltern_facetten(con, antwort, praedikat)
+            antwort["gefiltert_nach"] = echo
         if not antwort["treffer"]:
             if antwort.get("aeltere_staende"):
                 antwort["hinweis"] = HINWEIS_ALT
@@ -565,105 +722,6 @@ def foliant_hol_zauber(name: str, edition: str = "2024",
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
     Deutsch-first (Original in Klammern)."""
     return _hole_detail("zauber", name, edition, eintrag_id=eintrag_id)
-
-
-def foliant_filter_zauber(grad: int | None = None, schule: str | None = None,
-        klasse: str | None = None, schadensart: str | None = None,
-        edition: str = "2024", limit: int = 25) -> dict:
-    """Findet Zauber im Bestand nach STRUKTURIERTEN Kriterien - fuer Fragen wie 'welche
-    Grad-1-Feuerzauber kann ein Hexenmeister lernen?', die die Freitextsuche nur zufaellig
-    trifft. Mindestens EIN Kriterium angeben. Alle Kriterien werden UND-verknuepft; die
-    Werte werden aus dem Regeltext abgeleitet (nichts geraten - ohne erkennbaren Grad/Schule
-    faellt ein Zauber aus dem jeweiligen Filter).
-      grad: 0-9 (0 = Zaubertrick/Cantrip).
-      schule: deutsch oder englisch (Hervorrufung/Evocation, Nekromantie/Necromancy ...).
-      klasse: deutsch oder englisch (Hexenmeister/Warlock, Magier/Wizard ...).
-      schadensart: deutsch oder englisch (Feuer/fire, Kaelte/cold, Gift/poison ...).
-    Ungueltige Werte werden mit 'fehler' abgelehnt (das ist KEIN leerer Befund).
-    Liefert KNAPPE Treffer (mit Grad in 'kurzinfo') - Details per foliant_hol_zauber.
-    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
-    Deutsch-first (Original in Klammern)."""
-    if grad is None and not schule and not klasse and not schadensart:
-        return {"treffer": [], "fehler": "kein_kriterium",
-                "hinweis": "Mindestens ein Filter (grad/schule/klasse/schadensart) angeben - "
-                           "sonst waere es die ganze Zauberliste. KEIN 'nicht im Bestand'."}
-    con = _verbinde()
-    if con is None:
-        return {"treffer": [], "hinweis": HINWEIS_DB_FEHLT}
-    try:
-        try:
-            edition = _db.normalisiere_edition(edition)
-            _db._pruefe_edition(con, edition)
-        except ValueError as fehler:
-            return {"treffer": [], "fehler": str(fehler),
-                    "hinweis": "Ungueltiger PARAMETER - KEIN 'nicht im Bestand' (B1/B4)."}
-        if grad is not None and not (0 <= int(grad) <= 9):
-            return {"treffer": [], "fehler": "grad ausserhalb 0-9",
-                    "hinweis": "grad ist 0 (Zaubertrick) bis 9. KEIN 'nicht im Bestand'."}
-        schule_key = None
-        if schule:
-            schule_key = _facetten.schule_schluessel(schule)
-            if not schule_key:
-                return {"treffer": [], "fehler": f"unbekannte Schule {schule!r}",
-                        "gueltige_schulen": _facetten.schulen_anzeige(),
-                        "hinweis": "Gueltige Schule aus 'gueltige_schulen' nutzen (B1/B4)."}
-        schaden_key = None
-        if schadensart:
-            schaden_key = _facetten.schadensart_schluessel(schadensart)
-            if not schaden_key:
-                return {"treffer": [], "fehler": f"unbekannte Schadensart {schadensart!r}",
-                        "gueltige_schadensarten": _facetten.schadensarten_anzeige(),
-                        "hinweis": "Gueltige Schadensart aus 'gueltige_schadensarten' nutzen."}
-
-        rohtreffer: list[dict] = []
-        for r in con.execute(
-                """SELECT e.id, e.kategorie, e.name_de, e.name_en, e.sprache, e.edition,
-                          e.seite, e.body_md, q.kuerzel AS quelle, q.titel AS quelle_titel,
-                          q.prioritaet
-                   FROM eintraege e JOIN quellen q ON q.id = e.quelle_id
-                   WHERE e.kategorie = 'zauber' AND e.edition = ?""", (edition,)):
-            e = dict(r)
-            body = e["body_md"]
-            if grad is not None and _facetten.zauber_grad(body) != int(grad):
-                continue
-            if schule_key and _facetten.zauber_schule(body) != schule_key:
-                continue
-            if klasse and not _facetten.klasse_passt(_facetten.zauber_klassen(body), klasse):
-                continue
-            if schaden_key and not _facetten.hat_schadensart(body, schaden_key):
-                continue
-            e["auszug"] = body[:160]
-            e["lauf_rang"] = 0
-            rohtreffer.append(e)
-
-        # Deutsch-first-Dedup (DE/EN-Dublette -> ein Treffer, Provenienz bleibt); danach
-        # nach (Grad, Name) sortieren - fuer eine Filterliste die natuerliche Ordnung.
-        deduped = _db._dedupe_und_sortiere(con, rohtreffer, set())
-        deduped.sort(key=lambda t: (_facetten.zauber_grad(t.get("body_md") or "") or 0,
-                                    (t.get("name_de") or t.get("name_en") or "").lower()))
-        treffer = []
-        for t in deduped[: min(max(int(limit), 1), 50)]:
-            k = _knapp(t)
-            kz = _facetten.zauber_kurz(t.get("body_md") or "")
-            if kz:
-                k["kurzinfo"] = kz
-            treffer.append(k)
-
-        filter_echo = {"grad": grad, "schule": _facetten.schule_anzeige(schule_key),
-                       "klasse": klasse, "schadensart": schaden_key, "edition": edition}
-        filter_echo = {k: v for k, v in filter_echo.items() if v is not None}
-        antwort = {"treffer": treffer, "anzahl_gesamt": len(deduped), "filter": filter_echo}
-        if not treffer:
-            antwort["hinweis"] = ("Kein Zauber im Bestand passt auf ALLE Kriterien. Das ist "
-                                  "ein ehrlicher Filter-Nulltreffer (nicht raten, keine Zauber "
-                                  "aus Allgemeinwissen ergaenzen) - evtl. Kriterien lockern "
-                                  "oder ein Buch fehlt (B1/B2).")
-        elif len(deduped) > len(treffer):
-            antwort["hinweis_gekuerzt"] = (f"{len(deduped)} Treffer gefunden, {len(treffer)} "
-                                           f"gezeigt (limit={limit}) - bei Bedarf einschraenken.")
-        return antwort
-    finally:
-        con.close()
 
 
 def foliant_hol_monster(name: str, edition: str = "2024",

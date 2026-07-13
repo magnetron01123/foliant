@@ -8,7 +8,7 @@ Deutsch-first**. Die **verbindlichen Anforderungen** stehen in `docs/foliant-anf
 **STATUS (11.07.2026): MVP komplett und live.** Server auf dem Pi (`pi@<pi-host>`,
 `~/foliant`), öffentlich via Cloudflare Named Tunnel unter Geheimpfad + IP-Allowlist.
 Bestand ~9490 Einträge aus 12 Quellen (dt. SRD 5.2.1, Open5e, 8 DDB-Bücher, 2 DDB-Druck-
-Bücher), 17 Tools, Datenbank-QS abgeschlossen (`docs/QS-BERICHT-datenbank.md`). Offen ist
+Bücher), 16 Tools, Datenbank-QS abgeschlossen (`docs/QS-BERICHT-datenbank.md`). Offen ist
 die Roadmap `docs/MVP-ABGLEICH-UND-ROADMAP.md` (M-Phasen bis zur Gruppennutzung) — NICHTS
 aus den abgeschlossenen Phasen neu bauen.
 
