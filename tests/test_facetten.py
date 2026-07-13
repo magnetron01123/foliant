@@ -93,13 +93,25 @@ def test_monster_stats_de_en_und_dezimal_cr():
     assert f.monster_statschluessel("nur prosa") == (None, None, None, None, None)
 
 
-def test_name_sauber_filtert_pdf_garble():
+def test_name_sauber_filtert_kurzfragmente_nicht_komposita():
     from importer import import_glossar as ig
     assert ig._name_sauber("Menschenaffe") and ig._name_sauber("Goblin-Scherge")
-    assert ig._name_sauber("Junger blauer Drache") and ig._name_sauber("Staub-Mephit")
-    assert not ig._name_sauber("Gar l gy")                 # Kurz-Fragment
-    assert not ig._name_sauber("Atterko pp")               # Kurz-Fragment
-    assert not ig._name_sauber("Belebtesgfie endes Schwert")  # unplausibles 'gf'
+    assert not ig._name_sauber("Gar l gy")                 # Kurz-Fragment 'l'
+    assert not ig._name_sauber("Atterko pp")               # Kurz-Fragment 'pp'
+    # KEINE Bigramm-Heuristik mehr: legitime dt. Komposita mit dk/tk/kr an der Wortfuge
+    # duerfen NICHT als korrupt gelten (waren vorher Falsch-Positive):
+    for gut in ("Koboldkrieger", "Drachenschildkröte", "Grottenschratkrieger"):
+        assert ig._name_sauber(gut), gut
+
+
+def test_monster_name_reparatur_map_autoritativ():
+    from importer import import_glossar as ig
+    # Alle Ziele sind sauber (bestehen _name_sauber) und die 7 aus der srd-PDF bekannten
+    # Zerlege-Faelle sind abgedeckt:
+    assert len(ig.MONSTER_NAME_REPARATUR) == 7
+    assert all(ig._name_sauber(korrekt) for korrekt in ig.MONSTER_NAME_REPARATUR.values())
+    assert ig.MONSTER_NAME_REPARATUR["Gar l gy"] == "Gargyl"
+    assert ig.MONSTER_NAME_REPARATUR["Zu ferd gp"] == "Zugpferd"
 
 
 def test_monster_typ_de_en_wortgrenze():

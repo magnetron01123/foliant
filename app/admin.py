@@ -62,10 +62,12 @@ def cmd_import(args) -> None:
     kuerzel = args.quelle
     if kuerzel == "glossar":
         from importer.import_glossar import (KERNBEGRIFFE_EN, kanonisiere_konflikte,
-                                             seed_abkuerzungen, seed_glossar,
-                                             seed_glossar_aus_bestand, seed_kern_singulare,
+                                             repariere_monster_namen, seed_abkuerzungen,
+                                             seed_glossar, seed_glossar_aus_bestand,
+                                             seed_kern_singulare,
                                              seed_monster_bruecke_aus_bestand, seed_srd_paare)
         c = _con(getattr(args, "db", None))
+        rn = repariere_monster_namen(c)  # zuerst: aus der PDF zerlegte Monsternamen korrigieren
         n = seed_glossar(c, KERNBEGRIFFE_EN)
         a = seed_abkuerzungen(c)
         p = seed_srd_paare(c)
@@ -73,9 +75,9 @@ def cmd_import(args) -> None:
         b = seed_glossar_aus_bestand(c)
         mb = seed_monster_bruecke_aus_bestand(c)   # Struktur-Abgleich dt./engl. Monster (Dedup)
         d = kanonisiere_konflikte(c)   # zuletzt: kuratierte Fassung schlaegt konkurrierende (Deutsch-Qualitaet)
-        print(f"Glossar: {n} Kern-Zeilen, {a} Abkuerzungen, {p} SRD-Paare, "
-              f"{k} Kern-Singulare, {b} Zeilen aus Bestandsnamen, {mb} Monster-Bruecken, "
-              f"{d} Konflikte kanonisiert.")
+        print(f"Glossar: {rn} Monster-Namen repariert, {n} Kern-Zeilen, {a} Abkuerzungen, "
+              f"{p} SRD-Paare, {k} Kern-Singulare, {b} Zeilen aus Bestandsnamen, "
+              f"{mb} Monster-Bruecken, {d} Konflikte kanonisiert.")
         c.close()
         return
 

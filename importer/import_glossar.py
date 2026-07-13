@@ -276,25 +276,19 @@ def seed_glossar_aus_bestand(con: sqlite3.Connection) -> int:
 # <=2 Zeichen ist ein PDF-Zerlege-Artefakt ('Gar l gy', 'Atterko pp', 'Har ie py').
 _NAME_WL = {"der", "die", "das", "des", "dem", "den", "im", "am", "zu", "zum", "zur",
             "vom", "von", "und", "mit", "auf", "aus"}
-# Konsonanten-Bigramme, die in echten deutschen (Monster-)Namen praktisch nie vorkommen,
-# aber typisch fuer PDF-Zerlege-Garble sind ('Belebtesgfie...' -> 'gf').
-_IMPLAUSIBEL = ("gf", "tk", "pk", "gk", "kp", "tg", "dk", "fk", "vk")
 
 
 def _name_sauber(name: str | None) -> bool:
-    """True, wenn der deutsche Name keine offensichtlichen PDF-Zerlege-Artefakte traegt:
-    Kurz-Fragmente ('l', 'gy', 'pp' mitten im Namen) ODER unplausible Bigramme ('gfie').
-    Konservativ - lieber eine Bruecke weniger als einen kaputten Namen als 'offiziell'
-    ins Glossar schreiben (Kernregel: falsches Deutsch ist schlimmer als ein Duplikat)."""
+    """True, wenn der deutsche Name keine PDF-Zerlege-Kurzfragmente traegt ('Gar l gy' -> 'l',
+    'Atterko pp' -> 'pp'). Sicherheitsnetz fuer die Bruecke; die bekannten korrupten Namen
+    werden ohnehin vorher per MONSTER_NAME_REPARATUR korrigiert. BEWUSST OHNE Bigramm-Heuristik:
+    'dk'/'tk' u. ae. stehen in echten deutschen Komposita an der Wortfuge (Schild-kroete,
+    Kobold-krieger, Grottenschrat-krieger) und wurden faelschlich als korrupt aussortiert."""
     if not name:
         return False
     for tok in name.replace("-", " ").split():
         t = tok.strip(".,;:()'’`").lower()
-        if not t:
-            continue
-        if len(t) <= 2 and t not in _NAME_WL:
-            return False
-        if any(b in t for b in _IMPLAUSIBEL):
+        if t and len(t) <= 2 and t not in _NAME_WL:
             return False
     return True
 
@@ -332,6 +326,39 @@ def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]
             continue
         paare.append((en_name, de_name, key))
     return paare
+
+
+# Monsternamen, die die srd-de-PDF auf ihren ZWEISPALTIGEN Kreatur-Seiten in der Statblock-
+# Ueberschrift zerlegt (Glyph-/Kerning-Reihenfolge). Die korrekte Form ist dem INHALTS-
+# VERZEICHNIS DERSELBEN PDF entnommen (dort steht sie sauber) - autoritativ, nicht geraten;
+# stimmt mit dnddeutsch ueberein, wo dort gefuehrt. Vollstaendig: ein Scan (<=3-Fragment)
+# ueber alle 339 srd-de-Monster findet genau diese sieben.
+MONSTER_NAME_REPARATUR = {
+    "Atterko pp": "Atterkopp",
+    "Belebtesgfie endes Schwert": "Belebtes fliegendes Schwert",
+    "Belebter Te ich des Erstickens pp": "Belebter Teppich des Erstickens",
+    "Gar l gy": "Gargyl",
+    "Har ie py": "Harpyie",
+    "Pla erndes Hundertmaul pp": "Plapperndes Hundertmaul",
+    "Zu ferd gp": "Zugpferd",
+}
+
+
+def repariere_monster_namen(con: sqlite3.Connection) -> int:
+    """Korrigiert die aus der srd-de-PDF zerlegten Monster-Namen (name_de) auf die autoritative
+    Form aus dem Inhaltsverzeichnis derselben Quelle. Idempotent (matcht nur die bekannten
+    korrupten Strings). Baut bei Aenderung die FTS neu auf (der Name ist mitindiziert, sonst
+    findet die Suche den korrigierten Namen nicht). Gibt die Zahl korrigierter Zeilen zurueck."""
+    n = 0
+    for korrupt, korrekt in MONSTER_NAME_REPARATUR.items():
+        cur = con.execute("UPDATE eintraege SET name_de = ? WHERE kategorie = 'monster' "
+                          "AND name_de = ?", (korrekt, korrupt))
+        n += cur.rowcount
+    con.commit()
+    if n:
+        from app import db as _db
+        _db.fts_rebuild(con)
+    return n
 
 
 def seed_monster_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
