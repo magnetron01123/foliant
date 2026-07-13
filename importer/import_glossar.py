@@ -339,7 +339,10 @@ def seed_monster_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     OFFIZIELLE Glossar-Bruecke - so verschmelzen deutsche und englische Fassung desselben
     Monsters in der Suche/Dedup (statt als Dublette 'Goblin Warrior' + 'Goblinkrieger'
     getrennt zu erscheinen). Schliesst die Luecke der 2024-neuen Kreaturen, die dnddeutsch
-    (noch) nicht fuehrt. Idempotent (Upsert). Gibt die Zahl geschriebener Zeilen zurueck."""
+    (noch) nicht fuehrt. Selbst-bereinigend: verwirft zuerst die eigenen Alt-Zeilen, damit
+    ein verbesserter Abgleich keine ueberholten Bruecken zuruecklaesst. Gibt die Zahl
+    geschriebener Zeilen zurueck."""
+    con.execute("DELETE FROM glossar WHERE quelle = 'SRD 5.2.1 (Strukturabgleich)'")
     n = 0
     for term_en, term_de, _key in _finde_monster_paare(con):
         _upsert(con, term_en, term_de, 1, "SRD 5.2.1 (Strukturabgleich)", "2024", None)

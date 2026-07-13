@@ -288,8 +288,50 @@ def monster_tp(body: str | None) -> str | None:
     return m.group(1) if m else None
 
 
+# Die sechs Attributswerte in fester D&D-Reihenfolge (STÄ, GES, KON, INT, WEI, CHA). Sie
+# sind ZAHLEN und damit uebersetzungsinvariant - der belastbarste Diskriminator, um
+# wertegleiche, aber verschiedene Kreaturen zu trennen (Goblinkrieger 8/15/10/10/8/8 vs.
+# Feengeist 3/18/10/14/13/11). Groesse taugt NICHT: Open5e und srd-de widersprechen sich
+# (Open5e fuehrt Sprite als 'Small', srd-de 'Feengeist' korrekt als 'Winzig').
+# Labels je Attribut, diakritika-gefaltet + kleingeschrieben (srd-de kommt teils NFD-
+# dekomponiert aus dem PDF: 'Stä' = 's','t','a','kombinierender Umlaut' - erst falten,
+# dann matchen). 'str'/'sta' fuer STÄ, 'dex'/'ges' fuer GES usw.
+_ATTR_LABELS = (
+    ("str", "sta"), ("dex", "ges"), ("con", "kon"),
+    ("int",), ("wis", "wei"), ("cha",),
+)
+
+
+def _falte(s: str) -> str:
+    return "".join(c for c in __import__("unicodedata").normalize("NFKD", s)
+                   if not __import__("unicodedata").combining(c)).lower()
+
+
+def monster_attribute(body: str | None) -> tuple | None:
+    """(STÄ, GES, KON, INT, WEI, CHA) als 6-Tupel aus dem Statblock; None, wenn nicht alle
+    sechs erkennbar sind. Deckt engl. ('STR 8') und srd-de ('**Stä**8') ab; Diakritika/Gross-
+    Klein werden vor dem Matchen gefaltet."""
+    if not body:
+        return None
+    kopf = _falte(body[:900])
+    werte = []
+    for labels in _ATTR_LABELS:
+        wert = None
+        for lab in labels:
+            m = re.search(lab + r"[^0-9]{0,6}(\d+)", kopf)
+            if m:
+                wert = int(m.group(1))
+                break
+        if wert is None:
+            return None
+        werte.append(wert)
+    return tuple(werte)
+
+
 def monster_statschluessel(body: str | None) -> tuple:
-    """Struktur-Fingerabdruck eines Statblocks (typ, hg, rk, tp) - identisch fuer dieselbe
-    Kreatur in der deutschen und englischen SRD-Fassung. None-Anteile heissen 'unvollstaendig
-    -> nicht fuer den Abgleich geeignet'."""
-    return (monster_typ(body), monster_hg(body), monster_rk(body), monster_tp(body))
+    """Struktur-Fingerabdruck eines Statblocks (typ, hg, rk, tp, attribute) - identisch fuer
+    dieselbe Kreatur in der deutschen und englischen SRD-Fassung, weil alle Bestandteile
+    entweder Zahlen oder der (uebersetzte, aber deterministische) Typ sind. None-Anteile
+    heissen 'unvollstaendig -> nicht fuer den Abgleich geeignet'."""
+    return (monster_typ(body), monster_hg(body), monster_rk(body), monster_tp(body),
+            monster_attribute(body))

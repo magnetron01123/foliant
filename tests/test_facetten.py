@@ -83,8 +83,14 @@ def test_monster_stats_de_en_und_dezimal_cr():
     assert f.monster_rk(de) == "15" and f.monster_tp(de) == "10"
     assert f.monster_rk(en) == "12" and f.monster_tp(en) == "7"      # Doppelpunkt-Format
     assert f.monster_hg(en) == "1/8"                                 # Dezimal-CR -> Bruch
-    assert f.monster_statschluessel(en) == ("feenwesen", "1/8", "12", "7")
-    assert f.monster_statschluessel("nur prosa ohne werte") == (None, None, None, None)
+    # Attributswerte (uebersetzungsinvariant), engl. 'STR 8' und srd-de '**Stä**8':
+    en_ab = en + "\n**Abilities:** STR 8 (-1), DEX 15 (+2), CON 10, INT 10, WIS 8, CHA 8"
+    de_ab = de + "\n**Stä**8 −1 **GeS**15 +2 **Kon**10 +0 **Int**10 **Wei**8 **Cha**8"
+    assert f.monster_attribute(en_ab) == (8, 15, 10, 10, 8, 8)
+    assert f.monster_attribute(de_ab) == (8, 15, 10, 10, 8, 8)       # gleiche Zahlen, andere Sprache
+    assert f.monster_attribute("keine werte") is None
+    assert f.monster_statschluessel(en_ab) == ("feenwesen", "1/8", "12", "7", (8, 15, 10, 10, 8, 8))
+    assert f.monster_statschluessel("nur prosa") == (None, None, None, None, None)
 
 
 def test_name_sauber_filtert_pdf_garble():
