@@ -115,17 +115,21 @@ def cmd_import(args) -> None:
             # koennte ein fehlgeschlagener Import geaenderte Quellen-Metadaten (z. B.
             # edition) neben alten Eintraegen zuruecklassen (A8-Konsistenz).
             with c:
+                # inhaltsart aus der Config honorieren (SYN-P0-007): Abenteuer-/Setting-
+                # Baende (z. B. Druck-Buecher efota/frhof) MUESSEN 'abenteuer_setting' tragen,
+                # sonst greift der Spoiler-Schutz nicht. Default 'regelwerk'.
                 c.execute(
                     "INSERT INTO quellen (kuerzel, titel, sprache, edition, herkunft, "
-                    "lizenz, prioritaet, dateipfad) VALUES (?,?,?,?,?,?,?,?) "
+                    "lizenz, prioritaet, dateipfad, inhaltsart) VALUES (?,?,?,?,?,?,?,?,?) "
                     "ON CONFLICT(kuerzel) DO UPDATE SET titel=excluded.titel, "
                     "sprache=excluded.sprache, edition=excluded.edition, "
                     "herkunft=excluded.herkunft, lizenz=excluded.lizenz, "
-                    "prioritaet=excluded.prioritaet, dateipfad=excluded.dateipfad",
+                    "prioritaet=excluded.prioritaet, dateipfad=excluded.dateipfad, "
+                    "inhaltsart=excluded.inhaltsart",
                     (kuerzel, eintrag.get("titel", kuerzel), eintrag.get("sprache", "de"),
                      eintrag["edition"], eintrag.get("herkunft", "pdf"),
                      eintrag.get("lizenz"), eintrag.get("prioritaet", 100),
-                     eintrag.get("dateipfad")))
+                     eintrag.get("dateipfad"), eintrag.get("inhaltsart", "regelwerk")))
                 n = importiere_markdown(c, kuerzel, markdown, edition=eintrag["edition"],
                                         kategorie=eintrag.get("kategorie", "regel"),
                                         erlaube_schrumpfen=force)
