@@ -175,23 +175,28 @@ def hat_schadensart(body: str | None, schluessel: str) -> bool:
 
 
 # --- Monster-HG --------------------------------------------------------------
+# Wert kann Bruch ('1/4'), Dezimal (Open5e: '0.125') oder ganzzahlig sein.
 _HG = (
-    re.compile(r"\bHG\b[^0-9]{0,4}(\d+(?:/\d+)?)"),
-    re.compile(r"Herausforderung\D{0,4}(\d+(?:/\d+)?)", re.IGNORECASE),
-    re.compile(r"\bCR\b[^0-9]{0,4}(\d+(?:/\d+)?)"),
-    re.compile(r"Challenge\D{0,4}(\d+(?:/\d+)?)", re.IGNORECASE),
+    re.compile(r"\bHG\b[^0-9]{0,4}(\d+(?:[./]\d+)?)"),
+    re.compile(r"Herausforderung(?:sgrad)?\D{0,6}(\d+(?:[./]\d+)?)", re.IGNORECASE),
+    re.compile(r"\bCR\b[^0-9]{0,4}(\d+(?:[./]\d+)?)"),
+    re.compile(r"Challenge\D{0,6}(\d+(?:[./]\d+)?)", re.IGNORECASE),
 )
+# Open5e fuehrt HG als Dezimalzahl; kanonisch ist die Bruchform (srd-de) -> vereinheitlichen,
+# damit dieselbe Kreatur ueber beide Fassungen denselben HG traegt.
+_HG_DEZIMAL = {"0.125": "1/8", "0.25": "1/4", "0.5": "1/2"}
 
 
 def monster_hg(body: str | None) -> str | None:
-    """Herausforderungsgrad (HG/CR) aus dem Statblock, z. B. '1' oder '1/4'. None ohne Muster."""
+    """Herausforderungsgrad (HG/CR) aus dem Statblock, z. B. '1' oder '1/4'. Dezimal-CR
+    (Open5e '0.125') wird zur Bruchform normalisiert. None ohne Muster."""
     if not body:
         return None
     kopf = body[:900]
     for pat in _HG:
         m = pat.search(kopf)
         if m:
-            return m.group(1)
+            return _HG_DEZIMAL.get(m.group(1), m.group(1))
     return None
 
 
@@ -260,3 +265,31 @@ def monster_typ(body: str | None) -> str | None:
         if any(re.search(r"\b" + s + r"\b", kopf) for s in syns):
             return key
     return None
+
+
+# Ruestungsklasse/Trefferpunkte aus dem Statblock-Kopf - fuer den Struktur-Abgleich
+# derselben Kreatur ueber die srd-de-/Open5e-Fassung hinweg (RK=AC, TP=HP). Doppelpunkt/
+# Sterne/Leerzeichen zwischen Label und Zahl tolerieren ('**RK** 12', '**AC:** 12').
+_RK = re.compile(r"\b(?:RK|AC)\b[:*\s]{0,6}(\d+)")
+_TP = re.compile(r"\b(?:TP|HP)\b[:*\s]{0,6}(\d+)")
+
+
+def monster_rk(body: str | None) -> str | None:
+    if not body:
+        return None
+    m = _RK.search(body[:900])
+    return m.group(1) if m else None
+
+
+def monster_tp(body: str | None) -> str | None:
+    if not body:
+        return None
+    m = _TP.search(body[:900])
+    return m.group(1) if m else None
+
+
+def monster_statschluessel(body: str | None) -> tuple:
+    """Struktur-Fingerabdruck eines Statblocks (typ, hg, rk, tp) - identisch fuer dieselbe
+    Kreatur in der deutschen und englischen SRD-Fassung. None-Anteile heissen 'unvollstaendig
+    -> nicht fuer den Abgleich geeignet'."""
+    return (monster_typ(body), monster_hg(body), monster_rk(body), monster_tp(body))

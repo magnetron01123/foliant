@@ -210,6 +210,25 @@ def test_golden_tippfehler_direkttreffer_statt_rauschen():
     assert "Magic Missile" in d["anzeige_name"] and "Magisches Geschoss" in d["anzeige_name"]
 
 
+def test_golden_monster_bruecke_strukturabgleich():
+    """Monster-Dedup (13.07.2026): der Struktur-Abgleich (Typ+HG+RK+TP) paart dieselbe
+    Kreatur ueber die deutsche und englische SRD-Fassung - authentisch, nicht geraten.
+    Korrupte srd-de-Namen (PDF-Garble) werden NICHT als offizielle Bruecke geseedet."""
+    from importer import import_glossar as ig
+    con = adb.connect_readonly(str(adb.standard_pfad()))
+    try:
+        paare = {en: de for en, de, _k in ig._finde_monster_paare(con)}
+    finally:
+        con.close()
+    # Struktur-identische Kreaturen werden korrekt gepaart:
+    assert paare.get("Skeleton") == "Skelett"
+    assert paare.get("Ape") == "Menschenaffe"
+    assert paare.get("Blink Dog") == "Flimmerhund"
+    # Kein korrupter deutscher Name in den Bruecken:
+    assert all(ig._name_sauber(de) for de in paare.values()), \
+        [de for de in paare.values() if not ig._name_sauber(de)]
+
+
 def test_golden_suchtreffer_tragen_grad_und_hg():
     """#2 (Finetuning 13.07.2026): knappe Zauber-/Monster-Treffer tragen die
     Triage-Facette (Grad bzw. HG) aus dem Body."""

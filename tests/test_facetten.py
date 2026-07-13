@@ -77,6 +77,25 @@ def test_monster_hg_de_en():
     assert not f.hg_passt("... **HG** 1/4 ...", "1")
 
 
+def test_monster_stats_de_en_und_dezimal_cr():
+    de = "**RK** 15 **Initiative** +2 **TP** 10 (3d6) ... **HG** 1/4 (50 EP)"
+    en = "**Type:** Small Fey · **CR:** 0.125 (25 XP)\n**AC:** 12 (natural) · **HP:** 7 (2d6)"
+    assert f.monster_rk(de) == "15" and f.monster_tp(de) == "10"
+    assert f.monster_rk(en) == "12" and f.monster_tp(en) == "7"      # Doppelpunkt-Format
+    assert f.monster_hg(en) == "1/8"                                 # Dezimal-CR -> Bruch
+    assert f.monster_statschluessel(en) == ("feenwesen", "1/8", "12", "7")
+    assert f.monster_statschluessel("nur prosa ohne werte") == (None, None, None, None)
+
+
+def test_name_sauber_filtert_pdf_garble():
+    from importer import import_glossar as ig
+    assert ig._name_sauber("Menschenaffe") and ig._name_sauber("Goblin-Scherge")
+    assert ig._name_sauber("Junger blauer Drache") and ig._name_sauber("Staub-Mephit")
+    assert not ig._name_sauber("Gar l gy")                 # Kurz-Fragment
+    assert not ig._name_sauber("Atterko pp")               # Kurz-Fragment
+    assert not ig._name_sauber("Belebtesgfie endes Schwert")  # unplausibles 'gf'
+
+
 def test_monster_typ_de_en_wortgrenze():
     goblin = "*Kontext*\n\n_Kleines Feenwesen (Goblinoide), chaotisch neutral_ **RK** 15"
     assert f.monster_typ(goblin) == "feenwesen"

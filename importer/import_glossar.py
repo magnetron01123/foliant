@@ -272,6 +272,82 @@ def seed_glossar_aus_bestand(con: sqlite3.Connection) -> int:
     return seed_glossar(con, namen)
 
 
+# Kurze Fuellwoerter, die in einem sauberen Monsternamen vorkommen duerfen; alles andere
+# <=2 Zeichen ist ein PDF-Zerlege-Artefakt ('Gar l gy', 'Atterko pp', 'Har ie py').
+_NAME_WL = {"der", "die", "das", "des", "dem", "den", "im", "am", "zu", "zum", "zur",
+            "vom", "von", "und", "mit", "auf", "aus"}
+# Konsonanten-Bigramme, die in echten deutschen (Monster-)Namen praktisch nie vorkommen,
+# aber typisch fuer PDF-Zerlege-Garble sind ('Belebtesgfie...' -> 'gf').
+_IMPLAUSIBEL = ("gf", "tk", "pk", "gk", "kp", "tg", "dk", "fk", "vk")
+
+
+def _name_sauber(name: str | None) -> bool:
+    """True, wenn der deutsche Name keine offensichtlichen PDF-Zerlege-Artefakte traegt:
+    Kurz-Fragmente ('l', 'gy', 'pp' mitten im Namen) ODER unplausible Bigramme ('gfie').
+    Konservativ - lieber eine Bruecke weniger als einen kaputten Namen als 'offiziell'
+    ins Glossar schreiben (Kernregel: falsches Deutsch ist schlimmer als ein Duplikat)."""
+    if not name:
+        return False
+    for tok in name.replace("-", " ").split():
+        t = tok.strip(".,;:()'’`").lower()
+        if not t:
+            continue
+        if len(t) <= 2 and t not in _NAME_WL:
+            return False
+        if any(b in t for b in _IMPLAUSIBEL):
+            return False
+    return True
+
+
+def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]]:
+    """Paart dieselbe Kreatur ueber die deutsche (srd-de) und englische (Open5e/DDB)
+    SRD-Fassung per STRUKTUR-Fingerabdruck (Typ+HG+RK+TP). Das ist keine Uebersetzungs-
+    Vermutung, sondern strukturelle Identitaet desselben offiziellen Statblocks. STRIKT
+    1:1: nur wenn ein vollstaendiger Schluessel auf GENAU einen deutschen UND genau einen
+    englischen Namen zeigt (sonst nicht raten, B4). Korrupte deutsche Namen (PDF) werden
+    ausgeschlossen. Liefert (term_en, term_de, schluessel)."""
+    from app import facetten as _f
+    from app.glossar import norm_begriff as _norm
+
+    de_by_key: dict[tuple, set[str]] = {}
+    en_by_key: dict[tuple, set[str]] = {}
+    for r in con.execute("SELECT name_de, name_en, sprache, body_md FROM eintraege "
+                         "WHERE kategorie='monster'"):
+        key = _f.monster_statschluessel(r["body_md"])
+        if any(x is None for x in key):          # unvollstaendiger Statblock -> nicht abgleichen
+            continue
+        if r["sprache"] == "de" and r["name_de"]:
+            de_by_key.setdefault(key, set()).add(r["name_de"])
+        elif r["sprache"] == "en" and r["name_en"]:
+            en_by_key.setdefault(key, set()).add(r["name_en"])
+    paare: list[tuple[str, str, tuple]] = []
+    for key, de_namen in de_by_key.items():
+        en_namen = en_by_key.get(key, set())
+        if len(de_namen) != 1 or len(en_namen) != 1:
+            continue                             # nicht eindeutig -> nicht raten
+        de_name, en_name = next(iter(de_namen)), next(iter(en_namen))
+        if _norm(de_name) == _norm(en_name):     # gleicher Name -> keine Bruecke noetig
+            continue
+        if not _name_sauber(de_name):            # korrupter dt. Name -> NIE seeden
+            continue
+        paare.append((en_name, de_name, key))
+    return paare
+
+
+def seed_monster_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
+    """Schreibt die per Struktur-Abgleich (_finde_monster_paare) gefundenen Monster-Paare als
+    OFFIZIELLE Glossar-Bruecke - so verschmelzen deutsche und englische Fassung desselben
+    Monsters in der Suche/Dedup (statt als Dublette 'Goblin Warrior' + 'Goblinkrieger'
+    getrennt zu erscheinen). Schliesst die Luecke der 2024-neuen Kreaturen, die dnddeutsch
+    (noch) nicht fuehrt. Idempotent (Upsert). Gibt die Zahl geschriebener Zeilen zurueck."""
+    n = 0
+    for term_en, term_de, _key in _finde_monster_paare(con):
+        _upsert(con, term_en, term_de, 1, "SRD 5.2.1 (Strukturabgleich)", "2024", None)
+        n += 1
+    con.commit()
+    return n
+
+
 def seed_abkuerzungen(con: sqlite3.Connection) -> int:
     """Gaengige Kuerzel als eigene Zeilen (T7/B3); offiziell=1: die Zielbegriffe sind
     offizielles Deutsch, das Kuerzel selbst ist nur ein Suchschluessel."""
