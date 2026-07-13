@@ -364,66 +364,47 @@ def repariere_srd_de_namen(con: sqlite3.Connection) -> int:
     return n
 
 
-# Deutsche Adjektive in Kreaturennamen (Farbe/Alter/Groesse), die grammatisch KLEIN stehen -
-# nur diese loesen einen Gross-/Klein-Konflikt in der Schreibvarianten-Kanonisierung auf.
-# Unbekannte Woerter (moegliche Substantive wie 'Sehen') bleiben bewusst unberuehrt.
-_KLEIN_ADJEKTIVE = {
-    "schwarzer", "blauer", "grüner", "roter", "weißer", "weisser", "silberner",
-    "kupferner", "goldener", "bronzener", "messingfarbener",
-    "junger", "alter", "ausgewachsener", "uralter", "riesiger", "grosser", "großer",
-    "kleiner", "gigantischer",
-}
-
-
-def _kanon_schreibvariante(formen: set[str]) -> str | None:
-    """Kanonische Schreibvariante mehrerer DE-Formen ODER None, wenn nicht SICHER bestimmbar.
-    Wort fuer Wort: gleich -> uebernehmen; nur ß/ss-Unterschied -> ß-Form; Gross-/Klein-
-    Unterschied NUR aufloesen, wenn die Kleinform ein bekanntes Adjektiv ist (sonst None ->
-    Review, keine Grammatik-Vermutung). Unterschiedliche Wortzahl -> None."""
-    wortlisten = [f.split() for f in formen]
-    if len({len(w) for w in wortlisten}) != 1:
-        return None
-    kanon: list[str] = []
-    for i, spalte in enumerate(zip(*wortlisten)):
-        varianten = set(spalte)
-        if len(varianten) == 1:
-            kanon.append(spalte[0]); continue
-        if len({w.replace("ß", "ss") for w in varianten}) == 1:   # nur ß/ss
-            kanon.append(next((w for w in varianten if "ß" in w), spalte[0])); continue
-        klein = {w for w in varianten if w[:1].islower()}         # Gross-/Klein
-        if i > 0 and len(klein) == 1 and next(iter(klein)).lower() in _KLEIN_ADJEKTIVE:
-            kanon.append(next(iter(klein))); continue
-        return None
-    return " ".join(kanon)
-
-
 def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
-    """Deutsch-Qualitaet: hat EIN englischer Begriff mehrere OFFIZIELLE deutsche Formen, die
-    sich NUR in ß/ss oder Gross-/Kleinschreibung unterscheiden ('Junger Weisser Drache' vs.
-    'Junger weißer Drache'), ist das dieselbe Bezeichnung. Kanonische Form bleibt offiziell,
-    die uebrigen -> offiziell=0 (bleiben Such-/Schreibvariante). NUR bei sicher bestimmbarem
-    Kanon (s. _kanon_schreibvariante) - echte Dual-Uebersetzungen bleiben unberuehrt. Gibt die
-    Zahl demoteter Zeilen zurueck."""
+    """Regelbasiert & QUELLENGETRIEBEN (keine Einzelentscheidung des Admins, keine kuratierte
+    Wortliste): hat EIN englischer Begriff mehrere OFFIZIELLE deutsche Formen, die dieselbe
+    Bezeichnung sind (unterscheiden sich NUR in ß/ss oder Gross-/Kleinschreibung), entscheidet
+    die QUELLEN-PRIORITAET, welche kanonisch bleibt - exakt dieselbe Leiter, mit der Foliant
+    auch Eintrags-Dubletten aufloest (glossar._auswahlschluessel: belegte Buchquelle vor
+    Community, neuere Edition vor aelterer). ß-vor-ss nur als deterministischer Orthografie-
+    Tiebreak, wenn die Quellenprioritaet gleich ist. Die uebrigen Formen -> offiziell=0
+    (bleiben Such-/Schreibvariante). Echte Dual-Uebersetzungen/Homonyme (NICHT fold-gleich,
+    z. B. Hide->Fell/Verstecken) bleiben unberuehrt. Skaliert auf neue Quellen ohne Kuratierung
+    (jede Quelle bringt ihre Prioritaet mit). Gibt die Zahl demoteter Zeilen zurueck."""
     import unicodedata
+    from collections import defaultdict
+
+    from app.glossar import _auswahlschluessel
+
     def fold(s):
         return "".join(c for c in unicodedata.normalize("NFKD", s.lower().replace("ß", "ss"))
                        if not unicodedata.combining(c))
-    from collections import defaultdict
+
+    def prioritaet(z):
+        # Quellenprioritaet zuerst (kanonische Regel OHNE ihren alphabetischen End-Anker),
+        # dann ß>ss als deterministischer Orthografie-Tiebreak, zuletzt alphabetisch. So
+        # entscheidet die QUELLE - nicht der Admin und keine Grammatik-Vermutung.
+        return (_auswahlschluessel(z)[:-1], 0 if "ß" in (z["term_de"] or "") else 1,
+                z["term_de"] or "")
+
     grp: dict[str, list] = defaultdict(list)
-    for r in con.execute("SELECT id, term_en, term_de FROM glossar WHERE offiziell=1 "
+    for r in con.execute("SELECT id, term_en, term_de, offiziell, quelle, edition_quelle "
+                         "FROM glossar WHERE offiziell=1 "
                          "AND coalesce(quelle,'') NOT LIKE 'abkuerzung%'"):
-        grp[r["term_en"].lower()].append((r["id"], r["term_de"]))
+        grp[r["term_en"].lower()].append(dict(r))
     demotet = 0
     for zeilen in grp.values():
-        formen = {tde for _i, tde in zeilen}
+        formen = {z["term_de"] for z in zeilen}
         if len(formen) < 2 or len({fold(f) for f in formen}) != 1:
-            continue                                  # keine reine Schreibvariante
-        kanon = _kanon_schreibvariante(formen)
-        if kanon is None:
-            continue                                  # nicht sicher -> Review, unberuehrt
-        for rid, tde in zeilen:
-            if tde != kanon:
-                con.execute("UPDATE glossar SET offiziell=0 WHERE id=?", (rid,))
+            continue                              # nur PURE Schreibvarianten; Homonyme unberuehrt
+        kanon = min(zeilen, key=prioritaet)["term_de"]
+        for z in zeilen:
+            if z["term_de"] != kanon:
+                con.execute("UPDATE glossar SET offiziell=0 WHERE id=?", (z["id"],))
                 demotet += 1
     con.commit()
     return demotet

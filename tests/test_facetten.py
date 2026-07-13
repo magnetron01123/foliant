@@ -115,17 +115,34 @@ def test_srd_de_name_reparatur_map_autoritativ():
     assert ig.SRD_DE_NAME_REPARATUR["Bewegungund Positionierung"] == "Bewegung und Positionierung"
 
 
-def test_kanon_schreibvariante_sicher():
+def test_kanonisiere_schreibvarianten_quellengetrieben():
+    """Konflikt-Aufloesung regelbasiert ueber QUELLEN-Prioritaet, nicht per Admin-Entscheidung
+    oder kuratierter Wortliste."""
+    import sqlite3
     from importer import import_glossar as ig
-    # ß vor ss; bekanntes Adjektiv klein:
-    assert ig._kanon_schreibvariante({"Junger Weisser Drache", "Junger weißer Drache"}) \
-        == "Junger weißer Drache"
-    assert ig._kanon_schreibvariante({"Riesentausendfüssler", "Riesentausendfüßler"}) \
-        == "Riesentausendfüßler"
-    # Substantiv-Fall ('Sehen') NICHT anfassen -> None (Review):
-    assert ig._kanon_schreibvariante({"Unsichtbares Sehen", "Unsichtbares sehen"}) is None
-    # Unterschiedliche Wortzahl / echte Uebersetzung -> None:
-    assert ig._kanon_schreibvariante({"Streitross", "Schlachtroß"}) is None
+    con = sqlite3.connect(":memory:"); con.row_factory = sqlite3.Row
+    con.execute("CREATE TABLE glossar (id INTEGER PRIMARY KEY, term_en TEXT, term_de TEXT, "
+                "offiziell INT, quelle TEXT, edition_quelle TEXT, seite TEXT)")
+    con.executemany("INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle) "
+                    "VALUES (?,?,?,?,?)", [
+        # Schreibvariante ueber verschiedene Quellen: die belegte Buchquelle gewinnt.
+        ("Adult Black Dragon", "Ausgewachsener Schwarzer Drache", 1, "dnddeutsch.de (Community)", "2024"),
+        ("Adult Black Dragon", "Ausgewachsener schwarzer Drache", 1, "Monsterhandbuch", "2024"),
+        # ß/ss bei gleicher Quellenlage: ß-Tiebreak (deterministisch, keine Grammatik-Vermutung).
+        ("Giant Centipede", "Riesentausendfüssler", 1, "Monsterhandbuch", "2024"),
+        ("Giant Centipede", "Riesentausendfüßler", 1, "Monsterhandbuch", "2024"),
+        # Homonym (NICHT fold-gleich) -> BEIDE bleiben offiziell:
+        ("Hide", "Fell", 1, "Monsterhandbuch", "2024"),
+        ("Hide", "Verstecken", 1, "Spielerhandbuch", "2024"),
+    ])
+    con.commit()
+    demotet = ig.kanonisiere_schreibvarianten(con)
+    def off(de): return con.execute("SELECT offiziell FROM glossar WHERE term_de=?", (de,)).fetchone()[0]
+    assert off("Ausgewachsener schwarzer Drache") == 1   # Buchquelle gewinnt
+    assert off("Ausgewachsener Schwarzer Drache") == 0   # Community demotet
+    assert off("Riesentausendfüßler") == 1 and off("Riesentausendfüssler") == 0  # ß-Tiebreak
+    assert off("Fell") == 1 and off("Verstecken") == 1   # Homonym unberuehrt
+    assert demotet == 2
 
 
 def test_monster_typ_de_en_wortgrenze():
