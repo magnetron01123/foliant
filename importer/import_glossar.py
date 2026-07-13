@@ -288,7 +288,9 @@ def _name_sauber(name: str | None) -> bool:
         return False
     for tok in name.replace("-", " ").split():
         t = tok.strip(".,;:()'’`").lower()
-        if t and len(t) <= 2 and t not in _NAME_WL:
+        # Ziffern/Zahlen sind legitime kurze Tokens ('Auf 0 Trefferpunkte', '1W10 Effekt') -
+        # nur BUCHSTABEN-Kurzfragmente ('l', 'gy', 'pp') sind Zerlege-Artefakte.
+        if t and len(t) <= 2 and t not in _NAME_WL and not any(c.isdigit() for c in t):
             return False
     return True
 
@@ -328,38 +330,36 @@ def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]
     return paare
 
 
-# Namen, die die srd-de-PDF beim Extrahieren zerlegt hat (zweispaltige Kreatur-Seiten:
-# Glyph-Reihenfolge; sonst fehlende Leerzeichen). Die korrekte Form ist dem INHALTS-
-# VERZEICHNIS bzw. sauberen Fundstellen DERSELBEN PDF entnommen - autoritativ, nicht geraten
-# (stimmt mit dnddeutsch ueberein, wo dort gefuehrt). Vollstaendig: ein Fragment-/Merge-Scan
-# ueber ALLE srd-de-Namen findet genau diese - sieben Monster + zwei Regelnamen.
-SRD_DE_NAME_REPARATUR = {
-    "Atterko pp": "Atterkopp",
-    "Belebtesgfie endes Schwert": "Belebtes fliegendes Schwert",
-    "Belebter Te ich des Erstickens pp": "Belebter Teppich des Erstickens",
-    "Gar l gy": "Gargyl",
-    "Har ie py": "Harpyie",
-    "Pla erndes Hundertmaul pp": "Plapperndes Hundertmaul",
-    "Zu ferd gp": "Zugpferd",
-    "Kreaturent yp": "Kreaturentyp",
-    "Bewegungund Positionierung": "Bewegung und Positionierung",
-}
+# Rest-NOTFALL (einzige srd-de-Zerlegung mit Buchstaben-VERLUST: '...gfie...' = 'fliegendes',
+# ein 'l' fehlt): kein sicheres Anagramm-/Sequenz-Signal, also der eine dokumentierte
+# Einzelfix. Ziel autoritativ aus dem PDF-Inhaltsverzeichnis. Alles andere loest der
+# Algorithmus (importer.namensreparatur) selbst; diese Liste soll nicht wachsen.
+SRD_DE_NAME_NOTFALL = {"Belebtesgfie endes Schwert": "Belebtes fliegendes Schwert"}
 
 
 def repariere_srd_de_namen(con: sqlite3.Connection) -> int:
-    """Korrigiert die aus der srd-de-PDF zerlegten Eintragsnamen (name_de) auf die autoritative
-    Form aus derselben Quelle (kategorieuebergreifend - Monster UND Regeln). Idempotent
-    (matcht nur die bekannten korrupten Strings). Baut bei Aenderung die FTS neu auf (der Name
-    ist mitindiziert, sonst findet die Suche den korrigierten Namen nicht). Gibt die Zahl
-    korrigierter Zeilen zurueck."""
+    """Korrigiert aus der srd-de-PDF zerlegte Eintragsnamen ALGORITHMISCH gegen die autoritative
+    Namensliste der Quelle - das PDF-Inhaltsverzeichnis + die sauberen Bestandsnamen
+    (importer.namensreparatur: Kurzfragment->Anagramm, Leerzeichen-Anomalie->TOC-Form; KEIN
+    festes corrupt->korrekt, nur EIN Rest-Notfall mit Buchstabenverlust). Idempotent (saubere
+    Namen bleiben unberuehrt); FTS-Rebuild bei Aenderung. Der Name ist mitindiziert."""
+    from app import db as _db
+    from importer import namensreparatur as nr
+
+    pdf = next((q.get("dateipfad") for q in _db.lade_konfig().get("quelle", [])
+                if q.get("kuerzel") == "srd-de"), None)
+    toc = nr.toc_namen(str(_db.projekt_pfad(pdf))) if pdf else []
+    namen = [r[0] for r in con.execute(
+        "SELECT DISTINCT e.name_de FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+        "WHERE q.kuerzel = 'srd-de' AND e.name_de IS NOT NULL")]
+    korrekturen = nr.repariere(namen, list(set(toc + namen)), _name_sauber, toc_namen=toc)
+    korrekturen.update({k: v for k, v in SRD_DE_NAME_NOTFALL.items() if k in namen})
     n = 0
-    for korrupt, korrekt in SRD_DE_NAME_REPARATUR.items():
-        cur = con.execute("UPDATE eintraege SET name_de = ? WHERE name_de = ?",
-                          (korrekt, korrupt))
-        n += cur.rowcount
+    for falsch, richtig in korrekturen.items():
+        n += con.execute("UPDATE eintraege SET name_de = ? WHERE name_de = ?",
+                         (richtig, falsch)).rowcount
     con.commit()
     if n:
-        from app import db as _db
         _db.fts_rebuild(con)
     return n
 

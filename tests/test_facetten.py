@@ -104,15 +104,13 @@ def test_name_sauber_filtert_kurzfragmente_nicht_komposita():
         assert ig._name_sauber(gut), gut
 
 
-def test_srd_de_name_reparatur_map_autoritativ():
+def test_srd_de_name_notfall_minimal():
     from importer import import_glossar as ig
-    # Alle Ziele sind sauber; die aus der srd-PDF bekannten Zerlege-Faelle (7 Monster +
-    # 2 Regelnamen) sind abgedeckt:
-    assert len(ig.SRD_DE_NAME_REPARATUR) == 9
-    assert all(ig._name_sauber(k) for k in ig.SRD_DE_NAME_REPARATUR.values())
-    assert ig.SRD_DE_NAME_REPARATUR["Gar l gy"] == "Gargyl"
-    assert ig.SRD_DE_NAME_REPARATUR["Kreaturent yp"] == "Kreaturentyp"
-    assert ig.SRD_DE_NAME_REPARATUR["Bewegungund Positionierung"] == "Bewegung und Positionierung"
+    # Die Zerlegungen loest jetzt der Algorithmus (importer.namensreparatur, s.
+    # tests/test_namensreparatur.py); als fester Fix bleibt NUR der eine Buchstabenverlust-
+    # Notfall - und dessen Ziel ist ein sauberer Name.
+    assert len(ig.SRD_DE_NAME_NOTFALL) == 1
+    assert all(ig._name_sauber(v) for v in ig.SRD_DE_NAME_NOTFALL.values())
 
 
 def test_kanonisiere_schreibvarianten_quellengetrieben():
