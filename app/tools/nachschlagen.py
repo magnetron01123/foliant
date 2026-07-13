@@ -216,9 +216,24 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
     if e["edition"] != _db.STANDARD_EDITION:
         d["hinweis_alter_stand"] = HINWEIS_ALT
     if e.get("sprache") == "en":
-        d["hinweis_uebersetzung"] = ("Regeltext liegt nur englisch vor. Auf Deutsch antworten, "
-                                     "offizielle deutsche Begriffe verwenden (Original in "
-                                     "Klammern), fehlende mit * markieren (S3/S5).")
+        # S3/S5: dem Modell die AMTLICHEN deutschen Begriffe INLINE mitgeben, statt sie nur
+        # anzumahnen - genau die Luecke, an der eine Antwort sonst englisch stehen bleibt
+        # (Warlock-Test 13.07.2026: Cloudkill/Bane/Greater Invisibility blieben englisch,
+        # obwohl das Glossar Todeswolke/Verderben/Maechtige Unsichtbarkeit kennt).
+        treffer = _glossar.begriffe_im_text(con, e.get("body_md") or "")
+        hinweis = ("Regeltext liegt nur ENGLISCH vor. Antworte dennoch auf Deutsch und "
+                   "uebersetze JEDEN englischen Fachbegriff: ")
+        if treffer:
+            d["begriffe_deutsch"] = {z["term_en"]: z["term_de"] for z in treffer}
+            hinweis += ("die in 'begriffe_deutsch' aufgefuehrten Begriffe tragen die "
+                        "OFFIZIELLE deutsche Form - diese verwenden (Original in Klammern, "
+                        "KEIN *). ")
+        hinweis += ("Jeden weiteren englischen Fachbegriff (Merkmals-/Zaubernamen), der dort "
+                    "nicht steht, konsistent deutsch wiedergeben und mit * markieren "
+                    "('* keine offizielle deutsche Uebersetzung', einmal erlaeutern). Das "
+                    "*-System NICHT durch Prosa wie 'sinngemaess uebertragen' ersetzen und "
+                    "nichts unuebersetzt englisch stehen lassen (S3/S5).")
+        d["hinweis_uebersetzung"] = hinweis
     fac = _facetten_von(con, e)
     if fac:
         d["facetten"] = fac

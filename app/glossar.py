@@ -90,6 +90,24 @@ def exakte_entsprechungen(con: sqlite3.Connection, begriff: str) -> set[str]:
     return treffer
 
 
+def _auswahlschluessel(z: dict) -> tuple:
+    """A9 - dokumentierte KANONISCHE AUSWAHLREGEL (S3/S8), in dieser Reihenfolge:
+      1. offizielle Begriffe vor inoffiziellen (S6),
+      2. neuere belegte Edition vor aelterer, UNBEKANNTE Edition ganz hinten
+         (S8: der neuere offizielle Begriff gewinnt; nichts wird als 2024 geraten),
+      3. Begriffe mit konkretem Buch-/Glossar-Beleg vor blossen Community-Zeilen,
+      4. alphabetisch NUR als letzter Determinismus-Anker.
+    Modulweit, damit lookup() und begriffe_im_text() DIESELBE Zeilenauswahl treffen."""
+    quelle = z.get("quelle") or ""
+    belegt = 0 if ("Ulisses" in quelle or "buch" in quelle.lower()
+                   or (quelle and "Community" not in quelle
+                       and quelle != "abkuerzung")) else 1
+    return (-int(z["offiziell"] or 0),
+            0 if z["edition_quelle"] else 1,          # unbekannte Edition nach hinten
+            -(int(z["edition_quelle"]) if str(z["edition_quelle"] or "").isdigit() else 0),
+            belegt, z["term_de"] or "")
+
+
 def lookup(con: sqlite3.Connection, begriff: str, richtung: str = "en_de") -> list[dict]:
     """Alle Glossar-Zeilen zum Begriff, bestpassende zuerst.
     richtung 'en_de': begriff ist englisch; 'de_en': begriff ist deutsch.
@@ -123,23 +141,8 @@ def lookup(con: sqlite3.Connection, begriff: str, richtung: str = "en_de") -> li
              for name, score, _i in passend for z in namen[name]
              if _norm(z[spalte]) != n]
 
-    def sortschluessel(z: dict) -> tuple:
-        # A9 - dokumentierte KANONISCHE AUSWAHLREGEL (S3/S8), in dieser Reihenfolge:
-        #   1. offizielle Begriffe vor inoffiziellen (S6),
-        #   2. neuere belegte Edition vor aelterer, UNBEKANNTE Edition ganz hinten
-        #      (S8: der neuere offizielle Begriff gewinnt; nichts wird als 2024 geraten),
-        #   3. Begriffe mit konkretem Buch-/Glossar-Beleg vor blossen Community-Zeilen,
-        #   4. alphabetisch NUR als letzter Determinismus-Anker.
-        quelle = z.get("quelle") or ""
-        belegt = 0 if ("Ulisses" in quelle or "buch" in quelle.lower()
-                       or (quelle and "Community" not in quelle
-                           and quelle != "abkuerzung")) else 1
-        return (-int(z["offiziell"] or 0),
-                0 if z["edition_quelle"] else 1,          # unbekannte Edition nach hinten
-                -(int(z["edition_quelle"]) if str(z["edition_quelle"] or "").isdigit() else 0),
-                belegt, z["term_de"] or "")
-
-    return sorted(exakt, key=sortschluessel) + sorted(fuzzy, key=sortschluessel)
+    return (sorted(exakt, key=_auswahlschluessel)
+            + sorted(fuzzy, key=_auswahlschluessel))
 
 
 def term_de(con: sqlite3.Connection, term_en: str) -> tuple[str, bool]:
@@ -159,3 +162,48 @@ def markiere(begriff_de: str, term_en: str, offiziell: bool) -> str:
     """Darstellung: 'Begriff (English)' bzw. 'Begriff* (English)' wenn nicht offiziell (S4/S5)."""
     stern = "" if offiziell else "*"
     return f"{begriff_de}{stern} ({term_en})"
+
+
+# Kurze englische Lemmata sind zu oft Alltagswoerter ("Aid", "Web") und wuerden im
+# englischen Fliesstext falsch anschlagen; ab 4 Zeichen ueberwiegt der Nutzen (Bane,
+# Cloudkill ...). Bewusst konservativ - lieber einen Begriff weniger vorschlagen als
+# Rauschen erzeugen.
+_MIN_LEMMA = 4
+
+
+def begriffe_im_text(con: sqlite3.Connection, text: str, *,
+                     nur_offiziell: bool = True, max_treffer: int = 40) -> list[dict]:
+    """Finde Glossar-Begriffe, deren ENGLISCHES Lemma als ganzes Wort im (englischen)
+    `text` vorkommt, und liefere je Begriff die kanonisch beste Zeile
+    ({term_en, term_de, offiziell, ...}, alphabetisch nach term_en).
+
+    Zweck (S3/S5): Bei nur englisch vorliegenden Regeltexten bekommt das Modell die
+    AMTLICHEN deutschen Begriffe INLINE mitgeliefert (Todeswolke, Verderben ...), statt
+    sie einzeln nachschlagen zu muessen - genau die Luecke, an der eine Antwort sonst
+    englisch stehen bleibt. `nur_offiziell` (Default) haelt die Liste auf belegte
+    Begriffe; alles andere markiert das Modell selbst mit * (S5).
+
+    Bewusst NUR Substring- + Wortgrenzen-Treffer (kein Fuzzy, SYN-P0-001): Aehnlichkeit
+    allein macht zwei Begriffe nicht zum selben Konzept."""
+    if not text:
+        return []
+    text_low = text.lower()
+    beste: dict[str, dict] = {}
+    for z in _alle_zeilen(con):                      # SYN-P2-004: gecacht
+        en = z["term_en"]
+        if not en or len(en) < _MIN_LEMMA:
+            continue
+        if nur_offiziell and not z["offiziell"]:
+            continue
+        if not z["term_de"] or norm_begriff(en) == norm_begriff(z["term_de"]):
+            continue                                  # keine echte Uebersetzung -> uninteressant
+        enl = en.lower()
+        if enl not in text_low:                       # schneller C-Vortest vor dem Regex
+            continue
+        vorher = beste.get(enl)
+        if vorher is None or _auswahlschluessel(z) < _auswahlschluessel(vorher):
+            beste[enl] = z
+    treffer = [z for z in beste.values()
+               if re.search(r"\b" + re.escape(z["term_en"]) + r"\b", text, re.IGNORECASE)]
+    treffer.sort(key=lambda z: z["term_en"].lower())
+    return treffer[:max_treffer]
