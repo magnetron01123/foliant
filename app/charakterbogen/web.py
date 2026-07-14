@@ -37,7 +37,11 @@ _STATIC = _HIER / "static"
 
 MAX_BYTES = 15 * 1024 * 1024        # §7.1: Standard 15 MB
 MAX_SEITEN = 50
-ZEITLIMIT_S = 90.0                  # klar unter dem Cloudflare-Origin-Timeout
+ZEITLIMIT_S = 70.0                  # klar unter Cloudflares Proxy-Read-Timeout (120 s, nur für
+                                    # Enterprise änderbar). Die Antwort kommt erst am Ende (kein
+                                    # Early-Header) — bei 90 s war die Marge auf dem Pi zu dünn und
+                                    # der Nutzer hätte Cloudflares Error 524 statt unserer
+                                    # deutschen Fehlermeldung gesehen.
 
 # Öffentliche Fehlertexte (AUFTRAG §6.3) - keine Interna.
 NICHT_PDF = "Bitte wähle eine PDF-Datei aus."

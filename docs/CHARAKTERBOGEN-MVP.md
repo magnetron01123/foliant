@@ -79,60 +79,110 @@ getestet; nur der echte Freitext-Übersetzungslauf ist offen.
 
 ## Deployment (Phase 6) — Runbook
 
-Architektur: **Caddy-Gateway** vor `foliant` (MCP) + `web` (Website). Der Cloudflare-Tunnel
-zeigt nach dem Umschalten auf `gateway:8080`; Caddy routet `/mcp` → `foliant`, sonst → `web`.
-Der bestehende Connector-Pfad, IP-Filter, Streaming und die 16 Tools bleiben **unverändert**.
+Architektur: **Caddy-Gateway** vor `foliant` (MCP) + `web` (Website). Der Cloudflare-Tunnel zeigt
+nach dem Umschalten auf `gateway:8080`; Caddy routet `/mcp` → `foliant`, `/health`+`/ready` →
+`foliant`, alles andere → `web` (hinter Basic-Auth). Connector-Pfad, IP-Filter, Streaming und die
+16 Tools bleiben **unverändert** — am vollen Pi-Bestand verifiziert (14.07.2026).
 
-### 0. Vorher (nur der Eigentümer)
-1. **PR #3 mergen** (GitHub — Agent-Self-Merge ist geblockt).
-2. Auf dem Pi in `~/foliant/.env` ergänzen: `ANTHROPIC_API_KEY=sk-ant-…` und
-   `ANTHROPIC_MODEL=claude-sonnet-5`.
+### Stand: Container-Deploy ERLEDIGT (14.07.2026)
+`web` + `gateway` laufen auf dem Pi, lokal abgenommen. Der Tunnel zeigt **weiterhin auf
+`foliant:8000`** → die Website ist nur über `127.0.0.1:8080` erreichbar, der öffentliche MCP ist
+unverändert. Offen sind nur noch die Eigentümer-Schritte (`.env` + zwei Cloudflare-Klicks).
+
+### Stolperfallen (teuer gelernt)
+- **`docker compose up --build web gateway` baut über `depends_on` AUCH `foliant` neu** und
+  startet den Live-MCP neu. Immer **`--no-deps`** benutzen:
+  `docker compose up -d --no-deps --build web gateway`.
+- **rsync ohne `--delete`** und ohne `data/` — die Mac-DB ist nur ein Subset und würde den vollen
+  Pi-Bestand überschreiben; gitignorierte Privatmodule würden verschwinden.
+- Die **glossar-nur-DB muss existieren, BEVOR `web` startet** (sonst legt Docker ein Verzeichnis
+  statt der Datei an).
 
 ### 1. Code + glossar-nur-DB auf den Pi
 ```sh
-# vom Mac: NUR geänderte Dateien, KEIN --delete (sonst verschwinden gitignorierte Privatmodule!)
-rsync -av --exclude '.git' --exclude '.venv*' --exclude 'data' --exclude 'quellen' \
-  --exclude '.env' --exclude 'config/foliant.toml' --exclude '.claude' \
-  ./ pi@<pi-host>:~/foliant/
+# vom Mac: NUR die betroffenen Pfade, KEIN --delete, KEIN data/
+rsync -rltvR app/charakterbogen deploy/Caddyfile docker-compose.yml requirements.txt \
+  vorlagen/charakterboegen/offiziell/Charakterbogen_2024_DE.pdf pi@<pi-host>:~/foliant/
 
-# auf dem Pi: glossar-nur-DB erzeugen (kein privater Buchinhalt landet im Web-Container)
+# auf dem Pi: glossar-nur-DB erzeugen (kein privater Buchinhalt landet im Web-Container).
+# Läuft mit dem Host-python3 — nur stdlib sqlite3, kein Container-Rebuild nötig.
 ssh pi@<pi-host>
 cd ~/foliant
-docker compose exec foliant python -m app.charakterbogen.glossar_export \
-  /app/data/foliant.sqlite /app/data/glossar_web.sqlite   # MUSS vor 'up web' existieren
+python3 -m app.charakterbogen.glossar_export data/foliant.sqlite data/glossar_web.sqlite
 ```
 
-### 2. web + gateway bauen und starten (foliant/cloudflared laufen unberührt weiter)
+### 2. Website-Passwort setzen (Basic-Auth am Gateway)
+Die Website ist authlos und **jede Konvertierung kostet Anthropic-API-Geld** — der Hostname steht
+über Certificate-Transparency-Logs öffentlich, Scanner finden ihn in Tagen. Der Schutz sitzt im
+Gateway (versioniert, nicht in einem Dashboard-Klick) und ist von den MCP-Pfaden **exklusiv**
+getrennt (`handle`-Blöcke).
+
 ```sh
-docker compose up -d --build web gateway
-docker compose ps                    # web + gateway "up"; foliant weiter healthy
+docker run --rm caddy:2-alpine caddy hash-password --plaintext 'DEIN-PASSWORT'
+# Ausgabe + Benutzer in die Pi-.env (NIE ins Repo — deploy/Caddyfile ist öffentlich):
+#   WEB_BENUTZER=runde
+#   WEB_HASH=$2a$14$...
+docker compose up -d --no-deps gateway
 ```
+**Fail-closed verifiziert:** Fehlen die Variablen, startet der Gateway trotzdem, `/health` und der
+MCP leben weiter — nur die Website antwortet dauerhaft `401`. Der Gateway wird also **kein**
+Single-Point-of-Failure für den MCP.
 
-### 3. Lokale Abnahme über den Gateway (Tunnel zeigt noch auf foliant!)
+### 3. `.env`: Übersetzungsprovider
+```
+ANTHROPIC_API_KEY=sk-ant-…      # eigener Workspace mit Spend-Limit (harter Kostendeckel!)
+ANTHROPIC_MODEL=claude-sonnet-5
+```
+Danach `docker compose up -d --no-deps web`. Ohne Key läuft alles außer `POST /bogen` (→ 503,
+„Übersetzung momentan nicht verfügbar").
+
+### 4. Lokale Abnahme (Tunnel zeigt noch auf foliant — alles hier ist gefahrlos)
 ```sh
-curl -s http://127.0.0.1:8080/health                         # Foliant-JSON (MCP-Seite lebt)
-curl -s http://127.0.0.1:8080/ | grep "Deutschen Charakterbogen erstellen"   # Website lebt
-curl -f -F "datei=@/pfad/zum/DDB-Export.pdf" http://127.0.0.1:8080/bogen -o /tmp/test.pdf
+curl -s http://127.0.0.1:8080/ready                                  # {"status":"bereit","eintraege":9485}
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/       # 401 ohne Passwort
+curl -s -u runde:PW http://127.0.0.1:8080/ | grep Charakterbogen     # Website lebt
+curl -s -o /dev/null -w '%{http_code}\n' -H 'CF-Connecting-IP: 8.8.8.8' \
+     http://127.0.0.1:8080/<TOKEN>/mcp                               # 403  <- WICHTIGSTER TEST
 ```
-Zusätzlich den bestehenden Claude-Connector durch den Gateway testen (initialize + `tools/list`
-= 16 Tools, `foliant_uebersetze_begriff`), bevor umgeschaltet wird.
+**Der 403-Test ist Pflicht nach JEDER Caddyfile-Änderung.** Ginge `CF-Connecting-IP` hinter Caddy
+verloren, wäre die IP-Allowlist des MCP *lautlos* aus (der Peer wäre dann Caddy = private IP =
+durchgelassen). Zusätzlich der volle Handshake (initialize → `tools/list` = **16 Tools**) mit
+`CF-Connecting-IP: 160.79.104.1`.
 
-### 4. Cloudflare-Dashboard (nur der Eigentümer — zwei Entscheidungen)
-- **WAF eingrenzen:** die bestehende Regel `(http.host eq "dnd.magnetron.me" and not ip.src in
-  {160.79.104.0/21 2607:6bc0::/48})` um eine Pfad-Bedingung ergänzen, damit die Anthropic-IP-Sperre
-  **nur die MCP-Pfade** trifft, nicht die Website:
-  `(http.host eq "dnd.magnetron.me" and http.request.uri.path contains "/mcp" and not ip.src in {…})`.
-  Die `http.host`-Bedingung **behalten** (sonst trifft es den Smarthome-Tunnel).
-- **Website-Zugriff (Kosten-/Missbrauchsschutz!):** die Website ist authlos und jede Konvertierung
-  kostet API-Geld. Für den privaten MVP die Nicht-MCP-Pfade auf die eigene Heim-IP beschränken
-  (zweite WAF-Regel) **oder** Cloudflare Access (PIN). Nicht offen ins Netz stellen.
-- **Tunnel-Origin umschalten:** Public-Hostname `dnd.magnetron.me` von `http://foliant:8000` auf
-  `http://gateway:8080` ändern.
+### 5. Cloudflare-Dashboard (nur der Eigentümer — zwei Klicks)
+**a) WAF-Regel prüfen/eingrenzen** — `dash.cloudflare.com` → Zone `magnetron.me` → **Security
+rules** (ältere Dashboards: **Security → WAF → Custom rules**). Existiert die in
+`docs/DEPLOY-raspberry-pi.md` als *optional* dokumentierte Block-Regel überhaupt? Falls ja, blockt
+sie nach dem Umschalten auch den eigenen Browser (keine Anthropic-IP) → Expression **komplett
+ersetzen** (über **Edit expression**, nicht den grafischen Builder):
+```
+(http.host eq "dnd.magnetron.me" and http.request.uri.path contains "/mcp" and not ip.src in {160.79.104.0/21 2607:6bc0::/48})
+```
+`http.host` **niemals** weglassen (sonst trifft die Regel den Smarthome-Tunnel). `uri.path` statt
+`uri` (sonst umgeht `?x=/mcp` die Regel). `contains "/mcp"` hält den Geheim-Token aus der
+Cloudflare-Konfiguration heraus. `/health` bleibt offen. Regel **nie löschen und neu anlegen** —
+im Löschfenster fehlt die Edge-Schicht. Existiert die Regel nicht: nichts tun (der MCP hängt an
+Geheimpfad + App-IP-Allowlist, die hinter dem Gateway nachweislich weiterläuft).
 
-### 5. Sofort testen — und Rollback
-- Claude-Connector: initialize + 16 Tools. Website: `https://dnd.magnetron.me/` → PDF hochladen.
-- **Bei Fehler:** Tunnel-Origin zurück auf `http://foliant:8000` (sofort rückrollbar, keine
-  Datenänderung). `docker compose stop web gateway` entfernt die neuen Container wieder.
+**b) Tunnel-Origin umschalten** — `dash.cloudflare.com` → **Networking → Tunnels** (oder
+`one.dash.cloudflare.com` → **Networks → Tunnels**; ältere UI: Reiter „Public Hostnames", neuere
+„Routes"/„Published application routes") → Tunnel mit `dnd.magnetron.me` → Route bearbeiten →
+Service-URL `http://foliant:8000` → **`http://gateway:8080`** → Save. Greift in Sekunden, kein
+Container-Neustart, kein DNS-Eingriff. Unter *Additional application settings* **nichts** ändern —
+insbesondere **„Disable Chunked Encoding" aus lassen** (zerstört SSE/MCP).
 
-> Der Code ändert das Cloudflare-Dashboard nicht — Schritt 4 ist manuell. Erst nach grüner
-> lokaler Abnahme (Schritt 3) umschalten.
+### 6. Sofort testen — und Rollback
+- Claude-Connector im **frischen** Chat (alte Sessions kaschieren tote Verbindungen): 16 Tools.
+- `https://dnd.magnetron.me/` → Passwort-Abfrage → PDF hochladen.
+- **Rollback:** dieselbe Tunnel-Route zurück auf `http://foliant:8000`, Save. Sekunden, keine
+  Datenänderung. Danach optional `docker compose stop web gateway`.
+- Warum etwas blockiert wurde: **Security → Events** (Caddy loggt bewusst nichts — Token im Pfad).
+
+### Bekannte Grenzen
+- **Cloudflares Proxy-Read-Timeout: 120 s** (nur Enterprise änderbar). Die Konvertierung antwortet
+  erst am Ende (kein Early-Header) → `ZEITLIMIT_S = 70.0` in `web.py` sorgt dafür, dass der Nutzer
+  die *deutsche* Fehlermeldung sieht statt Cloudflares Error 524.
+- `asyncio.Semaphore(1)` begrenzt Nebenläufigkeit, **nicht die Rate**. Der harte Kostendeckel ist
+  ein API-Key in einem Workspace mit Spend-Limit (optional zusätzlich eine Cloudflare
+  Rate-Limiting-Regel auf `POST /bogen`).
+- Externes Uptime-Monitoring auf **`/health`** (immer offen). `/ready` unterliegt dem IP-Filter.

@@ -69,6 +69,11 @@ services:
     cap_drop: ["ALL"]
     security_opt:
       - no-new-privileges:true
+    # Ressourcen-Deckel: der Pi traegt auch den MCP und Davids Smarthome-Tunnel. Ein PDF-Parse
+    # (PyMuPDF) darf sie nicht aushungern - lieber der Web-Container stirbt als der Rest.
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
     depends_on:
       - foliant
 
@@ -79,6 +84,13 @@ services:
     container_name: foliant-gateway
     restart: unless-stopped
     command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    environment:
+      # Basic-Auth der Website (Caddyfile). NUR aus der Pi-.env - der Hash gehoert NIE ins
+      # oeffentliche Repo. Hash erzeugen: docker run --rm caddy:2-alpine caddy hash-password
+      # Fehlen die Variablen, verweigert die Website JEDEN Zugriff (fail-closed) - der MCP-Pfad
+      # und /health bleiben unberuehrt (eigene handle-Bloecke davor).
+      - WEB_BENUTZER=${WEB_BENUTZER:-}
+      - WEB_HASH=${WEB_HASH:-}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
     ports:

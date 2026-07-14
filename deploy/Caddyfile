@@ -34,8 +34,15 @@
 		reverse_proxy foliant:8000
 	}
 
-	# Alles Uebrige -> Website.
+	# Alles Uebrige -> Website, hinter Passwortschutz. Die Website selbst ist authlos und JEDE
+	# Konvertierung kostet Anthropic-API-Geld -> ohne Schranke waere sie ein offenes Portemonnaie
+	# (der Hostname steht ueber Certificate-Transparency-Logs oeffentlich; Scanner finden ihn).
+	# handle-Bloecke sind EXKLUSIV: @mcp und /health sind oben abgehandelt und sehen basic_auth NIE.
+	# Zugangsdaten ausschliesslich aus der Pi-.env (WEB_BENUTZER/WEB_HASH) - nie ins oeffentliche Repo.
 	handle {
+		basic_auth {
+			{$WEB_BENUTZER} {$WEB_HASH}
+		}
 		reverse_proxy web:8080
 	}
 }
