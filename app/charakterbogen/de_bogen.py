@@ -249,23 +249,27 @@ def _waffen_tabelle(page, spec, angriffe, ink) -> None:
     if not rows:
         return
 
-    def spalten_size(texte, breite):
-        # kleinste Grösse, die ALLE Zeilen der Spalte fasst -> einheitlich, kein Zellen-Wackeln
+    def passt(texte, breite):
         s = spec["size"]
         for t in texte:
             if t:
                 s = min(s, _fit_size(_saeubere(t), breite, spec["size"], spec["min"]))
         return s
 
-    sn = spalten_size([_text(w.name) for w in rows], sp["name"][1] - sp["name"][0])
-    ss = spalten_size([_text(w.schaden) for w in rows], sp["schaden"][1] - sp["schaden"][0])
+    # EINE einheitliche Grösse für die GANZE Tabelle (kleinste, die jede Zelle jeder Spalte
+    # fasst) -> Name/Bonus/Schaden gleich gross, gleiche Grundlinie.
+    tsize = min(
+        passt([_text(w.name) for w in rows], sp["name"][1] - sp["name"][0]),
+        passt([_text(w.angriffsbonus) for w in rows], sp["atk"][1] - sp["atk"][0]),
+        passt([_text(w.schaden) for w in rows], sp["schaden"][1] - sp["schaden"][0]),
+        passt([_text(w.notiz) for w in rows], sp["notizen"][1] - sp["notizen"][0]),
+    )
     for i, w in enumerate(rows):
         y = y0 + i * lh
-        # size==min erzwingt die einheitliche Spaltengrösse (kein Per-Zelle-Autofit)
-        _zeichne_einzeilig(page, [sp["name"][0], y - 10, sp["name"][1], y + 2], _text(w.name), sn, sn, "l", ink)
-        _zeichne_einzeilig(page, [sp["atk"][0], y - 10, sp["atk"][1], y + 2], _text(w.angriffsbonus), spec["size"], spec["size"], "c", ink)
-        _zeichne_einzeilig(page, [sp["schaden"][0], y - 10, sp["schaden"][1], y + 2], _text(w.schaden), ss, ss, "l", ink)
-        _zeichne_einzeilig(page, [sp["notizen"][0], y - 10, sp["notizen"][1], y + 2], _text(w.notiz), spec["size"], spec["min"], "l", ink)
+        _zeichne_einzeilig(page, [sp["name"][0], y - 10, sp["name"][1], y + 2], _text(w.name), tsize, tsize, "l", ink)
+        _zeichne_einzeilig(page, [sp["atk"][0], y - 10, sp["atk"][1], y + 2], _text(w.angriffsbonus), tsize, tsize, "c", ink)
+        _zeichne_einzeilig(page, [sp["schaden"][0], y - 10, sp["schaden"][1], y + 2], _text(w.schaden), tsize, tsize, "l", ink)
+        _zeichne_einzeilig(page, [sp["notizen"][0], y - 10, sp["notizen"][1], y + 2], _text(w.notiz), tsize, tsize, "l", ink)
 
 
 def _zauber_tabelle(page, spec, zauber, codemap, ink) -> list:
