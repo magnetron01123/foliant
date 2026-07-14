@@ -79,6 +79,11 @@ aus den abgeschlossenen Phasen neu bauen.
   in `.venv-ddb` (sonst unsichtbar rot!) + `admin check` + `tests/smoke_test.py`.
   Synthese-Fund 12.07.2026: grüne Strukturtests bewiesen keine Inhalte — nach jedem
   srd-de-Re-Import ist die Golden-Suite Pflicht.
+- **Korpus-Lücke (14.07.2026):** Die lokale Dev-DB ist oft nur ein SUBSET (ohne die engl.
+  DDB-Bücher) → `make test` am Mac ist bei **korpusabhängigen** Fällen trügerisch grün
+  (so blieb der Deutsch-first-Ranking-Bug „Reaktionen"/„Counterspell" unentdeckt). Nach
+  jedem Deploy / srd-de-Re-Import zusätzlich **`make test-golden-pi PI=pi@<host>`** (Golden-
+  Suite im Pi-Container gegen den VOLLEN Bestand) — sonst gibt das Gate falsche Sicherheit.
 - T2/T10/T12 sind **Verhaltenstests** → manuelle Checkliste `docs/ABNAHME-PROTOKOLL.md`
   (Schicht 1+2 bestanden; Schicht 3 macht David im Chat).
 - Wichtigster Dauertest: **T2** — Frage außerhalb des Bestands → ehrliches „nicht gefunden".

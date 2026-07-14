@@ -581,28 +581,35 @@ def _hole_detail(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
 
         gewaehlt = None
         weitere_abschnitte: list[dict] = []
-        if len(ziel_exakt) > 1 and \
-                len({k["quelle"] for k in ziel_exakt}) < len(ziel_exakt):
-            # Mehrere exakte Treffer aus DERSELBEN Quelle sind verschiedene TEXTSTELLEN
-            # desselben Begriffs (Spielregel-Kapitel vs. Statblock-Format-Meta 'Elemente
-            # von Wertekästen' vs. Glossar-Kurzverweis) - SYN-P0-003/codex DND-002.
-            # Codex-Kriterium: KERNABSCHNITT priorisieren, nicht bloss raten. Der
-            # AUSFUEHRLICHSTE Abschnitt ist praktisch immer der gesuchte (Bonusaktionen
-            # 837 vs. 200, Temp-TP 1665 vs. 235) -> ihn deterministisch waehlen; die
-            # uebrigen als nachladbare `weitere_abschnitte` ausweisen (nichts verstecken,
-            # per eintrag_id abrufbar). Verschiedene QUELLEN sind dagegen Fassungen
-            # derselben Sache -> Prioritaet entscheidet (S10/Q2, z. B. Champion).
-            def _regeltext_laenge(v: dict) -> int:
-                # Laenge OHNE die Kontext-Breadcrumb-Zeile messen (die verfaelscht sonst
-                # den Vergleich - ein langer Kontext taeuscht Textumfang vor).
-                return len(_KONTEXT_RE.sub("", v.get("body_md") or "", count=1))
-            voll_paare = [(_db.hole_eintrag(con, k["id"]), k) for k in ziel_exakt]
-            voll_paare = [(v, k) for v, k in voll_paare if v]
-            voll_paare.sort(key=lambda vk: _regeltext_laenge(vk[0]), reverse=True)
-            gewaehlt = voll_paare[0][1]
-            weitere_abschnitte = [_knapp(k) for _v, k in voll_paare[1:]]
-        elif ziel_exakt:
-            gewaehlt = ziel_exakt[0]
+        if ziel_exakt:
+            # ziel_exakt ist prioritaets-/Deutsch-first-sortiert (_dedupe_und_sortiere.rang):
+            # [0] ist der kanonische Treffer der Vorrang-Quelle (deutsche Quelle vor DDB/
+            # Open5e, Q2/S10). Die SYN-P0-003-Laengenwahl (KERNABSCHNITT vor Statblock-
+            # Format-Meta 'Elemente von Wertekästen' bzw. Glossar-Kurzverweis) vergleicht
+            # NUR gleichnamige Abschnitte DERSELBEN Quelle - verschiedene QUELLEN sind
+            # Fassungen und werden von der Quellen-Prioritaet entschieden, NIE von der
+            # Textlaenge. Sonst schlaegt ein laengerer englischer DDB-Abschnitt den exakten
+            # deutschen srd-de-Treffer (Deutsch-first-Bug: engl. 'Reactions' ist laenger als
+            # der srd-de-Kernabschnitt 'Reaktionen').
+            kopf = ziel_exakt[0]
+            geschwister = [k for k in ziel_exakt if k["quelle"] == kopf["quelle"]]
+            if len(geschwister) > 1:
+                # Gleichnamige Abschnitte DERSELBEN Quelle sind verschiedene TEXTSTELLEN
+                # (Spielregel-Kapitel vs. Statblock-Format-Meta vs. Glossar-Kurzverweis,
+                # codex DND-002): den AUSFUEHRLICHSTEN (KERNABSCHNITT) deterministisch
+                # waehlen (Bonusaktionen 837 vs. 200, Temp-TP 1665 vs. 235); die uebrigen
+                # als nachladbare `weitere_abschnitte` ausweisen (per eintrag_id abrufbar).
+                def _regeltext_laenge(v: dict) -> int:
+                    # Laenge OHNE die Kontext-Breadcrumb-Zeile messen (ein langer Kontext
+                    # taeuscht sonst Textumfang vor).
+                    return len(_KONTEXT_RE.sub("", v.get("body_md") or "", count=1))
+                voll_paare = [(_db.hole_eintrag(con, k["id"]), k) for k in geschwister]
+                voll_paare = [(v, k) for v, k in voll_paare if v]
+                voll_paare.sort(key=lambda vk: _regeltext_laenge(vk[0]), reverse=True)
+                gewaehlt = voll_paare[0][1]
+                weitere_abschnitte = [_knapp(k) for _v, k in voll_paare[1:]]
+            else:
+                gewaehlt = kopf
         elif exakt:
             if edition == _db.STANDARD_EDITION:
                 gewaehlt = exakt[0]      # nur aeltere Fassung vorhanden (B5)
@@ -673,10 +680,15 @@ def _hole_detail(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
         # Kandidaten fuer den Vergleich: die im Dedupe weggemergten Fassungen des
         # gewaehlten Treffers (gleiche Edition/Kategorie per Gruppenschluessel) plus
         # etwaige weitere exakte Kandidaten anderer Quellen.
+        # Die gleichnamigen Same-Source-Abschnitte sind bereits als `weitere_abschnitte`
+        # ausgewiesen - sie duerfen den Konflikt-/Fremdfassungs-Vergleich (der QUELL-
+        # uebergreifende Dubletten meint) nicht als Scheinkonflikt fuellen.
+        abschnitt_ids = {w["eintrag_id"] for w in weitere_abschnitte}
         vergleiche = list(gewaehlt.get("weitere_fassungen") or [])
         vergleiche += [{"id": k["id"], "quelle_titel": k["quelle_titel"]}
                        for k in exakt
-                       if k["edition"] == voll["edition"] and k["id"] != voll["id"]]
+                       if k["edition"] == voll["edition"] and k["id"] != voll["id"]
+                       and k["id"] not in abschnitt_ids]
         gesehen_ids = {voll["id"]}
         for wf in vergleiche[:3]:
             if wf["id"] in gesehen_ids:

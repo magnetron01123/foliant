@@ -2,8 +2,14 @@
 # "pytest gruen" heisst ab jetzt: Haupt-Suite UND DDB-Suite (eigene .venv-ddb) - die
 # DDB-Tests werden im Haupt-venv uebersprungen und blieben sonst unsichtbar rot.
 # Smoke + admin check laufen nur, wenn die lokale Dev-DB existiert (echte Daten).
+#
+# ACHTUNG Korpus-Luecke (14.07.2026): die lokale Dev-DB ist auf Entwicklungsmaschinen oft
+# nur ein SUBSET (z. B. ohne die englischen DDB-Buecher). Korpusabhaengige Regressionen -
+# etwa der Deutsch-first-Ranking-Bug 'Reaktionen'/'Counterspell' - bleiben dort UNSICHTBAR
+# gruen. Nach jedem Deploy / srd-de-Re-Import daher zusaetzlich `make test-golden-pi` gegen
+# den VOLLEN Bestand fahren (RUNBOOK §2).
 
-.PHONY: test test-haupt test-ddb test-daten
+.PHONY: test test-haupt test-ddb test-daten test-golden-pi
 
 test: test-haupt test-ddb test-daten
 	@echo "OK: alle Test-Stufen bestanden."
@@ -26,3 +32,10 @@ test-daten:
 	else \
 		echo "Hinweis: keine data/foliant.sqlite - Daten-Stufe uebersprungen (Dev ohne Bestand)."; \
 	fi
+
+# Golden-Suite gegen den VOLLEN Bestand im Pi-Container (Regel-Semantik am echten Korpus,
+# nicht am Mac-Subset). PI = SSH-Ziel des Pi (Default-Platzhalter; mit der echten LAN-Adresse
+# ueberschreiben: `make test-golden-pi PI=pi@<host>`). Pflicht nach Deploy / srd-de-Re-Import.
+PI ?= pi@raspberrypi.local
+test-golden-pi:
+	ssh $(PI) 'cd ~/foliant && docker compose exec -T -w /app foliant python -m pytest -q tests/test_golden_bestand.py'
