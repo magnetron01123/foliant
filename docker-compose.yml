@@ -58,6 +58,8 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-}
+      # EIN Kennwort, kein Benutzername (Kennwort-Seite in web.py). Fehlt es -> Seite ist zu.
+      - WEB_PASSWORT=${WEB_PASSWORT:-}
       - CHARAKTERBOGEN_GLOSSAR=/glossar/glossar_web.sqlite
       - CHARAKTERBOGEN_VORLAGE=/vorlagen/Charakterbogen_2024_DE.pdf
     volumes:
@@ -84,13 +86,6 @@ services:
     container_name: foliant-gateway
     restart: unless-stopped
     command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
-    environment:
-      # Basic-Auth der Website (Caddyfile). NUR aus der Pi-.env - der Hash gehoert NIE ins
-      # oeffentliche Repo. Hash erzeugen: docker run --rm caddy:2-alpine caddy hash-password
-      # Fehlen die Variablen, verweigert die Website JEDEN Zugriff (fail-closed) - der MCP-Pfad
-      # und /health bleiben unberuehrt (eigene handle-Bloecke davor).
-      - WEB_BENUTZER=${WEB_BENUTZER:-}
-      - WEB_HASH=${WEB_HASH:-}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
     ports:

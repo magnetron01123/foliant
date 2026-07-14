@@ -12,16 +12,20 @@ aus der .env (`ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL`); fehlt er, meldet nur `POST
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import os
 import re
+import secrets
 import sqlite3
+import time
 from pathlib import Path
 
 import fitz
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
-from starlette.responses import HTMLResponse, PlainTextResponse, Response
+from starlette.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
@@ -33,6 +37,7 @@ from app.charakterbogen.uebersetzer import (
 
 _HIER = Path(__file__).parent
 _INDEX = (_HIER / "templates" / "index.html").read_text(encoding="utf-8")
+_ANMELDUNG = (_HIER / "templates" / "anmeldung.html").read_text(encoding="utf-8")
 _STATIC = _HIER / "static"
 
 MAX_BYTES = 15 * 1024 * 1024        # §7.1: Standard 15 MB
@@ -51,6 +56,9 @@ UEBERSETZUNG_WEG = "Die Übersetzung ist momentan nicht verfügbar. Bitte versuc
 PASST_NICHT = ("Der vollständige Inhalt passt nicht auf den offiziellen deutschen "
                "Charakterbogen. Es wurde keine unvollständige PDF erzeugt.")
 KONVERTER_BELEGT = "Gerade wird bereits ein Charakterbogen verarbeitet. Bitte versuche es gleich noch einmal."
+KENNWORT_FALSCH = "Das Kennwort stimmt nicht."
+ZU_VIELE_VERSUCHE = "Zu viele Fehlversuche. Bitte warte ein paar Minuten."
+KEIN_ZUGANG = "Der Zugang ist nicht eingerichtet. Bitte WEB_PASSWORT in der .env setzen."
 
 _HTML_HEADER = {
     "Cache-Control": "no-store",
@@ -61,16 +69,79 @@ _HTML_HEADER = {
 }
 
 
-def _seite(fehler: str | None = None) -> str:
+def _mit_fehler(vorlage: str, fehler: str | None) -> str:
     if not fehler:
-        return _INDEX
+        return vorlage
     banner = f'<p class="fehler">{fehler}</p>'
-    return _INDEX.replace("</form>", banner + "</form>", 1)
+    return vorlage.replace("</form>", banner + "</form>", 1)
+
+
+def _seite(fehler: str | None = None) -> str:
+    return _mit_fehler(_INDEX, fehler)
+
+
+def _anmeldeseite(fehler: str | None = None) -> str:
+    return _mit_fehler(_ANMELDUNG, fehler)
 
 
 def _sicherer_name(name: str) -> str:
     sauber = re.sub(r"[^A-Za-z0-9_-]+", "_", (name or "").strip()).strip("_")
     return sauber or "charakterbogen"
+
+
+# --- Zugang: EIN Kennwort, kein Benutzername (Eigentümer-Wunsch) --------------
+# Die Website ist authlos gebaut und jede Konvertierung kostet API-Geld -> ohne Schranke wäre sie
+# ein offenes Portemonnaie (der Hostname steht über Certificate-Transparency-Logs öffentlich).
+# Statt HTTP-Basic-Auth (hässlicher Browser-Dialog MIT Benutzerfeld) eine eigene Kennwort-Seite.
+# Fehlt WEB_PASSWORT, ist die Seite ZU (fail-closed) - nie versehentlich offen.
+
+KEKS = "bogen_zugang"
+KEKS_GUELTIG_S = 30 * 24 * 3600     # 30 Tage - die Runde soll sich nicht dauernd neu anmelden
+MAX_VERSUCHE = 8                    # je Absender-IP
+SPERRE_S = 300.0
+
+_fehlversuche: dict[str, list[float]] = {}
+
+
+def _signatur(passwort: str, ablauf: int) -> str:
+    return hmac.new(passwort.encode(), str(ablauf).encode(), hashlib.sha256).hexdigest()
+
+
+def _keks_wert(passwort: str) -> str:
+    ablauf = int(time.time()) + KEKS_GUELTIG_S
+    return f"{ablauf}.{_signatur(passwort, ablauf)}"
+
+
+def _keks_gueltig(passwort: str, wert: str | None) -> bool:
+    """Signiert mit dem Kennwort selbst: ändert David es, sind alle alten Kekse sofort tot."""
+    if not passwort or not wert or "." not in wert:
+        return False
+    roh, _, sig = wert.partition(".")
+    try:
+        ablauf = int(roh)
+    except ValueError:
+        return False
+    if ablauf < time.time():
+        return False
+    return secrets.compare_digest(sig, _signatur(passwort, ablauf))
+
+
+def _absender(request) -> str:
+    return request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?")
+
+
+def _gesperrt(ip: str) -> bool:
+    jetzt = time.monotonic()
+    treffer = [t for t in _fehlversuche.get(ip, []) if jetzt - t < SPERRE_S]
+    if treffer:
+        _fehlversuche[ip] = treffer
+    else:
+        _fehlversuche.pop(ip, None)
+    return len(treffer) >= MAX_VERSUCHE
+
+
+def _fehlversuch(ip: str) -> None:
+    _fehlversuche.setdefault(ip, []).append(time.monotonic())
 
 
 # --- deterministische Konvertierung (läuft im Threadpool) --------------------
@@ -113,17 +184,48 @@ def _pruefe_sicher(pdf_bytes: bytes) -> str | None:
 # --- App-Fabrik --------------------------------------------------------------
 
 def erstelle_app(provider=None, glossar_pfad: str | None = None,
-                 template_pfad: str | None = None) -> Starlette:
+                 template_pfad: str | None = None, passwort: str | None = None) -> Starlette:
     """Baut die ASGI-App. Alle externen Abhängigkeiten sind injizierbar (Tests)."""
     sem = asyncio.Semaphore(1)
 
+    def angemeldet(request) -> bool:
+        return _keks_gueltig(passwort, request.cookies.get(KEKS))
+
     async def index(request):
+        if not passwort:
+            return HTMLResponse(_anmeldeseite(KEIN_ZUGANG), status_code=503, headers=_HTML_HEADER)
+        if not angemeldet(request):
+            return HTMLResponse(_anmeldeseite(), status_code=401, headers=_HTML_HEADER)
         return HTMLResponse(_seite(), headers=_HTML_HEADER)
+
+    async def anmeldung(request):
+        if not passwort:
+            return HTMLResponse(_anmeldeseite(KEIN_ZUGANG), status_code=503, headers=_HTML_HEADER)
+        ip = _absender(request)
+        if _gesperrt(ip):
+            return HTMLResponse(_anmeldeseite(ZU_VIELE_VERSUCHE), status_code=429, headers=_HTML_HEADER)
+
+        form = await request.form()
+        eingabe = str(form.get("kennwort") or "")
+        if not secrets.compare_digest(eingabe, passwort):
+            _fehlversuch(ip)
+            await asyncio.sleep(1.0)        # bremst Durchprobieren, stört einen Menschen nicht
+            return HTMLResponse(_anmeldeseite(KENNWORT_FALSCH), status_code=401, headers=_HTML_HEADER)
+
+        antwort = RedirectResponse("/", status_code=303, headers=_HTML_HEADER)
+        antwort.set_cookie(KEKS, _keks_wert(passwort), max_age=KEKS_GUELTIG_S, httponly=True,
+                           samesite="lax",
+                           # Secure nur, wenn wirklich HTTPS davor liegt (Cloudflare/cloudflared
+                           # setzen den Header) - sonst wäre die lokale Abnahme über http kaputt.
+                           secure=request.headers.get("x-forwarded-proto", "").lower() == "https")
+        return antwort
 
     async def gesund(request):
         return PlainTextResponse("ok")
 
     async def bogen(request):
+        if not passwort or not angemeldet(request):
+            return HTMLResponse(_anmeldeseite(), status_code=401, headers=_HTML_HEADER)
         if sem.locked():
             return HTMLResponse(_seite(KONVERTER_BELEGT), status_code=429, headers=_HTML_HEADER)
         async with sem:
@@ -160,6 +262,7 @@ def erstelle_app(provider=None, glossar_pfad: str | None = None,
 
     routen = [
         Route("/", index, methods=["GET"]),
+        Route("/anmeldung", anmeldung, methods=["POST"]),
         Route("/bogen", bogen, methods=["POST"]),
         Route("/health", gesund, methods=["GET"]),
         Mount("/static", StaticFiles(directory=str(_STATIC)), name="static"),
@@ -167,9 +270,10 @@ def erstelle_app(provider=None, glossar_pfad: str | None = None,
     return Starlette(routes=routen)
 
 
-# ASGI-Einstiegspunkt für uvicorn. Glossar-DB + Vorlage-Pfad aus der Umgebung (Container),
-# Provider aus .env. Fehlt etwas, greifen die Defaults/Fehlermeldungen.
+# ASGI-Einstiegspunkt für uvicorn. Glossar-DB, Vorlage, Kennwort und Provider aus der Umgebung.
+# Fehlt WEB_PASSWORT, ist die Seite zu (fail-closed) - nie versehentlich offen im Netz.
 app = erstelle_app(
     glossar_pfad=os.environ.get("CHARAKTERBOGEN_GLOSSAR") or None,
     template_pfad=os.environ.get("CHARAKTERBOGEN_VORLAGE") or None,
+    passwort=os.environ.get("WEB_PASSWORT") or None,
 )

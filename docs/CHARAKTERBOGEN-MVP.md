@@ -111,22 +111,27 @@ cd ~/foliant
 python3 -m app.charakterbogen.glossar_export data/foliant.sqlite data/glossar_web.sqlite
 ```
 
-### 2. Website-Passwort setzen (Basic-Auth am Gateway)
-Die Website ist authlos und **jede Konvertierung kostet Anthropic-API-Geld** — der Hostname steht
-über Certificate-Transparency-Logs öffentlich, Scanner finden ihn in Tagen. Der Schutz sitzt im
-Gateway (versioniert, nicht in einem Dashboard-Klick) und ist von den MCP-Pfaden **exklusiv**
-getrennt (`handle`-Blöcke).
+### 2. Website-Kennwort setzen (EIN Kennwort, kein Benutzername)
+Die Website ist authlos gebaut und **jede Konvertierung kostet Anthropic-API-Geld** — der Hostname
+steht über Certificate-Transparency-Logs öffentlich, Scanner finden ihn in Tagen. Der Zugang ist
+deshalb eine eigene **Kennwort-Seite in der App** (`web.py`), nicht HTTP-Basic-Auth: Basic-Auth
+erzwingt im Browser immer ein Benutzerfeld — Eigentümer-Wunsch war *ein* Kennwort, sonst nichts.
 
-```sh
-docker run --rm caddy:2-alpine caddy hash-password --plaintext 'DEIN-PASSWORT'
-# Ausgabe + Benutzer in die Pi-.env (NIE ins Repo — deploy/Caddyfile ist öffentlich):
-#   WEB_BENUTZER=runde
-#   WEB_HASH=$2a$14$...
-docker compose up -d --no-deps gateway
 ```
-**Fail-closed verifiziert:** Fehlen die Variablen, startet der Gateway trotzdem, `/health` und der
-MCP leben weiter — nur die Website antwortet dauerhaft `401`. Der Gateway wird also **kein**
-Single-Point-of-Failure für den MCP.
+# in der Pi-.env - frei wählbar, kein Hash-Kommando nötig:
+WEB_PASSWORT=<kennwort-der-runde>
+```
+```sh
+docker compose up -d --no-deps web
+```
+- **Fail-closed:** Fehlt `WEB_PASSWORT`, ist die Seite zu (503/401) — nie versehentlich offen.
+- Signierter, `HttpOnly`-Keks (30 Tage, HMAC **mit dem Kennwort als Schlüssel** → Kennwort ändern
+  entwertet alle alten Kekse sofort). `Secure` nur, wenn `X-Forwarded-Proto: https` ankommt, damit
+  die lokale Abnahme über `http://127.0.0.1:8080` weiter funktioniert.
+- **`POST /bogen` ist selbst gesperrt**, nicht nur die Seite versteckt — die teure Route ist zu.
+- Bremse gegen Durchprobieren: 8 Fehlversuche je Absender-IP (`CF-Connecting-IP`) → 5 min Sperre,
+  plus 1 s Verzögerung pro Fehlversuch.
+- Der Gateway proxyt nur noch (keine Basic-Auth mehr im `Caddyfile`).
 
 ### 3. `.env`: Übersetzungsprovider
 ```

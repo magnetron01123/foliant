@@ -12,7 +12,10 @@ from starlette.testclient import TestClient
 
 from app.charakterbogen import web
 from app.charakterbogen.uebersetzer import FakeProvider
-from app.charakterbogen.web import KEIN_DDB, NICHT_PDF, NICHT_SICHER, _pruefe_sicher, erstelle_app
+from app.charakterbogen.web import (
+    KEIN_DDB, KENNWORT_FALSCH, NICHT_PDF, NICHT_SICHER, ZU_VIELE_VERSUCHE,
+    _pruefe_sicher, erstelle_app,
+)
 from tests.test_charakterbogen_ddb import BEISPIEL, baue_ddb_pdf
 
 
@@ -36,7 +39,22 @@ def client(tmp_path):
     con.execute("INSERT INTO glossar VALUES ('Mönch','Monk',1,'Ulisses','2024','')")
     con.commit()
     con.close()
-    app = erstelle_app(provider=FakeProvider(), glossar_pfad=str(gloss), template_pfad=str(vorlage))
+    app = erstelle_app(provider=FakeProvider(), glossar_pfad=str(gloss), template_pfad=str(vorlage),
+                       passwort=KENNWORT)
+    c = TestClient(app)
+    c.post("/anmeldung", data={"kennwort": KENNWORT})     # angemeldet (Keks im Client)
+    return c
+
+
+KENNWORT = "geheim-der-runde"
+
+
+@pytest.fixture()
+def anonym(tmp_path):
+    """Derselbe Aufbau, aber NICHT angemeldet."""
+    vorlage = tmp_path / "de.pdf"
+    vorlage.write_bytes(_blank_pdf(2))
+    app = erstelle_app(provider=FakeProvider(), template_pfad=str(vorlage), passwort=KENNWORT)
     return TestClient(app)
 
 
@@ -116,3 +134,56 @@ def test_pruefe_sicher_lehnt_verschluesselte_ab():
 
 def test_pruefe_sicher_lehnt_zu_viele_seiten_ab():
     assert _pruefe_sicher(_blank_pdf(web.MAX_SEITEN + 1)) == NICHT_SICHER
+
+
+# --- Zugang: EIN Kennwort, kein Benutzername ---------------------------------
+
+def test_ohne_kennwort_keine_website(anonym):
+    r = anonym.get("/")
+    assert r.status_code == 401
+    assert "Kennwort" in r.text
+    assert "Deutschen Charakterbogen erstellen" not in r.text     # Upload-Formular bleibt verborgen
+    assert 'name="benutzer"' not in r.text                        # KEIN Benutzerfeld
+    assert "www-authenticate" not in {k.lower() for k in r.headers}  # kein Browser-Dialog
+
+
+def test_ohne_kennwort_keine_konvertierung(anonym):
+    """Wichtigster Test: die teure Route ist zu, nicht nur die Seite versteckt."""
+    r = anonym.post("/bogen", files={"datei": ("held.pdf", baue_ddb_pdf(BEISPIEL), "application/pdf")})
+    assert r.status_code == 401
+    assert not r.content.startswith(b"%PDF")
+
+
+def test_falsches_kennwort(anonym):
+    r = anonym.post("/anmeldung", data={"kennwort": "falsch"})
+    assert r.status_code == 401 and KENNWORT_FALSCH in r.text
+
+
+def test_richtiges_kennwort_oeffnet_die_seite(anonym):
+    r = anonym.post("/anmeldung", data={"kennwort": KENNWORT}, follow_redirects=True)
+    assert r.status_code == 200 and "Deutschen Charakterbogen erstellen" in r.text
+    assert anonym.get("/").status_code == 200                     # Keks haelt
+
+
+def test_zu_viele_fehlversuche_werden_gebremst(anonym):
+    web._fehlversuche.clear()
+    for _ in range(web.MAX_VERSUCHE):
+        anonym.post("/anmeldung", data={"kennwort": "falsch"})
+    r = anonym.post("/anmeldung", data={"kennwort": "falsch"})
+    assert r.status_code == 429 and ZU_VIELE_VERSUCHE in r.text
+    # ... und selbst das RICHTIGE Kennwort ist waehrend der Sperre blockiert:
+    assert anonym.post("/anmeldung", data={"kennwort": KENNWORT}).status_code == 429
+    web._fehlversuche.clear()
+
+
+def test_gefaelschter_keks_wird_abgewiesen(anonym):
+    anonym.cookies.set(web.KEKS, "99999999999.deadbeef")
+    assert anonym.get("/").status_code == 401
+
+
+def test_ohne_gesetztes_kennwort_ist_die_seite_zu(tmp_path):
+    """Fail-closed: kein WEB_PASSWORT -> niemals versehentlich offen im Netz."""
+    app = erstelle_app(provider=FakeProvider(), passwort=None)
+    c = TestClient(app)
+    assert c.get("/").status_code == 503
+    assert c.post("/bogen", files={"datei": ("x.pdf", _blank_pdf(2), "application/pdf")}).status_code == 401
