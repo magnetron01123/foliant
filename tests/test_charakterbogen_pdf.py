@@ -201,3 +201,45 @@ def test_aktionsoekonomie_wird_uebersetzt_gerendert():
                           aktionsoekonomie=[UeText(en="1 Reaction", de="1 Reaktion")])]
     txt = _text_von(_rendere_synth(c))
     assert "1 Reaktion" in txt and "1 Reaction" not in txt
+
+
+def test_ueberlauf_reisst_nicht_mitten_im_absatz():
+    """Regression: der Bogen endete real mit '...innerhalb von 18' und der Anhang begann mit
+    'm sehen kannst' - der zeilenweise Schnitt trennte Zahl von Einheit. Der Ueberlauf muss
+    ABSATZTREU sein (ganze Merkmale wandern) und einen Hinweis fuer den Leser hinterlassen."""
+    import fitz
+    from app.charakterbogen.de_bogen import FORTS_MARKE, _para
+
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    a = "Erster Absatz. " * 12
+    b = "Zweiter Absatz, der komplett wandern muss, weil er nicht mehr passt. " * 6
+    rest = _para(page, [20, 20, 300, 60], f"{a}\n\n{b}", 8.5, 6, (0, 0, 0), endmarke=FORTS_MARKE)
+
+    gezeichnet = page.get_text()
+    assert rest, "Es muss ein Rest ueberlaufen"
+    assert FORTS_MARKE in gezeichnet, "Der Leser braucht den Fortsetzungs-Hinweis"
+    # Der Rest beginnt am ABSATZANFANG, nicht mitten im Satz:
+    assert rest.startswith("Zweiter Absatz"), f"Rest reisst mitten im Absatz: {rest[:40]!r}"
+    # und der zweite Absatz steht NICHT halb auf der Seite:
+    assert "Zweiter Absatz" not in gezeichnet
+
+
+def test_ueberlauf_eines_langen_merkmals_trennt_satztreu():
+    """Ein EINZELNES Merkmal, das allein den Kasten sprengt, darf nicht mitten im Satz reissen
+    (real: '...innerhalb von 18' | 'm sehen kannst'). Der Schnitt muss auf einem Satzende liegen."""
+    import fitz
+    from app.charakterbogen.de_bogen import FORTS_MARKE, _para
+
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    lang = ("Du waehlst eine Kreatur, die du innerhalb von 18 Metern sehen kannst. "
+            "Sie muss einen Rettungswurf bestehen. " * 8).strip()
+    rest = _para(page, [20, 20, 300, 60], lang, 8.5, 6, (0, 0, 0), endmarke=FORTS_MARKE)
+
+    assert rest, "Der lange Absatz muss ueberlaufen"
+    gezeichnet = page.get_text().replace(FORTS_MARKE, "").strip()
+    # Der gezeichnete Teil endet auf einem Satzzeichen, der Rest beginnt mit einem neuen Satz:
+    assert gezeichnet.rstrip().endswith("."), f"Schnitt mitten im Satz: …{gezeichnet[-45:]!r}"
+    assert rest[0].isupper(), f"Rest beginnt mitten im Satz: {rest[:45]!r}"
+    assert "18" not in gezeichnet[-6:], "Zahl darf nicht von ihrer Einheit getrennt werden"

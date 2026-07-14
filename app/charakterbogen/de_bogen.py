@@ -81,45 +81,99 @@ def _marke(page, punkt, ink) -> None:
     page.draw_circle(fitz.Point(punkt[0], punkt[1]), 2.3, color=ink, fill=ink, width=0)
 
 
-def _umbrich(text: str, breite: float, size: float) -> list[str]:
-    text = _saeubere(text)
+def _umbrich_absatz(absatz: str, breite: float, size: float) -> list[str]:
+    """Bricht EINEN Absatz auf Wortgrenzen um. Leerer Absatz -> eine Leerzeile."""
+    if not absatz:
+        return [""]
     zeilen: list[str] = []
-    for absatz in text.split("\n"):
-        if not absatz:
-            zeilen.append("")
-            continue
-        cur = ""
-        for wort in absatz.split(" "):
-            test = (cur + " " + wort).strip()
-            if not cur or fitz.get_text_length(test, _FONT, size) <= breite:
-                cur = test
-            else:
-                zeilen.append(cur)
-                cur = wort
-        zeilen.append(cur)
+    cur = ""
+    for wort in absatz.split(" "):
+        test = (cur + " " + wort).strip()
+        if not cur or fitz.get_text_length(test, _FONT, size) <= breite:
+            cur = test
+        else:
+            zeilen.append(cur)
+            cur = wort
+    zeilen.append(cur)
     return zeilen
 
 
-def _para(page, rect, text, size, minsize, ink) -> str:
+def _umbrich(text: str, breite: float, size: float) -> list[str]:
+    zeilen: list[str] = []
+    for absatz in _saeubere(text).split("\n"):
+        zeilen.extend(_umbrich_absatz(absatz, breite, size))
+    return zeilen
+
+
+FORTS_MARKE = "(Fortsetzung im Anhang)"
+_SATZENDE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _para(page, rect, text, size, minsize, ink, endmarke: str | None = None) -> str:
     """Zeichnet umbrochenen Text in rect, Auto-Fit von size bis minsize. Gibt den NICHT
-    passenden Rest zurück (fuer Fortsetzungsseiten) - '' wenn alles passt."""
+    passenden Rest zurück (fuer Fortsetzungsseiten) - '' wenn alles passt.
+
+    Der Überlauf ist ABSATZTREU: es wandern nur GANZE Absätze (= ganze Merkmale, im Modell mit
+    '\\n\\n' getrennt) in die Fortsetzung. Der frühere zeilenweise Schnitt riss mitten im Satz -
+    der Bogen endete real mit "…innerhalb von 18" und der Anhang begann mit "m sehen kannst".
+    Nur wenn schon der ERSTE Absatz allein nicht passt, wird notfalls in ihm getrennt.
+    `endmarke` wird als letzte Zeile gesetzt, wenn etwas übrig bleibt (Hinweis für den Leser).
+    """
     if not text:
         return ""
     r = fitz.Rect(rect)
+    absaetze = _saeubere(text).split("\n")
+
     for sz in _groessen(size, minsize):
         lh = sz * 1.28
-        zeilen = _umbrich(text, r.width, sz)
+        bloecke = [_umbrich_absatz(a, r.width, sz) for a in absaetze]
+        zeilen = [z for blk in bloecke for z in blk]
         if len(zeilen) * lh <= r.height:
             _zeichne_zeilen(page, r, zeilen, sz, lh, ink)
             return ""
-    # Bei Mindestgröße: so viel wie passt, Rest zurueckgeben (verlustfrei -> Fortsetzung)
+
+    # Mindestgröße erreicht -> Überlauf (verlustfrei in die Fortsetzung)
     sz = minsize
     lh = sz * 1.28
-    zeilen = _umbrich(text, r.width, sz)
-    maxz = max(1, int(r.height / lh))
-    _zeichne_zeilen(page, r, zeilen[:maxz], sz, lh, ink)
-    rest = [z for z in zeilen[maxz:]]
-    return "\n".join(rest).strip()
+    bloecke = [_umbrich_absatz(a, r.width, sz) for a in absaetze]
+    platz = max(1, int(r.height / lh))
+    nutz = max(1, platz - 1) if endmarke else platz
+
+    gezeichnet: list[str] = []
+    naechster = 0
+    for blk in bloecke:
+        if len(gezeichnet) + len(blk) > nutz:
+            break
+        gezeichnet.extend(blk)
+        naechster += 1
+
+    if gezeichnet:
+        rest = "\n".join(absaetze[naechster:])
+    else:
+        # Passt schon der erste Absatz nicht (ein einzelnes langes Merkmal), dann SATZTREU
+        # trennen - nie mitten im Satz. Erst wenn ein EINZELNER Satz den Kasten sprengt,
+        # bleibt als letzter Ausweg der zeilenweise Schnitt.
+        saetze = _SATZENDE.split(absaetze[0])
+        genommen: list[str] = []
+        for satz in saetze:
+            if len(_umbrich_absatz(" ".join(genommen + [satz]), r.width, sz)) > nutz:
+                break
+            genommen.append(satz)
+        if genommen:
+            gezeichnet = _umbrich_absatz(" ".join(genommen), r.width, sz)
+            kopf = " ".join(saetze[len(genommen):]).strip()
+        else:
+            gezeichnet = bloecke[0][:nutz]
+            kopf = " ".join(bloecke[0][nutz:]).strip()
+        rest = "\n".join([kopf] + absaetze[1:])
+
+    while gezeichnet and not gezeichnet[-1]:
+        gezeichnet.pop()
+    rest = rest.strip()
+    if rest and endmarke:
+        gezeichnet.append(endmarke)
+    _zeichne_zeilen(page, r, gezeichnet, sz, lh, ink)
+    return rest
 
 
 def _groessen(size, minsize):
@@ -313,11 +367,13 @@ def _grossbox(page, spec, text, ink) -> str:
         teiler = spec["teiler"]
         links = [r[0], r[1], teiler - 5, r[3]]
         rechts = [teiler + 5, r[1], r[2], r[3]]
+        # Die Marke gehoert NUR an die letzte Spalte vor dem Anhang (die linke laeuft ja nur
+        # in die rechte ueber - dort waere der Hinweis falsch).
         rest = _para(page, links, text, spec["size"], spec["min"], ink)
         if rest:
-            rest = _para(page, rechts, rest, spec["size"], spec["min"], ink)
+            rest = _para(page, rechts, rest, spec["size"], spec["min"], ink, endmarke=FORTS_MARKE)
         return rest
-    return _para(page, spec["rect"], text, spec["size"], spec["min"], ink)
+    return _para(page, spec["rect"], text, spec["size"], spec["min"], ink, endmarke=FORTS_MARKE)
 
 
 def _fortsetzungen_rendern(doc, items, ink) -> None:
