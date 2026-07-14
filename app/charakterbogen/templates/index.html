@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Charakterbogen auf Deutsch</title>
+  <link rel="stylesheet" href="static/site.css">
+</head>
+<body>
+  <main class="karte">
+    <h1>Charakterbogen auf Deutsch</h1>
+    <p class="unter">D&amp;D-Beyond-PDF auswählen und als offiziellen deutschen Charakterbogen erhalten.</p>
+    <form id="form" method="post" action="bogen" enctype="multipart/form-data">
+      <label class="feld">
+        <span>D&amp;D-Beyond-PDF</span>
+        <input type="file" name="datei" accept="application/pdf,.pdf" required>
+      </label>
+      <button type="submit" id="knopf">Deutschen Charakterbogen erstellen</button>
+      <p class="status" id="status" hidden>Bogen wird geprüft, übersetzt und ausgefüllt …</p>
+    </form>
+  </main>
+  <script src="static/site.js"></script>
+</body>
+</html>

@@ -9,6 +9,16 @@ config/foliant.toml
 .env
 quellen/
 
+# Lokale offizielle PDF-Vorlagen für die Charakterbogen-Ausgabe
+vorlagen/charakterboegen/offiziell/*.pdf
+
+# Private DDB-Beispiel-Exporte (echte Charakterdaten; nur lokaler Prüfstand, nie ins Git)
+vorlagen/charakterboegen/ddb-beispiele/
+# Private Golden-Tests laufen gegen die echten PDFs/Vorlagen (echte Charakterdaten +
+# urheberrechtlich geschuetzte WotC-Vorlage) - nie ins Git
+tests/test_charakterbogen_ddb_golden_privat.py
+tests/test_charakterbogen_pdf_golden_privat.py
+
 # Lokale Claude-Code-Einstellungen + Auslieferungs-Archive (entpackt, redundant)
 .claude/settings.local.json
 foliant-dokumente.zip

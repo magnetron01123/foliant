@@ -1,0 +1,43 @@
+# Gateway vor foliant (MCP) + web (Charakterbogen). Der Cloudflare-Tunnel zeigt nach dem
+# Umschalten auf http://gateway:8080. AUFTRAG §5.2:
+#  - Admin-API aus, KEINE Access-Logs (der MCP-Pfad enthaelt das Geheim-Token).
+#  - /mcp + /<ein-Segment>/mcp[/...] -> foliant (unveraendert, Streaming, kein Buffering).
+#  - /health, /ready -> foliant (Tunnel-/Container-Healthcheck bleibt echt).
+#  - alles andere -> web (Website).
+#  - Falscher Token-Pfad landet bei foliant und bekommt dort 403/404, NIE Website-HTML.
+
+{
+	admin off
+	auto_https off
+	log {
+		output discard
+	}
+}
+
+:8080 {
+	log {
+		output discard
+	}
+
+	# MCP: /mcp, /mcp/*, /<token>/mcp, /<token>/mcp/* -> foliant (Token bleibt geheim,
+	# Caddy prueft ihn NICHT; foliant/ZugriffsFilter entscheidet 403/404 wie bisher).
+	@mcp path /mcp /mcp/* /*/mcp /*/mcp/*
+	handle @mcp {
+		reverse_proxy foliant:8000 {
+			flush_interval -1
+		}
+	}
+
+	# Health/Readiness unveraendert an foliant.
+	@foliant_health path /health /ready
+	handle @foliant_health {
+		reverse_proxy foliant:8000
+	}
+
+	# Alles Uebrige -> Website. Den Zugangsschutz macht die Website SELBST (eine Kennwort-Seite,
+	# EIN Kennwort ohne Benutzernamen - Eigentuemer-Wunsch; HTTP-Basic-Auth erzwingt im Browser
+	# immer ein Benutzerfeld). Ohne WEB_PASSWORT ist sie zu (fail-closed). Der Gateway proxyt nur.
+	handle {
+		reverse_proxy web:8080
+	}
+}
