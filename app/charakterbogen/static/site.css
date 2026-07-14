@@ -1,0 +1,78 @@
+/* Schmaler Charakterbogen-MVP (AUFTRAG §6.1): warmer Papiergrund, dunkle Tinte,
+   dünner Doppelrahmen, gedämpft roter Hauptbutton, systemeigene Schriften. Keine
+   externen Fonts/Bilder/CDNs/Logos. */
+:root {
+  --papier: #f4ecd8;
+  --papier-hell: #faf5e9;
+  --tinte: #241f1a;
+  --rot: #7c2b25;
+  --rot-hell: #94362f;
+  --linie: #b9a888;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--papier);
+  color: var(--tinte);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+.karte {
+  width: 100%;
+  max-width: 480px;
+  background: var(--papier-hell);
+  border: 1px solid var(--linie);
+  outline: 3px double var(--linie);
+  outline-offset: 4px;
+  border-radius: 4px;
+  padding: 32px 30px;
+  text-align: center;
+}
+h1 { font-size: 1.5rem; margin: 0 0 8px; letter-spacing: .02em; }
+.unter { margin: 0 0 26px; font-size: .96rem; line-height: 1.4; opacity: .85; }
+.feld { display: block; text-align: left; margin-bottom: 22px; }
+.feld span {
+  display: block;
+  font-variant: small-caps;
+  letter-spacing: .06em;
+  font-size: .82rem;
+  margin-bottom: 6px;
+  opacity: .8;
+}
+input[type=file] {
+  width: 100%;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid var(--linie);
+  border-radius: 3px;
+  font: inherit;
+  font-size: .9rem;
+}
+button {
+  width: 100%;
+  padding: 13px;
+  background: var(--rot);
+  color: #f7efe0;
+  border: none;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 1.02rem;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+button:hover { background: var(--rot-hell); }
+button:disabled { opacity: .6; cursor: default; }
+.status { margin: 18px 0 0; font-size: .9rem; font-style: italic; opacity: .8; }
+.fehler {
+  margin: 18px 0 0;
+  padding: 12px;
+  border: 1px solid var(--rot);
+  border-radius: 3px;
+  color: var(--rot);
+  background: #fbf1ee;
+  font-size: .92rem;
+}

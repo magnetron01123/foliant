@@ -1,0 +1,882 @@
+{
+  "version": "de-wotc-2024-670D-v1",
+  "beschreibung": "layout_map (KONZEPT §7.2): Canonical-Key -> Position auf dem offiziellen DE-WotC-Bogen 2024 (SHA 0f77e7d4, 670D...01 DE, 2 Seiten 603x774pt). Abgeleitet aus Label-Ankern + Vektor-Box-Rechtecken. Rects top-left-Origin, pt.",
+  "seiten": 2,
+  "mediabox": [
+    603,
+    774
+  ],
+  "ink": [
+    0.13,
+    0.13,
+    0.17
+  ],
+  "felder": {
+    "identitaet.name": {
+      "s": 0,
+      "rect": [
+        32,
+        15,
+        238,
+        28
+      ],
+      "size": 12,
+      "min": 8,
+      "align": "l"
+    },
+    "identitaet.hintergrund": {
+      "s": 0,
+      "rect": [
+        30,
+        36,
+        143,
+        47
+      ],
+      "size": 9,
+      "min": 6,
+      "align": "l"
+    },
+    "identitaet.klasse": {
+      "s": 0,
+      "rect": [
+        155,
+        38,
+        240,
+        49
+      ],
+      "size": 9,
+      "min": 6,
+      "align": "l"
+    },
+    "identitaet.spezies": {
+      "s": 0,
+      "rect": [
+        30,
+        60,
+        143,
+        71
+      ],
+      "size": 9,
+      "min": 6,
+      "align": "l"
+    },
+    "identitaet.unterklasse": {
+      "s": 0,
+      "rect": [
+        155,
+        60,
+        240,
+        71
+      ],
+      "size": 9,
+      "min": 6,
+      "align": "l"
+    },
+    "identitaet.stufe": {
+      "s": 0,
+      "rect": [
+        249,
+        28,
+        303,
+        43
+      ],
+      "size": 13,
+      "min": 8,
+      "align": "c"
+    },
+    "identitaet.ep": {
+      "s": 0,
+      "rect": [
+        249,
+        53,
+        303,
+        66
+      ],
+      "size": 8,
+      "min": 5.5,
+      "align": "c"
+    },
+    "kampf.rk": {
+      "s": 0,
+      "rect": [
+        316,
+        27,
+        352,
+        52
+      ],
+      "size": 16,
+      "min": 10,
+      "align": "c"
+    },
+    "kampf.tp_aktuell": {
+      "s": 0,
+      "rect": [
+        366,
+        52,
+        432,
+        70
+      ],
+      "size": 13,
+      "min": 8,
+      "align": "c"
+    },
+    "kampf.tp_temp": {
+      "s": 0,
+      "rect": [
+        430,
+        37,
+        485,
+        48
+      ],
+      "size": 9,
+      "min": 6,
+      "align": "c"
+    },
+    "kampf.tp_max": {
+      "s": 0,
+      "rect": [
+        430,
+        59,
+        485,
+        70
+      ],
+      "size": 10,
+      "min": 7,
+      "align": "c"
+    },
+    "kampf.trefferwuerfel": {
+      "s": 0,
+      "rect": [
+        486,
+        59,
+        538,
+        70
+      ],
+      "size": 10,
+      "min": 7,
+      "align": "c"
+    },
+    "kampf.uebungsbonus": {
+      "s": 0,
+      "rect": [
+        14,
+        128,
+        101,
+        176
+      ],
+      "size": 15,
+      "min": 9,
+      "align": "c"
+    },
+    "kampf.initiative": {
+      "s": 0,
+      "rect": [
+        224,
+        125,
+        301,
+        151
+      ],
+      "size": 13,
+      "min": 8,
+      "align": "c"
+    },
+    "kampf.bewegungsrate": {
+      "s": 0,
+      "rect": [
+        316,
+        125,
+        398,
+        151
+      ],
+      "size": 10,
+      "min": 6.5,
+      "align": "c"
+    },
+    "identitaet.groesse": {
+      "s": 0,
+      "rect": [
+        413,
+        125,
+        489,
+        151
+      ],
+      "size": 10,
+      "min": 6.5,
+      "align": "c"
+    },
+    "kampf.passiv_wahrnehmung": {
+      "s": 0,
+      "rect": [
+        504,
+        125,
+        589,
+        151
+      ],
+      "size": 13,
+      "min": 8,
+      "align": "c"
+    },
+    "zauberwirken.attribut": {
+      "s": 1,
+      "rect": [
+        12,
+        40,
+        50,
+        52
+      ],
+      "size": 8,
+      "min": 6,
+      "align": "c"
+    },
+    "zauberwirken.rettungs_sg": {
+      "s": 1,
+      "rect": [
+        12,
+        74,
+        50,
+        90
+      ],
+      "size": 11,
+      "min": 7,
+      "align": "c"
+    },
+    "zauberwirken.angriffsbonus": {
+      "s": 1,
+      "rect": [
+        12,
+        99,
+        50,
+        116
+      ],
+      "size": 11,
+      "min": 7,
+      "align": "c"
+    },
+    "persoenlichkeit_gesinnung": {
+      "s": 1,
+      "rect": [
+        450,
+        278,
+        588,
+        291
+      ],
+      "size": 9,
+      "min": 6,
+      "align": "l"
+    }
+  },
+  "attribute": {
+    "str": {
+      "s": 0,
+      "mod": [
+        24,
+        205,
+        58,
+        227
+      ],
+      "wert": [
+        58,
+        208,
+        80,
+        226
+      ],
+      "save": [
+        26.6,
+        259.0,
+        45,
+        270.0
+      ],
+      "save_prof": [
+        21.6,
+        265.5
+      ]
+    },
+    "dex": {
+      "s": 0,
+      "mod": [
+        24,
+        323,
+        58,
+        345
+      ],
+      "wert": [
+        58,
+        326,
+        80,
+        344
+      ],
+      "save": [
+        26.5,
+        376.7,
+        45,
+        387.7
+      ],
+      "save_prof": [
+        21.5,
+        383.2
+      ]
+    },
+    "con": {
+      "s": 0,
+      "mod": [
+        24,
+        468,
+        58,
+        490
+      ],
+      "wert": [
+        58,
+        471,
+        80,
+        489
+      ],
+      "save": [
+        26.6,
+        522.6,
+        45,
+        533.6
+      ],
+      "save_prof": [
+        21.6,
+        529.1
+      ]
+    },
+    "int": {
+      "s": 0,
+      "mod": [
+        131,
+        127,
+        165,
+        149
+      ],
+      "wert": [
+        165,
+        130,
+        187,
+        148
+      ],
+      "save": [
+        132.8,
+        181.6,
+        152,
+        192.6
+      ],
+      "save_prof": [
+        127.8,
+        188.1
+      ]
+    },
+    "wis": {
+      "s": 0,
+      "mod": [
+        131,
+        301,
+        165,
+        323
+      ],
+      "wert": [
+        165,
+        304,
+        187,
+        322
+      ],
+      "save": [
+        132.8,
+        355.5,
+        152,
+        366.5
+      ],
+      "save_prof": [
+        127.8,
+        362.0
+      ]
+    },
+    "cha": {
+      "s": 0,
+      "mod": [
+        131,
+        475,
+        165,
+        497
+      ],
+      "wert": [
+        165,
+        478,
+        187,
+        496
+      ],
+      "save": [
+        132.8,
+        529.4,
+        152,
+        540.4
+      ],
+      "save_prof": [
+        127.8,
+        535.9
+      ]
+    }
+  },
+  "fertigkeiten": {
+    "athletics": {
+      "s": 0,
+      "wert": [
+        26.6,
+        278.5,
+        45,
+        289.5
+      ],
+      "prof": [
+        21.6,
+        285.0
+      ]
+    },
+    "acrobatics": {
+      "s": 0,
+      "wert": [
+        26.5,
+        396.3,
+        45,
+        407.3
+      ],
+      "prof": [
+        21.5,
+        402.8
+      ]
+    },
+    "sleight_of_hand": {
+      "s": 0,
+      "wert": [
+        26.5,
+        410.4,
+        45,
+        421.4
+      ],
+      "prof": [
+        21.5,
+        416.9
+      ]
+    },
+    "stealth": {
+      "s": 0,
+      "wert": [
+        26.5,
+        424.4,
+        45,
+        435.4
+      ],
+      "prof": [
+        21.5,
+        430.9
+      ]
+    },
+    "arcana": {
+      "s": 0,
+      "wert": [
+        132.8,
+        201.2,
+        152,
+        212.2
+      ],
+      "prof": [
+        127.8,
+        207.7
+      ]
+    },
+    "history": {
+      "s": 0,
+      "wert": [
+        132.8,
+        215.2,
+        152,
+        226.2
+      ],
+      "prof": [
+        127.8,
+        221.7
+      ]
+    },
+    "investigation": {
+      "s": 0,
+      "wert": [
+        132.8,
+        229.3,
+        152,
+        240.3
+      ],
+      "prof": [
+        127.8,
+        235.8
+      ]
+    },
+    "nature": {
+      "s": 0,
+      "wert": [
+        132.8,
+        243.3,
+        152,
+        254.3
+      ],
+      "prof": [
+        127.8,
+        249.8
+      ]
+    },
+    "religion": {
+      "s": 0,
+      "wert": [
+        132.8,
+        257.3,
+        152,
+        268.3
+      ],
+      "prof": [
+        127.8,
+        263.8
+      ]
+    },
+    "medicine": {
+      "s": 0,
+      "wert": [
+        132.8,
+        375.1,
+        152,
+        386.1
+      ],
+      "prof": [
+        127.8,
+        381.6
+      ]
+    },
+    "animal_handling": {
+      "s": 0,
+      "wert": [
+        132.8,
+        389.1,
+        152,
+        400.1
+      ],
+      "prof": [
+        127.8,
+        395.6
+      ]
+    },
+    "insight": {
+      "s": 0,
+      "wert": [
+        132.8,
+        403.2,
+        152,
+        414.2
+      ],
+      "prof": [
+        127.8,
+        409.7
+      ]
+    },
+    "survival": {
+      "s": 0,
+      "wert": [
+        132.8,
+        417.2,
+        152,
+        428.2
+      ],
+      "prof": [
+        127.8,
+        423.7
+      ]
+    },
+    "perception": {
+      "s": 0,
+      "wert": [
+        132.8,
+        431.2,
+        152,
+        442.2
+      ],
+      "prof": [
+        127.8,
+        437.7
+      ]
+    },
+    "performance": {
+      "s": 0,
+      "wert": [
+        132.8,
+        549.0,
+        152,
+        560.0
+      ],
+      "prof": [
+        127.8,
+        555.5
+      ]
+    },
+    "intimidation": {
+      "s": 0,
+      "wert": [
+        132.8,
+        563.1,
+        152,
+        574.1
+      ],
+      "prof": [
+        127.8,
+        569.6
+      ]
+    },
+    "deception": {
+      "s": 0,
+      "wert": [
+        132.8,
+        577.1,
+        152,
+        588.1
+      ],
+      "prof": [
+        127.8,
+        583.6
+      ]
+    },
+    "persuasion": {
+      "s": 0,
+      "wert": [
+        132.8,
+        591.1,
+        152,
+        602.1
+      ],
+      "prof": [
+        127.8,
+        597.6
+      ]
+    }
+  },
+  "grossbox": {
+    "klassenmerkmale": {
+      "s": 0,
+      "rect": [
+        230,
+        350,
+        588,
+        555
+      ],
+      "size": 8.5,
+      "min": 5.5,
+      "spalten": 2,
+      "teiler": 408
+    },
+    "spezies_merkmale": {
+      "s": 0,
+      "rect": [
+        228,
+        591,
+        391,
+        760
+      ],
+      "size": 8,
+      "min": 5.5,
+      "spalten": 1
+    },
+    "talente": {
+      "s": 0,
+      "rect": [
+        413,
+        591,
+        588,
+        760
+      ],
+      "size": 8,
+      "min": 5.5,
+      "spalten": 1
+    },
+    "waffen_uebung": {
+      "s": 0,
+      "rect": [
+        16,
+        668,
+        208,
+        714
+      ],
+      "size": 7.5,
+      "min": 5.5,
+      "spalten": 1
+    },
+    "werkzeug_uebung": {
+      "s": 0,
+      "rect": [
+        16,
+        728,
+        208,
+        762
+      ],
+      "size": 7.5,
+      "min": 5.5,
+      "spalten": 1
+    },
+    "aussehen": {
+      "s": 1,
+      "rect": [
+        413,
+        22,
+        588,
+        102
+      ],
+      "size": 8,
+      "min": 5.5,
+      "spalten": 1
+    },
+    "geschichte": {
+      "s": 1,
+      "rect": [
+        413,
+        140,
+        588,
+        272
+      ],
+      "size": 8,
+      "min": 5.5,
+      "spalten": 1
+    },
+    "sprachen": {
+      "s": 1,
+      "rect": [
+        413,
+        340,
+        588,
+        376
+      ],
+      "size": 8.5,
+      "min": 6,
+      "spalten": 1
+    },
+    "ausruestung": {
+      "s": 1,
+      "rect": [
+        413,
+        408,
+        588,
+        582
+      ],
+      "size": 8,
+      "min": 5.5,
+      "spalten": 1
+    },
+    "einstimmung": {
+      "s": 1,
+      "rect": [
+        420,
+        600,
+        588,
+        655
+      ],
+      "size": 8,
+      "min": 6,
+      "spalten": 1
+    }
+  },
+  "waffen_tabelle": {
+    "s": 0,
+    "kopf_y": 202,
+    "zeilen": 6,
+    "zeilenhoehe": 18.5,
+    "size": 8,
+    "min": 6,
+    "spalten": {
+      "name": [
+        228,
+        335
+      ],
+      "atk": [
+        337,
+        405
+      ],
+      "schaden": [
+        407,
+        500
+      ],
+      "notizen": [
+        502,
+        590
+      ]
+    }
+  },
+  "zauber_tabelle": {
+    "s": 1,
+    "kopf_y": 184,
+    "zeilen": 29,
+    "zeilenhoehe": 19.6,
+    "size": 7.5,
+    "min": 6,
+    "spalten": {
+      "grad": [
+        12,
+        42,
+        "c"
+      ],
+      "name": [
+        46,
+        150,
+        "l"
+      ],
+      "zeit": [
+        153,
+        186,
+        "c"
+      ],
+      "reichweite": [
+        189,
+        231,
+        "c"
+      ],
+      "notizen": [
+        304,
+        394,
+        "l"
+      ]
+    },
+    "krm": {
+      "k": 240,
+      "r": 258,
+      "m": 276
+    }
+  },
+  "muenzen": {
+    "s": 1,
+    "size": 9,
+    "min": 6,
+    "felder": {
+      "cp": [
+        415,
+        703,
+        447,
+        738
+      ],
+      "sp": [
+        451,
+        703,
+        483,
+        738
+      ],
+      "ep": [
+        487,
+        703,
+        519,
+        738
+      ],
+      "gp": [
+        521,
+        703,
+        555,
+        738
+      ],
+      "pp": [
+        557,
+        703,
+        589,
+        738
+      ]
+    }
+  }
+}

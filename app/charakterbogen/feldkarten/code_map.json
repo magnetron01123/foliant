@@ -1,0 +1,14 @@
+{
+  "beschreibung": "code_map (KONZEPT §7.3): feste Kürzel/Codes 1:1 gemappt, NIE ans LLM. Deterministisch, getestet.",
+  "zeitaufwand": {
+    "1A": "1 Aktion", "1BA": "1 Bonusaktion", "1R": "1 Reaktion", "1RA": "1 Reaktion",
+    "1M": "1 Minute", "10M": "10 Minuten", "1H": "1 Stunde", "8H": "8 Stunden", "24H": "24 Stunden",
+    "1SA": "Spezial"
+  },
+  "attribut_tag": {
+    "STR": "STÄ", "DEX": "GES", "CON": "KON", "INT": "INT", "WIS": "WEI", "CHA": "CHA"
+  },
+  "muenzen_reihenfolge": ["cp", "sp", "ep", "gp", "pp"],
+  "vorbereitet_marker": "O",
+  "leerwert": ["--", "—", ""]
+}

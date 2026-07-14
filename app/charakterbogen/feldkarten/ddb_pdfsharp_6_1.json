@@ -1,0 +1,145 @@
+{
+  "version": "ddb-pdfsharp-6.1-v1",
+  "beschreibung": "Quell-Feldkarte (source_map, KONZEPT §7.1) fuer die D&D-Beyond-PDF-Exportfamilie aus PDFsharp 6.1.1. Bildet DDB-Widget-Namen auf Pfade des neutralen Modells (app/charakterbogen/modelle.py) ab. Verifiziert am Golden-Sample Magnetron44523_168310785.pdf (Sorin Vale, Monk 5). Widget-Werte liegen in verwaisten /Widget-Annotationen (kein Catalog-AcroForm); Feldnamen werden beim Nachschlagen rechts getrimmt (rstrip), weil DDB einzelne Namen mit Leerzeichen-Suffix ausgibt (z.B. 'DEXmod ', 'Wpn3 AtkBonus  '); interne Doppelspaces bleiben erhalten (z.B. 'CLASS  LEVEL').",
+
+  "fingerprint": {
+    "seiten": 5,
+    "mediabox_pt": [612, 792],
+    "producer_enthaelt": "PDFsharp",
+    "pflichtfelder": [
+      "CharacterName", "CLASS  LEVEL", "RACE", "BACKGROUND",
+      "STR", "DEX", "CON", "INT", "WIS", "CHA", "FeaturesTraits1"
+    ]
+  },
+
+  "skalar": {
+    "CharacterName":     {"pfad": "identitaet.name",             "art": "name"},
+    "CLASS  LEVEL":      {"pfad": "identitaet.klasse_stufe_roh", "art": "klasse_stufe"},
+    "RACE":              {"pfad": "identitaet.spezies",          "art": "term"},
+    "BACKGROUND":        {"pfad": "identitaet.hintergrund",      "art": "term"},
+    "EXPERIENCE POINTS": {"pfad": "identitaet.ep",               "art": "roh"},
+    "PLAYER NAME":       {"pfad": "identitaet.spielername",      "art": "name"},
+    "SIZE":              {"pfad": "identitaet.groesse",          "art": "term"},
+
+    "AC":                {"pfad": "kampf.rk",                    "art": "zahl"},
+    "MaxHP":             {"pfad": "kampf.tp_max",                "art": "zahl"},
+    "CurrentHP":         {"pfad": "kampf.tp_aktuell",            "art": "zahl"},
+    "TempHP":            {"pfad": "kampf.tp_temp",               "art": "roh"},
+    "Total":             {"pfad": "kampf.trefferwuerfel",       "art": "roh"},
+    "Init":              {"pfad": "kampf.initiative",            "art": "roh"},
+    "Speed":             {"pfad": "kampf.bewegungsrate",        "art": "text"},
+    "AdditionalSenses":  {"pfad": "kampf.sinne",                "art": "text"},
+    "Passive1":          {"pfad": "kampf.passiv_wahrnehmung",   "art": "roh"},
+    "Passive2":          {"pfad": "kampf.passiv_einsicht",      "art": "roh"},
+    "Passive3":          {"pfad": "kampf.passiv_untersuchung",  "art": "roh"},
+    "ProfBonus":         {"pfad": "kampf.uebungsbonus",         "art": "roh"},
+
+    "CP":                {"pfad": "ausruestung.muenzen.cp",              "art": "zahl"},
+    "SP":                {"pfad": "ausruestung.muenzen.sp",              "art": "zahl"},
+    "EP":                {"pfad": "ausruestung.muenzen.ep",              "art": "zahl"},
+    "GP":                {"pfad": "ausruestung.muenzen.gp",              "art": "zahl"},
+    "PP":                {"pfad": "ausruestung.muenzen.pp",              "art": "zahl"},
+    "Weight Carried":    {"pfad": "ausruestung.getragenes_gewicht",     "art": "roh"},
+    "Encumbered":        {"pfad": "ausruestung.belastet_ab",            "art": "roh"},
+    "PushDragLift":      {"pfad": "ausruestung.schieben_ziehen_heben",  "art": "roh"}
+  },
+
+  "attribute": {
+    "str": {"score": "STR", "mod": "STRmod", "save": "ST Strength",     "save_prof": "StrProf"},
+    "dex": {"score": "DEX", "mod": "DEXmod", "save": "ST Dexterity",    "save_prof": "DexProf"},
+    "con": {"score": "CON", "mod": "CONmod", "save": "ST Constitution", "save_prof": "ConProf"},
+    "int": {"score": "INT", "mod": "INTmod", "save": "ST Intelligence", "save_prof": "IntProf"},
+    "wis": {"score": "WIS", "mod": "WISmod", "save": "ST Wisdom",       "save_prof": "WisProf"},
+    "cha": {"score": "CHA", "mod": "CHamod", "save": "ST Charisma",     "save_prof": "ChaProf"}
+  },
+
+  "fertigkeiten": [
+    {"schluessel": "acrobatics",      "wert": "Acrobatics",    "prof": "AcrobaticsProf",    "mod": "AcrobaticsMod"},
+    {"schluessel": "animal_handling", "wert": "Animal",        "prof": "AnimalProf",        "mod": "AnimalMod"},
+    {"schluessel": "arcana",          "wert": "Arcana",        "prof": "ArcanaProf",        "mod": "ArcanaMod"},
+    {"schluessel": "athletics",       "wert": "Athletics",     "prof": "AthleticsProf",     "mod": "AthleticsMod"},
+    {"schluessel": "deception",       "wert": "Deception",     "prof": "DeceptionProf",     "mod": "DeceptionMod"},
+    {"schluessel": "history",         "wert": "History",       "prof": "HistoryProf",       "mod": "HistoryMod"},
+    {"schluessel": "insight",         "wert": "Insight",       "prof": "InsightProf",       "mod": "InsightMod"},
+    {"schluessel": "intimidation",    "wert": "Intimidation",  "prof": "IntimidationProf",  "mod": "IntimidationMod"},
+    {"schluessel": "investigation",   "wert": "Investigation", "prof": "InvestigationProf", "mod": "InvestigationMod"},
+    {"schluessel": "medicine",        "wert": "Medicine",      "prof": "MedicineProf",      "mod": "MedicineMod"},
+    {"schluessel": "nature",          "wert": "Nature",        "prof": "NatureProf",        "mod": "NatureMod"},
+    {"schluessel": "perception",      "wert": "Perception",    "prof": "PerceptionProf",    "mod": "PerceptionMod"},
+    {"schluessel": "performance",     "wert": "Performance",   "prof": "PerformanceProf",   "mod": "PerformanceMod"},
+    {"schluessel": "persuasion",      "wert": "Persuasion",    "prof": "PersuasionProf",    "mod": "PersuasionMod"},
+    {"schluessel": "religion",        "wert": "Religion",      "prof": "ReligionProf",      "mod": "ReligionMod"},
+    {"schluessel": "sleight_of_hand", "wert": "SleightofHand", "prof": "SleightofHandProf", "mod": "SleightofHandMod"},
+    {"schluessel": "stealth",         "wert": "Stealth",       "prof": "StealthProf",       "mod": "StealthMod"},
+    {"schluessel": "survival",        "wert": "Survival",      "prof": "SurvivalProf",      "mod": "SurvivalMod"}
+  ],
+
+  "rich_felder": {
+    "proficiencies": ["ProficienciesLang"],
+    "actions":       ["Actions1", "Actions2"],
+    "features":      ["FeaturesTraits1", "FeaturesTraits2", "FeaturesTraits3", "FeaturesTraits4", "FeaturesTraits5", "FeaturesTraits6"]
+  },
+
+  "waffen": [
+    {"name": "Wpn Name",   "angriffsbonus": "Wpn1 AtkBonus", "schaden": "Wpn1 Damage"},
+    {"name": "Wpn Name 2", "angriffsbonus": "Wpn2 AtkBonus", "schaden": "Wpn2 Damage"},
+    {"name": "Wpn Name 3", "angriffsbonus": "Wpn3 AtkBonus", "schaden": "Wpn3 Damage"},
+    {"name": "Wpn Name 4", "angriffsbonus": "Wpn4 AtkBonus", "schaden": "Wpn4 Damage"}
+  ],
+
+  "indiziert": {
+    "ausruestung": {"name": "Eq Name{i}", "menge": "Eq Qty{i}", "gewicht": "Eq Weight{i}", "start": 0, "max": 60},
+    "zauber": {
+      "start": 0,
+      "max": 120,
+      "felder": {
+        "name":            "spellName{i}",
+        "quelle":          "spellSource{i}",
+        "vorbereitet":     "spellPrepared{i}",
+        "rettung_treffer": "spellSaveHit{i}",
+        "zeitaufwand":     "spellCastingTime{i}",
+        "reichweite":      "spellRange{i}",
+        "komponenten":     "spellComponents{i}",
+        "wirkungsdauer":   "spellDuration{i}",
+        "seite":           "spellPage{i}",
+        "notiz":           "spellNotes{i}",
+        "kopf":            "spellHeader{i}",
+        "slot_kopf":       "spellSlotHeader{i}"
+      }
+    }
+  },
+
+  "story": {
+    "PERSONALITY TRAITS":  "persoenlichkeit.wesenszuege",
+    "IDEALS":              "persoenlichkeit.ideale",
+    "BONDS":               "persoenlichkeit.bindungen",
+    "FLAWS":               "persoenlichkeit.makel",
+    "CHARACTER APPEARANCE": "persoenlichkeit.aussehen",
+    "CHARACTER BACKSTORY":  "persoenlichkeit.hintergrundgeschichte",
+    "ALLIES & ORGANIZATIONS": "persoenlichkeit.verbuendete",
+    "ADDITIONAL NOTES":    "persoenlichkeit.notizen"
+  },
+
+  "kopf_duplikate_praefixe": [
+    "CharacterName", "CLASS  LEVEL", "PLAYER NAME", "RACE", "BACKGROUND", "EXPERIENCE POINTS"
+  ],
+
+  "notiz_marker": {
+    "abschnitt": "=== ",
+    "feature": "*",
+    "quelle_trenner": "•",
+    "aktionsoekonomie": "|"
+  },
+
+  "aufgeschoben": {
+    "grund": "Diese vom Auftrag §7.4 geforderten Kategorien sind im Modell vorhanden, aber im Golden-Sample LEER - ihre DDB-Widget-Namen sind daher unbekannt. Sie zu erfinden hiesse raten (§7.4/§16). Bis ein DDB-Export sie belegt, tauchen belegte Vorkommen sichtbar in charakter.raw auf (und lassen den Golden-Test rot werden, statt still verloren zu gehen). Kartierung nachziehen, sobald ein Beispiel vorliegt.",
+    "kategorien": [
+      "kampf.todesrettung_erfolge / kampf.todesrettung_misserfolge",
+      "kampf.inspiration (Heldische Inspiration)",
+      "zauberwirken.plaetze (Zauberplaetze 1.-9. Grad, Gesamt/Verbraucht)",
+      "zauberwirken.attribut / rettungs_sg / angriffsbonus (Kopf der Zauberseite)",
+      "ausruestung.eingestimmt (Einstimmung auf magische Gegenstaende)",
+      "kampf.tp_aktuell (CurrentHP - Widget im Sample leer)"
+    ]
+  }
+}
