@@ -46,6 +46,47 @@ services:
     depends_on:
       - foliant
 
+  # Charakterbogen-Uebersetzer-Website (app/charakterbogen/web.py). Eigener Container NEBEN
+  # dem MCP: kennt NICHT den oeffentlichen MCP-Token, KEIN Mount der privaten Foliant-DB
+  # (nur die glossar-nur-DB + die offizielle Vorlage, beides read-only). Kein Host-Port -
+  # erreichbar ausschliesslich ueber den gateway.
+  web:
+    build: .
+    container_name: foliant-web
+    restart: unless-stopped
+    command: ["uvicorn", "app.charakterbogen.web:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-}
+      - CHARAKTERBOGEN_GLOSSAR=/glossar/glossar_web.sqlite
+      - CHARAKTERBOGEN_VORLAGE=/vorlagen/Charakterbogen_2024_DE.pdf
+    volumes:
+      - ./data/glossar_web.sqlite:/glossar/glossar_web.sqlite:ro
+      - ./vorlagen/charakterboegen/offiziell/Charakterbogen_2024_DE.pdf:/vorlagen/Charakterbogen_2024_DE.pdf:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - foliant
+
+  # Gateway (Caddy) VOR foliant+web. Der Cloudflare-Tunnel-Origin wird spaeter (Dashboard)
+  # von foliant:8000 auf gateway:8080 umgestellt. Routet /mcp -> foliant, sonst -> web.
+  gateway:
+    image: caddy:2-alpine
+    container_name: foliant-gateway
+    restart: unless-stopped
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "127.0.0.1:8080:8080"     # nur lokal fuer die Abnahme; Tunnel erreicht gateway im Netz
+    depends_on:
+      - foliant
+      - web
+
   # Optionaler lokaler Admin-Blick (read-only) auf die Daten - NUR localhost (SSH-Tunnel),
   # NICHT ueber den Cloudflare Tunnel. Start: docker compose --profile admin up -d datasette
   # Falls kein ARM64-Image verfuegbar ist, stattdessen im foliant-Container:

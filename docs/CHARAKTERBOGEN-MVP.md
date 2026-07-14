@@ -76,3 +76,63 @@ getestet; nur der echte Freitext-Übersetzungslauf ist offen.
 - **Kleinere Refinements:** Feature-/Zaubernamen zusätzlich über `foliant_hol_*` (offizielle Namen
   statt LLM+`*`); eingebettete Fachbegriffe in Beschreibungen in §5-Klammerform; Feinjustage
   einzelner `layout_map`-Rects (lange Reichweite-Strings in der Zauber-Spalte).
+
+## Deployment (Phase 6) — Runbook
+
+Architektur: **Caddy-Gateway** vor `foliant` (MCP) + `web` (Website). Der Cloudflare-Tunnel
+zeigt nach dem Umschalten auf `gateway:8080`; Caddy routet `/mcp` → `foliant`, sonst → `web`.
+Der bestehende Connector-Pfad, IP-Filter, Streaming und die 16 Tools bleiben **unverändert**.
+
+### 0. Vorher (nur der Eigentümer)
+1. **PR #3 mergen** (GitHub — Agent-Self-Merge ist geblockt).
+2. Auf dem Pi in `~/foliant/.env` ergänzen: `ANTHROPIC_API_KEY=sk-ant-…` und
+   `ANTHROPIC_MODEL=claude-sonnet-5`.
+
+### 1. Code + glossar-nur-DB auf den Pi
+```sh
+# vom Mac: NUR geänderte Dateien, KEIN --delete (sonst verschwinden gitignorierte Privatmodule!)
+rsync -av --exclude '.git' --exclude '.venv*' --exclude 'data' --exclude 'quellen' \
+  --exclude '.env' --exclude 'config/foliant.toml' --exclude '.claude' \
+  ./ pi@<pi-host>:~/foliant/
+
+# auf dem Pi: glossar-nur-DB erzeugen (kein privater Buchinhalt landet im Web-Container)
+ssh pi@<pi-host>
+cd ~/foliant
+docker compose exec foliant python -m app.charakterbogen.glossar_export \
+  /app/data/foliant.sqlite /app/data/glossar_web.sqlite   # MUSS vor 'up web' existieren
+```
+
+### 2. web + gateway bauen und starten (foliant/cloudflared laufen unberührt weiter)
+```sh
+docker compose up -d --build web gateway
+docker compose ps                    # web + gateway "up"; foliant weiter healthy
+```
+
+### 3. Lokale Abnahme über den Gateway (Tunnel zeigt noch auf foliant!)
+```sh
+curl -s http://127.0.0.1:8080/health                         # Foliant-JSON (MCP-Seite lebt)
+curl -s http://127.0.0.1:8080/ | grep "Deutschen Charakterbogen erstellen"   # Website lebt
+curl -f -F "datei=@/pfad/zum/DDB-Export.pdf" http://127.0.0.1:8080/bogen -o /tmp/test.pdf
+```
+Zusätzlich den bestehenden Claude-Connector durch den Gateway testen (initialize + `tools/list`
+= 16 Tools, `foliant_uebersetze_begriff`), bevor umgeschaltet wird.
+
+### 4. Cloudflare-Dashboard (nur der Eigentümer — zwei Entscheidungen)
+- **WAF eingrenzen:** die bestehende Regel `(http.host eq "dnd.magnetron.me" and not ip.src in
+  {160.79.104.0/21 2607:6bc0::/48})` um eine Pfad-Bedingung ergänzen, damit die Anthropic-IP-Sperre
+  **nur die MCP-Pfade** trifft, nicht die Website:
+  `(http.host eq "dnd.magnetron.me" and http.request.uri.path contains "/mcp" and not ip.src in {…})`.
+  Die `http.host`-Bedingung **behalten** (sonst trifft es den Smarthome-Tunnel).
+- **Website-Zugriff (Kosten-/Missbrauchsschutz!):** die Website ist authlos und jede Konvertierung
+  kostet API-Geld. Für den privaten MVP die Nicht-MCP-Pfade auf die eigene Heim-IP beschränken
+  (zweite WAF-Regel) **oder** Cloudflare Access (PIN). Nicht offen ins Netz stellen.
+- **Tunnel-Origin umschalten:** Public-Hostname `dnd.magnetron.me` von `http://foliant:8000` auf
+  `http://gateway:8080` ändern.
+
+### 5. Sofort testen — und Rollback
+- Claude-Connector: initialize + 16 Tools. Website: `https://dnd.magnetron.me/` → PDF hochladen.
+- **Bei Fehler:** Tunnel-Origin zurück auf `http://foliant:8000` (sofort rückrollbar, keine
+  Datenänderung). `docker compose stop web gateway` entfernt die neuen Container wieder.
+
+> Der Code ändert das Cloudflare-Dashboard nicht — Schritt 4 ist manuell. Erst nach grüner
+> lokaler Abnahme (Schritt 3) umschalten.

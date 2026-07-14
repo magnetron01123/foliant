@@ -12,6 +12,7 @@ aus der .env (`ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL`); fehlt er, meldet nur `POST
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import sqlite3
 from pathlib import Path
@@ -73,7 +74,11 @@ def _sicherer_name(name: str) -> str:
 def _konvertiere(pdf_bytes: bytes, provider, glossar_pfad: str | None,
                  template_pfad: str | None) -> tuple[bytes, str]:
     charakter = extrahiere(pdf_bytes)                       # -> DDBFormatFehler bei Nicht-DDB
-    con = sqlite3.connect(glossar_pfad or ":memory:")
+    # Glossar strikt READ-ONLY öffnen (Container mountet es ro; kein Journal/WAL-Schreibversuch)
+    if glossar_pfad:
+        con = sqlite3.connect(f"file:{glossar_pfad}?mode=ro&immutable=1", uri=True)
+    else:
+        con = sqlite3.connect(":memory:")
     con.row_factory = sqlite3.Row
     try:
         uebersetze(charakter, con, provider)               # -> Provider-/Übersetzungsfehler
@@ -158,5 +163,9 @@ def erstelle_app(provider=None, glossar_pfad: str | None = None,
     return Starlette(routes=routen)
 
 
-# ASGI-Einstiegspunkt für uvicorn (nutzt .env-Provider + Standard-Vorlage/DB).
-app = erstelle_app()
+# ASGI-Einstiegspunkt für uvicorn. Glossar-DB + Vorlage-Pfad aus der Umgebung (Container),
+# Provider aus .env. Fehlt etwas, greifen die Defaults/Fehlermeldungen.
+app = erstelle_app(
+    glossar_pfad=os.environ.get("CHARAKTERBOGEN_GLOSSAR") or None,
+    template_pfad=os.environ.get("CHARAKTERBOGEN_VORLAGE") or None,
+)
