@@ -206,7 +206,8 @@ def test_features_verlustfrei_verbunden(charakter):
     """FeaturesTraits1..3 an Wortgrenzen gebrochen -> Smart-Join rekonstruiert (§7.5)."""
     merk = {m.name.en: m for m in charakter.merkmale}
     assert "Martial Arts" in merk and merk["Martial Arts"].herkunft == "klasse"
-    assert "Deflect Attacks" in merk and merk["Deflect Attacks"].aktionsoekonomie == ["1 Reaction"]
+    assert "Deflect Attacks" in merk
+    assert [x.en for x in merk["Deflect Attacks"].aktionsoekonomie] == ["1 Reaction"]
     assert "Grappler" in merk and merk["Grappler"].herkunft == "talent"
     # Der Fugen-Text 'the same type' + 'dealt by' darf nicht verklebt sein:
     assert "the same type dealt by the attack" in merk["Martial Arts"].beschreibung.en

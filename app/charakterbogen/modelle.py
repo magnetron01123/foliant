@@ -136,7 +136,7 @@ class Merkmal:
     quelle: str | None = None                     # z.B. "PHB-2024", "RtHW" (roh)
     seite: str | None = None                      # z.B. "101" (roh)
     beschreibung: UeText | None = None            # freier Text (uebersetzen)
-    aktionsoekonomie: list[str] = field(default_factory=list)  # "| ..."-Zeilen (roh)
+    aktionsoekonomie: list[UeText] = field(default_factory=list)  # "| ..."-Zeilen (uebersetzbar)
     herkunft: str | None = None                   # "klasse" | "spezies" | "talent"
 
 

@@ -35,8 +35,11 @@ class UebersetzungsFehler(RuntimeError):
 
 
 class Uebersetzungsprovider(Protocol):
-    def uebersetze(self, felder: dict[str, str]) -> dict[str, str]:
-        """{id: englischer Text} -> {id: deutscher Text}, IDENTISCHE Schlüsselmenge."""
+    def uebersetze(self, felder: dict[str, str],
+                   vorgaben: dict[str, str] | None = None) -> dict[str, str]:
+        """{id: englischer Text} -> {id: deutscher Text}, IDENTISCHE Schlüsselmenge.
+        `vorgaben` = {englischer Begriff: amtlicher deutscher Name} zur konsistenten Nennung
+        derselben Begriffe im Fließtext (z.B. Mage Hand -> Magierhand)."""
         ...
 
 
@@ -59,10 +62,17 @@ def _alle_uetexte(obj, out: list[UeText]) -> None:
 
 
 def _anwenden(ue: UeText, en: str, de_roh: str) -> str:
-    """LLM-Ergebnis in die §5-Endform bringen: Begriff -> markiert, Text -> unverändert."""
+    """LLM-Ergebnis in die §5-Endform bringen."""
     if ue.art == "term":
-        return terminologie.markiere_fallback(en, de_roh)
-    return de_roh
+        return terminologie.markiere_fallback(en, de_roh)   # "de* (en)"
+    if ue.art == "liste":
+        return f"{de_roh} ({en})"                            # §5 auf Listenebene, kein per-Item-*
+    return de_roh                                            # freier Text unverändert
+
+
+def _de_klar(anzeige: str) -> str:
+    """§5-Anzeige -> reiner deutscher Begriff: 'Magierhand (Mage Hand)' -> 'Magierhand'."""
+    return anzeige.split(" (")[0].rstrip("*").strip()
 
 
 # --- Orchestrierung ----------------------------------------------------------
@@ -73,6 +83,7 @@ def uebersetze(charakter: Charakter, con: sqlite3.Connection,
     uetexte: list[UeText] = []
     _alle_uetexte(charakter, uetexte)
 
+    vorgaben: dict[str, str] = {}                  # EN-Begriff -> amtl. dt. Name (Konsistenz im Fließtext)
     zu_uebersetzen: dict[str, list[UeText]] = {}   # eindeutiger EN -> alle Vorkommen (Gedächtnis)
     for ue in uetexte:
         en = (ue.en or "").strip()
@@ -85,14 +96,15 @@ def uebersetze(charakter: Charakter, con: sqlite3.Connection,
         if ue.art == "term":
             aufl = terminologie.aufloesen(con, en)
             if aufl is not None:
-                ue.de = aufl          # exakter Glossar-Treffer -> ohne LLM
-                continue
+                ue.de = aufl                        # exakter Glossar-Treffer -> ohne LLM
+                vorgaben[en] = _de_klar(aufl)       # denselben Namen im Fließtext erzwingen (Bug: Zauber
+                continue                            # hieß in Tabelle "Magierhand", in Merkmal "Zauberhand")
         zu_uebersetzen.setdefault(en, []).append(ue)
 
     if zu_uebersetzen:
         eindeutig = list(zu_uebersetzen.keys())
         ids = {str(i): en for i, en in enumerate(eindeutig)}
-        ergebnis = _mit_wiederholung(provider, ids)
+        ergebnis = _mit_wiederholung(provider, ids, vorgaben)
         for i, en in enumerate(eindeutig):
             de = ergebnis[str(i)]
             for ue in zu_uebersetzen[en]:
@@ -100,13 +112,14 @@ def uebersetze(charakter: Charakter, con: sqlite3.Connection,
     return charakter
 
 
-def _mit_wiederholung(provider: Uebersetzungsprovider, ids: dict[str, str]) -> dict[str, str]:
+def _mit_wiederholung(provider: Uebersetzungsprovider, ids: dict[str, str],
+                      vorgaben: dict[str, str] | None = None) -> dict[str, str]:
     """Ein gebündelter Aufruf; bei ungültigem/unvollständigem Ergebnis genau EINMAL erneut,
     danach kontrolliert scheitern (AUFTRAG §8.3)."""
     letzter: Exception | None = None
     for _ in range(2):
         try:
-            ergebnis = provider.uebersetze(dict(ids))
+            ergebnis = provider.uebersetze(dict(ids), vorgaben)
             _pruefe_schluessel(ids, ergebnis)
             return ergebnis
         except Exception as e:  # noqa: BLE001 - Provider-/Format-Fehler bewusst gefangen
@@ -131,8 +144,9 @@ _SYSTEM = (
     "Eingabe ist ein JSON-Objekt {id: englischer Text}. Gib AUSSCHLIESSLICH ein JSON-Objekt "
     "mit GENAU denselben Schlüsseln zurück, Werte = deutsche Übersetzung. Regeln: "
     "übersetze sinngenau und vollständig, ohne zusammenzufassen, zu kürzen oder zu ergänzen; "
-    "übernimm ALLE Zahlen, Würfelnotationen (z.B. 1d8+4), Modifikatoren (+7), Schwierigkeitsgrade "
-    "und Eigennamen unverändert; nutze offizielle deutsche D&D-Begriffe. Keine Erklärungen, nur JSON."
+    "übernimm ALLE Zahlen, Modifikatoren (+7), Schwierigkeitsgrade und Eigennamen unverändert; "
+    "Würfelnotation deutsch (1d8+4 -> 1W8+4); Entfernungen in Metern (dt. D&D 2024: 1,5 m je 5 Fuß, "
+    "z.B. 30 ft -> 9 m); nutze offizielle deutsche D&D-Begriffe. Keine Erklärungen, nur JSON."
 )
 
 
@@ -150,12 +164,21 @@ class AnthropicProvider:
         self._max_tokens = max_tokens
         self._url = basis_url
 
-    def uebersetze(self, felder: dict[str, str]) -> dict[str, str]:
+    def uebersetze(self, felder: dict[str, str],
+                   vorgaben: dict[str, str] | None = None) -> dict[str, str]:
         import httpx
+        system = _SYSTEM
+        if vorgaben:
+            paare = "; ".join(f"{en} = {de}" for en, de in sorted(vorgaben.items()))
+            system += (" Verwende für diese Spielbegriffe im Fließtext KONSISTENT genau diese "
+                       f"deutschen Namen (ohne Klammerzusatz): {paare}.")
         rumpf = {
             "model": self._modell,
             "max_tokens": self._max_tokens,
-            "system": _SYSTEM,
+            # Übersetzen ist keine Reasoning-Aufgabe: Extended Thinking macht den Aufruf nur
+            # langsam (>3 min, sprengt Timeouts/Cloudflare) ohne Qualitätsgewinn -> aus.
+            "thinking": {"type": "disabled"},
+            "system": system,
             "messages": [{"role": "user", "content": json.dumps(felder, ensure_ascii=False)}],
         }
         kopf = {"x-api-key": self._key, "anthropic-version": "2023-06-01",
@@ -196,8 +219,11 @@ class FakeProvider:
         self.mapping = mapping or {}
         self.aufrufe = 0
         self.gesehene_ids: list[dict] = []
+        self.letzte_vorgaben: dict[str, str] = {}
 
-    def uebersetze(self, felder: dict[str, str]) -> dict[str, str]:
+    def uebersetze(self, felder: dict[str, str],
+                   vorgaben: dict[str, str] | None = None) -> dict[str, str]:
         self.aufrufe += 1
         self.gesehene_ids.append(dict(felder))
+        self.letzte_vorgaben = dict(vorgaben or {})
         return {k: self.mapping.get(v, f"de:{v}") for k, v in felder.items()}

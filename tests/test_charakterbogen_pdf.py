@@ -9,9 +9,9 @@ import fitz
 import pytest
 
 from app.charakterbogen import de_bogen
-from app.charakterbogen.de_bogen import _fit_size, _para, _umbrich, rendere
+from app.charakterbogen.de_bogen import _fit_size, _gewicht_kg, _para, _saeubere, _umbrich, rendere
 from app.charakterbogen.modelle import (
-    Attribut, Ausruestung, Charakter, Fertigkeit, Merkmal, UeText, Waffe, Zauber,
+    Attribut, Ausruestung, Charakter, Fertigkeit, Gegenstand, Merkmal, UeText, Waffe, Zauber,
 )
 
 MEDIA = (603, 774)
@@ -116,9 +116,10 @@ def test_ueberlauf_erzeugt_fortsetzungsseite_ohne_verlust():
                           beschreibung=UeText(en=lang), herkunft="klasse")]
     pdf = _rendere_synth(c)
     doc = fitz.open(stream=pdf, filetype="pdf")
-    assert doc.page_count > 2  # Fortsetzungsseite(n) angehängt
+    assert doc.page_count > 2  # Anhangseite(n) angehängt
     voll = _text_von(pdf)
-    assert "Klassenmerkmale (Fortsetzung)" in voll   # offizielle Fortsetzungs-Überschrift
+    assert "ANHANG" in voll                          # gemeinsame Anhang-Überschrift
+    assert "Klassenmerkmale" in voll                 # Abschnitts-Zwischenüberschrift
     assert marker in voll                            # der Rest ist NICHT verloren
 
 
@@ -127,8 +128,8 @@ def test_viele_zauber_ueberlauf_in_fortsetzung():
     c.zauberwirken.zauber = [Zauber(grad=1, name=UeText(en=f"Zauber{i}"), zeitaufwand="1A")
                              for i in range(40)]  # mehr als Tabellenzeilen
     voll = _text_von(_rendere_synth(c))
-    assert "Weitere Zauber (Fortsetzung)" in voll
-    assert "Zauber39" in voll  # letzter Zauber landet auf der Fortsetzung, nicht verloren
+    assert "Weitere Zauber" in voll
+    assert "Zauber39" in voll  # letzter Zauber landet im Anhang, nicht verloren
 
 
 # --- Kalibrierung ------------------------------------------------------------
@@ -170,3 +171,33 @@ def test_umbrich_bricht_an_wortgrenzen():
     zeilen = _umbrich("alpha beta gamma delta", 40, 8)
     assert len(zeilen) >= 2
     assert all("alphabeta" not in z for z in zeilen)  # keine verklebten Wörter
+
+
+# --- Feinschliff-Fixes -------------------------------------------------------
+
+def test_gewicht_lb_zu_kg():
+    assert _gewicht_kg("5 lb.") == "2,3 kg"
+    assert _gewicht_kg("1 lb.") == "0,5 kg"
+    assert _gewicht_kg("ohne Einheit") == "ohne Einheit"
+    assert _gewicht_kg(None) is None
+
+
+def test_saeubere_typografische_zeichen():
+    assert _saeubere("Monk’s Focus") == "Monk's Focus"   # U+2019 -> ' (rendert sonst als ·)
+    assert _saeubere("a – b …") == "a - b ..."
+
+
+def test_gewicht_metrisch_im_render():
+    c = _mini_charakter()
+    c.ausruestung.gegenstaende.append(Gegenstand(name=UeText(en="Rope", de="Seil"), menge="1", gewicht="5 lb."))
+    txt = _text_von(_rendere_synth(c))
+    assert "2,3 kg" in txt and "lb." not in txt
+
+
+def test_aktionsoekonomie_wird_uebersetzt_gerendert():
+    c = _mini_charakter()
+    c.merkmale = [Merkmal(name=UeText(en="X", de="X"), beschreibung=UeText(en="b", de="b"),
+                          herkunft="klasse",
+                          aktionsoekonomie=[UeText(en="1 Reaction", de="1 Reaktion")])]
+    txt = _text_von(_rendere_synth(c))
+    assert "1 Reaktion" in txt and "1 Reaction" not in txt

@@ -130,6 +130,26 @@ def test_leerer_text_bleibt_leer(con):
     assert c.identitaet.klasse.de == ""
 
 
+def test_liste_bekommt_klammer_ohne_stern(con):
+    """art='liste' -> '(English)' auf Listenebene, aber KEIN irreführender einzelner Stern."""
+    c = Charakter()
+    c.uebungen.sprachen.append(UeText(en="Common, Elvish", art="liste"))
+    uebersetze(c, con, FakeProvider(mapping={"Common, Elvish": "Gemeinsprache, Elfisch"}))
+    assert c.uebungen.sprachen[0].de == "Gemeinsprache, Elfisch (Common, Elvish)"
+    assert "*" not in c.uebungen.sprachen[0].de
+
+
+def test_vorgaben_enthalten_aufgeloeste_begriffe(con):
+    """Aufgelöste Glossar-Namen gehen als Vorgabe an den Provider (Konsistenz Tabelle<->Fließtext)."""
+    c = _charakter()
+    fake = FakeProvider()
+    uebersetze(c, con, fake)
+    assert fake.letzte_vorgaben.get("Monk") == "Mönch"
+    assert fake.letzte_vorgaben.get("Flurry of Blows") == "Schlaghagel"
+    # unbelegte Begriffe (Mist Wanderer) stehen NICHT als amtliche Vorgabe drin
+    assert "Mist Wanderer" not in fake.letzte_vorgaben
+
+
 def test_deterministisch(con):
     fake = FakeProvider(mapping={"Mist Wanderer": "Nebelwanderer"})
     a = uebersetze(_charakter(), con, fake).identitaet.hintergrund.de
@@ -140,7 +160,7 @@ def test_deterministisch(con):
 # --- JSON-Vertrag / Fehlerpfade ---------------------------------------------
 
 class _KaputterProvider:
-    def uebersetze(self, felder):
+    def uebersetze(self, felder, vorgaben=None):
         return {k: "x" for k in list(felder)[:-1]}  # ein Schlüssel fehlt
 
 

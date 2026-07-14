@@ -14,6 +14,7 @@ Nur PyMuPDF (fitz), keine reportlab/pypdf-Abhängigkeit.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import fitz
@@ -29,6 +30,17 @@ _TEMPLATE_STD = (_HIER.parents[1] / "vorlagen" / "charakterboegen" / "offiziell"
 _FONT = "helv"
 _MEDIA = (603, 774)
 _SPEZIAL_PFAD = {"persoenlichkeit_gesinnung": "identitaet.gesinnung"}
+
+# Typografische Sonderzeichen -> font-sichere Varianten. Helvetica-Base14 rendert z.B. das
+# typografische Apostroph U+2019 (') sichtbar falsch als '·' ("Monk·s" statt "Monk's").
+_ERSATZ = {"’": "'", "‘": "'", "“": '"', "”": '"', "′": "'",
+           "–": "-", "—": "-", "…": "...", " ": " ", "ʼ": "'"}
+
+
+def _saeubere(text: str) -> str:
+    if not text:
+        return text
+    return "".join(_ERSATZ.get(c, c) for c in text)
 
 
 def lade_layout(pfad: Path | None = None) -> dict:
@@ -50,6 +62,7 @@ def _fit_size(text: str, breite: float, size: float, minsize: float) -> float:
 def _zeichne_einzeilig(page, rect, text, size, minsize, align, ink) -> None:
     if text is None or text == "":
         return
+    text = _saeubere(text)
     r = fitz.Rect(rect)
     sz = _fit_size(text, r.width, size, minsize)
     tw = fitz.get_text_length(text, _FONT, sz)
@@ -69,6 +82,7 @@ def _marke(page, punkt, ink) -> None:
 
 
 def _umbrich(text: str, breite: float, size: float) -> list[str]:
+    text = _saeubere(text)
     zeilen: list[str] = []
     for absatz in text.split("\n"):
         if not absatz:
@@ -152,8 +166,26 @@ def _merkmal_text(m) -> str:
     kopf = _text(m.name)
     quelle = f" ({m.quelle} {m.seite})" if m.quelle else ""
     body = _text(m.beschreibung)
-    oek = ("  [" + "; ".join(m.aktionsoekonomie) + "]") if m.aktionsoekonomie else ""
+    oek = ("  [" + "; ".join(_text(x) for x in m.aktionsoekonomie) + "]") if m.aktionsoekonomie else ""
     return f"{kopf}{quelle}. {body}{oek}".strip()
+
+
+_LB = re.compile(r"([\d]+(?:[.,]\d+)?)\s*lb\.?", re.IGNORECASE)
+
+
+def _gewicht_kg(text: str | None) -> str | None:
+    """'5 lb.' -> '2,3 kg' (deterministisch: 1 lb = 0,4536 kg). Ohne lb-Muster unverändert."""
+    if not text:
+        return text
+    m = _LB.search(text)
+    if not m:
+        return text
+    try:
+        kg = float(m.group(1).replace(",", ".")) * 0.4536
+    except ValueError:
+        return text
+    zahl = f"{kg:.1f}".rstrip("0").rstrip(".").replace(".", ",")
+    return _LB.sub(f"{zahl} kg", text)
 
 
 def _merkmale(charakter, herkunft) -> str:
@@ -173,7 +205,7 @@ def _ausruestung_text(charakter) -> str:
     zeilen = []
     for g in charakter.ausruestung.gegenstaende:
         menge = f"{g.menge}× " if g.menge and g.menge not in ("1", "") else ""
-        gew = f" ({g.gewicht})" if g.gewicht else ""
+        gew = f" ({_gewicht_kg(g.gewicht)})" if g.gewicht else ""
         zeilen.append(f"{menge}{_text(g.name)}{gew}")
     return "\n".join(zeilen)
 
@@ -194,16 +226,16 @@ def _grossbox_texte(charakter) -> dict[str, str]:
 
 
 _BOX_TITEL = {
-    "klassenmerkmale": "Klassenmerkmale (Fortsetzung)",
-    "spezies_merkmale": "Spezies-Merkmale (Fortsetzung)",
-    "talente": "Talente (Fortsetzung)",
-    "geschichte": "Geschichte & Persönlichkeit (Fortsetzung)",
-    "ausruestung": "Ausrüstung (Fortsetzung)",
-    "aussehen": "Aussehen (Fortsetzung)",
-    "sprachen": "Sprachen (Fortsetzung)",
-    "einstimmung": "Einstimmung (Fortsetzung)",
-    "waffen_uebung": "Waffen-Vertrautheit (Fortsetzung)",
-    "werkzeug_uebung": "Werkzeug-Vertrautheit (Fortsetzung)",
+    "klassenmerkmale": "Klassenmerkmale",
+    "spezies_merkmale": "Spezies-Merkmale",
+    "talente": "Talente",
+    "geschichte": "Geschichte & Persönlichkeit",
+    "ausruestung": "Ausrüstung",
+    "aussehen": "Aussehen",
+    "sprachen": "Sprachen",
+    "einstimmung": "Einstimmung",
+    "waffen_uebung": "Waffen-Vertrautheit",
+    "werkzeug_uebung": "Werkzeug-Vertrautheit",
 }
 
 
@@ -213,16 +245,27 @@ def _waffen_tabelle(page, spec, angriffe, ink) -> None:
     y0 = spec["kopf_y"]
     lh = spec["zeilenhoehe"]
     sp = spec["spalten"]
-    for i, w in enumerate(angriffe[: spec["zeilen"]]):
+    rows = angriffe[: spec["zeilen"]]
+    if not rows:
+        return
+
+    def spalten_size(texte, breite):
+        # kleinste Grösse, die ALLE Zeilen der Spalte fasst -> einheitlich, kein Zellen-Wackeln
+        s = spec["size"]
+        for t in texte:
+            if t:
+                s = min(s, _fit_size(_saeubere(t), breite, spec["size"], spec["min"]))
+        return s
+
+    sn = spalten_size([_text(w.name) for w in rows], sp["name"][1] - sp["name"][0])
+    ss = spalten_size([_text(w.schaden) for w in rows], sp["schaden"][1] - sp["schaden"][0])
+    for i, w in enumerate(rows):
         y = y0 + i * lh
-        _zeichne_einzeilig(page, [sp["name"][0], y - 10, sp["name"][1], y + 2], _text(w.name),
-                           spec["size"], spec["min"], "l", ink)
-        _zeichne_einzeilig(page, [sp["atk"][0], y - 10, sp["atk"][1], y + 2], _text(w.angriffsbonus),
-                           spec["size"], spec["min"], "c", ink)
-        _zeichne_einzeilig(page, [sp["schaden"][0], y - 10, sp["schaden"][1], y + 2], _text(w.schaden),
-                           spec["size"], spec["min"], "l", ink)
-        _zeichne_einzeilig(page, [sp["notizen"][0], y - 10, sp["notizen"][1], y + 2], _text(w.notiz),
-                           spec["size"], spec["min"], "l", ink)
+        # size==min erzwingt die einheitliche Spaltengrösse (kein Per-Zelle-Autofit)
+        _zeichne_einzeilig(page, [sp["name"][0], y - 10, sp["name"][1], y + 2], _text(w.name), sn, sn, "l", ink)
+        _zeichne_einzeilig(page, [sp["atk"][0], y - 10, sp["atk"][1], y + 2], _text(w.angriffsbonus), spec["size"], spec["size"], "c", ink)
+        _zeichne_einzeilig(page, [sp["schaden"][0], y - 10, sp["schaden"][1], y + 2], _text(w.schaden), ss, ss, "l", ink)
+        _zeichne_einzeilig(page, [sp["notizen"][0], y - 10, sp["notizen"][1], y + 2], _text(w.notiz), spec["size"], spec["min"], "l", ink)
 
 
 def _zauber_tabelle(page, spec, zauber, codemap, ink) -> list:
@@ -273,14 +316,34 @@ def _grossbox(page, spec, text, ink) -> str:
     return _para(page, spec["rect"], text, spec["size"], spec["min"], ink)
 
 
-def _fortsetzungsseite(doc, titel, rest, ink):
-    """Fügt eine Fortsetzungsseite im offiziellen Format an und füllt sie mit `rest`.
-    Gibt weiteren Rest zurück (mehrere Seiten möglich)."""
-    page = doc.new_page(width=_MEDIA[0], height=_MEDIA[1])
-    page.draw_rect(fitz.Rect(9, 9, 594, 765), color=(0.4, 0.4, 0.45), width=1)
-    page.insert_text((25, 34), titel, fontname=_FONT, fontsize=12, color=ink)
-    inhalt = [25, 48, 578, 758]
-    return _para(page, inhalt, rest, 9, 6, ink)
+def _fortsetzungen_rendern(doc, items, ink) -> None:
+    """Alle überlaufenden Abschnitte in EINEN gemeinsamen, 2-spaltigen 'Anhang' im Bogen-Stil
+    fliessen lassen (statt je Abschnitt eine fast leere Seite). Zwischenüberschriften markieren
+    die Abschnitte. KONZEPT §9: überträgt vorhandenen Inhalt, fügt keinen hinzu."""
+    items = [(t, x) for t, x in items if x]
+    if not items:
+        return
+    rest = "\n\n".join(f"‹{titel}›\n{text}" for titel, text in items)
+    nr = 0
+    while rest:
+        nr += 1
+        page = doc.new_page(width=_MEDIA[0], height=_MEDIA[1])
+        _anhang_rahmen(page, ink, nr)
+        rest = _para(page, [30, 58, 296, 748], rest, 8.5, 6, ink)          # linke Spalte
+        if rest:
+            rest = _para(page, [311, 58, 577, 748], rest, 8.5, 6, ink)     # rechte Spalte
+
+
+def _anhang_rahmen(page, ink, nr) -> None:
+    """Doppelrahmen + zentrierter Kapitälchen-Header + Spaltentrenner, damit die Anhangseite
+    zum restlichen Bogen passt (Design-Kritik: Fortsetzung wirkte wie schmuckloser Text-Dump)."""
+    page.draw_rect(fitz.Rect(9, 9, 594, 765), color=(0.55, 0.5, 0.42), width=1.4)
+    page.draw_rect(fitz.Rect(14, 14, 589, 760), color=(0.72, 0.68, 0.6), width=0.6)
+    titel = "ANHANG" if nr == 1 else f"ANHANG ({nr})"
+    tw = fitz.get_text_length(titel, _FONT, 13)
+    page.insert_text(((603 - tw) / 2, 38), titel, fontname=_FONT, fontsize=13, color=ink)
+    page.draw_line(fitz.Point(30, 46), fitz.Point(573, 46), color=(0.55, 0.5, 0.42), width=0.9)
+    page.draw_line(fitz.Point(303, 58), fitz.Point(303, 748), color=(0.82, 0.79, 0.72), width=0.4)
 
 
 # --- Öffentliche API ---------------------------------------------------------
@@ -347,13 +410,11 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
                                       charakter.zauberwirken.zauber, codemap, ink)
         _muenzen(seiten[1], layout["muenzen"], charakter.ausruestung.muenzen, ink)
 
-        # 6) Fortsetzungsseiten (KONZEPT §9) - erst überlaufende Zauber, dann Boxen
+        # 6) Fortsetzungsseiten (KONZEPT §9) - alles in EINEN gemeinsamen Anhang fliessen lassen
         if zauber_rest:
             namen = "\n".join(f"Grad {z.grad}: {_text(z.name)}" for z in zauber_rest)
-            fortsetzungen.append(("Weitere Zauber (Fortsetzung)", namen))
-        for titel, rest in fortsetzungen:
-            while rest:
-                rest = _fortsetzungsseite(doc, titel, rest, ink)
+            fortsetzungen.append(("Weitere Zauber", namen))
+        _fortsetzungen_rendern(doc, fortsetzungen, ink)
 
         return doc.tobytes()
     finally:

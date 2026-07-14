@@ -288,7 +288,10 @@ def _parse_uebungen(char: Charakter, idx: dict, feldkarte: dict) -> None:
             continue
         text = " ".join(koerper.split()).strip()  # Zeilenumbrueche -> ein Fluss, Rand trimmen
         if text:
-            liste.append(UeText(en=text, art="term"))
+            # art="liste": Kategorie als Ganzes uebersetzen; §5-Anzeige "de (en)" OHNE per-Item-*,
+            # weil bei zusammengesetzten Begriffen ("Crossbow, Hand"=Handarmbrust) keine 1:1-
+            # Item-Zuordnung moeglich ist (ein einzelner Stern waere irrefuehrend).
+            liste.append(UeText(en=text, art="liste"))
 
 
 def _parse_aktionen(char: Charakter, idx: dict, feldkarte: dict) -> None:
@@ -331,7 +334,7 @@ def _parse_merkmale(char: Charakter, idx: dict, feldkarte: dict) -> None:
                 )
                 char.merkmale.append(aktuell)
             elif aktuell is not None and gestrippt.startswith("|"):
-                aktuell.aktionsoekonomie.append(gestrippt.lstrip("| ").rstrip())
+                aktuell.aktionsoekonomie.append(UeText(en=gestrippt.lstrip("| ").rstrip(), art="text"))
             elif aktuell is not None and gestrippt:
                 aktuell.beschreibung.en = (aktuell.beschreibung.en + "\n" + zeile).strip("\n") \
                     if aktuell.beschreibung.en else zeile
@@ -464,7 +467,7 @@ def _leite_unterklasse_ab(char: Charakter) -> None:
     kandidaten = [m for m in char.merkmale
                   if m.name and m.name.en.strip().endswith("Subclass") and len(m.aktionsoekonomie) == 1]
     if len(kandidaten) == 1:
-        char.identitaet.unterklasse = UeText(en=kandidaten[0].aktionsoekonomie[0], art="term")
+        char.identitaet.unterklasse = UeText(en=kandidaten[0].aktionsoekonomie[0].en, art="term")
 
 
 def _erfasse_unerwartete(char: Charakter, idx: dict, feldkarte: dict) -> None:
