@@ -427,6 +427,21 @@ def seed_monster_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     return n
 
 
+def seed_kernwortschatz_aus_bestand(con: sqlite3.Connection) -> int:
+    """SRD-Kernwortschatz (Fertigkeiten, Groessen, Kreaturentypen) QUELLENGETRIEBEN aus dem
+    Bestand herleiten und als offizielle Bruecke schreiben (Modul importer/srd_kernwortschatz).
+    Schliesst die Luecke, dass foliant_uebersetze_begriff('Acrobatics') und der Charakterbogen-
+    Uebersetzer diese Kernbegriffe nicht kannten. Selbst-bereinigend (verwirft die eigenen
+    Alt-Zeilen). Braucht die Monster-Bruecke -> nach seed_monster_bruecke_aus_bestand laufen."""
+    from importer.srd_kernwortschatz import QUELLE, finde_kernbegriffe
+    con.execute("DELETE FROM glossar WHERE quelle = ?", (QUELLE,))
+    paare, _verworfen = finde_kernbegriffe(con)
+    for term_en, term_de, _kat, _n in paare:
+        _upsert(con, term_en, term_de, 1, QUELLE, "2024", None)
+    con.commit()
+    return len(paare)
+
+
 def seed_abkuerzungen(con: sqlite3.Connection) -> int:
     """Gaengige Kuerzel als eigene Zeilen (T7/B3); offiziell=1: die Zielbegriffe sind
     offizielles Deutsch, das Kuerzel selbst ist nur ein Suchschluessel."""

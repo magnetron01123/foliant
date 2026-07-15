@@ -174,7 +174,28 @@ _MIN_LEMMA = 4
 # gleichnamige Spielbegriff - kontextfreies Matching mappt sie sonst falsch (beobachtet:
 # 'chest' [Brustkorb] -> 'Kiste'; 'ready' [bereit] -> 'Vorbereiten'). Als reines
 # Hinweisfeld ist Weglassen sicherer als ein irrefuehrender Vorschlag (S5).
-_HOMONYM_STOP = frozenset({"chest", "ready", "bear", "fell", "will", "arms", "wills"})
+#
+# ZWEITE GRUPPE (15.07.2026): der SRD-Kernwortschatz-Seed (Fertigkeiten/Groessen/Kreaturentypen,
+# importer/srd_kernwortschatz.py) ist quellenbelegt und fuer die EXAKTE Suche
+# (foliant_uebersetze_begriff, Charakterbogen-Uebersetzer, wo das Feld den Kontext liefert)
+# voll gueltig - aber viele Lemmata sind generische englische Woerter, die der KONTEXTFREIE
+# Inline-Annotator falsch faerben wuerde: "Medium armor" (mittelschwere Ruestung, NICHT
+# mittelgross), "Giant" (auch die Sprache Riesisch), "respect for nature" (nicht die Fertigkeit).
+# Deshalb hier gesperrt - NUR fuers Inline-Matching, die exakte Suche sieht diese Liste nie.
+# Selbst-identische Paare (Religion, Aberration, Ooze ...) filtert begriffe_im_text ohnehin;
+# die vom Bestands-Audit als unbedenklich belegten (Perception, Stealth, Athletics, Persuasion,
+# Intimidation, Animal Handling, Sleight of Hand) bleiben inline nutzbar.
+_HOMONYM_STOP = frozenset({
+    "chest", "ready", "bear", "fell", "will", "arms", "wills",
+    # Groessen (als Adjektiv allgegenwaertig)
+    "tiny", "small", "medium", "large", "huge", "gargantuan",
+    # Kreaturentypen mit generischer Alltagsbedeutung
+    "beast", "celestial", "dragon", "elemental", "fey", "fiend", "giant", "humanoid", "plant",
+    "undead",
+    # Fertigkeiten mit generischer Alltagsbedeutung (EN != DE)
+    "acrobatics", "arcana", "deception", "history", "insight", "investigation", "medicine",
+    "nature", "performance", "survival",
+})
 
 
 def begriffe_im_text(con: sqlite3.Connection, text: str, *,
