@@ -243,3 +243,20 @@ def test_ueberlauf_eines_langen_merkmals_trennt_satztreu():
     assert gezeichnet.rstrip().endswith("."), f"Schnitt mitten im Satz: …{gezeichnet[-45:]!r}"
     assert rest[0].isupper(), f"Rest beginnt mitten im Satz: {rest[:45]!r}"
     assert "18" not in gezeichnet[-6:], "Zahl darf nicht von ihrer Einheit getrennt werden"
+
+
+def test_fortsetzung_im_anhang_nennt_das_merkmal():
+    """Reisst EIN Merkmal mitten durch, muss die Fortsetzung im Anhang sagen, wozu sie gehoert -
+    sonst steht dort ein herrenloser Textblock."""
+    import fitz
+    from app.charakterbogen.de_bogen import FORTS_MARKE, _fortsetzungskopf, _para
+
+    assert _fortsetzungskopf("Angriffe abwehren* (Deflect Attacks) (PHB-2024 102).") == \
+        "Angriffe abwehren* (Deflect Attacks) (Fortsetzung):"
+
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    merkmal = ("Angriffe abwehren* (Deflect Attacks) (PHB-2024 102). "
+               + "Du kannst eine Reaktion nutzen und den Schaden verringern. " * 8)
+    rest = _para(page, [20, 20, 300, 60], merkmal, 8.5, 6, (0, 0, 0), endmarke=FORTS_MARKE)
+    assert rest.startswith("Angriffe abwehren* (Deflect Attacks) (Fortsetzung):"), rest[:60]

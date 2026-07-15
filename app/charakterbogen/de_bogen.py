@@ -107,6 +107,15 @@ def _umbrich(text: str, breite: float, size: float) -> list[str]:
 
 FORTS_MARKE = "(Fortsetzung im Anhang)"
 _SATZENDE = re.compile(r"(?<=[.!?])\s+")
+_QUELLE_IM_KOPF = re.compile(r"\s*\([^()]*\d{2,4}[^()]*\)\s*\.?\s*$")   # "… (PHB-2024 102)."
+
+
+def _fortsetzungskopf(erster_satz: str) -> str:
+    """'Angriffe abwehren* (Deflect Attacks) (PHB-2024 102).' -> 'Angriffe abwehren* (Deflect
+    Attacks) (Fortsetzung):' - damit die Anhang-Seite sagt, WELCHES Merkmal sie fortsetzt.
+    Die Quellenangabe entfällt (sie stand schon auf dem Bogen)."""
+    kopf = _QUELLE_IM_KOPF.sub("", (erster_satz or "").strip()).rstrip(" .")
+    return f"{kopf} (Fortsetzung):" if kopf else "(Fortsetzung):"
 
 
 def _para(page, rect, text, size, minsize, ink, endmarke: str | None = None) -> str:
@@ -161,11 +170,16 @@ def _para(page, rect, text, size, minsize, ink, endmarke: str | None = None) -> 
             genommen.append(satz)
         if genommen:
             gezeichnet = _umbrich_absatz(" ".join(genommen), r.width, sz)
-            kopf = " ".join(saetze[len(genommen):]).strip()
+            schwanz = " ".join(saetze[len(genommen):]).strip()
         else:
             gezeichnet = bloecke[0][:nutz]
-            kopf = " ".join(bloecke[0][nutz:]).strip()
-        rest = "\n".join([kopf] + absaetze[1:])
+            schwanz = " ".join(bloecke[0][nutz:]).strip()
+        # Der Rest ist die Mitte EINES Merkmals - ohne Kopf wuesste der Leser im Anhang nicht,
+        # wozu er gehoert. Der Merkmalskopf ist der erste "Satz" des Absatzes
+        # ("Angriffe abwehren* (Deflect Attacks) (PHB-2024 102).").
+        if schwanz:
+            schwanz = f"{_fortsetzungskopf(saetze[0])} {schwanz}"
+        rest = "\n".join([schwanz] + absaetze[1:])
 
     while gezeichnet and not gezeichnet[-1]:
         gezeichnet.pop()
