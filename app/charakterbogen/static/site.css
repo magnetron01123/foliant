@@ -130,7 +130,6 @@ button.neben { width: auto; padding: 10px 16px; font-size: .9rem; white-space: n
 .credit { font-size: .88rem; opacity: .85; }
 .credit .autor { font-variant: small-caps; letter-spacing: .08em; font-size: 1.05em; }
 .credit .herz { color: var(--rot); }
-.credit-wurf { margin-top: 3px !important; font-style: italic; font-size: .78rem; opacity: .6; }
 @media (max-width: 540px) {
   .vergleich { grid-template-columns: 1fr; }
   .linkzeile { flex-direction: column; }
