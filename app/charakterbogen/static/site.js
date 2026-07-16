@@ -10,3 +10,27 @@
     if (status) status.hidden = false;
   });
 })();
+
+// MCP-Link kopieren: Clipboard-API (https) mit Fallback auf Auswahl+execCommand (http/alt).
+(function () {
+  var knopf = document.getElementById("kopieren");
+  var feld = document.getElementById("mcp-url");
+  if (!knopf || !feld) return;
+
+  function bestaetigt() {
+    knopf.textContent = "Kopiert ✓";
+    setTimeout(function () { knopf.textContent = "Kopieren"; }, 2000);
+  }
+  function fallback() {
+    feld.focus();
+    feld.select();
+    try { document.execCommand("copy"); bestaetigt(); } catch (e) { /* Auswahl bleibt stehen */ }
+  }
+  knopf.addEventListener("click", function () {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(feld.value).then(bestaetigt, fallback);
+    } else {
+      fallback();
+    }
+  });
+})();

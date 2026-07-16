@@ -4,22 +4,92 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Charakterbogen auf Deutsch</title>
+  <title>Foliant — Werkzeuge für unsere D&amp;D-Runde</title>
   <link rel="stylesheet" href="static/site.css">
 </head>
-<body>
-  <main class="karte">
-    <h1>Charakterbogen auf Deutsch</h1>
-    <p class="unter">D&amp;D-Beyond-PDF auswählen und als offiziellen deutschen Charakterbogen erhalten.</p>
-    <form id="form" method="post" action="bogen" enctype="multipart/form-data">
-      <label class="feld">
-        <span>D&amp;D-Beyond-PDF</span>
-        <input type="file" name="datei" accept="application/pdf,.pdf" required>
-      </label>
-      <button type="submit" id="knopf">Deutschen Charakterbogen erstellen</button>
-      <p class="status" id="status" hidden>Bogen wird geprüft, übersetzt und ausgefüllt …</p>
-    </form>
-  </main>
+<body class="lang">
+  <div class="seite">
+    <header class="kopf">
+      <p class="marke">Foliant</p>
+      <p class="untertitel">Werkzeuge für unsere D&amp;D-Runde</p>
+      <nav>
+        <a href="#bogen">Charakterbogen auf Deutsch</a>
+        <span aria-hidden="true">·</span>
+        <a href="#mcp">Foliant im Claude-Chat</a>
+      </nav>
+    </header>
+
+    <main class="inhalt">
+      <section id="bogen" class="karte">
+        <h2>Charakterbogen auf Deutsch</h2>
+        <p class="unter">D&amp;D-Beyond-PDF auswählen und als offiziellen deutschen Charakterbogen erhalten.</p>
+        <form id="form" method="post" action="bogen" enctype="multipart/form-data">
+          <label class="feld">
+            <span>D&amp;D-Beyond-PDF</span>
+            <input type="file" name="datei" accept="application/pdf,.pdf" required>
+          </label>
+          <button type="submit" id="knopf">Deutschen Charakterbogen erstellen</button>
+          <p class="status" id="status" hidden>Bogen wird geprüft, übersetzt und ausgefüllt …</p>
+        </form>
+      </section>
+
+      <section id="mcp" class="karte">
+        <h2>Foliant im Claude-Chat</h2>
+        <p class="unter">Foliant ist das Regel-Nachschlagewerk unserer Runde: rund 9.500 Einträge
+          aus unseren D&amp;D-5e-Regelwerken (Fassung 2024, Deutsch zuerst). Der Link unten
+          verbindet Claude direkt damit — technisch ein sogenannter <em>MCP-Connector</em>.
+          Einmal eingebunden, schlägt Claude jede Regelfrage im Bestand nach, statt aus dem
+          Gedächtnis zu antworten.</p>
+
+        <!--MCP-LINK-START-->
+        <div class="feld">
+          <span>Dein Foliant-Link (MCP-Connector)</span>
+          <div class="linkzeile">
+            <input id="mcp-url" type="text" readonly value="{{MCP_URL}}" aria-label="Foliant-MCP-Link">
+            <button type="button" id="kopieren" class="neben">Kopieren</button>
+          </div>
+          <p class="mini">Privat für unsere Runde — bitte nicht öffentlich teilen. Der Link
+            funktioniert nur in Claude; im Browser geöffnet zeigt er nichts an.</p>
+        </div>
+        <!--MCP-LINK-ENDE-->
+
+        <div class="block">
+          <h3>So bindest du ihn ein</h3>
+          <ol class="schritte">
+            <li>Link oben kopieren.</li>
+            <li>Auf <em>claude.ai</em>: Einstellungen&nbsp;→ Connectoren&nbsp;→
+              <em>„Eigenen Connector hinzufügen"</em> → Link als URL einfügen.</li>
+            <li>Im Chat einfach auf Deutsch nach Regeln fragen — z.&nbsp;B.
+              <em>„Was macht der Zauber Dunkelheit?"</em></li>
+          </ol>
+        </div>
+
+        <div class="block">
+          <h3>Was bringt das?</h3>
+          <div class="vergleich">
+            <div class="ohne">
+              <h4>Claude ohne Foliant</h4>
+              <ul>
+                <li>antwortet aus allgemeinem Trainingswissen</li>
+                <li>mischt alte (2014) und neue (2024) Regeln, oft englische Begriffe</li>
+                <li>kann Details überzeugend klingend erfinden — ohne Quellenangabe</li>
+              </ul>
+            </div>
+            <div class="mit">
+              <h4>Claude mit Foliant</h4>
+              <ul>
+                <li>schlägt im Regelbestand der Runde nach (2024, Deutsch zuerst)</li>
+                <li>nennt Quelle, Seite und Regelversion zu jeder Auskunft</li>
+                <li>sagt ehrlich „nicht gefunden", statt zu raten — und spoilert keine Abenteuer</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="fuss">Private Seite unserer D&amp;D-Runde. Nichts wird gespeichert.</footer>
+  </div>
   <script src="static/site.js"></script>
 </body>
 </html>

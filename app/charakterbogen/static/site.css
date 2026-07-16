@@ -21,6 +21,23 @@ body {
   color: var(--tinte);
   font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
 }
+/* One-Pager (index): mehrere Karten untereinander, oben beginnend */
+body.lang { align-items: flex-start; }
+.seite { width: 100%; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+.inhalt { display: flex; flex-direction: column; gap: 24px; }
+.kopf { text-align: center; padding-top: 6px; }
+.kopf .marke {
+  margin: 0;
+  font-variant: small-caps;
+  letter-spacing: .14em;
+  font-size: 2rem;
+  line-height: 1.1;
+}
+.kopf .untertitel { margin: 2px 0 10px; font-size: .92rem; opacity: .75; }
+.kopf nav { font-size: .9rem; }
+.kopf nav a { color: var(--rot); text-decoration: none; border-bottom: 1px solid transparent; }
+.kopf nav a:hover { border-bottom-color: var(--rot); }
+.kopf nav span { margin: 0 8px; opacity: .5; }
 .karte {
   width: 100%;
   max-width: 480px;
@@ -33,6 +50,7 @@ body {
   text-align: center;
 }
 h1 { font-size: 1.5rem; margin: 0 0 8px; letter-spacing: .02em; }
+h2 { font-size: 1.4rem; margin: 0 0 8px; letter-spacing: .02em; }
 .unter { margin: 0 0 26px; font-size: .96rem; line-height: 1.4; opacity: .85; }
 .feld { display: block; text-align: left; margin-bottom: 22px; }
 .feld span {
@@ -67,6 +85,50 @@ button {
 button:hover { background: var(--rot-hell); }
 button:disabled { opacity: .6; cursor: default; }
 .status { margin: 18px 0 0; font-size: .9rem; font-style: italic; opacity: .8; }
+
+/* MCP-Abschnitt */
+.linkzeile { display: flex; gap: 8px; }
+.linkzeile input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid var(--linie);
+  border-radius: 3px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .8rem;
+  color: var(--tinte);
+}
+button.neben { width: auto; padding: 10px 16px; font-size: .9rem; white-space: nowrap; }
+.mini { margin: 8px 0 0; font-size: .8rem; line-height: 1.4; opacity: .75; text-align: left; }
+.block { margin-top: 22px; text-align: left; }
+.block h3 {
+  font-variant: small-caps;
+  letter-spacing: .06em;
+  font-size: .95rem;
+  margin: 0 0 8px;
+  opacity: .85;
+}
+.schritte { margin: 0; padding-left: 20px; font-size: .92rem; line-height: 1.55; }
+.schritte li { margin-bottom: 4px; }
+.vergleich { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.vergleich > div { border: 1px solid var(--linie); border-radius: 3px; padding: 12px 14px; background: #fffdf7; }
+.vergleich .mit { border-color: var(--rot); }
+.vergleich h4 {
+  margin: 0 0 6px;
+  font-size: .82rem;
+  font-variant: small-caps;
+  letter-spacing: .05em;
+}
+.vergleich .mit h4 { color: var(--rot); }
+.vergleich ul { margin: 0; padding-left: 16px; font-size: .85rem; line-height: 1.5; }
+.vergleich li { margin-bottom: 3px; }
+.fuss { text-align: center; font-size: .78rem; opacity: .55; padding-bottom: 8px; }
+@media (max-width: 540px) {
+  .vergleich { grid-template-columns: 1fr; }
+  .linkzeile { flex-direction: column; }
+  button.neben { width: 100%; }
+}
 .fehler {
   margin: 18px 0 0;
   padding: 12px;

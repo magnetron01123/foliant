@@ -62,6 +62,12 @@ services:
       - WEB_PASSWORT=${WEB_PASSWORT:-}
       - CHARAKTERBOGEN_GLOSSAR=/glossar/glossar_web.sqlite
       - CHARAKTERBOGEN_VORLAGE=/vorlagen/Charakterbogen_2024_DE.pdf
+      # MCP-Link fuer den "Foliant im Claude-Chat"-Abschnitt (erscheint NUR hinter dem Login).
+      # FOLIANT_MCP_URL gewinnt; sonst setzt web.py ihn aus Basis-URL + Geheimpfad-Token zusammen
+      # (der Token liegt ohnehin in der .env). Die Domain ist oeffentlich, der Token nicht.
+      - FOLIANT_MCP_URL=${FOLIANT_MCP_URL:-}
+      - FOLIANT_PFAD_TOKEN=${FOLIANT_PFAD_TOKEN:-}
+      - FOLIANT_BASIS_URL=${FOLIANT_BASIS_URL:-https://dnd.magnetron.me}
     volumes:
       - ./data/glossar_web.sqlite:/glossar/glossar_web.sqlite:ro
       - ./vorlagen/charakterboegen/offiziell/Charakterbogen_2024_DE.pdf:/vorlagen/Charakterbogen_2024_DE.pdf:ro
