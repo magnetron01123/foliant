@@ -314,3 +314,22 @@ def test_smart_join_regeln():
     # Fragmentinhalt bleibt zusammenhaengender Teilstring
     j = _verbinde_fragmente(["abc", "def", "ghi"])
     assert "abc" in j and "def" in j and "ghi" in j
+
+
+def test_zaubermodifikator_wird_abgeleitet():
+    """Zaubermodifikator = Attributsmodifikator des Zauberattributs (reine Querreferenz
+    innerhalb desselben Bogens); unbekanntes Attribut -> nichts raten."""
+    from app.charakterbogen.ddb_pdf import _leite_zaubermodifikator_ab
+    from app.charakterbogen.modelle import Attribut, Charakter, UeText
+
+    c = Charakter()
+    c.attribute["wis"] = Attribut(wert=18, mod="+4")
+    c.zauberwirken.attribut = UeText(en="Wisdom", art="term")
+    _leite_zaubermodifikator_ab(c)
+    assert c.zauberwirken.modifikator == "+4"
+
+    c2 = Charakter()
+    c2.attribute["wis"] = Attribut(wert=18, mod="+4")
+    c2.zauberwirken.attribut = UeText(en="Ki", art="term")
+    _leite_zaubermodifikator_ab(c2)
+    assert c2.zauberwirken.modifikator is None

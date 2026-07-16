@@ -116,20 +116,45 @@ def test_ueberlauf_erzeugt_fortsetzungsseite_ohne_verlust():
                           beschreibung=UeText(en=lang), herkunft="klasse")]
     pdf = _rendere_synth(c)
     doc = fitz.open(stream=pdf, filetype="pdf")
-    assert doc.page_count > 2  # Anhangseite(n) angehängt
+    assert doc.page_count > 2                        # Fortsetzungsseite(n) eingefügt
     voll = _text_von(pdf)
-    assert "ANHANG" in voll                          # gemeinsame Anhang-Überschrift
-    assert "Klassenmerkmale" in voll                 # Abschnitts-Zwischenüberschrift
+    assert "ANHANG" not in voll                      # kein selbstgezeichneter Anhang mehr
     assert marker in voll                            # der Rest ist NICHT verloren
+    # Jede Fortsetzungsseite ist eine KOPIE der leeren Vorlagenseite ...
+    for i in range(doc.page_count):
+        assert "HINTERGRUND-MARKER" in doc[i].get_text(), f"Seite {i} ist keine Vorlagen-Kopie"
+    # ... und steht DIREKT hinter ihrer Ursprungsseite: die Original-Seite 2
+    # (Zaubertabelle mit 'Darkness') rutscht ans Ende.
+    assert "Darkness" in doc[doc.page_count - 1].get_text()
 
 
 def test_viele_zauber_ueberlauf_in_fortsetzung():
     c = _mini_charakter()
     c.zauberwirken.zauber = [Zauber(grad=1, name=UeText(en=f"Zauber{i}"), zeitaufwand="1A")
-                             for i in range(40)]  # mehr als Tabellenzeilen
-    voll = _text_von(_rendere_synth(c))
-    assert "Weitere Zauber" in voll
-    assert "Zauber39" in voll  # letzter Zauber landet im Anhang, nicht verloren
+                             for i in range(40)]  # mehr als Tabellenzeilen (30)
+    pdf = _rendere_synth(c)
+    doc = fitz.open(stream=pdf, filetype="pdf")
+    assert doc.page_count == 3                       # Kopie von Seite 2 direkt hinter Seite 2
+    assert "Zauber5" in doc[1].get_text()            # Tabellenanfang auf der Ursprungsseite
+    assert "Zauber39" in doc[2].get_text()           # Rest als echte Tabellenzeilen, nicht verloren
+    assert "ANHANG" not in _text_von(pdf)
+
+
+def test_fortsetzungen_stehen_hinter_ihrer_ursprungsseite():
+    """Überlauf auf Seite 1 UND Seite 2: Kopien stehen jeweils DIREKT hinter ihrer
+    Ursprungsseite (S1, S1-Kopie(n), S2, S2-Kopie) - nicht gesammelt am Ende."""
+    c = _mini_charakter()
+    marker = "KLASSENUEBERLAUFMARKER"
+    c.merkmale = [Merkmal(name=UeText(en="Riesenmerkmal"), quelle="PHB-2024", seite="1",
+                          beschreibung=UeText(en=("Text. " * 2000) + marker), herkunft="klasse")]
+    c.zauberwirken.zauber = [Zauber(grad=1, name=UeText(en=f"Zauber{i}"), zeitaufwand="1A")
+                             for i in range(40)]
+    doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
+    texte = [doc[i].get_text() for i in range(doc.page_count)]
+    s_merkmal_rest = next(i for i, t in enumerate(texte) if marker in t)
+    s_zauber_start = next(i for i, t in enumerate(texte) if "Zauber0" in t)
+    s_zauber_rest = next(i for i, t in enumerate(texte) if "Zauber39" in t)
+    assert 1 <= s_merkmal_rest < s_zauber_start < s_zauber_rest
 
 
 # --- Kalibrierung ------------------------------------------------------------
@@ -260,3 +285,52 @@ def test_fortsetzung_im_anhang_nennt_das_merkmal():
                + "Du kannst eine Reaktion nutzen und den Schaden verringern. " * 8)
     rest = _para(page, [20, 20, 300, 60], merkmal, 8.5, 6, (0, 0, 0), endmarke=FORTS_MARKE)
     assert rest.startswith("Angriffe abwehren* (Deflect Attacks) (Fortsetzung):"), rest[:60]
+
+
+# --- Rüstungsvertrautheit / K-R-M / Fußnote / Zauberwirken-Kopf ---------------
+
+def test_ruestungs_schluessel_mapping():
+    from app.charakterbogen.de_bogen import _ruestungs_schluessel
+    assert _ruestungs_schluessel("Light Armor, Medium Armor, Shields") == \
+        {"leicht", "mittelschwer", "schilde"}
+    assert _ruestungs_schluessel("All Armor, Shields") == \
+        {"leicht", "mittelschwer", "schwer", "schilde"}
+    assert _ruestungs_schluessel("Heavy Armor") == {"schwer"}
+    assert _ruestungs_schluessel("") == set()
+    assert _ruestungs_schluessel("Padded") == set()   # nichts raten
+
+
+def test_ruestungsmarken_werden_gezeichnet():
+    c = _mini_charakter()
+    ohne = fitz.open(stream=_rendere_synth(c), filetype="pdf")
+    c.uebungen.ruestung.append(UeText(en="Light Armor, Shields", art="liste"))
+    mit = fitz.open(stream=_rendere_synth(c), filetype="pdf")
+    assert len(mit[0].get_drawings()) > len(ohne[0].get_drawings())
+
+
+def test_ritual_marke_nur_bei_beleg():
+    from app.charakterbogen.de_bogen import _ist_ritual
+    assert _ist_ritual(Zauber(name=UeText(en="Detect Magic (Ritual)")))
+    assert _ist_ritual(Zauber(name=UeText(en="Detect Magic"), notiz=UeText(en="(R), V/S")))
+    assert not _ist_ritual(Zauber(name=UeText(en="Fireball")))
+    assert not _ist_ritual(Zauber(name=UeText(en="Spiritual Weapon")))  # 'ritual' nur als Wort
+
+
+def test_stern_fussnote_nur_wo_stern_vorkommt():
+    from app.charakterbogen.de_bogen import _FUSSNOTE
+    c = _mini_charakter()
+    assert _FUSSNOTE not in _text_von(_rendere_synth(c))   # ohne '*' keine Fußnote
+    c.identitaet.klasse = UeText(en="Monk", de="Mönch* (Monk)", art="term")
+    doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
+    assert _FUSSNOTE in doc[0].get_text()       # Seite mit '*' trägt die Erklärung
+    assert _FUSSNOTE not in doc[1].get_text()   # Seite ohne '*' bleibt frei
+
+
+def test_zauberwirken_kopf_erscheint():
+    c = _mini_charakter()
+    c.zauberwirken.attribut = UeText(en="Wisdom", de="Weisheit (Wisdom)", art="term")
+    c.zauberwirken.modifikator = "+4"
+    c.zauberwirken.rettungs_sg = "15"
+    c.zauberwirken.angriffsbonus = "+7"
+    txt = _text_von(_rendere_synth(c))
+    assert "Weisheit (Wisdom)" in txt and "15" in txt
