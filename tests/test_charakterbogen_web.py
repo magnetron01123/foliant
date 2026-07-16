@@ -237,3 +237,10 @@ def test_mcp_url_aus_env_zusammengesetzt(monkeypatch):
     monkeypatch.delenv("FOLIANT_MCP_URL", raising=False)
     monkeypatch.delenv("FOLIANT_PFAD_TOKEN", raising=False)
     assert _mcp_url_aus_env() is None                              # ohne Token -> Hinweis
+
+
+def test_credit_zeile_auf_der_seite(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "David Trogemann" in r.text            # Urheber-Credit im Fuß
+    assert "©" in r.text and "natürliche 20" in r.text
