@@ -3,8 +3,9 @@
 Zeichnet Werte per Koordinaten (layout_map) mit Auto-Fit auf eine Kopie der offiziellen
 DE-Vorlage; der Vektor-Hintergrund (Logo, Rahmen, Illustrationen, rechtliche Fußzeile)
 bleibt unverändert - es wird nur Text/Marken HINZUGEFÜGT (KONZEPT §9/§10). Bei echtem
-Überlauf einer bereits im Quellbogen vorhandenen Sektion wandert der Resttext auf eine
-Fortsetzungsseite im offiziellen Stil (KONZEPT §9) - nichts wird still abgeschnitten.
+Überlauf einer bereits im Quellbogen vorhandenen Sektion wird die LEERE Vorlagenseite
+kopiert, direkt hinter der Ursprungsseite eingefügt und der Rest fließt dort in DIESELBE
+Box weiter (KONZEPT §9) - nichts wird still abgeschnitten.
 
 Phase 2: rendert das neutrale Modell OHNE Übersetzung (UeText -> .de falls vorhanden,
 sonst .en) - der "sieht aus wie Original"-Beweis. Die deutsche Übersetzung kommt in Phase 3.
@@ -28,7 +29,6 @@ _TEMPLATE_STD = (_HIER.parents[1] / "vorlagen" / "charakterboegen" / "offiziell"
                  / "Charakterbogen_2024_DE.pdf")
 
 _FONT = "helv"
-_MEDIA = (603, 774)
 _SPEZIAL_PFAD = {"persoenlichkeit_gesinnung": "identitaet.gesinnung"}
 
 # Typografische Sonderzeichen -> font-sichere Varianten. Helvetica-Base14 rendert z.B. das
@@ -77,8 +77,11 @@ def _zeichne_einzeilig(page, rect, text, size, minsize, align, ink) -> None:
 
 
 def _marke(page, punkt, ink) -> None:
-    """Gefülltes Kästchen/Häkchen fuer Übungs-/Vorbereitet-Marker (○ -> ●)."""
-    page.draw_circle(fitz.Point(punkt[0], punkt[1]), 2.3, color=ink, fill=ink, width=0)
+    """X-Kreuz in einem ◇-Ankreuzfeld des Bogens (Übung, K/R/M, Rüstungsvertrautheit)."""
+    x, y = punkt[0], punkt[1]
+    h = 2.2
+    page.draw_line(fitz.Point(x - h, y - h), fitz.Point(x + h, y + h), color=ink, width=1.0)
+    page.draw_line(fitz.Point(x - h, y + h), fitz.Point(x + h, y - h), color=ink, width=1.0)
 
 
 def _umbrich_absatz(absatz: str, breite: float, size: float) -> list[str]:
@@ -105,8 +108,17 @@ def _umbrich(text: str, breite: float, size: float) -> list[str]:
     return zeilen
 
 
-FORTS_MARKE = "(Fortsetzung im Anhang)"
+FORTS_MARKE = "(Fortsetzung nächste Seite)"
 _SATZENDE = re.compile(r"(?<=[.!?])\s+")
+_QUELLE_IM_KOPF = re.compile(r"\s*\([^()]*\d{2,4}[^()]*\)\s*\.?\s*$")   # "… (PHB-2024 102)."
+
+
+def _fortsetzungskopf(erster_satz: str) -> str:
+    """'Angriffe abwehren* (Deflect Attacks) (PHB-2024 102).' -> 'Angriffe abwehren* (Deflect
+    Attacks) (Fortsetzung):' - damit die Fortsetzungsseite sagt, WELCHES Merkmal sie fortsetzt.
+    Die Quellenangabe entfällt (sie stand schon auf dem Bogen)."""
+    kopf = _QUELLE_IM_KOPF.sub("", (erster_satz or "").strip()).rstrip(" .")
+    return f"{kopf} (Fortsetzung):" if kopf else "(Fortsetzung):"
 
 
 def _para(page, rect, text, size, minsize, ink, endmarke: str | None = None) -> str:
@@ -161,11 +173,16 @@ def _para(page, rect, text, size, minsize, ink, endmarke: str | None = None) -> 
             genommen.append(satz)
         if genommen:
             gezeichnet = _umbrich_absatz(" ".join(genommen), r.width, sz)
-            kopf = " ".join(saetze[len(genommen):]).strip()
+            schwanz = " ".join(saetze[len(genommen):]).strip()
         else:
             gezeichnet = bloecke[0][:nutz]
-            kopf = " ".join(bloecke[0][nutz:]).strip()
-        rest = "\n".join([kopf] + absaetze[1:])
+            schwanz = " ".join(bloecke[0][nutz:]).strip()
+        # Der Rest ist die Mitte EINES Merkmals - ohne Kopf wuesste der Leser im Anhang nicht,
+        # wozu er gehoert. Der Merkmalskopf ist der erste "Satz" des Absatzes
+        # ("Angriffe abwehren* (Deflect Attacks) (PHB-2024 102).").
+        if schwanz:
+            schwanz = f"{_fortsetzungskopf(saetze[0])} {schwanz}"
+        rest = "\n".join([schwanz] + absaetze[1:])
 
     while gezeichnet and not gezeichnet[-1]:
         gezeichnet.pop()
@@ -279,20 +296,6 @@ def _grossbox_texte(charakter) -> dict[str, str]:
     }
 
 
-_BOX_TITEL = {
-    "klassenmerkmale": "Klassenmerkmale",
-    "spezies_merkmale": "Spezies-Merkmale",
-    "talente": "Talente",
-    "geschichte": "Geschichte & Persönlichkeit",
-    "ausruestung": "Ausrüstung",
-    "aussehen": "Aussehen",
-    "sprachen": "Sprachen",
-    "einstimmung": "Einstimmung",
-    "waffen_uebung": "Waffen-Vertrautheit",
-    "werkzeug_uebung": "Werkzeug-Vertrautheit",
-}
-
-
 # --- Tabellen ----------------------------------------------------------------
 
 def _waffen_tabelle(page, spec, angriffe, ink) -> None:
@@ -326,6 +329,14 @@ def _waffen_tabelle(page, spec, angriffe, ink) -> None:
         _zeichne_einzeilig(page, [sp["notizen"][0], y - 10, sp["notizen"][1], y + 2], _text(w.notiz), tsize, tsize, "l", ink)
 
 
+_RITUAL = re.compile(r"(?i)\britual\b|\(R\)")
+
+
+def _ist_ritual(z) -> bool:
+    """Ritual-Marke NUR bei explizitem Beleg im Quelltext (Name/Notiz) - nie geraten."""
+    return bool(_RITUAL.search(f"{_text(z.name)} {_text(z.notiz)}"))
+
+
 def _zauber_tabelle(page, spec, zauber, codemap, ink) -> list:
     y0 = spec["kopf_y"]
     lh = spec["zeilenhoehe"]
@@ -342,13 +353,17 @@ def _zauber_tabelle(page, spec, zauber, codemap, ink) -> list:
         _zeichne_einzeilig(page, [sp["zeit"][0], y - 10, sp["zeit"][1], y + 2], zeit, spec["size"], spec["min"], sp["zeit"][2], ink)
         _zeichne_einzeilig(page, [sp["reichweite"][0], y - 10, sp["reichweite"][1], y + 2], _text(z.reichweite), spec["size"], spec["min"], sp["reichweite"][2], ink)
         _zeichne_einzeilig(page, [sp["notizen"][0], y - 10, sp["notizen"][1], y + 2], _text(z.notiz), spec["size"], spec["min"], sp["notizen"][2], ink)
-        # K/R/M-Marken aus Wirkungsdauer/Komponenten (deterministisch, nichts raten)
+        # K/R/M-Marken aus Wirkungsdauer/Komponenten/Ritual-Beleg (deterministisch, nichts
+        # raten), exakt auf den ◇-Rauten der Zeile (eigene Rasterung: y0 + i*pitch).
+        my = krm["y0"] + i * krm["pitch"]
         dauer = _text(z.wirkungsdauer).lower()
         komp = (z.komponenten or "").upper()
         if "konzentration" in dauer or "concentration" in dauer:
-            _marke(page, (krm["k"], y - 3), ink)
+            _marke(page, (krm["k"], my), ink)
+        if _ist_ritual(z):
+            _marke(page, (krm["r"], my), ink)
         if "M" in komp:
-            _marke(page, (krm["m"], y - 3), ink)
+            _marke(page, (krm["m"], my), ink)
     return zauber[spec["zeilen"]:]
 
 
@@ -357,6 +372,32 @@ def _muenzen(page, spec, muenzen, ink) -> None:
         wert = muenzen.get(code)
         if wert not in (None, ""):
             _zeichne_einzeilig(page, rect, str(wert), spec["size"], spec["min"], "c", ink)
+
+
+def _ruestungs_schluessel(en_text: str) -> set[str]:
+    """'Light Armor, Medium Armor, Shields' -> {'leicht','mittelschwer','schilde'}.
+    Nur wörtliche DDB-Kategorien (nichts raten); 'All Armor' = alle drei Rüstungsklassen."""
+    t = en_text.lower()
+    keys = set()
+    if "all armor" in t:
+        keys |= {"leicht", "mittelschwer", "schwer"}
+    if "light armor" in t:
+        keys.add("leicht")
+    if "medium armor" in t:
+        keys.add("mittelschwer")
+    if "heavy armor" in t:
+        keys.add("schwer")
+    if "shield" in t:
+        keys.add("schilde")
+    return keys
+
+
+def _ruestungs_marken(page, spec, ruestung, ink) -> None:
+    """Kreuzt die Rüstungsvertrautheits-Rauten an (Leicht/Mittelschwer/Schwer/Schilde).
+    Abgleich läuft über das englische ORIGINAL (deterministisch), nie über die Übersetzung."""
+    en = " ".join(u.en or "" for u in ruestung)
+    for key in _ruestungs_schluessel(en):
+        _marke(page, spec[key], ink)
 
 
 # --- Grossbox mit Spalten + Fortsetzung -------------------------------------
@@ -376,34 +417,48 @@ def _grossbox(page, spec, text, ink) -> str:
     return _para(page, spec["rect"], text, spec["size"], spec["min"], ink, endmarke=FORTS_MARKE)
 
 
-def _fortsetzungen_rendern(doc, items, ink) -> None:
-    """Alle überlaufenden Abschnitte in EINEN gemeinsamen, 2-spaltigen 'Anhang' im Bogen-Stil
-    fliessen lassen (statt je Abschnitt eine fast leere Seite). Zwischenüberschriften markieren
-    die Abschnitte. KONZEPT §9: überträgt vorhandenen Inhalt, fügt keinen hinzu."""
-    items = [(t, x) for t, x in items if x]
-    if not items:
+def _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, ink) -> None:
+    """Überlauf wandert auf KOPIEN der LEEREN Vorlagenseite, die direkt hinter der
+    Ursprungsseite eingefügt werden: jeder Rest fließt dort in DIESELBE Box weiter (die
+    gedruckten Boxtitel der Vorlage beschriften ihn). Zauber-Überlauf setzt die Zaubertabelle
+    der Seite-2-Kopie fort - mit allen Spalten und K/R/M-Marken. KONZEPT §9: überträgt
+    vorhandenen Inhalt, fügt keinen hinzu."""
+    zauber_seite = layout["zauber_tabelle"]["s"]
+    quellseiten = set(reste) | ({zauber_seite} if zauber_rest else set())
+    if not quellseiten:
         return
-    rest = "\n\n".join(f"‹{titel}›\n{text}" for titel, text in items)
-    nr = 0
-    while rest:
-        nr += 1
-        page = doc.new_page(width=_MEDIA[0], height=_MEDIA[1])
-        _anhang_rahmen(page, ink, nr)
-        rest = _para(page, [30, 58, 296, 748], rest, 8.5, 6, ink)          # linke Spalte
-        if rest:
-            rest = _para(page, [311, 58, 577, 748], rest, 8.5, 6, ink)     # rechte Spalte
+    vorlage = fitz.open(str(vorlage_pfad))
+    try:
+        # Hintere Quellseite zuerst: Einfügen dahinter verschiebt vordere Indizes nicht.
+        for s in sorted(quellseiten, reverse=True):
+            pos = s + 1
+            offen = reste.get(s, [])
+            zrest = zauber_rest if s == zauber_seite else []
+            while offen or zrest:
+                doc.insert_pdf(vorlage, from_page=s, to_page=s, start_at=pos)
+                seite = doc[pos]
+                noch = []
+                for spec, text in offen:
+                    rest = _grossbox(seite, spec, text, ink)
+                    if rest:
+                        noch.append((spec, rest))
+                offen = noch
+                if zrest:
+                    zrest = _zauber_tabelle(seite, layout["zauber_tabelle"], zrest, codemap, ink)
+                pos += 1
+    finally:
+        vorlage.close()
 
 
-def _anhang_rahmen(page, ink, nr) -> None:
-    """Doppelrahmen + zentrierter Kapitälchen-Header + Spaltentrenner, damit die Anhangseite
-    zum restlichen Bogen passt (Design-Kritik: Fortsetzung wirkte wie schmuckloser Text-Dump)."""
-    page.draw_rect(fitz.Rect(9, 9, 594, 765), color=(0.55, 0.5, 0.42), width=1.4)
-    page.draw_rect(fitz.Rect(14, 14, 589, 760), color=(0.72, 0.68, 0.6), width=0.6)
-    titel = "ANHANG" if nr == 1 else f"ANHANG ({nr})"
-    tw = fitz.get_text_length(titel, _FONT, 13)
-    page.insert_text(((603 - tw) / 2, 38), titel, fontname=_FONT, fontsize=13, color=ink)
-    page.draw_line(fitz.Point(30, 46), fitz.Point(573, 46), color=(0.55, 0.5, 0.42), width=0.9)
-    page.draw_line(fitz.Point(303, 58), fitz.Point(303, 748), color=(0.82, 0.79, 0.72), width=0.4)
+_FUSSNOTE = "* = eigene deutsche Wiedergabe (kein offizieller deutscher Begriff belegt)"
+
+
+def _stern_fussnote(doc, ink) -> None:
+    """§5: '*' markiert eine deutsche Wiedergabe ohne offiziellen Begriff. Auf jeder Seite,
+    auf der die Marke vorkommt ('de* (en)'-Muster), erklärt eine Fußzeile das Zeichen."""
+    for page in doc:
+        if "* (" in page.get_text():
+            page.insert_text((16, 771.5), _FUSSNOTE, fontname=_FONT, fontsize=5.5, color=ink)
 
 
 # --- Öffentliche API ---------------------------------------------------------
@@ -414,7 +469,8 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
     """Rendert `charakter` auf die DE-Vorlage und gibt das fertige PDF als Bytes zurück."""
     layout = layout or lade_layout()
     codemap = codemap or lade_codemap()
-    doc = fitz.open(str(template_pfad or _TEMPLATE_STD))
+    vorlage_pfad = template_pfad or _TEMPLATE_STD
+    doc = fitz.open(str(vorlage_pfad))
     try:
         ink = tuple(layout["ink"])
         seiten = [doc[i] for i in range(doc.page_count)]
@@ -453,28 +509,31 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
             if f.geuebt:
                 _marke(p, spec["prof"], ink)
 
-        # 4) Grossboxen (mit Überlauf-Sammlung)
+        # 4) Grossboxen (Überlauf-Sammlung je Quellseite)
         texte = _grossbox_texte(charakter)
-        fortsetzungen: list[tuple[str, str]] = []
+        reste: dict[int, list[tuple[dict, str]]] = {}
         for key, spec in layout["grossbox"].items():
             text = texte.get(key, "")
             if not text:
                 continue
             rest = _grossbox(seiten[spec["s"]], spec, text, ink)
             if rest:
-                fortsetzungen.append((_BOX_TITEL.get(key, key), rest))
+                reste.setdefault(spec["s"], []).append((spec, rest))
 
-        # 5) Tabellen + Münzen
+        # 5) Tabellen + Münzen + Rüstungsvertrautheit
         _waffen_tabelle(seiten[0], layout["waffen_tabelle"], charakter.angriffe, ink)
         zauber_rest = _zauber_tabelle(seiten[1], layout["zauber_tabelle"],
                                       charakter.zauberwirken.zauber, codemap, ink)
         _muenzen(seiten[1], layout["muenzen"], charakter.ausruestung.muenzen, ink)
+        rm = layout["ruestung_marken"]
+        _ruestungs_marken(seiten[rm["s"]], rm, charakter.uebungen.ruestung, ink)
 
-        # 6) Fortsetzungsseiten (KONZEPT §9) - alles in EINEN gemeinsamen Anhang fliessen lassen
-        if zauber_rest:
-            namen = "\n".join(f"Grad {z.grad}: {_text(z.name)}" for z in zauber_rest)
-            fortsetzungen.append(("Weitere Zauber", namen))
-        _fortsetzungen_rendern(doc, fortsetzungen, ink)
+        # 6) Fortsetzungsseiten (KONZEPT §9): Kopien der leeren Vorlagenseite direkt hinter
+        #    der Ursprungsseite; Reste fliessen in dieselben Boxen/Tabellen weiter
+        _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, ink)
+
+        # 7) §5-Fussnote: '*' am Seitenfuss erklären, wo es zum Einsatz kam
+        _stern_fussnote(doc, ink)
 
         return doc.tobytes()
     finally:

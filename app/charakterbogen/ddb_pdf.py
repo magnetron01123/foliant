@@ -444,6 +444,7 @@ def extrahiere(quelle: str | bytes | Path, feldkarte: dict | None = None) -> Cha
         idx = _index_roh(roh)
         _parse_identitaet(char, idx, feldkarte)
         _parse_attribute(char, idx, feldkarte)
+        _leite_zaubermodifikator_ab(char)
         _parse_fertigkeiten(char, idx, feldkarte)
         _parse_waffen(char, idx, feldkarte)
         _parse_uebungen(char, idx, feldkarte)
@@ -458,6 +459,25 @@ def extrahiere(quelle: str | bytes | Path, feldkarte: dict | None = None) -> Cha
         return char
     finally:
         doc.close()
+
+
+_ATTR_KUERZEL = {"str": "str", "strength": "str", "dex": "dex", "dexterity": "dex",
+                 "con": "con", "constitution": "con", "int": "int", "intelligence": "int",
+                 "wis": "wis", "wisdom": "wis", "cha": "cha", "charisma": "cha"}
+
+
+def _leite_zaubermodifikator_ab(char: Charakter) -> None:
+    """Zaubermodifikator = Attributsmodifikator des Zauberattributs. Reine Querreferenz
+    innerhalb desselben Bogens (kein Raten): DDB druckt das Feld nicht separat, es ist
+    aber durch spellCastingAbility0 + den Attributs-Mod vollstaendig bestimmt. Unbekanntes
+    Attributs-Kuerzel -> nichts setzen (§7.4)."""
+    attr = char.zauberwirken.attribut
+    if attr is None or not attr.en:
+        return
+    kuerzel = _ATTR_KUERZEL.get(attr.en.strip().lower())
+    a = char.attribute.get(kuerzel) if kuerzel else None
+    if a is not None and a.mod:
+        char.zauberwirken.modifikator = a.mod
 
 
 def _leite_unterklasse_ab(char: Charakter) -> None:

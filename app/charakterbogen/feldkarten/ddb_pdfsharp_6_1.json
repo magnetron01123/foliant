@@ -41,7 +41,10 @@
     "PP":                {"pfad": "ausruestung.muenzen.pp",              "art": "zahl"},
     "Weight Carried":    {"pfad": "ausruestung.getragenes_gewicht",     "art": "roh"},
     "Encumbered":        {"pfad": "ausruestung.belastet_ab",            "art": "roh"},
-    "PushDragLift":      {"pfad": "ausruestung.schieben_ziehen_heben",  "art": "roh"}
+    "PushDragLift":      {"pfad": "ausruestung.schieben_ziehen_heben",  "art": "roh"},
+    "spellCastingAbility0": {"pfad": "zauberwirken.attribut",      "art": "term"},
+    "spellSaveDC0":         {"pfad": "zauberwirken.rettungs_sg",   "art": "roh"},
+    "spellAtkBonus0":       {"pfad": "zauberwirken.angriffsbonus", "art": "roh"}
   },
 
   "attribute": {

@@ -158,9 +158,10 @@ class Zauber:
 
 @dataclass
 class Zauberwirken:
-    attribut: UeText | None = None                # Zauberattribut (falls im Bogen belegt)
-    rettungs_sg: str | None = None                # Zauber-SG
-    angriffsbonus: str | None = None              # Zauberangriffsbonus
+    attribut: UeText | None = None                # Zauberattribut (spellCastingAbility0)
+    modifikator: str | None = None                # abgeleitet: Attributsmodifikator des Zauberattributs
+    rettungs_sg: str | None = None                # Zauber-SG (spellSaveDC0)
+    angriffsbonus: str | None = None              # Zauberangriffsbonus (spellAtkBonus0)
     plaetze: dict = field(default_factory=dict)   # {"1": {"gesamt":..,"verbraucht":..}, ...}
     zauber: list[Zauber] = field(default_factory=list)
 
