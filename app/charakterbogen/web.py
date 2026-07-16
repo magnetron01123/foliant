@@ -76,8 +76,20 @@ def _mit_fehler(vorlage: str, fehler: str | None) -> str:
     return vorlage.replace("</form>", banner + "</form>", 1)
 
 
-def _seite(fehler: str | None = None) -> str:
-    return _mit_fehler(_INDEX, fehler)
+_MCP_START = "<!--MCP-LINK-START-->"
+_MCP_ENDE = "<!--MCP-LINK-ENDE-->"
+MCP_FEHLT = ("Der Foliant-Link ist auf diesem Server noch nicht hinterlegt — "
+             "frag David nach dem Link.")
+
+
+def _bereite_index(mcp_url: str | None) -> str:
+    """Setzt den MCP-Link in die Seite ein. Ohne konfigurierten Link zeigt der Abschnitt
+    einen Hinweis statt eines leeren Feldes (fail-soft; die Erklärung bleibt lesbar)."""
+    if mcp_url:
+        return _INDEX.replace("{{MCP_URL}}", mcp_url)
+    vor, _, rest = _INDEX.partition(_MCP_START)
+    _, _, nach = rest.partition(_MCP_ENDE)
+    return f'{vor}<p class="mini">{MCP_FEHLT}</p>{nach}'
 
 
 def _anmeldeseite(fehler: str | None = None) -> str:
@@ -184,9 +196,15 @@ def _pruefe_sicher(pdf_bytes: bytes) -> str | None:
 # --- App-Fabrik --------------------------------------------------------------
 
 def erstelle_app(provider=None, glossar_pfad: str | None = None,
-                 template_pfad: str | None = None, passwort: str | None = None) -> Starlette:
-    """Baut die ASGI-App. Alle externen Abhängigkeiten sind injizierbar (Tests)."""
+                 template_pfad: str | None = None, passwort: str | None = None,
+                 mcp_url: str | None = None) -> Starlette:
+    """Baut die ASGI-App. Alle externen Abhängigkeiten sind injizierbar (Tests).
+    `mcp_url` erscheint NUR hinter der Anmeldung (der Geheimpfad ist Teil der URL)."""
     sem = asyncio.Semaphore(1)
+    index_html = _bereite_index(mcp_url)
+
+    def _seite(fehler: str | None = None) -> str:
+        return _mit_fehler(index_html, fehler)
 
     def angemeldet(request) -> bool:
         return _keks_gueltig(passwort, request.cookies.get(KEKS))
@@ -270,10 +288,24 @@ def erstelle_app(provider=None, glossar_pfad: str | None = None,
     return Starlette(routes=routen)
 
 
-# ASGI-Einstiegspunkt für uvicorn. Glossar-DB, Vorlage, Kennwort und Provider aus der Umgebung.
-# Fehlt WEB_PASSWORT, ist die Seite zu (fail-closed) - nie versehentlich offen im Netz.
+def _mcp_url_aus_env() -> str | None:
+    """FOLIANT_MCP_URL gewinnt; sonst aus Basis-URL + Geheimpfad-Token zusammengesetzt
+    (beides liegt auf dem Pi ohnehin in der .env). Fehlt beides -> None (Hinweis-Text)."""
+    url = (os.environ.get("FOLIANT_MCP_URL") or "").strip()
+    if url:
+        return url
+    token = (os.environ.get("FOLIANT_PFAD_TOKEN") or "").strip().strip("/")
+    basis = (os.environ.get("FOLIANT_BASIS_URL") or "").strip().rstrip("/")
+    if token and basis:
+        return f"{basis}/{token}/mcp"
+    return None
+
+
+# ASGI-Einstiegspunkt für uvicorn. Glossar-DB, Vorlage, Kennwort, MCP-Link und Provider aus
+# der Umgebung. Fehlt WEB_PASSWORT, ist die Seite zu (fail-closed) - nie versehentlich offen.
 app = erstelle_app(
     glossar_pfad=os.environ.get("CHARAKTERBOGEN_GLOSSAR") or None,
     template_pfad=os.environ.get("CHARAKTERBOGEN_VORLAGE") or None,
     passwort=os.environ.get("WEB_PASSWORT") or None,
+    mcp_url=_mcp_url_aus_env(),
 )

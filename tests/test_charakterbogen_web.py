@@ -187,3 +187,53 @@ def test_ohne_gesetztes_kennwort_ist_die_seite_zu(tmp_path):
     c = TestClient(app)
     assert c.get("/").status_code == 503
     assert c.post("/bogen", files={"datei": ("x.pdf", _blank_pdf(2), "application/pdf")}).status_code == 401
+
+
+# --- MCP-Abschnitt (eigener Inhaltspunkt, Link nur hinter dem Login) ----------
+
+MCP_URL_TEST = "https://beispiel.invalid/geheimer-pfad/mcp"
+
+
+def _app_mit_mcp(tmp_path, mcp_url):
+    vorlage = tmp_path / "de.pdf"
+    vorlage.write_bytes(_blank_pdf(2))
+    app = erstelle_app(provider=FakeProvider(), template_pfad=str(vorlage),
+                       passwort=KENNWORT, mcp_url=mcp_url)
+    return TestClient(app)
+
+
+def test_mcp_link_erscheint_nur_hinter_dem_login(tmp_path):
+    c = _app_mit_mcp(tmp_path, MCP_URL_TEST)
+    r = c.get("/")                                   # nicht angemeldet -> Anmeldeseite
+    assert r.status_code == 401
+    assert MCP_URL_TEST not in r.text                # Geheimpfad NIE vor dem Login
+    c.post("/anmeldung", data={"kennwort": KENNWORT})
+    r = c.get("/")
+    assert r.status_code == 200
+    assert MCP_URL_TEST in r.text                    # kopierbares Feld mit dem Link
+    assert "Foliant im Claude-Chat" in r.text        # eigener Inhaltspunkt
+    assert "Kopieren" in r.text
+    assert "ohne Foliant" in r.text                  # Vergleich mit/ohne MCP
+    assert "{{MCP_URL}}" not in r.text               # Platzhalter vollständig ersetzt
+
+
+def test_mcp_ohne_url_zeigt_hinweis_statt_leerem_feld(client):
+    from app.charakterbogen.web import MCP_FEHLT
+    r = client.get("/")
+    assert r.status_code == 200
+    assert MCP_FEHLT in r.text                       # fail-soft: Erklärung bleibt, Feld weg
+    assert 'id="mcp-url"' not in r.text
+    assert "{{MCP_URL}}" not in r.text
+
+
+def test_mcp_url_aus_env_zusammengesetzt(monkeypatch):
+    from app.charakterbogen.web import _mcp_url_aus_env
+    monkeypatch.delenv("FOLIANT_MCP_URL", raising=False)
+    monkeypatch.setenv("FOLIANT_PFAD_TOKEN", "abc123")
+    monkeypatch.setenv("FOLIANT_BASIS_URL", "https://beispiel.invalid/")
+    assert _mcp_url_aus_env() == "https://beispiel.invalid/abc123/mcp"
+    monkeypatch.setenv("FOLIANT_MCP_URL", "https://direkt.invalid/x/mcp")
+    assert _mcp_url_aus_env() == "https://direkt.invalid/x/mcp"   # explizite URL gewinnt
+    monkeypatch.delenv("FOLIANT_MCP_URL", raising=False)
+    monkeypatch.delenv("FOLIANT_PFAD_TOKEN", raising=False)
+    assert _mcp_url_aus_env() is None                              # ohne Token -> Hinweis
