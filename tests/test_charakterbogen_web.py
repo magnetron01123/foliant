@@ -243,4 +243,4 @@ def test_credit_zeile_auf_der_seite(client):
     r = client.get("/")
     assert r.status_code == 200
     assert "David Trogemann" in r.text            # Urheber-Credit im Fuß
-    assert "©" in r.text and "natürliche 20" in r.text
+    assert "©" in r.text and "für Nerds" in r.text
