@@ -182,9 +182,10 @@ def test_fertigkeiten_und_uebungsmarker(charakter):
 
 
 def test_proficiencies_alle_vier_kategorien_als_ganzes(charakter):
-    """Kategorie wird als GANZES gehalten - 'Crossbow, Hand' bleibt EIN Eintrag (kein Rate-Split)."""
+    """Kategorie wird als GANZES gehalten; DDBs invertiertes 'Crossbow, Hand' wird vorab zu
+    'Hand Crossbow' normalisiert - EINE Waffe, kein Komma-Split kann mehr fehlzerlegen."""
     assert [u.en for u in charakter.uebungen.ruestung] == ["Light Armor"]
-    assert [u.en for u in charakter.uebungen.waffen] == ["Crossbow, Hand, Scimitar, Shortsword"]
+    assert [u.en for u in charakter.uebungen.waffen] == ["Hand Crossbow, Scimitar, Shortsword"]
     assert [u.en for u in charakter.uebungen.werkzeuge] == ["Thieves' Tools"]
     assert [u.en for u in charakter.uebungen.sprachen] == ["Common, Elvish"]
 
@@ -333,3 +334,17 @@ def test_zaubermodifikator_wird_abgeleitet():
     c2.zauberwirken.attribut = UeText(en="Ki", art="term")
     _leite_zaubermodifikator_ab(c2)
     assert c2.zauberwirken.modifikator is None
+
+
+def test_invertierte_waffennamen_normalisiert():
+    """'Crossbow, Hand' ist EINE Waffe -> 'Hand Crossbow' (Befund 16.07.2026: die
+    Komma-Zerlegung des Sprachmodells erfand sonst eine generische Armbrust)."""
+    from app.charakterbogen.ddb_pdf import _normalisiere_invertierte_namen
+
+    assert _normalisiere_invertierte_namen(
+        "Crossbow, Hand, Scimitar, Shortsword, Simple Weapons") == \
+        "Hand Crossbow, Scimitar, Shortsword, Simple Weapons"
+    assert _normalisiere_invertierte_namen("Crossbow, Light, Crossbow, Heavy") == \
+        "Light Crossbow, Heavy Crossbow"
+    assert _normalisiere_invertierte_namen("Wargong, Woodcarver's Tools") == \
+        "Wargong, Woodcarver's Tools"

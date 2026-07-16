@@ -271,10 +271,21 @@ def _parse_waffen(char: Charakter, idx: dict, feldkarte: dict) -> None:
         ))
 
 
+_INVERTIERTE_WAFFE = re.compile(r"\bCrossbow,\s+(Hand|Light|Heavy)\b", re.IGNORECASE)
+
+
+def _normalisiere_invertierte_namen(text: str) -> str:
+    """DDBs invertierte SRD-Waffennamen ('Crossbow, Hand' = EINE Waffe) VOR jeder weiteren
+    Verarbeitung in die natuerliche Form bringen ('Hand Crossbow'). Sonst liest jeder
+    Komma-Split (auch der des Sprachmodells) zwei Waffen und ERFINDET eine generische
+    Armbrust-Vertrautheit (Befund 16.07.2026). Nur die drei belegten SRD-Formen, nichts raten."""
+    return _INVERTIERTE_WAFFE.sub(lambda m: f"{m.group(1)} Crossbow", text)
+
+
 def _parse_uebungen(char: Charakter, idx: dict, feldkarte: dict) -> None:
     """ProficienciesLang nach Kategorie aufteilen (§7.4). Der Kategorie-Text wird als GANZES
-    gehalten und NICHT an Kommas zerlegt: D&D Beyond fuehrt zusammengesetzte Begriffe invertiert
-    mit Komma ('Crossbow, Hand' = Hand Crossbow), ein Komma-Split wuerde die raten/zerreissen.
+    gehalten und NICHT an Kommas zerlegt; invertierte Waffennamen werden vorab normalisiert
+    ('Crossbow, Hand' -> 'Hand Crossbow'), damit spaeter niemand am Komma fehlzerlegt.
     Die Zerlegung in Einzelbegriffe + Terminologie-Aufloesung ist Sache der Uebersetzung (Phase 3,
     mit Foliant)."""
     feld = feldkarte["rich_felder"]["proficiencies"][0]
@@ -287,6 +298,7 @@ def _parse_uebungen(char: Charakter, idx: dict, feldkarte: dict) -> None:
         if liste is None:
             continue
         text = " ".join(koerper.split()).strip()  # Zeilenumbrueche -> ein Fluss, Rand trimmen
+        text = _normalisiere_invertierte_namen(text)
         if text:
             # art="liste": Kategorie als Ganzes uebersetzen; §5-Anzeige "de (en)" OHNE per-Item-*,
             # weil bei zusammengesetzten Begriffen ("Crossbow, Hand"=Handarmbrust) keine 1:1-

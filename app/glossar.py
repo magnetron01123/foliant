@@ -195,6 +195,10 @@ _HOMONYM_STOP = frozenset({
     # Fertigkeiten mit generischer Alltagsbedeutung (EN != DE)
     "acrobatics", "arcana", "deception", "history", "insight", "investigation", "medicine",
     "nature", "performance", "survival",
+    # 2024-Aktionsnamen (seed_aktionen): als Alltagswoerter allgegenwaertig - nur die EXAKTE
+    # Suche darf sie nutzen, nie der kontextfreie Inline-Annotator
+    "attack", "dash", "disengage", "dodge", "help", "hide", "influence", "magic", "search",
+    "study", "utilize",
 })
 
 

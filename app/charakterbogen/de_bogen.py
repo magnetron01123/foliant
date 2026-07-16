@@ -37,10 +37,24 @@ _ERSATZ = {"’": "'", "‘": "'", "“": '"', "”": '"', "′": "'",
            "–": "-", "—": "-", "…": "...", " ": " ", "ʼ": "'"}
 
 
+# Deutsche Anführungszeichen U+201E/U+201A (und Guillemets) fehlten: Helvetica rendert sie
+# als '·' ("·Wille des Schattens·", Befund 16.07.2026). DDBs Bullet U+2022 wird zum
+# font-sicheren Mittelpunkt; hängt er vor der Aktionsökonomie-Klammer, räumt _STREU_PUNKT auf.
+_ERSATZ.update({"„": '"', "‚": "'", "»": '"', "«": '"', "•": "·"})
+
+_WUERFEL_EN = re.compile(r"\b(\d*)d(\d+)\b")               # 5d8 -> 5W8, d20 -> W20
+_STREU_PUNKT = re.compile(r"\s*·\s*(?=[\])])")         # "(+2 / +1) ·]" -> "(+2 / +1)]"
+
+
 def _saeubere(text: str) -> str:
     if not text:
         return text
-    return "".join(_ERSATZ.get(c, c) for c in text)
+    text = "".join(_ERSATZ.get(c, c) for c in text)
+    # Deutsche Würfelnotation ZENTRAL (Befund: '5d8' im Trefferwürfel-Feld blieb als einzige
+    # Angabe englisch, weil rohe Strings nie durchs Sprachmodell laufen). Deterministisch,
+    # verändert keine Zahlen.
+    text = _WUERFEL_EN.sub(lambda m: f"{m.group(1)}W{m.group(2)}", text)
+    return _STREU_PUNKT.sub("", text)
 
 
 def lade_layout(pfad: Path | None = None) -> dict:
@@ -53,26 +67,81 @@ def lade_codemap(pfad: Path | None = None) -> dict:
 
 # --- Text-Primitive ----------------------------------------------------------
 
+# Fett-Auszeichnung: \x01…\x02 markiert fette Läufe (Merkmalsköpfe, Sub-Features). Die Marker
+# entstehen beim Textbau (_merkmal_text u.a.) und werden beim Zeichnen konsumiert - sie
+# erreichen nie das Sprachmodell und nie die PDF-Ausgabe.
+_FA, _FE = "\x01", "\x02"
+_FONT_FETT = "hebo"
+_MARKER = re.compile(r"[\x01\x02]")
+
+
+def _ohne_marker(text: str) -> str:
+    return _MARKER.sub("", text or "")
+
+
+def _worte(absatz: str) -> list[tuple[str, bool]]:
+    """'\\x01Kopf.\\x02 Rest' -> [('Kopf.', True), ('Rest', False), …] (wortweise)."""
+    raus: list[tuple[str, bool]] = []
+    fett = False
+    for teil in re.split(r"([\x01\x02])", absatz):
+        if teil == _FA:
+            fett = True
+        elif teil == _FE:
+            fett = False
+        else:
+            raus.extend((w, fett) for w in teil.split())
+    return raus
+
+
+_FONT_OBJ = {_FONT: fitz.Font(_FONT), _FONT_FETT: fitz.Font(_FONT_FETT)}
+
+
+def _textlaenge(text: str, font: str, size: float) -> float:
+    """Echte Render-Breite. `fitz.get_text_length` misst Nicht-ASCII (äöüß) zu schmal -
+    `fitz.Font().text_length` stimmt mit dem insert_text-Rendering überein (belegt
+    16.07.2026: Span real 115,5 pt vs. get_text_length 112,2 pt -> Fett-Läufe überlappten
+    den Folgetext, deutscher Text konnte Boxen minimal überfüllen)."""
+    return _FONT_OBJ[font].text_length(text, fontsize=size)
+
+
 def _fit_size(text: str, breite: float, size: float, minsize: float) -> float:
-    while size > minsize and fitz.get_text_length(text, _FONT, size) > breite:
+    while size > minsize and _textlaenge(text, _FONT, size) > breite:
         size -= 0.5
     return size
 
 
+_KLAMMER_ENDE = re.compile(r"\s*\([^()]*\)\s*$")
+
+
 def _zeichne_einzeilig(page, rect, text, size, minsize, align, ink) -> None:
+    """Einzeiliges Feld mit definierten Überlauf-Stufen: (1) Auto-Fit bis minsize,
+    (2) §5-Klammer '(English)' opfern, (3) horizontal auf die Boxbreite stauchen -
+    NIE über die Boxgrenze zeichnen (Befund 16.07.2026: die Unterklasse lag auf dem
+    Stufe-Oval, Zauber-Reichweiten ragten in die K/R/M-Spalte)."""
     if text is None or text == "":
         return
-    text = _saeubere(text)
+    text = _ohne_marker(_saeubere(text))
     r = fitz.Rect(rect)
     sz = _fit_size(text, r.width, size, minsize)
-    tw = fitz.get_text_length(text, _FONT, sz)
+    tw = _textlaenge(text, _FONT, sz)
+    if tw > r.width:
+        kurz = _KLAMMER_ENDE.sub("", text)
+        if kurz and kurz != text:
+            text = kurz
+            sz = _fit_size(text, r.width, size, minsize)
+            tw = _textlaenge(text, _FONT, sz)
+    baseline = r.y0 + (r.height + sz * 0.72) / 2
+    if tw > r.width:
+        punkt = fitz.Point(r.x0, baseline)
+        page.insert_text(punkt, text, fontname=_FONT, fontsize=sz, color=ink,
+                         morph=(punkt, fitz.Matrix(r.width / tw, 0, 0, 1, 0, 0)))
+        return
     if align == "c":
         x = r.x0 + (r.width - tw) / 2
     elif align == "r":
         x = r.x1 - tw
     else:
         x = r.x0
-    baseline = r.y0 + (r.height + sz * 0.72) / 2
     page.insert_text((x, baseline), text, fontname=_FONT, fontsize=sz, color=ink)
 
 
@@ -84,27 +153,35 @@ def _marke(page, punkt, ink) -> None:
     page.draw_line(fitz.Point(x - h, y + h), fitz.Point(x + h, y - h), color=ink, width=1.0)
 
 
-def _umbrich_absatz(absatz: str, breite: float, size: float) -> list[str]:
-    """Bricht EINEN Absatz auf Wortgrenzen um. Leerer Absatz -> eine Leerzeile."""
-    if not absatz:
-        return [""]
-    zeilen: list[str] = []
-    cur = ""
-    for wort in absatz.split(" "):
-        test = (cur + " " + wort).strip()
-        if not cur or fitz.get_text_length(test, _FONT, size) <= breite:
-            cur = test
-        else:
+def _umbrich_absatz(absatz: str, breite: float, size: float) -> list[list[tuple[str, bool]]]:
+    """Bricht EINEN Absatz auf Wortgrenzen um; Zeilen sind Läufe aus (Wort, fett).
+    Fette Wörter werden mit ihrer echten (breiteren) Fontbreite gemessen.
+    Leerer Absatz -> eine Leerzeile."""
+    worte = _worte(absatz)
+    if not worte:
+        return [[]]
+    space = _textlaenge(" ", _FONT, size)
+    zeilen: list[list[tuple[str, bool]]] = []
+    cur: list[tuple[str, bool]] = []
+    cur_b = 0.0
+    for wort, fett in worte:
+        wb = _textlaenge(wort, _FONT_FETT if fett else _FONT, size)
+        neu = wb if not cur else cur_b + space + wb
+        if cur and neu > breite:
             zeilen.append(cur)
-            cur = wort
+            cur, cur_b = [(wort, fett)], wb
+        else:
+            cur.append((wort, fett))
+            cur_b = neu
     zeilen.append(cur)
     return zeilen
 
 
 def _umbrich(text: str, breite: float, size: float) -> list[str]:
+    """Zeilen als reine Strings (Diagnose/Tests)."""
     zeilen: list[str] = []
     for absatz in _saeubere(text).split("\n"):
-        zeilen.extend(_umbrich_absatz(absatz, breite, size))
+        zeilen.extend(" ".join(w for w, _ in z) for z in _umbrich_absatz(absatz, breite, size))
     return zeilen
 
 
@@ -114,44 +191,53 @@ _QUELLE_IM_KOPF = re.compile(r"\s*\([^()]*\d{2,4}[^()]*\)\s*\.?\s*$")   # "… (
 
 
 def _fortsetzungskopf(erster_satz: str) -> str:
-    """'Angriffe abwehren* (Deflect Attacks) (PHB-2024 102).' -> 'Angriffe abwehren* (Deflect
-    Attacks) (Fortsetzung):' - damit die Fortsetzungsseite sagt, WELCHES Merkmal sie fortsetzt.
-    Die Quellenangabe entfällt (sie stand schon auf dem Bogen)."""
-    kopf = _QUELLE_IM_KOPF.sub("", (erster_satz or "").strip()).rstrip(" .")
-    return f"{kopf} (Fortsetzung):" if kopf else "(Fortsetzung):"
+    """'Angriffe abwehren* (Deflect Attacks) (PHB-2024 102).' -> fetter Kopf 'Angriffe abwehren*
+    (Deflect Attacks) (Fortsetzung):' - damit die Fortsetzungsseite sagt, WELCHES Merkmal sie
+    fortsetzt. Die Quellenangabe entfällt (sie stand schon auf dem Bogen); ein schon
+    vorhandenes '(Fortsetzung):' wird nicht verdoppelt (kettenfähig)."""
+    kopf = _ohne_marker(erster_satz).strip()
+    vorh = kopf.find("(Fortsetzung):")
+    if vorh != -1:
+        kopf = kopf[:vorh].rstrip()
+    kopf = _QUELLE_IM_KOPF.sub("", kopf).rstrip(" .")
+    return f"{_FA}{kopf} (Fortsetzung):{_FE}" if kopf else f"{_FA}(Fortsetzung):{_FE}"
 
 
-def _para(page, rect, text, size, minsize, ink, endmarke: str | None = None) -> str:
-    """Zeichnet umbrochenen Text in rect, Auto-Fit von size bis minsize. Gibt den NICHT
-    passenden Rest zurück (fuer Fortsetzungsseiten) - '' wenn alles passt.
+def _blockstart(absaetze: list[str], idx: int) -> int:
+    """Erste Zeile des Blocks (= Merkmal, durch Leerzeilen begrenzt), in dem `idx` liegt."""
+    start = idx - 1
+    while start > 0 and absaetze[start - 1].strip():
+        start -= 1
+    return start
 
-    Der Überlauf ist ABSATZTREU: es wandern nur GANZE Absätze (= ganze Merkmale, im Modell mit
-    '\\n\\n' getrennt) in die Fortsetzung. Der frühere zeilenweise Schnitt riss mitten im Satz -
-    der Bogen endete real mit "…innerhalb von 18" und der Anhang begann mit "m sehen kannst".
-    Nur wenn schon der ERSTE Absatz allein nicht passt, wird notfalls in ihm getrennt.
-    `endmarke` wird als letzte Zeile gesetzt, wenn etwas übrig bleibt (Hinweis für den Leser).
-    """
-    if not text:
-        return ""
-    r = fitz.Rect(rect)
-    absaetze = _saeubere(text).split("\n")
 
-    for sz in _groessen(size, minsize):
-        lh = sz * 1.28
-        bloecke = [_umbrich_absatz(a, r.width, sz) for a in absaetze]
-        zeilen = [z for blk in bloecke for z in blk]
-        if len(zeilen) * lh <= r.height:
-            _zeichne_zeilen(page, r, zeilen, sz, lh, ink)
-            return ""
+def _erster_satz(zeile: str) -> str:
+    """Erster Satz OHNE Fett-Marker: der Punkt des Merkmalskopfs steht direkt vor \\x02,
+    mit Markern erkennt _SATZENDE ihn nicht und der 'Kopf' fräse den ganzen Regelsatz mit."""
+    return _SATZENDE.split(_ohne_marker(zeile))[0]
 
-    # Mindestgröße erreicht -> Überlauf (verlustfrei in die Fortsetzung)
-    sz = minsize
+
+def _layout(text: str, breite: float, hoehe: float, sz: float,
+            endmarke: str | None = None, kopf0: str | None = None) -> tuple[list, str, str | None]:
+    """Layoutet `text` (mit Fett-Markern) in eine Spalte: (zeilen, rest, kopf).
+    rest = '' wenn alles passt. `kopf` ist der Fortsetzungskopf, WENN der Rest mitten in
+    einem Merkmal beginnt - der AUFRUFER stellt ihn nur bei echtem Boxwechsel voran
+    (Spaltenfluss innerhalb desselben Kastens braucht keinen; Befund 16.07.2026: die
+    Fortsetzungsseite begann verwaist mit 'Wenn du den Schaden auf 0 reduzierst …').
+
+    Der Überlauf ist ABSATZTREU: es wandern nur GANZE Absätze (= Zeilen des Merkmals) in die
+    Fortsetzung. Passt schon der ERSTE Absatz nicht, wird SATZTREU getrennt - nie mitten im
+    Satz. `endmarke` wird als letzte Zeile gesetzt, wenn etwas übrig bleibt."""
+    absaetze = text.split("\n")
     lh = sz * 1.28
-    bloecke = [_umbrich_absatz(a, r.width, sz) for a in absaetze]
-    platz = max(1, int(r.height / lh))
-    nutz = max(1, platz - 1) if endmarke else platz
+    bloecke = [_umbrich_absatz(a, breite, sz) for a in absaetze]
+    zeilen = [z for blk in bloecke for z in blk]
+    if len(zeilen) * lh <= hoehe:
+        return zeilen, "", None
 
-    gezeichnet: list[str] = []
+    platz = max(1, int(hoehe / lh))
+    nutz = max(1, platz - 1) if endmarke else platz
+    gezeichnet: list = []
     naechster = 0
     for blk in bloecke:
         if len(gezeichnet) + len(blk) > nutz:
@@ -159,38 +245,70 @@ def _para(page, rect, text, size, minsize, ink, endmarke: str | None = None) -> 
         gezeichnet.extend(blk)
         naechster += 1
 
+    kopf: str | None = None
     if gezeichnet:
-        rest = "\n".join(absaetze[naechster:])
+        rest_abs = absaetze[naechster:]
+        # Bricht der Fluss MITTEN im Merkmal (vorige Zeile ist keine Leerzeile), braucht die
+        # Fortsetzung einen Kopf, der das Merkmal nennt. Beginnt schon DIESER Text mitten im
+        # Merkmal (Spaltenfluss), traegt `kopf0` den echten Merkmalskopf weiter.
+        if rest_abs and rest_abs[0].strip() and absaetze[naechster - 1].strip():
+            start = _blockstart(absaetze, naechster)
+            if start == 0 and kopf0:
+                kopf = kopf0
+            else:
+                kopf = _fortsetzungskopf(_erster_satz(absaetze[start]))
+        rest = "\n".join(rest_abs)
     else:
-        # Passt schon der erste Absatz nicht (ein einzelnes langes Merkmal), dann SATZTREU
-        # trennen - nie mitten im Satz. Erst wenn ein EINZELNER Satz den Kasten sprengt,
-        # bleibt als letzter Ausweg der zeilenweise Schnitt.
         saetze = _SATZENDE.split(absaetze[0])
         genommen: list[str] = []
         for satz in saetze:
-            if len(_umbrich_absatz(" ".join(genommen + [satz]), r.width, sz)) > nutz:
+            if len(_umbrich_absatz(" ".join(genommen + [satz]), breite, sz)) > nutz:
                 break
             genommen.append(satz)
         if genommen:
-            gezeichnet = _umbrich_absatz(" ".join(genommen), r.width, sz)
+            gezeichnet = _umbrich_absatz(" ".join(genommen), breite, sz)
             schwanz = " ".join(saetze[len(genommen):]).strip()
         else:
-            gezeichnet = bloecke[0][:nutz]
-            schwanz = " ".join(bloecke[0][nutz:]).strip()
-        # Der Rest ist die Mitte EINES Merkmals - ohne Kopf wuesste der Leser im Anhang nicht,
-        # wozu er gehoert. Der Merkmalskopf ist der erste "Satz" des Absatzes
-        # ("Angriffe abwehren* (Deflect Attacks) (PHB-2024 102).").
+            blk = bloecke[0]
+            gezeichnet = blk[:nutz]
+            schwanz = " ".join(w for z in blk[nutz:] for w, _ in z).strip()
         if schwanz:
-            schwanz = f"{_fortsetzungskopf(saetze[0])} {schwanz}"
+            kopf = kopf0 if kopf0 else _fortsetzungskopf(_erster_satz(absaetze[0]))
         rest = "\n".join([schwanz] + absaetze[1:])
 
     while gezeichnet and not gezeichnet[-1]:
         gezeichnet.pop()
     rest = rest.strip()
     if rest and endmarke:
-        gezeichnet.append(endmarke)
-    _zeichne_zeilen(page, r, gezeichnet, sz, lh, ink)
-    return rest
+        gezeichnet.append([(endmarke, False)])
+    return gezeichnet, rest, (kopf if rest else None)
+
+
+def _mit_kopf(rest: str, kopf: str | None) -> str:
+    """Fortsetzungskopf an die erste Rest-Zeile setzen (beim Verlassen der Box)."""
+    if not rest or not kopf:
+        return rest
+    erste, _, folge = rest.partition("\n")
+    return f"{kopf} {erste}" + (f"\n{folge}" if folge else "")
+
+
+def _para(page, rect, text, size, minsize, ink, endmarke: str | None = None) -> str:
+    """Zeichnet umbrochenen Text (mit Fett-Auszeichnung) in rect, Auto-Fit von size bis
+    minsize. Gibt den NICHT passenden Rest zurück ('' wenn alles passt); beginnt der Rest
+    mitten in einem Merkmal, trägt er den fetten Fortsetzungskopf."""
+    if not text:
+        return ""
+    r = fitz.Rect(rect)
+    text = _saeubere(text)
+    sz = size
+    for sz in _groessen(size, minsize):
+        zeilen, rest, kopf = _layout(text, r.width, r.height, sz, endmarke)
+        if not rest:
+            _zeichne_zeilen(page, r, zeilen, sz, sz * 1.28, ink)
+            return ""
+    zeilen, rest, kopf = _layout(text, r.width, r.height, sz, endmarke)
+    _zeichne_zeilen(page, r, zeilen, sz, sz * 1.28, ink)
+    return _mit_kopf(rest, kopf)
 
 
 def _groessen(size, minsize):
@@ -201,10 +319,22 @@ def _groessen(size, minsize):
 
 
 def _zeichne_zeilen(page, r, zeilen, sz, lh, ink) -> None:
+    """Zeichnet Zeilen aus (Wort, fett)-Läufen. Konsekutive Wörter GLEICHEN Fonts werden als
+    EIN insert_text gesetzt: die PDF-Textebene behält echte Leerzeichen (Suche/Copy-Paste),
+    wortweises Setzen verklebte sie ('erhältstfolgende')."""
     y = r.y0 + sz
-    for z in zeilen:
-        if z:
-            page.insert_text((r.x0, y), z, fontname=_FONT, fontsize=sz, color=ink)
+    for zeile in zeilen:
+        x = r.x0
+        i = 0
+        while i < len(zeile):
+            j = i
+            while j < len(zeile) and zeile[j][1] == zeile[i][1]:
+                j += 1
+            lauf = " ".join(w for w, _ in zeile[i:j])
+            font = _FONT_FETT if zeile[i][1] else _FONT
+            page.insert_text((x, y), lauf, fontname=font, fontsize=sz, color=ink)
+            x += _textlaenge(lauf + " ", font, sz)
+            i = j
         y += lh
 
 
@@ -233,12 +363,35 @@ def _ue_liste(liste: list[UeText]) -> str:
     return ", ".join(_text(u) for u in liste if _text(u))
 
 
+# Sub-Features im Beschreibungstext ('Schlagserie. Du kannst …') fett wie bei D&D Beyond.
+# Konservative Heuristik: kurzer Erstsatz (<=44 Zeichen), beginnt groß, kein gewöhnlicher
+# Satzanfang - im Zweifel NICHT fett (ein fehlendes Fett ist harmlos, ein falsches stört).
+_SUBKOPF = re.compile(r"^([^.:\n]{2,44}[.:])\s+(?=\S)")
+_SUBKOPF_STOPP = ("Du ", "Die ", "Der ", "Das ", "Dein", "Ein ", "Eine ", "Einen ", "Einmal ",
+                  "Wenn ", "Bei ", "Als ", "Am ", "An ", "Auf ", "Aus ", "Bis ", "Für ", "Im ",
+                  "In ", "Mit ", "Nach ", "Solange ", "Um ", "Unmittelbar ", "Während ", "Zu ",
+                  "You", "The ", "If ", "When", "Once ", "While ", "As ", "At ", "On ", "To ",
+                  "A ", "An ", "Your")
+
+
+def _markiere_subkoepfe(body: str) -> str:
+    zeilen = []
+    for zeile in body.split("\n"):
+        m = _SUBKOPF.match(zeile)
+        if m and zeile[:1].isupper() and not zeile.startswith(_SUBKOPF_STOPP):
+            zeilen.append(f"{_FA}{m.group(1)}{_FE} {zeile[m.end():]}")
+        else:
+            zeilen.append(zeile)
+    return "\n".join(zeilen)
+
+
 def _merkmal_text(m) -> str:
+    """Merkmalskopf FETT vor der Erklärung (D&D-Beyond-Optik), Sub-Features ebenso."""
     kopf = _text(m.name)
     quelle = f" ({m.quelle} {m.seite})" if m.quelle else ""
-    body = _text(m.beschreibung)
+    body = _markiere_subkoepfe(_text(m.beschreibung))
     oek = ("  [" + "; ".join(_text(x) for x in m.aktionsoekonomie) + "]") if m.aktionsoekonomie else ""
-    return f"{kopf}{quelle}. {body}{oek}".strip()
+    return f"{_FA}{kopf}{quelle}.{_FE} {body}{oek}".strip()
 
 
 _LB = re.compile(r"([\d]+(?:[.,]\d+)?)\s*lb\.?", re.IGNORECASE)
@@ -269,7 +422,7 @@ def _geschichte_text(charakter) -> str:
              ("Bindungen", p.bindungen), ("Makel", p.makel),
              ("Hintergrundgeschichte", p.hintergrundgeschichte), ("Verbündete", p.verbuendete),
              ("Notizen", p.notizen)]
-    return "\n".join(f"{titel}: {_text(v)}" for titel, v in teile if _text(v))
+    return "\n".join(f"{_FA}{titel}:{_FE} {_text(v)}" for titel, v in teile if _text(v))
 
 
 def _ausruestung_text(charakter) -> str:
@@ -278,6 +431,17 @@ def _ausruestung_text(charakter) -> str:
         menge = f"{g.menge}× " if g.menge and g.menge not in ("1", "") else ""
         gew = f" ({_gewicht_kg(g.gewicht)})" if g.gewicht else ""
         zeilen.append(f"{menge}{_text(g.name)}{gew}")
+    # Traglast-Grenzwerte (DDB: Weight Carried/Encumbered/Push-Drag-Lift) deterministisch in kg
+    # anfügen - sie gingen bisher komplett verloren (Befund 16.07.2026).
+    a = charakter.ausruestung
+    grenzen = [("Getragen", a.getragenes_gewicht), ("Belastet ab", a.belastet_ab),
+               ("Schieben/Ziehen/Heben", a.schieben_ziehen_heben)]
+    werte = [f"{t}: {_gewicht_kg(w)}" for t, w in grenzen
+             if w and w.strip() and w.strip() not in ("--", "—")]
+    if werte:
+        if zeilen:
+            zeilen.append("")
+        zeilen.append(f"{_FA}Traglast:{_FE} " + " · ".join(werte))
     return "\n".join(zeilen)
 
 
@@ -337,6 +501,18 @@ def _ist_ritual(z) -> bool:
     return bool(_RITUAL.search(f"{_text(z.name)} {_text(z.notiz)}"))
 
 
+# DDB-Zauber-Notizen eindeutschen: engl. Komponentenkürzel S(omatic) -> G(estisch),
+# 'D:'(uration) -> 'WD:' (Wirkungsdauer). Regelbasiert, kein LLM (Befund 16.07.2026).
+_NOTIZ_ERSATZ = [(re.compile(r"\bV/S/M\b"), "V/G/M"), (re.compile(r"\bV/S\b"), "V/G"),
+                 (re.compile(r"\bS/M\b"), "G/M"), (re.compile(r"^D:\s*"), "WD: ")]
+
+
+def _normalisiere_notiz(text: str) -> str:
+    for muster, ersatz in _NOTIZ_ERSATZ:
+        text = muster.sub(ersatz, text)
+    return text
+
+
 def _zauber_tabelle(page, spec, zauber, codemap, ink) -> list:
     y0 = spec["kopf_y"]
     lh = spec["zeilenhoehe"]
@@ -352,7 +528,7 @@ def _zauber_tabelle(page, spec, zauber, codemap, ink) -> list:
         zeit = zt.get(z.zeitaufwand or "", z.zeitaufwand or "")
         _zeichne_einzeilig(page, [sp["zeit"][0], y - 10, sp["zeit"][1], y + 2], zeit, spec["size"], spec["min"], sp["zeit"][2], ink)
         _zeichne_einzeilig(page, [sp["reichweite"][0], y - 10, sp["reichweite"][1], y + 2], _text(z.reichweite), spec["size"], spec["min"], sp["reichweite"][2], ink)
-        _zeichne_einzeilig(page, [sp["notizen"][0], y - 10, sp["notizen"][1], y + 2], _text(z.notiz), spec["size"], spec["min"], sp["notizen"][2], ink)
+        _zeichne_einzeilig(page, [sp["notizen"][0], y - 10, sp["notizen"][1], y + 2], _normalisiere_notiz(_text(z.notiz)), spec["size"], spec["min"], sp["notizen"][2], ink)
         # K/R/M-Marken aus Wirkungsdauer/Komponenten/Ritual-Beleg (deterministisch, nichts
         # raten), exakt auf den ◇-Rauten der Zeile (eigene Rasterung: y0 + i*pitch).
         my = krm["y0"] + i * krm["pitch"]
@@ -402,27 +578,56 @@ def _ruestungs_marken(page, spec, ruestung, ink) -> None:
 
 # --- Grossbox mit Spalten + Fortsetzung -------------------------------------
 
+_PAD_R = 2.5   # rechter Innenabstand: Glyphen sollen die Rahmen-/Trennlinien nicht berühren
+
+
 def _grossbox(page, spec, text, ink) -> str:
+    """Zeichnet eine Grossbox; Rückgabe = Überlauf-Rest (mit Fortsetzungskopf, wenn er mitten
+    in einem Merkmal beginnt). 2-spaltige Kästen fitten EINE gemeinsame Schriftgröße über
+    beide Spalten (Befund 16.07.2026: Schriftgrad-Sprung zwischen den Spalten). Der
+    Spaltenfluss links->rechts bekommt KEINEN Kopf (gleiche Box), nur der Boxwechsel."""
+    text = _saeubere(text)
     if spec.get("spalten") == 2:
         r = spec["rect"]
         teiler = spec["teiler"]
-        links = [r[0], r[1], teiler - 5, r[3]]
-        rechts = [teiler + 5, r[1], r[2], r[3]]
-        # Die Marke gehoert NUR an die letzte Spalte vor dem Anhang (die linke laeuft ja nur
-        # in die rechte ueber - dort waere der Hinweis falsch).
-        rest = _para(page, links, text, spec["size"], spec["min"], ink)
-        if rest:
-            rest = _para(page, rechts, rest, spec["size"], spec["min"], ink, endmarke=FORTS_MARKE)
-        return rest
-    return _para(page, spec["rect"], text, spec["size"], spec["min"], ink, endmarke=FORTS_MARKE)
+        links = fitz.Rect(r[0], r[1], teiler - 5 - _PAD_R, r[3])
+        rechts = fitz.Rect(teiler + 5, r[1], r[2] - _PAD_R, r[3])
+        sz = spec["size"]
+        for sz in _groessen(spec["size"], spec["min"]):
+            z1, r1, k1 = _layout(text, links.width, links.height, sz)
+            z2, r2, k2 = ((), "", None)
+            if r1:
+                # k1 wird NICHT gezeichnet (Spaltenfluss braucht keinen Kopf), aber als
+                # kopf0 durchgereicht: bricht auch die rechte Spalte noch im selben Merkmal,
+                # nennt die Fortsetzungsseite trotzdem den ECHTEN Merkmalsnamen.
+                z2, r2, k2 = _layout(r1, rechts.width, rechts.height, sz,
+                                     endmarke=FORTS_MARKE, kopf0=k1)
+            if not r1 or not r2:
+                break
+        _zeichne_zeilen(page, links, z1, sz, sz * 1.28, ink)
+        if r1:
+            _zeichne_zeilen(page, rechts, z2, sz, sz * 1.28, ink)
+        # Die Marke gehoert NUR an die letzte Spalte vor der Fortsetzung (die linke laeuft ja
+        # nur in die rechte ueber - dort waere der Hinweis falsch).
+        return _mit_kopf(r2, k2)
+    rect = [spec["rect"][0], spec["rect"][1], spec["rect"][2] - _PAD_R, spec["rect"][3]]
+    return _para(page, rect, text, spec["size"], spec["min"], ink, endmarke=FORTS_MARKE)
 
 
-def _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, ink) -> None:
+# Kopf-Felder, die jede Vorlagen-Kopie trägt, damit eine lose Fortsetzungsseite ihrem
+# Charakter zuzuordnen bleibt (Befund 16.07.2026: der Kopf der Kopie war komplett leer).
+_KOPIE_KOPF = ("identitaet.name", "identitaet.klasse", "identitaet.stufe")
+
+
+def _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, ink,
+                        charakter) -> None:
     """Überlauf wandert auf KOPIEN der LEEREN Vorlagenseite, die direkt hinter der
     Ursprungsseite eingefügt werden: jeder Rest fließt dort in DIESELBE Box weiter (die
-    gedruckten Boxtitel der Vorlage beschriften ihn). Zauber-Überlauf setzt die Zaubertabelle
-    der Seite-2-Kopie fort - mit allen Spalten und K/R/M-Marken. KONZEPT §9: überträgt
-    vorhandenen Inhalt, fügt keinen hinzu."""
+    gedruckten Boxtitel der Vorlage beschriften ihn) - in DERSELBEN Schriftgröße wie auf
+    der Ursprungsseite (Überlauf entsteht nur bei minsize -> die Kopie rendert fest mit
+    minsize, statt größer zu fitten; Befund: Schriftgrad-Sprung zwischen den Seiten).
+    Zauber-Überlauf setzt die Zaubertabelle der Seite-2-Kopie fort - mit allen Spalten und
+    K/R/M-Marken. KONZEPT §9: überträgt vorhandenen Inhalt, fügt keinen hinzu."""
     zauber_seite = layout["zauber_tabelle"]["s"]
     quellseiten = set(reste) | ({zauber_seite} if zauber_rest else set())
     if not quellseiten:
@@ -437,9 +642,16 @@ def _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, 
             while offen or zrest:
                 doc.insert_pdf(vorlage, from_page=s, to_page=s, start_at=pos)
                 seite = doc[pos]
+                for key in _KOPIE_KOPF:
+                    fspec = layout["felder"].get(key)
+                    if fspec and fspec["s"] == s:
+                        _zeichne_einzeilig(seite, fspec["rect"],
+                                           _text(_navigiere(charakter, key)), fspec["size"],
+                                           fspec["min"], fspec.get("align", "l"), ink)
                 noch = []
                 for spec, text in offen:
-                    rest = _grossbox(seite, spec, text, ink)
+                    fest = {**spec, "size": spec["min"]}   # Kopie ERBT die Größe der Ursprungsbox
+                    rest = _grossbox(seite, fest, text, ink)
                     if rest:
                         noch.append((spec, rest))
                 offen = noch
@@ -479,8 +691,20 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
             _kalibriere(seiten, layout)
             return doc.tobytes()
 
-        # 1) Einzelfelder
+        # 1) Einzelfelder. Sinne (z.B. Dunkelsicht) haben auf dem DE-Bogen kein eigenes Feld
+        #    -> zweite Zeile in der Bewegungsrate-Box (DDB zeigt Speed und Senses benachbart);
+        #    die Bewegungsrate rückt dann in die obere Hälfte (Befund 16.07.2026).
+        sinne = _text(charakter.kampf.sinne)
         for key, spec in layout["felder"].items():
+            if key == "kampf.bewegungsrate" and sinne:
+                r = spec["rect"]
+                mitte = (r[1] + r[3]) / 2
+                _zeichne_einzeilig(seiten[spec["s"]], [r[0], r[1], r[2], mitte],
+                                   _text(charakter.kampf.bewegungsrate),
+                                   spec["size"], spec["min"], "c", ink)
+                _zeichne_einzeilig(seiten[spec["s"]], [r[0], mitte, r[2], r[3]],
+                                   sinne, 7, 5.5, "c", ink)
+                continue
             pfad = _SPEZIAL_PFAD.get(key, key)
             _zeichne_einzeilig(seiten[spec["s"]], spec["rect"], _text(_navigiere(charakter, pfad)),
                                spec["size"], spec["min"], spec.get("align", "l"), ink)
@@ -530,7 +754,8 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
 
         # 6) Fortsetzungsseiten (KONZEPT §9): Kopien der leeren Vorlagenseite direkt hinter
         #    der Ursprungsseite; Reste fliessen in dieselben Boxen/Tabellen weiter
-        _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, ink)
+        _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, ink,
+                            charakter)
 
         # 7) §5-Fussnote: '*' am Seitenfuss erklären, wo es zum Einsatz kam
         _stern_fussnote(doc, ink)

@@ -178,3 +178,39 @@ def test_anthropic_ohne_key_nicht_konfiguriert():
 def test_json_aus_text_toleriert_codefence():
     assert _json_aus_text('```json\n{"0": "hallo"}\n```') == {"0": "hallo"}
     assert _json_aus_text('Hier: {"1": "welt"} fertig') == {"1": "welt"}
+
+
+# --- Review-Runde 2 (16.07.2026): Listen-Guard + Fließtext-Vorgaben ------------
+
+def test_listen_guard_laesst_liste_englisch_bei_falscher_item_anzahl(con):
+    """Erfindet der Provider Listeneinträge (Befund: 'Crossbow, Hand' -> zwei Waffen),
+    bleibt die Liste nach dem Retry ehrlich englisch statt verfälscht deutsch."""
+    c = Charakter()
+    c.uebungen.waffen.append(UeText(en="Hand Crossbow, Scimitar", art="liste"))
+    provider = FakeProvider(mapping={"Hand Crossbow, Scimitar": "Armbrust, Handarmbrust, Krummsäbel"})
+    uebersetze(c, sqlite3.connect(":memory:"), provider) if False else None
+    # In-Memory-Glossar der Fixture nutzen (hat die quelle-Spalte)
+    uebersetze(c, con, provider)
+    assert provider.aufrufe == 2                       # Guard erzwang den Retry
+    assert c.uebungen.waffen[0].de == "Hand Crossbow, Scimitar"   # ehrlich englisch
+
+
+def test_listen_mit_korrekter_anzahl_werden_uebernommen(con):
+    c = Charakter()
+    c.uebungen.waffen.append(UeText(en="Hand Crossbow, Scimitar", art="liste"))
+    provider = FakeProvider(mapping={"Hand Crossbow, Scimitar": "Handarmbrust, Krummsäbel"})
+    uebersetze(c, con, provider)
+    assert provider.aufrufe == 1
+    assert c.uebungen.waffen[0].de == "Handarmbrust, Krummsäbel (Hand Crossbow, Scimitar)"
+
+
+def test_fliesstext_begriffe_werden_als_vorgaben_erzwungen(con):
+    """Glossar-Begriffe, die nur im FREITEXT vorkommen, gehen als Vorgaben an den Provider
+    (Befund: 'Grappled' wurde frei als 'ergriffen' übersetzt statt amtlich 'Gepackt')."""
+    c = Charakter()
+    c.merkmale.append(Merkmal(name=UeText(en="Mist Wanderer Feature"),
+                              beschreibung=UeText(en="You can use Flurry of Blows twice."),
+                              herkunft="klasse"))
+    provider = FakeProvider()
+    uebersetze(c, con, provider)
+    assert provider.letzte_vorgaben.get("Flurry of Blows") == "Schlaghagel"

@@ -161,6 +161,16 @@ KERN_SINGULAR_PAARE: list[tuple[str, str, str | None]] = [
     ("Sap", "Auslaugen", "2024"),
     ("Slow", "Verlangsamen", "2024"),
     ("Vex", "Plagen", "2024"),
+    # Heldische Inspiration: srd-de-Regeleintrag UND vorgedrucktes Feld des offiziellen
+    # dt. Charakterbogens 2024 (Befund 16.07.2026: LLM erfand "Heldenhafte Inspiration"
+    # direkt neben dem Vordruck "HELDISCHE INSPIRATION").
+    ("Heroic Inspiration", "Heldische Inspiration", "2024"),
+    # Physische Schadensarten (352 srd-de-Einträge belegen Wucht-/Stich-/Hiebschaden;
+    # Befund 16.07.2026: ohne Vorgabe schwankte das LLM zwischen "Wuchtschaden" und
+    # "stumpfer Schaden" je Lauf).
+    ("Bludgeoning", "Wucht", "2024"),
+    ("Piercing", "Stich", "2024"),
+    ("Slashing", "Hieb", "2024"),
 ]
 
 
@@ -171,6 +181,45 @@ def seed_kern_singulare(con: sqlite3.Connection) -> int:
                 edition, None)
     con.commit()
     return len(KERN_SINGULAR_PAARE)
+
+
+# Die 12 Aktionen der 2024-Regeln: EN = kanonische SRD-Aktionsnamen, DE = srd-de-Regelglossar
+# ("<Name> (Aktion)"-Eintraege). Kuratiert, aber beim Seeden BESTANDSVERIFIZIERT: eine Zeile
+# wird nur geschrieben, wenn der srd-de-Eintrag existiert (nichts raten, Datenprinzip).
+# "Magie wirken" ist die Tabellen-/Anzeigeform der srd-de (Eintrag "Magie (Aktion)").
+QUELLE_AKTIONEN = "SRD 5.2.1 (Aktionen)"
+AKTIONS_PAARE: list[tuple[str, str, str]] = [
+    ("Attack", "Angriff", "Angriff (Aktion)"),
+    ("Dash", "Spurt", "Spurt (Aktion)"),
+    ("Disengage", "Rückzug", "Rückzug (Aktion)"),
+    ("Dodge", "Ausweichen", "Ausweichen (Aktion)"),
+    ("Help", "Helfen", "Helfen (Aktion)"),
+    ("Hide", "Verstecken", "Verstecken (Aktion)"),
+    ("Influence", "Beeinflussen", "Beeinflussen (Aktion)"),
+    ("Magic", "Magie wirken", "Magie (Aktion)"),
+    ("Ready", "Vorbereiten", "Vorbereiten (Aktion)"),
+    ("Search", "Suchen", "Suchen (Aktion)"),
+    ("Study", "Studieren", "Studieren (Aktion)"),
+    ("Utilize", "Verwenden", "Verwenden (Aktion)"),
+]
+
+
+def seed_aktionen(con: sqlite3.Connection) -> int:
+    """2024-Aktionsnamen als Glossar-Bruecken, je Paar gegen den srd-de-Bestand verifiziert.
+    Die EN-Lemmata sind Alltagswoerter (Attack, Magic, Hide ...) -> sie stehen in
+    glossar._HOMONYM_STOP und werden vom Inline-Annotator NIE benutzt; die exakte Suche
+    (foliant_uebersetze_begriff, Charakterbogen-Uebersetzer) nutzt sie voll."""
+    n = 0
+    for term_en, term_de, beleg in AKTIONS_PAARE:
+        (vorhanden,) = con.execute(
+            "SELECT COUNT(*) FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "WHERE q.kuerzel = 'srd-de' AND e.name_de = ?", (beleg,)).fetchone()
+        if not vorhanden:
+            continue                       # kein srd-de-Beleg -> Zeile entfaellt (nicht raten)
+        _upsert(con, term_en, term_de, 1, QUELLE_AKTIONEN, "2024", None)
+        n += 1
+    con.commit()
+    return n
 
 
 def _slug(begriff: str) -> str:
