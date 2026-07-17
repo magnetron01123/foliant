@@ -568,12 +568,15 @@ def test_seitenzahlen_nur_bei_fortsetzung():
 def _charakter_mit_merkmalen() -> Charakter:
     # Einwort-Marker statt Mehrwort-Phrasen: get_text() bricht Zeilen mit '\n' um, eine
     # Mehrwort-Phrase kann dabei ueber zwei Zeilen zerrissen werden (falsches Testsignal).
+    # Der Spezies-Body ist bewusst MEHRZEILIG: Spezies-EINZEILER zeigen in der Kurzfassung
+    # ihren Wert-Satz mit an (test_kurzfassung_spezies_zeigt_wert_saetze).
     c = _mini_charakter()
     c.merkmale = [
         Merkmal(name=UeText(en="Martial Arts"), quelle="PHB-2024", seite="101",
                beschreibung=UeText(en="Erklaerungstext KLASSENMARKIERUNG."), herkunft="klasse"),
         Merkmal(name=UeText(en="Darkvision"), quelle="PHB-2024", seite="194",
-               beschreibung=UeText(en="Erklaerungstext SPEZIESMARKIERUNG."), herkunft="spezies"),
+               beschreibung=UeText(en="Erklaerungstext SPEZIESMARKIERUNG.\n\nZweiter Absatz."),
+               herkunft="spezies"),
         Merkmal(name=UeText(en="Grappler"), quelle="PHB-2024", seite="204",
                beschreibung=UeText(en="Erklaerungstext TALENTMARKIERUNG."), herkunft="talent"),
     ]
@@ -589,6 +592,36 @@ def test_kurzfassung_listet_nur_namen_ohne_erklaerung():
     for marker in ("KLASSENMARKIERUNG", "SPEZIESMARKIERUNG", "TALENTMARKIERUNG"):
         assert marker in voll
         assert marker not in kurz
+
+
+def test_kurzfassung_spezies_zeigt_wert_saetze():
+    """Spezies-Merkmale sind oft reine WERT-Angaben - das nackte Label ('Kreaturentyp')
+    sagt nichts (David-Befund 17.07.2026). Einzeiler-Bodies erscheinen als 'Name: Wert';
+    lange Merkmale und andere Herkuenfte (Klasse/Talent) bleiben reine Namen."""
+    from app.charakterbogen.de_bogen import _merkmale_kurz
+
+    c = _mini_charakter()
+    c.merkmale = [
+        Merkmal(name=UeText(en="Creature Type", de="Kreaturentyp* (Creature Type)"),
+                beschreibung=UeText(en="You're a Humanoid.", de="Du bist ein Humanoide."),
+                herkunft="spezies"),
+        Merkmal(name=UeText(en="Speed", de="Bewegungsrate (Speed)"),
+                beschreibung=UeText(en="Your Speed is 30 ft.",
+                                    de="Deine Bewegungsrate beträgt 9 m."),
+                herkunft="spezies"),
+        Merkmal(name=UeText(en="Langes Merkmal", de="Langes Merkmal"),
+                beschreibung=UeText(en="x", de="Sehr langer Erklärtext. " * 10),
+                herkunft="spezies"),
+        Merkmal(name=UeText(en="Slow Fall", de="Sturz abfedern (Slow Fall)"),
+                beschreibung=UeText(en="x", de="Du kannst eine Reaktion nutzen."),
+                herkunft="klasse"),
+    ]
+    spezies = _merkmale_kurz(c, "spezies").split("\n\n")
+    assert spezies[0] == "Kreaturentyp* (Creature Type): Du bist ein Humanoide."
+    assert spezies[1] == "Bewegungsrate (Speed): Deine Bewegungsrate beträgt 9 m."
+    assert spezies[2] == "Langes Merkmal"                      # lang -> nur Name
+    klasse = _merkmale_kurz(c, "klasse").split("\n\n")
+    assert klasse == ["Sturz abfedern (Slow Fall)"]            # Klasse: weiterhin nur Name
 
 
 def test_kurzfassung_namen_nicht_fett():

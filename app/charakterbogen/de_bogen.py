@@ -482,13 +482,21 @@ def _ist_gruppenkopf(m) -> bool:
             and bool(_GRUPPENKOPF.match((m.name.en or "").strip())))
 
 
+# Spezies-Merkmale sind oft reine WERT-Angaben mit einem Kurzsatz als Body ('Du bist ein
+# Humanoide.', 'Deine Bewegungsrate beträgt 9 m.'). Ein nacktes Label ('Kreaturentyp')
+# waere in der Kurzfassung wertlos (David-Befund 17.07.2026) -> der Kurzsatz kommt mit.
+_WERT_BODY_MAX = 100
+
+
 def _merkmale_kurz(charakter, herkunft) -> str:
-    """Wie `_merkmale`, aber NUR die Namen - keine Beschreibung, keine Quelle
-    (Review-Runde 4: platzsparende Kurzfassung). Gruppenköpfe ('Core Monk Traits',
-    'Monk Subclass') werden fette Zwischenüberschriften, ihre Folge-Merkmale rücken mit
-    '· ' ein - sonst stünde der inhaltsleere Abschnittstitel wie ein normales Merkmal in
-    der Liste (David-Befund 17.07.2026). Leerzeilen zwischen den Namen markieren eigene
-    Blöcke, damit ein Seitenumbruch zwischen zwei Namen keinen Fortsetzungskopf auslöst."""
+    """Wie `_merkmale`, aber ohne Erklärtexte und Quellen (Review-Runde 4: platzsparende
+    Kurzfassung). Gruppenköpfe ('Core Monk Traits', 'Monk Subclass') werden fette
+    Zwischenüberschriften, ihre Folge-Merkmale rücken mit '· ' ein - sonst stünde der
+    inhaltsleere Abschnittstitel wie ein normales Merkmal in der Liste (David-Befund
+    17.07.2026). SPEZIES-Merkmale mit Einzeiler-Body ('Kreaturentyp', 'Bewegungsrate' ...)
+    zeigen 'Name: Kurzsatz' - der WERT ist dort die eigentliche Information, das nackte
+    Label sagte nichts. Leerzeilen zwischen den Einträgen markieren eigene Blöcke, damit
+    ein Seitenumbruch zwischen zwei Einträgen keinen Fortsetzungskopf auslöst."""
     zeilen: list[str] = []
     eingerueckt = False
     for m in charakter.merkmale:
@@ -497,8 +505,13 @@ def _merkmale_kurz(charakter, herkunft) -> str:
         if _ist_gruppenkopf(m):
             zeilen.append(f"{_FA}{_text(m.name)}{_FE}")
             eingerueckt = True
-        else:
-            zeilen.append(f"· {_text(m.name)}" if eingerueckt else _text(m.name))
+            continue
+        eintrag = _text(m.name)
+        body = _text(m.beschreibung).strip()
+        if (herkunft == "spezies" and body and "\n" not in body
+                and len(body) <= _WERT_BODY_MAX):
+            eintrag = f"{eintrag}: {body}"
+        zeilen.append(f"· {eintrag}" if eingerueckt else eintrag)
     return "\n\n".join(zeilen)
 
 
