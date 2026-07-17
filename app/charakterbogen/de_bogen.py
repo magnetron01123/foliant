@@ -614,13 +614,15 @@ def _grossbox(page, spec, text, ink) -> str:
     return _para(page, rect, text, spec["size"], spec["min"], ink, endmarke=FORTS_MARKE)
 
 
-# Kopf-Felder, die jede Vorlagen-Kopie trägt, damit eine lose Fortsetzungsseite ihrem
-# Charakter zuzuordnen bleibt (Befund 16.07.2026: der Kopf der Kopie war komplett leer).
-_KOPIE_KOPF = ("identitaet.name", "identitaet.klasse", "identitaet.stufe")
+# Kopf-Feld, das jede Vorlagen-Kopie trägt, damit eine lose Fortsetzungsseite ihrem Charakter
+# zuzuordnen bleibt (Befund 16.07.2026: der Kopf der Kopie war komplett leer). NUR der Name -
+# Klasse/Stufe sind auf der Kopie nicht relevant und wurden dort fälschlich mitgefüllt (Befund
+# 17.07.2026); die Seitenreihenfolge übernehmen jetzt die Seitenzahlen (_seitenzahlen).
+_KOPIE_KOPF = ("identitaet.name",)
 
 
 def _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, ink,
-                        charakter) -> None:
+                        charakter) -> bool:
     """Überlauf wandert auf KOPIEN der LEEREN Vorlagenseite, die direkt hinter der
     Ursprungsseite eingefügt werden: jeder Rest fließt dort in DIESELBE Box weiter (die
     gedruckten Boxtitel der Vorlage beschriften ihn) - in DERSELBEN Schriftgröße wie auf
@@ -631,7 +633,7 @@ def _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, 
     zauber_seite = layout["zauber_tabelle"]["s"]
     quellseiten = set(reste) | ({zauber_seite} if zauber_rest else set())
     if not quellseiten:
-        return
+        return False
     vorlage = fitz.open(str(vorlage_pfad))
     try:
         # Hintere Quellseite zuerst: Einfügen dahinter verschiebt vordere Indizes nicht.
@@ -660,9 +662,23 @@ def _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, 
                 pos += 1
     finally:
         vorlage.close()
+    return True
 
 
 _FUSSNOTE = "* = eigene deutsche Wiedergabe (kein offizieller deutscher Begriff belegt)"
+
+
+def _seitenzahlen(doc, ink) -> None:
+    """Nummeriert alle Seiten ('Seite N von M') rechts unten - nur wenn das Dokument über die
+    Original-Vorlage hinaus gewachsen ist (Fortsetzungsseiten eingefügt), damit lose Blätter
+    beim Ausdrucken wieder in der richtigen Reihenfolge liegen. Der unveränderte 2-Seiten-
+    Bogen ohne Überlauf bleibt am Fuß frei - nichts Zusätzliches ohne Anlass (KONZEPT §9)."""
+    gesamt = doc.page_count
+    for i, seite in enumerate(doc):
+        text = f"Seite {i + 1} von {gesamt}"
+        breite = _textlaenge(text, _FONT, 5.5)
+        seite.insert_text((seite.rect.width - 16 - breite, 771.5), text,
+                          fontname=_FONT, fontsize=5.5, color=ink)
 
 
 def _stern_fussnote(doc, ink) -> None:
@@ -754,8 +770,10 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
 
         # 6) Fortsetzungsseiten (KONZEPT §9): Kopien der leeren Vorlagenseite direkt hinter
         #    der Ursprungsseite; Reste fliessen in dieselben Boxen/Tabellen weiter
-        _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, ink,
-                            charakter)
+        gewachsen = _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap,
+                                        ink, charakter)
+        if gewachsen:
+            _seitenzahlen(doc, ink)
 
         # 7) §5-Fussnote: '*' am Seitenfuss erklären, wo es zum Einsatz kam
         _stern_fussnote(doc, ink)
