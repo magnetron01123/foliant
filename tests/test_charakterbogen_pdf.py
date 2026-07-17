@@ -82,9 +82,11 @@ def test_hintergrund_bleibt_erhalten():
 
 def test_werte_erscheinen():
     txt = _text_von(_rendere_synth(_mini_charakter()))
-    for erwartet in ("Sorin Vale", "Monk", "5", "17", "5d8", "+3", "18", "+4", "+7",
-                     "Unarmed Strike", "1d8+4 Bludgeoning", "Darkness", "80"):
+    # Würfelnotation erscheint DEUTSCH (5d8 -> 5W8, 1d8+4 -> 1W8+4): zentrale Normalisierung
+    for erwartet in ("Sorin Vale", "Monk", "5", "17", "5W8", "+3", "18", "+4", "+7",
+                     "Unarmed Strike", "1W8+4 Bludgeoning", "Darkness", "80"):
         assert erwartet in txt, erwartet
+    assert "5d8" not in txt and "1d8" not in txt
 
 
 def test_codemap_zeitaufwand():
@@ -262,21 +264,26 @@ def test_ueberlauf_eines_langen_merkmals_trennt_satztreu():
             "Sie muss einen Rettungswurf bestehen. " * 8).strip()
     rest = _para(page, [20, 20, 300, 60], lang, 8.5, 6, (0, 0, 0), endmarke=FORTS_MARKE)
 
+    from app.charakterbogen.de_bogen import _ohne_marker
     assert rest, "Der lange Absatz muss ueberlaufen"
     gezeichnet = page.get_text().replace(FORTS_MARKE, "").strip()
     # Der gezeichnete Teil endet auf einem Satzzeichen, der Rest beginnt mit einem neuen Satz:
     assert gezeichnet.rstrip().endswith("."), f"Schnitt mitten im Satz: …{gezeichnet[-45:]!r}"
-    assert rest[0].isupper(), f"Rest beginnt mitten im Satz: {rest[:45]!r}"
+    assert _ohne_marker(rest)[0].isupper(), f"Rest beginnt mitten im Satz: {rest[:45]!r}"
     assert "18" not in gezeichnet[-6:], "Zahl darf nicht von ihrer Einheit getrennt werden"
 
 
 def test_fortsetzung_im_anhang_nennt_das_merkmal():
-    """Reisst EIN Merkmal mitten durch, muss die Fortsetzung im Anhang sagen, wozu sie gehoert -
-    sonst steht dort ein herrenloser Textblock."""
+    """Reisst EIN Merkmal mitten durch, muss die Fortsetzung sagen, wozu sie gehoert -
+    sonst steht dort ein herrenloser Textblock. Der Kopf ist FETT markiert (\\x01…\\x02)."""
     import fitz
-    from app.charakterbogen.de_bogen import FORTS_MARKE, _fortsetzungskopf, _para
+    from app.charakterbogen.de_bogen import FORTS_MARKE, _fortsetzungskopf, _ohne_marker, _para
 
-    assert _fortsetzungskopf("Angriffe abwehren* (Deflect Attacks) (PHB-2024 102).") == \
+    kopf = _fortsetzungskopf("Angriffe abwehren* (Deflect Attacks) (PHB-2024 102).")
+    assert _ohne_marker(kopf) == "Angriffe abwehren* (Deflect Attacks) (Fortsetzung):"
+    assert kopf.startswith("\x01") and kopf.endswith("\x02")   # fett ausgezeichnet
+    # kettenfaehig: ein vorhandenes '(Fortsetzung):' wird nicht verdoppelt
+    assert _ohne_marker(_fortsetzungskopf(_ohne_marker(kopf) + " Wenn du den Schaden…")) == \
         "Angriffe abwehren* (Deflect Attacks) (Fortsetzung):"
 
     doc = fitz.open()
@@ -284,7 +291,27 @@ def test_fortsetzung_im_anhang_nennt_das_merkmal():
     merkmal = ("Angriffe abwehren* (Deflect Attacks) (PHB-2024 102). "
                + "Du kannst eine Reaktion nutzen und den Schaden verringern. " * 8)
     rest = _para(page, [20, 20, 300, 60], merkmal, 8.5, 6, (0, 0, 0), endmarke=FORTS_MARKE)
-    assert rest.startswith("Angriffe abwehren* (Deflect Attacks) (Fortsetzung):"), rest[:60]
+    assert _ohne_marker(rest).startswith(
+        "Angriffe abwehren* (Deflect Attacks) (Fortsetzung):"), rest[:70]
+
+
+def test_fortsetzungsseite_nennt_merkmal_auch_bei_zeilen_split():
+    """Bricht der Fluss an einer ZEILEN-Grenze mitten im Merkmal (mehrzeiliges Merkmal),
+    traegt der Rest trotzdem den Merkmalskopf (Befund 16.07.2026: Seite 2 begann verwaist
+    mit 'Wenn du den Schaden auf 0 reduzierst …')."""
+    import fitz
+    from app.charakterbogen.de_bogen import _ohne_marker, _para
+
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    kopfzeile = "Angriffe abwehren* (Deflect Attacks) (PHB-2024 102). Erste Zeile."
+    zeile2 = "· Zweite Zeile, die noch passt."
+    zeile3 = "· Dritte Zeile, die in die Fortsetzung wandert."
+    merkmal = "\n".join([kopfzeile, zeile2, zeile3])
+    rest = _para(page, [20, 20, 320, 25], merkmal, 8.5, 8.5, (0, 0, 0))
+    assert rest, "Es muss ein Rest ueberlaufen"
+    assert _ohne_marker(rest).startswith(
+        "Angriffe abwehren* (Deflect Attacks) (Fortsetzung): ·"), rest[:90]
 
 
 # --- Rüstungsvertrautheit / K-R-M / Fußnote / Zauberwirken-Kopf ---------------
@@ -334,3 +361,90 @@ def test_zauberwirken_kopf_erscheint():
     c.zauberwirken.angriffsbonus = "+7"
     txt = _text_von(_rendere_synth(c))
     assert "Weisheit (Wisdom)" in txt and "15" in txt
+
+
+# --- Review-Runde 2 (16.07.2026): Fett, Größen, Überlauf-Stufen, Notation ------
+
+def test_merkmalskopf_wird_fett_gerendert():
+    """Merkmalsköpfe erscheinen in Helvetica-Bold vor der Erklärung (D&D-Beyond-Optik)."""
+    pdf = _rendere_synth(_mini_charakter())
+    doc = fitz.open(stream=pdf, filetype="pdf")
+    spans = [s for b in doc[0].get_text("dict")["blocks"]
+             for l in b.get("lines", []) for s in l.get("spans", [])]
+    fette = [s["text"] for s in spans if "Bold" in s["font"]]
+    assert any("Martial Arts" in t for t in fette), fette
+
+
+def test_grossbox_spalten_eine_schriftgroesse():
+    """2-spaltige Kästen fitten EINE Größe über beide Spalten (kein Schriftgrad-Sprung)."""
+    c = _mini_charakter()
+    lang = "Merkmalstext hat hier viele Worte und noch mehr. " * 14
+    c.merkmale = [Merkmal(name=UeText(en=f"Merkmal{i}"), beschreibung=UeText(en=lang),
+                          herkunft="klasse") for i in range(3)]
+    pdf = _rendere_synth(c)
+    doc = fitz.open(stream=pdf, filetype="pdf")
+    import app.charakterbogen.de_bogen as db
+    box = db.lade_layout()["grossbox"]["klassenmerkmale"]["rect"]
+    groessen = {round(s["size"], 1) for b in doc[0].get_text("dict")["blocks"]
+                for l in b.get("lines", []) for s in l.get("spans", [])
+                if box[0] - 1 <= l["bbox"][0] and l["bbox"][2] <= box[2] + 2
+                and box[1] - 1 <= l["bbox"][1] and l["bbox"][3] <= box[3] + 3
+                and "HINTERGRUND-MARKER" not in s["text"]}
+    assert len(groessen) == 1, groessen
+
+
+def test_einzeiler_bleibt_in_der_box():
+    """Überlange Einzeiler: §5-Klammer opfern, dann stauchen - nie über die Boxgrenze."""
+    c = _mini_charakter()
+    c.identitaet.unterklasse = UeText(en="Warrior of Shadow",
+                                      de="Krieger des Schattens* (Warrior of Shadow)",
+                                      art="term")
+    pdf = _rendere_synth(c)
+    doc = fitz.open(stream=pdf, filetype="pdf")
+    import app.charakterbogen.de_bogen as db
+    rect = db.lade_layout()["felder"]["identitaet.unterklasse"]["rect"]
+    im_feld = [w for w in doc[0].get_text("words")
+               if rect[0] - 1 <= w[0] <= rect[2] and rect[1] - 3 <= w[1] <= rect[3] + 3]
+    assert im_feld, "Unterklasse muss gerendert sein"
+    assert max(w[2] for w in im_feld) <= rect[2] + 0.6, im_feld
+    # Stufe 2 griff: die §5-Klammer '(Warrior of Shadow)' wurde geopfert, der Stern bleibt
+    assert any(w[4] == "Schattens*" for w in im_feld)
+    assert not any("Warrior" in w[4] for w in im_feld)
+
+
+def test_zauber_notiz_wird_eingedeutscht():
+    from app.charakterbogen.de_bogen import _normalisiere_notiz
+    assert _normalisiere_notiz("D: 1 Min, V/S") == "WD: 1 Min, V/G"
+    assert _normalisiere_notiz("D: 10 Min, 4,5 m Kugel, S/M") == "WD: 10 Min, 4,5 m Kugel, G/M"
+    assert _normalisiere_notiz("D: 1 Min, V/S/M") == "WD: 1 Min, V/G/M"
+
+
+def test_saeubere_quotes_wuerfel_streupunkt():
+    assert _saeubere("„Wille des Schattens“") == '"Wille des Schattens"'
+    assert _saeubere("5d8 und 1d10+9, d20") == "5W8 und 1W10+9, W20"
+    assert _saeubere("(+2 / +1) ·]") == "(+2 / +1)]"
+
+
+def test_traglast_erscheint_in_ausruestung():
+    c = _mini_charakter()
+    c.ausruestung.getragenes_gewicht = "17 lb."
+    c.ausruestung.belastet_ab = "120 lb."
+    txt = _text_von(_rendere_synth(c))
+    assert "Traglast:" in txt and "7,7 kg" in txt and "54,4" in txt   # kg kann umbrechen
+
+
+def test_sinne_erscheinen_auf_dem_bogen():
+    c = _mini_charakter()
+    c.kampf.sinne = UeText(en="Darkvision 60 ft.", de="Dunkelsicht 18 m")
+    txt = _text_von(_rendere_synth(c))
+    assert "Dunkelsicht 18 m" in txt
+
+
+def test_fortsetzungs_kopie_traegt_charakternamen():
+    """Die Vorlagen-Kopie ist einem Charakter zuzuordnen (Name/Klasse/Stufe im Kopf)."""
+    c = _mini_charakter()
+    c.merkmale = [Merkmal(name=UeText(en="Riesenmerkmal"), quelle="PHB-2024", seite="1",
+                          beschreibung=UeText(en="Sehr langer Text. " * 600), herkunft="klasse")]
+    doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
+    assert doc.page_count > 2
+    assert "Sorin Vale" in doc[1].get_text()   # Kopie direkt hinter Seite 1

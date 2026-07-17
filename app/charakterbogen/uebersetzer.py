@@ -77,6 +77,32 @@ def _de_klar(anzeige: str) -> str:
 
 # --- Orchestrierung ----------------------------------------------------------
 
+def _glossar_vorgaben(con: sqlite3.Connection, texte: list[str],
+                      vorgaben: dict[str, str]) -> None:
+    """Amtliche Begriffe für die FREITEXTE erzwingen (Befund 16.07.2026: das LLM erfand
+    'ergriffen' statt 'Gepackt' und 'Heldenhafte' statt 'Heldische Inspiration', weil nur
+    art='term'-Felder das Glossar sahen). Zwei Kanäle:
+    (a) `glossar.begriffe_im_text` - der bewährte Inline-Scanner des MCP-Servers - findet
+        Glossar-Lemmata in den englischen Texten (Wortgrenzen, Homonym-Stoppliste aktiv);
+    (b) die 2024-Aktionsnamen (Attack/Magic/... sind bewusst Homonym-gestoppt) kommen
+        direkt aus ihren Glossar-Zeilen (Quelle 'SRD 5.2.1 (Aktionen)', srd-de-verifiziert)."""
+    from app import glossar
+    gesamt = "\n".join(texte)
+    for z in glossar.begriffe_im_text(con, gesamt, max_treffer=80):
+        vorgaben.setdefault(z["term_en"], z["term_de"])
+    try:
+        zeilen = con.execute("SELECT term_en, term_de FROM glossar WHERE quelle = ?",
+                             ("SRD 5.2.1 (Aktionen)",)).fetchall()
+    except sqlite3.OperationalError:       # Test-Minimalschema ohne quelle-Spalte
+        zeilen = []
+    for z in zeilen:
+        vorgaben.setdefault(z["term_en"], z["term_de"])
+
+
+def _listen_items(s: str) -> list[str]:
+    return [t.strip() for t in (s or "").split(",") if t.strip()]
+
+
 def uebersetze(charakter: Charakter, con: sqlite3.Connection,
                provider: Uebersetzungsprovider) -> Charakter:
     """Füllt `.de` aller übersetzbaren Felder in-place und gibt `charakter` zurück."""
@@ -103,27 +129,43 @@ def uebersetze(charakter: Charakter, con: sqlite3.Connection,
 
     if zu_uebersetzen:
         eindeutig = list(zu_uebersetzen.keys())
+        _glossar_vorgaben(con, eindeutig, vorgaben)
         ids = {str(i): en for i, en in enumerate(eindeutig)}
-        ergebnis = _mit_wiederholung(provider, ids, vorgaben)
+        listen_ids = {str(i) for i, en in enumerate(eindeutig)
+                      if any(ue.art == "liste" for ue in zu_uebersetzen[en])}
+        ergebnis, kaputte = _mit_wiederholung(provider, ids, vorgaben, listen_ids)
         for i, en in enumerate(eindeutig):
-            de = ergebnis[str(i)]
+            k = str(i)
             for ue in zu_uebersetzen[en]:
-                ue.de = _anwenden(ue, en, de)
+                if k in kaputte and ue.art == "liste":
+                    ue.de = en          # Item-Anzahl weicht auch nach Retry ab -> ehrlich
+                else:                   # englisch lassen statt erfundene Einträge rendern
+                    ue.de = _anwenden(ue, en, ergebnis[k])
     return charakter
 
 
 def _mit_wiederholung(provider: Uebersetzungsprovider, ids: dict[str, str],
-                      vorgaben: dict[str, str] | None = None) -> dict[str, str]:
+                      vorgaben: dict[str, str] | None = None,
+                      listen_ids: frozenset[str] | set[str] = frozenset(),
+                      ) -> tuple[dict[str, str], set[str]]:
     """Ein gebündelter Aufruf; bei ungültigem/unvollständigem Ergebnis genau EINMAL erneut,
-    danach kontrolliert scheitern (AUFTRAG §8.3)."""
+    danach kontrolliert scheitern (AUFTRAG §8.3). Listenfelder (art='liste') müssen dieselbe
+    Item-Anzahl behalten (Befund 16.07.2026: 'Crossbow, Hand' wurde zu ZWEI Waffen) - eine
+    Abweichung erzwingt den Retry; bleibt sie, meldet die Rückgabe die betroffenen ids."""
     letzter: Exception | None = None
-    for _ in range(2):
+    for versuch in range(2):
         try:
             ergebnis = provider.uebersetze(dict(ids), vorgaben)
             _pruefe_schluessel(ids, ergebnis)
-            return ergebnis
         except Exception as e:  # noqa: BLE001 - Provider-/Format-Fehler bewusst gefangen
             letzter = e
+            continue
+        kaputte = {k for k in listen_ids
+                   if len(_listen_items(ergebnis[k])) != len(_listen_items(ids[k]))}
+        if kaputte and versuch == 0:
+            letzter = UebersetzungsFehler(f"Listen-Item-Anzahl abweichend: {sorted(kaputte)}")
+            continue
+        return ergebnis, kaputte
     raise UebersetzungsFehler(f"Übersetzung fehlgeschlagen: {letzter}")
 
 
@@ -142,15 +184,26 @@ def _pruefe_schluessel(ein: dict, aus) -> None:
 _SYSTEM = (
     "Du übersetzt Felder eines D&D-5e-Charakterbogens (Fassung 2024) ins Deutsche. "
     "Eingabe ist ein JSON-Objekt {id: englischer Text}. Gib AUSSCHLIESSLICH ein JSON-Objekt "
-    "mit GENAU denselben Schlüsseln zurück, Werte = deutsche Übersetzung. Stil: KOMPAKT wie "
-    "ein Regel-Nachschlagetext (D&D Beyond): knappe, dichte Formulierungen, Telegrammstil ist "
-    "erlaubt (keine Pflicht zu vollständigen Sätzen) - aber INHALTLICH VOLLSTÄNDIG: keine "
-    "Regelangabe weglassen (Voraussetzungen, Kosten, Reichweiten, Dauern, Bedingungen, "
-    "Ausnahmen); nichts sinngemäß zusammenfassen, nichts ergänzen. Behalte Struktur und "
-    "Hierarchie des Originals bei (Absätze, Aufzählungen, 'Name. Wirkung'-Muster). Regeln: "
-    "übernimm ALLE Zahlen, Modifikatoren (+7), Schwierigkeitsgrade und Eigennamen unverändert; "
-    "Würfelnotation deutsch (1d8+4 -> 1W8+4); Entfernungen in Metern (dt. D&D 2024: 1,5 m je 5 Fuß, "
-    "z.B. 30 ft -> 9 m); nutze offizielle deutsche D&D-Begriffe. Keine Erklärungen, nur JSON."
+    "mit GENAU denselben Schlüsseln zurück, Werte = deutsche Übersetzung. "
+    "STIL: knappe Regel-Kurzform - Stichwort- und Telegrammstil ist der STANDARD, keine "
+    "vollständigen Sätze nötig (Beispiel: 'Bonusaktion: zwei waffenlose Schläge. Kosten: "
+    "1 Fokuspunkt.'). Aber INHALTLICH VOLLSTÄNDIG: keine Regelangabe weglassen "
+    "(Voraussetzungen, Kosten, Reichweiten, Dauern, Bedingungen, Ausnahmen), nichts sinngemäß "
+    "zusammenfassen, nichts hinzuerfinden. Struktur und Hierarchie des Originals beibehalten "
+    "(Absätze, Aufzählungen, 'Name. Wirkung'-Muster). Listen behalten EXAKT dieselbe Anzahl "
+    "Einträge - nie einen Eintrag aufspalten oder ergänzen. "
+    "NOTATION: alle Zahlen, Modifikatoren (+7), SG-Werte und Eigennamen unverändert; Würfel "
+    "deutsch (1d8+4 -> 1W8+4, d20 -> W20); Entfernungen in Metern (1,5 m je 5 Fuß: 5 ft -> "
+    "1,5 m, 10 ft -> 3 m, 30 ft -> 9 m, 60 ft -> 18 m). "
+    "ABKÜRZUNGEN (verbindlich, nie eigene erfinden): Attribute STÄ, GES, KON, INT, WEI, CHA "
+    "(z.B. 'WEI-Modifikator', nie 'Wei.' oder 'Gsch.'); SG (Schwierigkeitsgrad), "
+    "RK (Rüstungsklasse), TP (Trefferpunkte); 'Übungsbonus' ausschreiben. "
+    "SPRACHE: offizielle deutsche D&D-Begriffe; korrektes Genus und Kongruenz ('ein Talent', "
+    "nicht 'einen Talent'); zusammengesetzte Namen durchkoppeln ('Nebelwanderer-"
+    "Attributswerterhöhung'); 'Vorteil/Nachteil BEI' Würfen. NEGATIONEN exakt erhalten: "
+    "'you aren't wearing armor or wielding a Shield' = 'du trägst KEINE Rüstung und führst "
+    "KEINEN Schild' (die Verneinung gilt für beide Glieder, nie 'oder einen'). "
+    "Keine Erklärungen, nur JSON."
 )
 
 
@@ -175,7 +228,8 @@ class AnthropicProvider:
         if vorgaben:
             paare = "; ".join(f"{en} = {de}" for en, de in sorted(vorgaben.items()))
             system += (" Verwende für diese Spielbegriffe im Fließtext KONSISTENT genau diese "
-                       f"deutschen Namen (ohne Klammerzusatz): {paare}.")
+                       "deutschen Namen (ohne Klammerzusatz; gebeugt, wo die Grammatik es "
+                       f"verlangt): {paare}.")
         rumpf = {
             "model": self._modell,
             "max_tokens": self._max_tokens,

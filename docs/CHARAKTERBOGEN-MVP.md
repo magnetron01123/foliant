@@ -74,8 +74,36 @@ getestet; nur der echte Freitext-Übersetzungslauf ist offen.
     ausdrückliche Freigabe.** Der aktuelle Stack nutzt cloudflared direkt (kein Caddy) — ob ein
     Gateway ergänzt oder über Cloudflare-Ingress geroutet wird, entscheidet der Eigentümer.
 - **Kleinere Refinements:** Feature-/Zaubernamen zusätzlich über `foliant_hol_*` (offizielle Namen
-  statt LLM+`*`); eingebettete Fachbegriffe in Beschreibungen in §5-Klammerform; Feinjustage
-  einzelner `layout_map`-Rects (lange Reichweite-Strings in der Zauber-Spalte).
+  statt LLM+`*`).
+
+## Review-Runde 2 (16.07.2026) — umgesetzt
+
+Aus dem E2E-Befundbericht (`docs/CHARAKTERBOGEN-BEFUNDBERICHT-2026-07-16.md`):
+
+- **Merkmalsköpfe + Sub-Features fett** (Misch-Font helv/hebo, D&D-Beyond-Optik); Fett-Marker
+  `\x01…\x02` entstehen beim Textbau und erreichen nie das LLM oder die PDF-Ausgabe.
+- **Eine Schriftgröße je Kasten** (2-Spalten-Boxen fitten gemeinsam) und **Fortsetzungsseiten
+  erben die Größe** der Ursprungsbox (kein Schriftgrad-Sprung mehr).
+- **Fortsetzungskopf immer**: Bricht ein Merkmal an Zeilen- ODER Satzgrenze über die Box,
+  nennt die Fortsetzung das Merkmal („… (Fortsetzung):", fett); Vorlagen-Kopien tragen
+  Name/Klasse/Stufe im Kopf. Spaltenfluss innerhalb einer Box bekommt keinen Kopf.
+- **Einzeiler-Überlauf-Stufen**: Auto-Fit → §5-Klammer opfern → horizontal stauchen; nie
+  über die Boxgrenze (Unterklasse vs. Stufe-Oval, Zauber-Reichweiten).
+- **Deterministische Notation**: zentrale d→W-Wandlung in `_saeubere` (5d8→5W8); Zauber-
+  Notizen V/S→V/G, S/M→G/M, `D:`→`WD:`; deutsche Anführungszeichen font-sicher; Streu-`·`
+  entfernt.
+- **`Crossbow, Hand` → `Hand Crossbow`** im Extractor normalisiert (invertierte SRD-Namen);
+  Übersetzer-Guard: Listen behalten die Item-Anzahl, sonst Retry und danach ehrlich englisch.
+- **Glossar-Vorgaben für Freitexte**: `glossar.begriffe_im_text()` erzwingt amtliche Begriffe
+  im Fließtext (Gepackt statt „ergriffen"); 2024-Aktionsnamen (`seed_aktionen`, srd-de-
+  verifiziert, Homonym-gestoppt) + „Heldische Inspiration" als Kernpaar.
+- **Dunkelsicht** als zweite Zeile im Bewegungsrate-Feld; **Traglast** (kg) am Ende der
+  Ausrüstungs-Box.
+
+**Bewusste Auslassungen** (DDB-Export-Inhalte ohne Feld auf dem DE-WotC-Bogen, extrahiert
+aber nicht gerendert — Entscheidung 16.07.2026): passive Einsicht/Untersuchung (aus den
+Fertigkeiten ableitbar), Zauber-Herkunft/Seitenreferenzen, der statische ACTIONS/BONUS-
+ACTIONS-Block (Regel-Boilerplate; Bonusaktions-Infos stehen in den Merkmalen), Spielername.
 
 ## Deployment (Phase 6) — Runbook
 
