@@ -104,8 +104,62 @@ def _listen_items(s: str) -> list[str]:
     return [t.strip() for t in (s or "").split(",") if t.strip()]
 
 
+class DnddeutschNachschlager:
+    """Nachfragegetriebenes Glossar-Nachschlagen (16.07.2026): Der BOGEN - nicht der
+    Foliant-Bestand - bestimmt, welche Begriffe gebraucht werden. Unbelegte Begriffe werden
+    vor der LLM-Stufe bei dnddeutsch nachgeschlagen (Datei-Cache + Drossel wie beim
+    Glossar-Seeding); Treffer werden Best-Effort ins Glossar geschrieben (die Web-DB ist
+    read-only+immutable - dann bleibt es beim Direktergebnis) und OHNE Stern gerendert.
+    Offline, kein Treffer oder Zeitbudget erschöpft -> None: der Begriff geht wie bisher
+    an das Sprachmodell und trägt den ehrlichen Stern.
+
+    Das Zeitbudget deckelt den Erstkontakt (nur Cache-MISSES kosten die Drossel-Pause);
+    ab dem zweiten Bogen sind die Begriffe gecacht und gratis."""
+
+    def __init__(self, zeitbudget_s: float = 30.0, pause_s: float = 0.5):
+        self._budget = zeitbudget_s
+        self._pause = pause_s
+        self._frist: float | None = None
+        self._client = None
+
+    def _hole(self, begriff: str) -> dict:
+        from app import dnddeutsch
+        import httpx
+        if self._client is None:
+            self._client = httpx.Client(timeout=10.0,
+                                        headers={"User-Agent": dnddeutsch.USER_AGENT})
+        return dnddeutsch.hole(self._client, begriff, pause_s=self._pause)
+
+    def __call__(self, con: sqlite3.Connection, begriff: str) -> str | None:
+        import time
+        from app import dnddeutsch, glossar
+        if self._frist is None:
+            self._frist = time.monotonic() + self._budget
+        if time.monotonic() > self._frist:
+            return None                    # Budget erschöpft -> Rest wie bisher (LLM + '*')
+        try:
+            zeilen = dnddeutsch.zeilen_aus_antwort(self._hole(begriff))
+        except Exception:                  # offline/API-Fehler -> sauber degradieren
+            return None
+        if not zeilen:
+            return None
+        treffer = [z for z in zeilen if z.term_en.casefold() == begriff.casefold()]
+        if not treffer:
+            return None
+        best = sorted(treffer, key=lambda z: (-z.offiziell,
+                                              not z.quelle.startswith("Ulisses")))[0]
+        try:                               # Best-Effort: Glossar dauerhaft verbessern
+            dnddeutsch.schreibe_zeilen(con, zeilen)
+            con.commit()
+            glossar._GLOSSAR_CACHE.clear()
+        except sqlite3.Error:
+            pass                           # read-only (Web-Container) -> Direktergebnis reicht
+        return glossar.markiere(best.term_de, begriff, bool(best.offiziell))
+
+
 def uebersetze(charakter: Charakter, con: sqlite3.Connection,
-               provider: Uebersetzungsprovider) -> Charakter:
+               provider: Uebersetzungsprovider,
+               nachschlager=None) -> Charakter:
     """Füllt `.de` aller übersetzbaren Felder in-place und gibt `charakter` zurück.
 
     ZWEISTUFIG (Befund 16.07.2026): Erst werden die unbelegten BEGRIFFE/Eigennamen übersetzt
@@ -113,6 +167,11 @@ def uebersetze(charakter: Charakter, con: sqlite3.Connection,
     übersetzte ein einziger Aufruf beides unabhängig voneinander - derselbe Name hieß dann
     im Feld "Krieger des Schattens" und im Fließtext "Kämpfer des Schattens". Belegte
     Begriffe brauchen die Stufe nicht: sie kommen deterministisch aus dem Glossar.
+
+    `nachschlager` (optional, z.B. `DnddeutschNachschlager()`): wird VOR Stufe 1 je
+    unbelegtem Begriff gefragt - Treffer gelten als belegt (ohne Stern, ohne LLM).
+    Default None hält Tests und Bibliotheksnutzung netzfrei; der Web-Produktionspfad
+    aktiviert ihn explizit.
     """
     uetexte: list[UeText] = []
     _alle_uetexte(charakter, uetexte)
@@ -137,6 +196,19 @@ def uebersetze(charakter: Charakter, con: sqlite3.Connection,
             begriffe.setdefault(en, []).append(ue)
             continue
         texte.setdefault(en, []).append(ue)
+
+    # Stufe 0: nachfragegetriebenes Nachschlagen (dnddeutsch) - Treffer sind BELEGT
+    if begriffe and nachschlager is not None:
+        offen: dict[str, list[UeText]] = {}
+        for en, ues in begriffe.items():
+            aufl = nachschlager(con, en)
+            if aufl:
+                for ue in ues:
+                    ue.de = aufl
+                vorgaben[en] = _de_klar(aufl)
+            else:
+                offen[en] = ues
+        begriffe = offen
 
     # Stufe 1: unbelegte Begriffe/Eigennamen -> §5-Form mit '*' UND feste Vorgabe für Stufe 2
     if begriffe:
@@ -267,6 +339,12 @@ class AnthropicProvider:
                 "content-type": "application/json"}
         with httpx.Client(timeout=self._timeout) as client:
             antwort = client.post(self._url, headers=kopf, json=rumpf)
+            if antwort.status_code in (429, 500, 502, 503, 529):
+                # Überlast (529/429) ist transient: kurzer Backoff, genau EIN neuer Versuch -
+                # der sofortige Retry von _mit_wiederholung trifft sonst dieselbe Überlast.
+                import time
+                time.sleep(8)
+                antwort = client.post(self._url, headers=kopf, json=rumpf)
             antwort.raise_for_status()
             daten = antwort.json()
         text = "".join(b.get("text", "") for b in daten.get("content", []) if b.get("type") == "text")

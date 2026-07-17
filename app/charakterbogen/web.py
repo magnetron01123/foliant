@@ -32,7 +32,8 @@ from starlette.staticfiles import StaticFiles
 from app.charakterbogen.ddb_pdf import DDBFormatFehler, extrahiere
 from app.charakterbogen.de_bogen import rendere
 from app.charakterbogen.uebersetzer import (
-    ProviderNichtKonfiguriert, UebersetzungsFehler, provider_aus_env, uebersetze,
+    DnddeutschNachschlager, ProviderNichtKonfiguriert, UebersetzungsFehler,
+    provider_aus_env, uebersetze,
 )
 
 _HIER = Path(__file__).parent
@@ -159,16 +160,17 @@ def _fehlversuch(ip: str) -> None:
 # --- deterministische Konvertierung (läuft im Threadpool) --------------------
 
 def _konvertiere(pdf_bytes: bytes, provider, glossar_pfad: str | None,
-                 template_pfad: str | None) -> tuple[bytes, str]:
+                 template_pfad: str | None, nachschlager=None) -> tuple[bytes, str]:
     charakter = extrahiere(pdf_bytes)                       # -> DDBFormatFehler bei Nicht-DDB
     # Glossar strikt READ-ONLY öffnen (Container mountet es ro; kein Journal/WAL-Schreibversuch)
+    # - der Nachschlager schreibt deshalb hier nie, er liefert sein Direktergebnis.
     if glossar_pfad:
         con = sqlite3.connect(f"file:{glossar_pfad}?mode=ro&immutable=1", uri=True)
     else:
         con = sqlite3.connect(":memory:")
     con.row_factory = sqlite3.Row
     try:
-        uebersetze(charakter, con, provider)               # -> Provider-/Übersetzungsfehler
+        uebersetze(charakter, con, provider, nachschlager=nachschlager)
     finally:
         con.close()
     pdf = rendere(charakter, template_pfad=template_pfad)   # -> Überlauf hart? (Renderer entscheidet)
@@ -197,9 +199,11 @@ def _pruefe_sicher(pdf_bytes: bytes) -> str | None:
 
 def erstelle_app(provider=None, glossar_pfad: str | None = None,
                  template_pfad: str | None = None, passwort: str | None = None,
-                 mcp_url: str | None = None) -> Starlette:
+                 mcp_url: str | None = None, nachschlager_factory=None) -> Starlette:
     """Baut die ASGI-App. Alle externen Abhängigkeiten sind injizierbar (Tests).
-    `mcp_url` erscheint NUR hinter der Anmeldung (der Geheimpfad ist Teil der URL)."""
+    `mcp_url` erscheint NUR hinter der Anmeldung (der Geheimpfad ist Teil der URL).
+    `nachschlager_factory` (z.B. `DnddeutschNachschlager`) wird PRO Konvertierung
+    aufgerufen (frisches Zeitbudget); Default None = netzfrei (Tests)."""
     sem = asyncio.Semaphore(1)
     index_html = _bereite_index(mcp_url)
 
@@ -263,9 +267,11 @@ def erstelle_app(provider=None, glossar_pfad: str | None = None,
             except ProviderNichtKonfiguriert:
                 return HTMLResponse(_seite(UEBERSETZUNG_WEG), status_code=503, headers=_HTML_HEADER)
 
+            nachschlager = nachschlager_factory() if nachschlager_factory else None
             try:
                 pdf, name = await asyncio.wait_for(
-                    run_in_threadpool(_konvertiere, roh, prov, glossar_pfad, template_pfad),
+                    run_in_threadpool(_konvertiere, roh, prov, glossar_pfad, template_pfad,
+                                      nachschlager),
                     timeout=ZEITLIMIT_S)
             except DDBFormatFehler:
                 return HTMLResponse(_seite(KEIN_DDB), status_code=422, headers=_HTML_HEADER)
@@ -303,9 +309,12 @@ def _mcp_url_aus_env() -> str | None:
 
 # ASGI-Einstiegspunkt für uvicorn. Glossar-DB, Vorlage, Kennwort, MCP-Link und Provider aus
 # der Umgebung. Fehlt WEB_PASSWORT, ist die Seite zu (fail-closed) - nie versehentlich offen.
+# Der dnddeutsch-Nachschlager ist in Produktion AN (Cache unter data/cache/dnddeutsch als
+# Volume mounten, sonst zahlt jeder Container-Neustart den Erstkontakt erneut).
 app = erstelle_app(
     glossar_pfad=os.environ.get("CHARAKTERBOGEN_GLOSSAR") or None,
     template_pfad=os.environ.get("CHARAKTERBOGEN_VORLAGE") or None,
     passwort=os.environ.get("WEB_PASSWORT") or None,
     mcp_url=_mcp_url_aus_env(),
+    nachschlager_factory=DnddeutschNachschlager,
 )

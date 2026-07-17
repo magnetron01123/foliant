@@ -25,7 +25,8 @@ def con():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     c.execute("CREATE TABLE glossar (term_de TEXT, term_en TEXT, offiziell INT, "
-              "quelle TEXT, edition_quelle TEXT, seite TEXT)")
+              "quelle TEXT, edition_quelle TEXT, seite TEXT, "
+              "UNIQUE(term_en, term_de))")   # wie das echte Schema (Upsert-Ziel)
     c.executemany("INSERT INTO glossar VALUES (?,?,?,?,?,?)", [
         ("Mönch", "Monk", 1, "Ulisses", "2024", ""),
         ("Schlaghagel", "Flurry of Blows", 1, "Ulisses", "2024", ""),
@@ -245,3 +246,65 @@ def test_fliesstext_begriffe_werden_als_vorgaben_erzwungen(con):
     provider = FakeProvider()
     uebersetze(c, con, provider)
     assert provider.letzte_vorgaben.get("Flurry of Blows") == "Schlaghagel"
+
+
+# --- Nachfragegetriebenes Nachschlagen (16.07.2026) ----------------------------
+
+def test_nachschlager_treffer_gilt_als_belegt_ohne_llm(con):
+    """Findet der Nachschlager einen Begriff, bekommt er KEINEN Stern und geht NICHT
+    ans Sprachmodell; der Name wird Vorgabe für den Fließtext."""
+    c = Charakter()
+    c.identitaet.klasse = UeText(en="Martial Arts", art="term")
+    c.merkmale.append(Merkmal(name=UeText(en="Monk", art="term"),
+                              beschreibung=UeText(en="Use Martial Arts."), herkunft="klasse"))
+    fake = FakeProvider()
+
+    def nachschlager(con_, begriff):
+        return "Kampfkünste (Martial Arts)" if begriff == "Martial Arts" else None
+
+    uebersetze(c, con, fake, nachschlager=nachschlager)
+    assert c.identitaet.klasse.de == "Kampfkünste (Martial Arts)"   # belegt, OHNE Stern
+    assert fake.letzte_vorgaben.get("Martial Arts") == "Kampfkünste"
+    # Der Begriff lief NICHT durchs Sprachmodell (nur der Fließtext, Stufe 2):
+    alle_angefragt = [w for a in fake.gesehene_ids for w in a.values()]
+    assert "Martial Arts" not in alle_angefragt
+
+
+def test_nachschlager_none_faellt_auf_llm_stufe_zurueck(con):
+    c = Charakter()
+    c.identitaet.klasse = UeText(en="Mist Wanderer", art="term")
+    fake = FakeProvider(mapping={"Mist Wanderer": "Nebelwanderer"})
+    uebersetze(c, con, fake, nachschlager=lambda con_, b: None)
+    assert c.identitaet.klasse.de == "Nebelwanderer* (Mist Wanderer)"   # wie ohne Nachschlager
+
+
+def test_dnddeutsch_nachschlager_wertet_antwort_aus(con, monkeypatch):
+    """Der echte Nachschlager: exakter Treffer -> §5-Form; Best-Effort-Upsert ins Glossar."""
+    from app.charakterbogen.uebersetzer import DnddeutschNachschlager
+
+    n = DnddeutschNachschlager(zeitbudget_s=60)
+    monkeypatch.setattr(n, "_hole", lambda begriff: {"result": [
+        {"name_en": "Martial Arts", "name_de": "Kampfkünste",
+         "name_de_ulisses": "", "src_de": {"book": "PHB(de)", "book_long": "PHB", "p": "78"}},
+        {"name_en": "Martial Arts Adept", "name_de": "Kampfkunst-Adept",
+         "name_de_ulisses": "", "src_de": {}}]})
+    assert n(con, "Martial Arts") == "Kampfkünste (Martial Arts)"
+    # Best-Effort-Upsert hat das (schreibbare) Test-Glossar dauerhaft verbessert:
+    zeile = con.execute("SELECT term_de, offiziell FROM glossar "
+                        "WHERE term_en='Martial Arts'").fetchone()
+    assert tuple(zeile) == ("Kampfkünste", 1)
+
+
+def test_dnddeutsch_nachschlager_degradiert_bei_fehlern(con, monkeypatch):
+    from app.charakterbogen.uebersetzer import DnddeutschNachschlager
+
+    kaputt = DnddeutschNachschlager(zeitbudget_s=60)
+    monkeypatch.setattr(kaputt, "_hole", lambda b: (_ for _ in ()).throw(OSError("offline")))
+    assert kaputt(con, "Martial Arts") is None      # offline -> None, kein Crash
+
+    leer = DnddeutschNachschlager(zeitbudget_s=60)
+    monkeypatch.setattr(leer, "_hole", lambda b: {"result": []})
+    assert leer(con, "Mist Wanderer") is None       # kein Treffer -> ehrlicher Stern
+
+    muede = DnddeutschNachschlager(zeitbudget_s=-1)  # Budget sofort erschöpft
+    assert muede(con, "Martial Arts") is None

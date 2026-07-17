@@ -118,27 +118,35 @@ aber nicht gerendert — Entscheidung 16.07.2026): passive Einsicht/Untersuchung
 Fertigkeiten ableitbar), Zauber-Herkunft/Seitenreferenzen, der statische ACTIONS/BONUS-
 ACTIONS-Block (Regel-Boilerplate; Bonusaktions-Infos stehen in den Merkmalen), Spielername.
 
-### `*`-Sterne und die Korpus-Lücke (wichtig für die Abnahme)
+### `*`-Sterne: nachfragegetriebenes Nachschlagen (16.07.2026)
 
-Auf der **lokalen Mac-DB** tragen PHB-Klassenmerkmale einen `*` (z. B. „Kampfkunst\* (Martial
-Arts)", „Schlagserie\* (Flurry of Blows)"), obwohl offizielle deutsche Begriffe existieren:
-**Kampfkünste**, **Schlaghagel**, **Betäubender Schlag**, **Ungerüstete Verteidigung** —
-belegt sowohl bei dnddeutsch.de (`PHB(de)`) als auch im srd-de-Bestandstext
-(„Klassenmerkmale des Mönchs").
+**Die Korpus-Lücke ist strukturell gelöst.** Ursprünglicher Befund: Auf der Mac-DB trugen
+PHB-Klassenmerkmale einen `*` („Kampfkunst\*", „Schlagserie\*"), obwohl offizielle Begriffe
+existieren (**Kampfkünste**, **Schlaghagel**, **Betäubender Schlag** — bei dnddeutsch mit
+`PHB(de)` belegt). Ursache: Das Glossar-Seeding ist *bestandsgetrieben* (fragt nur
+Eintragsnamen ab) — der Bogen braucht aber Begriffe aus dem *hochgeladenen Charakter*.
 
-**Ursache — kein Code-Bug:** `seed_glossar_aus_bestand` fragt nur *Eintragsnamen* ab. Im
-Mac-Subset (ohne die englischen DDB-Bücher) ist „Martial Arts" **kein** Eintragsname → wird
-nie abgefragt. Auf dem Pi **ist** es einer → der Begriff wird gefunden und der Stern
-verschwindet von selbst. Verifiziert am 16.07.2026 per direkter API-Abfrage.
+Drei Bausteine schließen die Lücke:
 
-→ **Vor der Abnahme des Bogens: `admin import --quelle glossar` auf dem Pi laufen lassen**
-und dort gegenprüfen. Ein `*`-Urteil auf Basis der Mac-DB ist nicht belastbar
-(vgl. Korpus-Lücke in `CLAUDE.md`).
+1. **`DnddeutschNachschlager`** (`uebersetzer.py`): Unbelegte Begriffe werden VOR der
+   LLM-Stufe bei dnddeutsch nachgeschlagen — mit dem Datei-Cache/der Drossel des Importers
+   (`app/dnddeutsch.py`, gemeinsames Modul). Treffer → ohne Stern + Best-Effort-Upsert ins
+   Glossar (selbstheilend; die read-only-Web-DB nutzt das Direktergebnis). Offline, kein
+   Treffer oder Zeitbudget (30 s) erschöpft → wie bisher LLM + ehrlicher Stern. Nur
+   Cache-MISSES kosten (0,5 s Drossel); ab dem zweiten Bogen sind die Begriffe gratis.
+   Aktiv im Web-Produktionspfad; Tests und Bibliotheksnutzung bleiben netzfrei (Opt-in).
+   **Deploy-Hinweis:** `data/cache/dnddeutsch` im Web-Container als Volume mounten,
+   sonst zahlt jeder Neustart den Erstkontakt erneut.
+2. **Klammer-Lemma-Regel** (`app/dnddeutsch.zeilen_aus_antwort`): „Oil (flask)" belegt
+   zusätzlich das nackte Lemma „Oil → Öl" — deterministisch, nur bei eindeutigem Kern
+   (keine Kollision, keine invertierte Kommaform; „Rope, hempen (50 feet)" bleibt außen vor).
+   Gilt für Seeding UND Nachschlagen.
+3. **`make glossar-vom-pi PI=pi@<host>`**: übernimmt die Glossar-Tabelle des vollen
+   Pi-Bestands in die lokale Dev-DB — lokale `*`-Urteile werden damit belastbar.
 
-Ehrliche Sterne bleiben: Buch-spezifische Eigennamen ohne deutsche Ausgabe („Mist Wanderer",
-„Warrior of Shadow", „Living Shadow" aus RtHW) und Fälle, in denen das offizielle Lemma
-abweicht (DDB schreibt „Oil", das dt. Lemma ist „Öl (Flasche)" — kein exakter Treffer,
-Fuzzy ist bewusst verboten).
+Ehrliche Sterne bleiben: Buch-Eigennamen ohne deutsche Ausgabe („Mist Wanderer",
+„Warrior of Shadow", „Living Shadow" aus RtHW) und echt mehrdeutige Lemmata
+(„Rope": dnddeutsch kennt nur Hanf-/Seidenseil, kein generisches Seil).
 
 ## Deployment (Phase 6) — Runbook
 
