@@ -7,6 +7,11 @@
       "Bash(rm *)",
       "Bash(sudo)",
       "Bash(sudo *)",
+      "Bash(git push --all)",
+      "Bash(git push --all *)",
+      "Bash(git push origin --all)",
+      "Bash(git push origin --all *)",
+      "Bash(git push --mirror *)",
       "Read(./config/zugriff.toml)",
       "Edit(./config/zugriff.toml)",
       "Write(./config/zugriff.toml)",
@@ -42,7 +47,9 @@
       "Bash(git push --force *)",
       "Bash(git push -f *)",
       "Bash(git push --force-with-lease *)",
-      "Bash(git reset --hard *)"
+      "Bash(git reset --hard *)",
+      "Bash(gh pr merge)",
+      "Bash(gh pr merge *)"
     ],
     "allow": [
       "Bash(python *)",
@@ -103,7 +110,19 @@
       "Bash(git remote *)",
       "Bash(git tag *)",
       "Bash(git worktree *)",
-      "Bash(gh *)",
+      "Bash(git bundle *)",
+
+      "Bash(gh pr create *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh pr comment *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh repo view *)",
+      "Bash(gh api *)",
+      "Bash(gh run *)",
+      "Bash(gh workflow *)",
+      "Bash(gh issue *)",
 
       "Bash(ssh *)",
       "Bash(scp *)",
