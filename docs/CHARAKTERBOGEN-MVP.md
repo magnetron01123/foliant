@@ -190,6 +190,38 @@ Zeilenumbruch auch hier als solche lesbar — Wegfiltern war die falsche Antwort
 Am echten Bogen verifiziert: Der volle Bogen wächst durch die Absätze von 3 auf **4 Seiten**
 (erwartet — genau dafür gibt es die Kurzfassung, die bei 2 Seiten bleibt).
 
+## Review-Runde 4 (17.07.2026) — Nutzertest-Befunde, umgesetzt
+
+Selbsttest als Spieler (Bogen in der Hand, Foliant-MCP daneben) deckte fünf Punkte auf:
+
+1. **Amtliche 2024-Klassenmerkmalsnamen aus dem BESTAND** (größter Hebel): Der Bogen sagte
+   „Angriffe abwehren\* (Deflect Attacks)", der Foliant amtlich „**Angriffe umleiten**"
+   (SRD 5.2.1 de, S. 70) — Glossar und dnddeutsch kannten die 2024-Namen nicht, obwohl der
+   eigene Bestand sie führt. Neues Modul `importer/srd_klassenmerkmale.py`: Struktur-Abgleich
+   srd-de (`###### N. Stufe: Name` + `**_Sub:_**`) ↔ ddb-br-2024-en (`Level N: Name`-Einträge
+   + `***Sub.***`), Klassenbrücke über das Glossar. NUR beweisbare Zuordnungen — srd-de
+   sortiert je Stufe alphabetisch DEUTSCH, DDB alphabetisch ENGLISCH, reine Positions-Paarung
+   erzeugte real `Extra Attack → Betäubender Schlag`: (1) Anker `<K> Subclass` ↔
+   `…-Unterklasse`, (2) belegte Glossar-Paare, (3) belegte SUB-Features identifizieren ihr
+   Eltern-Merkmal (Schlaghagel → Mönchsfokus), (4) Ausschlussprinzip bei genau 1 Rest; alles
+   andere wird verworfen (Report). **182 offizielle Paare** auf dem Pi geseedet
+   (`seed_klassenmerkmale_aus_bestand`, in der admin-glossar-Orchestrierung; Selbst-
+   bereinigung per LIKE-Präfix, weil `kanonisiere_konflikte` demotete Quellen umbenennt).
+   Bekannte Lücken (ehrlich verworfen): Barbar St. 7, Druide St. 1, Zauberwirken-Sub-Blöcke.
+2. **Fortsetzungskopf-Regression**: Umbruch an Sub-Feature-Absatzgrenze → kopflose
+   Fortsetzung. Merkmalsgrenze jetzt am **ganzzeiligen** Fett-Lauf erkannt
+   (`_ist_ueberschrift`; ein reiner `\x01`-Start-Check hielt fette Sub-Köpfe wie
+   „Wappne dich." für Überschriften).
+3. **Keep-with-next**: eine Überschrift bleibt nie als letzte Zeile vor dem Umbruch zurück.
+4. **Kurzfassung gegliedert**: `Core X Traits`/`X Subclass` als fette Zwischenüberschriften,
+   Folge-Merkmale rücken mit `· ` ein.
+5. **`make glossar-vom-pi`** repariert (sqlite3-CLI fehlt auf dem Pi-Host → Download + ATTACH).
+
+E2E am echten Bogen (echter Anthropic-Lauf): alle 13 Klassenmerkmale amtlich und **ohne
+Stern** (einzig „Core Monk Traits" ehrlich mit `*`), Bogen und Foliant nennen dieselben
+Namen. Golden-Suite 16/16 am vollen Pi-Bestand, `admin check` sauber, `glossar_web.sqlite`
+neu exportiert, web-Container neu gestartet.
+
 ### `*`-Sterne: nachfragegetriebenes Nachschlagen (16.07.2026)
 
 **Die Korpus-Lücke ist strukturell gelöst.** Ursprünglicher Befund: Auf der Mac-DB trugen

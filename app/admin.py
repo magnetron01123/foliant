@@ -67,6 +67,7 @@ def cmd_import(args) -> None:
                                              seed_aktionen, seed_glossar,
                                              seed_glossar_aus_bestand, seed_kern_singulare,
                                              seed_kernwortschatz_aus_bestand,
+                                             seed_klassenmerkmale_aus_bestand,
                                              seed_monster_bruecke_aus_bestand, seed_srd_paare)
         c = _con(getattr(args, "db", None))
         rn = repariere_srd_de_namen(c)  # zuerst: aus der PDF zerlegte srd-de-Namen korrigieren
@@ -78,12 +79,13 @@ def cmd_import(args) -> None:
         b = seed_glossar_aus_bestand(c)
         mb = seed_monster_bruecke_aus_bestand(c)   # Struktur-Abgleich dt./engl. Monster (Dedup)
         kw = seed_kernwortschatz_aus_bestand(c)    # Fertigkeiten/Groessen/Typen (nach der Monster-Bruecke!)
+        km = seed_klassenmerkmale_aus_bestand(c)   # 2024-Klassenmerkmale srd-de<->ddb-br (nach Klassennamen-Seeding!)
         d = kanonisiere_konflikte(c)   # kuratierte Fassung schlaegt konkurrierende (Deutsch-Qualitaet)
         sv = kanonisiere_schreibvarianten(c)   # ß/ss- + Gross-/Klein-Schreibvarianten vereinheitlichen
         print(f"Glossar: {rn} srd-Namen repariert, {n} Kern-Zeilen, {a} Abkuerzungen, "
               f"{p} SRD-Paare, {k} Kern-Singulare, {ak} Aktionen, {b} Zeilen aus Bestandsnamen, "
-              f"{mb} Monster-Bruecken, {kw} Kernwortschatz-Paare, {d} Konflikte kanonisiert, "
-              f"{sv} Schreibvarianten demotet.")
+              f"{mb} Monster-Bruecken, {kw} Kernwortschatz-Paare, {km} Klassenmerkmal-Paare, "
+              f"{d} Konflikte kanonisiert, {sv} Schreibvarianten demotet.")
         c.close()
         return
 

@@ -211,15 +211,24 @@ def _blockstart(absaetze: list[str], idx: int) -> int:
     return start
 
 
+def _ist_ueberschrift(zeile: str) -> bool:
+    """Merkmals-ÜBERSCHRIFT = die GANZE Zeile ist ein Fett-Lauf ('\\x01Name (Quelle)\\x02').
+    Sub-Feature-Köpfe sind nur am ZeilenANFANG fett ('\\x01Wappne dich.\\x02 Einmal pro …') -
+    ein reiner startswith-Check hielte sie für Merkmalsgrenzen (Befund 17.07.2026: die
+    Fortsetzung begann bei 'Wappne dich.' wieder kopflos)."""
+    s = zeile.strip()
+    return s.startswith(_FA) and s.endswith(_FE)
+
+
 def _merkmalskopf_vor(absaetze: list[str], idx: int) -> str | None:
-    """Fortsetzungskopf aus der letzten ÜBERSCHRIFTSZEILE (\\x01-Start = Merkmalskopf) vor
-    `absaetze[idx]` - None, wenn davor keine steht (markerloser Text oder Spaltenfluss).
-    Seit die Merkmale intern Absatz-Leerzeilen tragen (Sub-Feature-Struktur, 17.07.2026),
-    taugt die Leerzeilen-Blockgrenze nicht mehr als Merkmalsgrenze: ein Umbruch ZWISCHEN
-    zwei Sub-Features eines Merkmals bekam gar keinen Kopf ('Fasse dich.' begann verwaist),
-    ein Umbruch IN einem Sub-Feature den falschen (Sub-Feature- statt Merkmalsname)."""
+    """Fortsetzungskopf aus der letzten ÜBERSCHRIFTSZEILE vor `absaetze[idx]` - None, wenn
+    davor keine steht (markerloser Text oder Spaltenfluss). Seit die Merkmale intern
+    Absatz-Leerzeilen tragen (Sub-Feature-Struktur, 17.07.2026), taugt die Leerzeilen-
+    Blockgrenze nicht mehr als Merkmalsgrenze: ein Umbruch ZWISCHEN zwei Sub-Features
+    eines Merkmals bekam gar keinen Kopf ('Fasse dich.' begann verwaist), ein Umbruch IN
+    einem Sub-Feature den falschen (Sub-Feature- statt Merkmalsname)."""
     for i in range(idx - 1, -1, -1):
-        if absaetze[i].lstrip().startswith(_FA):
+        if _ist_ueberschrift(absaetze[i]):
             return _fortsetzungskopf(_erster_satz(absaetze[i]))
     return None
 
@@ -258,11 +267,11 @@ def _layout(text: str, breite: float, hoehe: float, sz: float,
         gezeichnet.extend(blk)
         naechster += 1
 
-    # Keep-with-next: eine ÜBERSCHRIFT (\x01-Merkmalskopf) darf nicht als letzter Absatz vor
-    # dem Umbruch stehen (Befund 17.07.2026: 'Betäubender Schlag' stand allein am Boxende,
-    # der gesamte Body erst auf der Fortsetzungsseite) - sie wandert mit in die Fortsetzung.
+    # Keep-with-next: eine ÜBERSCHRIFT (ganzzeiliger Fett-Lauf) darf nicht als letzter
+    # Absatz vor dem Umbruch stehen (Befund 17.07.2026: 'Betäubender Schlag' stand allein
+    # am Boxende, der gesamte Body erst auf der Fortsetzungsseite) - sie wandert mit.
     while (naechster > 0 and naechster < len(absaetze)
-           and absaetze[naechster - 1].lstrip().startswith(_FA)):
+           and _ist_ueberschrift(absaetze[naechster - 1])):
         blk = bloecke[naechster - 1]
         gezeichnet = gezeichnet[: len(gezeichnet) - len(blk)]
         naechster -= 1
@@ -270,14 +279,14 @@ def _layout(text: str, breite: float, hoehe: float, sz: float,
     kopf: str | None = None
     if gezeichnet:
         rest_abs = absaetze[naechster:]
-        # Beginnt der Rest (erste NICHT-LEERE Zeile - er kann mit der Absatz-Leerzeile
-        # starten) NICHT mit einem neuen Merkmalskopf (\x01-Überschrift), setzt er ein
-        # laufendes Merkmal fort und braucht dessen Kopf: aus der letzten Überschrift
-        # davor; ohne Überschrift davor traegt `kopf0` den Kopf aus der Vorspalte weiter
-        # (Spaltenfluss). Markerlose Texte (z.B. Ausrüstung) fallen auf die alte
-        # Leerzeilen-Blockgrenze zurück - dort IST der Block die sinnvolle Einheit.
+        # Ist der Rest (erste NICHT-LEERE Zeile - er kann mit der Absatz-Leerzeile starten)
+        # KEIN neuer Merkmalskopf (ganzzeiliger Fett-Lauf), setzt er ein laufendes Merkmal
+        # fort und braucht dessen Kopf: aus der letzten Überschrift davor; ohne Überschrift
+        # davor traegt `kopf0` den Kopf aus der Vorspalte weiter (Spaltenfluss). Markerlose
+        # Texte (z.B. Ausrüstung) fallen auf die alte Leerzeilen-Blockgrenze zurück - dort
+        # IST der Block die sinnvolle Einheit.
         erste_zeile = next((a for a in rest_abs if a.strip()), "")
-        if erste_zeile and not erste_zeile.lstrip().startswith(_FA):
+        if erste_zeile and not _ist_ueberschrift(erste_zeile):
             kopf = _merkmalskopf_vor(absaetze, naechster) or kopf0
             if kopf is None and rest_abs[0].strip() and absaetze[naechster - 1].strip():
                 start = _blockstart(absaetze, naechster)
