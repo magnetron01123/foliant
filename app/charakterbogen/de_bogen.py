@@ -776,7 +776,15 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
                                    sinne, 7, 5.5, "c", ink)
                 continue
             pfad = _SPEZIAL_PFAD.get(key, key)
-            _zeichne_einzeilig(seiten[spec["s"]], spec["rect"], _text(_navigiere(charakter, pfad)),
+            wert = _text(_navigiere(charakter, pfad))
+            # Mehrklassig laesst der Extractor `klasse` bewusst leer (§7.4) - das Feld
+            # zeigt dann die deterministisch aufbereitete Anzeige ('Kämpfer 3 / Magier 2
+            # (Fighter 3 / Wizard 2)') bzw. notfalls den Rohwert, statt STUMM leer zu
+            # bleiben (Befund 17.07.2026: sah aus wie ein Konvertierungsfehler).
+            if key == "identitaet.klasse" and not wert:
+                wert = (charakter.identitaet.mehrklassen_anzeige
+                        or charakter.identitaet.klasse_stufe_roh or "")
+            _zeichne_einzeilig(seiten[spec["s"]], spec["rect"], wert,
                                spec["size"], spec["min"], spec.get("align", "l"), ink)
 
         # 2) Attribute

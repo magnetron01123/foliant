@@ -209,6 +209,64 @@ def finde_paare(con: sqlite3.Connection) -> tuple[list[tuple[str, str]], list[st
     return eindeutig, report
 
 
+def _sub_paare_ohne_reihenfolge(con: sqlite3.Connection, subs_de: list[str],
+                                subs_en: list[str]) -> list[tuple[str, str]]:
+    """Sub-Feature-Paarung OHNE Positions-Annahme: Die 2024-Buecher listen Merkmale
+    alphabetisch ENGLISCH, srd-de sortiert alphabetisch DEUTSCH um (Zwerg: 'Steingespür'
+    an Position 2, 'Stonecunning' an Position 4) - ein Reihenfolge-Zip erzeugte hier
+    dieselben Kreuzfehler wie bei den Klassentabellen. Nur (1) bereits belegte
+    Glossar-Paare und (2) das Ausschlussprinzip bei genau EINEM Rest je Seite."""
+    offen_de = dict(enumerate(subs_de))
+    offen_en = dict(enumerate(subs_en))
+    paare: list[tuple[str, str]] = []
+    for j, en in list(offen_en.items()):
+        belegt = _belegte_de(con, en)
+        treffer = [i for i, de in offen_de.items() if de in belegt]
+        if len(treffer) == 1:
+            paare.append((en, offen_de.pop(treffer[0])))
+            offen_en.pop(j)
+    if len(offen_de) == 1 and len(offen_en) == 1:
+        paare.append((offen_en.popitem()[1], offen_de.popitem()[1]))
+    return paare
+
+
+def finde_container_sub_paare(con: sqlite3.Connection,
+                              kategorie: str) -> tuple[list[tuple[str, str]], list[str]]:
+    """Sub-Feature-Paare fuer SPEZIES- und TALENT-Eintraege: der Container (Elf<->Elf,
+    Ringer<->Grappler) wird ueber exakte, OFFIZIELLE Glossar-Namen verbunden, die
+    Sub-Features ('**_Feenblut:_**' <-> '***Fey Ancestry.***') dann wie oben gepaart.
+    Schliesst die Luecken 'Fey Ancestry -> Feenblut' und 'Punch and Grab -> Zuschlagen
+    und packen' (Nutzertest-Befunde 17.07.2026) - quellengetrieben, nichts geraten."""
+    de_rows = con.execute(
+        "SELECT e.name_de, e.body_md FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+        "WHERE q.kuerzel = 'srd-de' AND e.kategorie = ? AND e.edition = '2024' "
+        "AND e.name_de IS NOT NULL ORDER BY e.id", (kategorie,)).fetchall()
+    en_rows = con.execute(
+        "SELECT e.name_en, e.body_md FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+        "WHERE q.kuerzel = 'ddb-br-2024-en' AND e.kategorie = ? AND e.edition = '2024' "
+        "AND e.name_en IS NOT NULL ORDER BY e.id", (kategorie,)).fetchall()
+    en_nach_name = {name.strip(): body for name, body in en_rows}
+    paare: list[tuple[str, str]] = []
+    report: list[str] = []
+    for name_de, body_de in de_rows:
+        subs_de = _DE_SUB.findall(body_de or "")
+        if not subs_de:
+            continue
+        kandidaten = [z["term_en"] for z in glossar.lookup(con, name_de, richtung="de_en")
+                      if z["match"] == "exakt" and z["offiziell"]]
+        body_en = next((en_nach_name[k] for k in kandidaten if k in en_nach_name), None)
+        if body_en is None:
+            continue                     # kein EN-Gegenstueck im Bestand - keine Aussage
+        subs_en = _EN_SUB.findall(body_en)
+        gepaart = _sub_paare_ohne_reihenfolge(con, subs_de, subs_en)
+        paare.extend(gepaart)
+        rest = len(subs_de) - len(gepaart)
+        if rest > 0:
+            report.append(f"{kategorie}/{name_de}: {rest} Sub-Feature(s) nicht eindeutig "
+                          f"zuzuordnen - verworfen")
+    return paare, report
+
+
 def apostroph_varianten(term_en: str) -> list[str]:
     """DDB nutzt das typografische Apostroph (U+2019), Nutzer tippen oft ASCII -
     beide Formen belegen, damit der exakte Lookup unabhaengig davon trifft."""

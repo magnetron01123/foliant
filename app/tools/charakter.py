@@ -562,21 +562,42 @@ def _hg_verteilungsregel_beleg() -> str | None:
 
 def _stufentabelle(body: str) -> dict[int, dict[str, str]]:
     """Parst die Klassen-Stufentabelle ('Kaempfermerkmale') aus einem Bestandseintrag:
-    {stufe: {spaltenname_normalisiert: zellwert}}. Leeres dict, wenn keine Tabelle mit
-    'Stufe'-Kopf gefunden wird (dann: nicht_pruefbar, Q4)."""
+    {stufe: {spaltenname_normalisiert: zellwert}}. Leeres dict, wenn keine gefunden wird
+    (dann: nicht_pruefbar, Q4).
+
+    Erkennung ueber die DATENFORM, nicht (nur) den Kopf: der PDF-Import verklebt bei den
+    Zauberklassen die mehrzeiligen Tabellenkoepfe ('Stufe'+'Uebungsbonus' -> 'Stufebonus',
+    Befund 17.07.2026 - Barde/Druide/Magier/Paladin/Waldlaeufer waren dadurch still
+    'nicht_pruefbar', beim Druiden griff sogar die Tiergestalt-Tabelle). Eine
+    Klassentabelle ist die Pipe-Tabelle, deren erste Spalte aufsteigende Stufen AB 1
+    liefert; bei mehreren Kandidaten gewinnt die mit den meisten Stufenzeilen (die echte
+    fuehrt 1-20). Die (ggf. verklebten) Koepfe bleiben als Schluessel erhalten - die
+    Abnehmer suchen Substrings ('unterklasse' in den WERTEN, 'waffenbeherrschung' im
+    Kopf) und bleiben davon unberuehrt."""
     zeilen = (body or "").splitlines()
-    for i, z in enumerate(zeilen):
+    beste: dict[int, dict[str, str]] = {}
+    i = 0
+    while i < len(zeilen):
+        z = zeilen[i]
         if not z.strip().startswith("|"):
+            i += 1
             continue
-        koepfe = [re.sub(r"\*+|<br>|­|-", "", teil).strip().lower()
-                  for teil in z.strip().strip("|").split("|")]
-        if "stufe" not in koepfe:
-            continue
+        # Koepfe: Markdown-Reste, Soft-Hyphens UND Leerzeichen raus ('waffenbe herrschung'
+        # aus dem PDF-Zeilenumbruch -> 'waffenbeherrschung'); leere/doppelte Koepfe
+        # eindeutig machen, sonst verschluckt dict(zip(...)) ganze Spalten (der Magier-
+        # Kopf beginnt mit Leerspalten - 'MagierUnterklasse' ging so verloren).
+        roh_koepfe = [re.sub(r"\*+|<br>|­|-|\s+", "", teil).strip().lower()
+                      for teil in z.strip().strip("|").split("|")]
+        koepfe: list[str] = []
+        for n, kopf in enumerate(roh_koepfe):
+            if not kopf or kopf in koepfe:
+                kopf = f"{kopf}#{n}" if kopf else f"spalte{n}"
+            koepfe.append(kopf)
         tabelle: dict[int, dict[str, str]] = {}
-        for zeile in zeilen[i + 1:]:
-            if not zeile.strip().startswith("|"):
-                break
-            zellen = [teil.strip() for teil in zeile.strip().strip("|").split("|")]
+        j = i + 1
+        while j < len(zeilen) and zeilen[j].strip().startswith("|"):
+            zellen = [teil.strip() for teil in zeilen[j].strip().strip("|").split("|")]
+            j += 1
             if not zellen or set(zellen[0]) <= {"-", ":", " "}:
                 continue
             try:
@@ -584,26 +605,38 @@ def _stufentabelle(body: str) -> dict[int, dict[str, str]]:
             except ValueError:
                 continue
             tabelle[stufe] = dict(zip(koepfe, zellen))
-        if tabelle:
-            return tabelle
-    return {}
+        ist_stufentabelle = tabelle and (
+            "stufe" in koepfe
+            or (min(tabelle) == 1 and sorted(tabelle) == list(range(1, max(tabelle) + 1))
+                and len(tabelle) >= 5))
+        if ist_stufentabelle and len(tabelle) > len(beste):
+            beste = tabelle
+        i = j
+    return beste
 
 
 def _klassenmerkmale_body(name_de: str) -> str | None:
-    """Body des 'Klassenmerkmale des X'-Eintrags zur Klasse (srd-de), ohne Genitiv-Raterei
-    ueber den Kontext 'Klassen > <Klasse>' aufgeloest. NUR 2024 und in Quellen-Praezedenz
-    (A4: die Tabelle muss zum kanonischen 2024-Inhalt gehoeren, nie zu einem Altstand)."""
+    """Body des Klassen-Eintrags MIT Stufentabelle (srd-de), ohne Genitiv-Raterei ueber
+    den Kontext 'Klassen > <Klasse>' aufgeloest. NUR 2024 und in Quellen-Praezedenz
+    (A4: die Tabelle muss zum kanonischen 2024-Inhalt gehoeren, nie zu einem Altstand).
+
+    Bewusst KEIN Namensfilter ('Klassenmerkmale des X'): srd-de chunkt nicht jede Klasse
+    gleich - beim Schurken steht die Stufentabelle im Abschnitt 'Ein Schurke werden ...'
+    (Befund 17.07.2026: unterklasse_stufe war dort faelschlich 'nicht_pruefbar'). Das
+    tragfaehige Kriterium ist der Kontext plus eine tatsaechlich parsebare Tabelle."""
     con = _ns._verbinde()
     if con is None:
         return None
     try:
-        r = con.execute(
+        rows = con.execute(
             "SELECT e.body_md FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
-            "WHERE e.kategorie='klasse' AND e.edition=? "
-            "AND e.name_de LIKE 'Klassenmerkmale%' AND e.body_md LIKE ? "
-            "ORDER BY q.prioritaet LIMIT 1",
-            (_EDITION, f"*Kontext: Klassen > {name_de}*%")).fetchone()
-        return r[0] if r else None
+            "WHERE e.kategorie='klasse' AND e.edition=? AND e.body_md LIKE ? "
+            "ORDER BY q.prioritaet, e.id",
+            (_EDITION, f"*Kontext: Klassen > {name_de}*%")).fetchall()
+        for (body,) in rows:
+            if _stufentabelle(body):
+                return body
+        return rows[0][0] if rows else None
     finally:
         con.close()
 

@@ -18,7 +18,8 @@ def _db() -> sqlite3.Connection:
     con.row_factory = sqlite3.Row
     con.execute("CREATE TABLE quellen (id INTEGER PRIMARY KEY, kuerzel TEXT)")
     con.execute("CREATE TABLE eintraege (id INTEGER PRIMARY KEY, quelle_id INT, "
-                "kategorie TEXT, name_de TEXT, name_en TEXT, body_md TEXT)")
+                "kategorie TEXT, name_de TEXT, name_en TEXT, body_md TEXT, "
+                "edition TEXT DEFAULT '2024')")
     con.execute("CREATE TABLE glossar (id INTEGER PRIMARY KEY, term_en TEXT, term_de TEXT, "
                 "offiziell INT, quelle TEXT, edition_quelle TEXT, seite TEXT)")
     con.execute("INSERT INTO quellen VALUES (1, 'srd-de'), (2, 'ddb-br-2024-en')")
@@ -258,6 +259,45 @@ def test_ohne_klassenbruecke_wird_klasse_verworfen():
         assert any("keine EN-Klasse" in z for z in report)
     finally:
         g._GLOSSAR_CACHE.clear()
+
+
+def test_spezies_subfeatures_ohne_reihenfolge_annahme():
+    """Elf: 4 von 5 Subs belegt -> das fuenfte per Ausschluss. Zwerg: alphabetische
+    UMSORTIERUNG der Uebersetzung ('Steingespür' Pos 2 <-> 'Stonecunning' Pos 4) darf
+    keine Kreuzpaare erzeugen - Unbelegtes wird verworfen, nie positionsgeraten."""
+    from app import glossar as g
+    from importer.srd_klassenmerkmale import finde_container_sub_paare
+
+    con = _db()
+    con.execute("INSERT INTO glossar (term_en, term_de, offiziell) VALUES "
+                "('Elf', 'Elf', 1), ('Dwarf', 'Zwerg', 1), "
+                "('Darkvision', 'Dunkelsicht', 1), ('Trance', 'Trance', 1), "
+                "('Keen Senses', 'Scharfe Sinne', 1), ('Fey Ancestry', 'Feenblut', 1)")
+    elf_de = ("*Kontext: Spezies*\n\n**_Dunkelsicht:_** X. **_Elfische Abstammung:_** X. "
+              "**_Feenblut:_** X. **_Scharfe Sinne:_** X. **_Trance:_** X.")
+    elf_en = ("*Kontext: Species*\n\n***Darkvision.*** X. ***Elven Lineage.*** X. "
+              "***Fey Ancestry.*** X. ***Keen Senses.*** X. ***Trance.*** X.")
+    # Zwerg: nur Dunkelsicht belegt; die drei uebrigen sind je Sprache anders sortiert.
+    zwerg_de = ("*Kontext: Spezies*\n\n**_Dunkelsicht:_** X. **_Steingespür:_** X. "
+                "**_Zwergische Unverwüstlichkeit:_** X. **_Zwergische Zähigkeit:_** X.")
+    zwerg_en = ("*Kontext: Species*\n\n***Darkvision.*** X. ***Dwarven Resilience.*** X. "
+                "***Dwarven Toughness.*** X. ***Stonecunning.*** X.")
+    con.execute("INSERT INTO eintraege (quelle_id, kategorie, name_de, body_md) VALUES "
+                "(1, 'spezies', 'Elf', ?), (1, 'spezies', 'Zwerg', ?)", (elf_de, zwerg_de))
+    con.execute("INSERT INTO eintraege (quelle_id, kategorie, name_en, body_md) VALUES "
+                "(2, 'spezies', 'Elf', ?), (2, 'spezies', 'Dwarf', ?)", (elf_en, zwerg_en))
+    g._GLOSSAR_CACHE.clear()
+    try:
+        paare, report = finde_container_sub_paare(con, "spezies")
+    finally:
+        g._GLOSSAR_CACHE.clear()
+    assert ("Fey Ancestry", "Feenblut") in paare
+    assert ("Elven Lineage", "Elfische Abstammung") in paare       # Ausschlussprinzip
+    assert ("Darkvision", "Dunkelsicht") in paare
+    # Zwerg: KEIN Kreuzpaar - die drei unbelegten werden verworfen
+    assert not any(en == "Dwarven Resilience" for en, _ in paare)
+    assert not any(de == "Steingespür" for _, de in paare)
+    assert any("Zwerg" in z for z in report)
 
 
 def test_apostroph_varianten():

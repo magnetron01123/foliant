@@ -209,6 +209,43 @@ Stern** (einzig „Core Monk Traits" ehrlich mit `*`), Bogen und Foliant nennen 
 Namen. Golden-Suite 16/16 am vollen Pi-Bestand, `admin check` sauber, `glossar_web.sqlite`
 neu exportiert, web-Container neu gestartet.
 
+## Review-Runde 5 (17.07.2026) — Restbefunde vollständig gelöst
+
+Aus dem Kreuz-Audit (deutscher Bogen ↔ DDB-Original) und den 22 User-Tests:
+
+1. **Mehrklassen-Anzeige** (`uebersetzer._mehrklassen_aufbereiten` + Renderer-Fallback):
+   „Fighter 3 / Wizard 2" ließ Klasse/Stufe STUMM leer (sah aus wie ein Konvertierungs-
+   fehler). Jetzt: Klasse-Feld zeigt „Kämpfer 3 / Magier 2 (Fighter 3 / Wizard 2)" —
+   jede Teilklasse NUR bei exaktem Glossar-Treffer übersetzt, sonst englisch; die
+   Charakterstufe ist die regeldefinierte SUMME (srd-de „Klassenkombinationen", S. 28).
+   Modell-Semantik unangetastet (`klasse`/`klasse_stufe_roh` bleiben Beleg).
+2. **Listen komplett deterministisch** (`_liste_deterministisch`): Waffen-/Werkzeug-/
+   Sprachlisten laufen NICHT mehr durchs Sprachmodell — item-weise Glossar/dnddeutsch,
+   Unbelegtes bleibt unverändert englisch („Wargong" hieß je Lauf „Kriegsgong"/„Trommel"/
+   englisch). Belegte Items sind damit laufübergreifend stabil; der Item-Anzahl-Guard
+   ist obsolet (das Modell kann nichts mehr erfinden, es sieht keine Listen).
+3. **Build-Prüfung, Stufentabellen** (`app/tools/charakter.py`): Der Parser hing am
+   „Stufe"-Kopf — der PDF-Import verklebt bei den Zauberklassen die mehrzeiligen Köpfe
+   („Stufebonus", Magier-Kopf ohne Stufenspalte), beim Schurken liegt die Tabelle in
+   „Ein Schurke werden ...". Erkennung jetzt über die DATENFORM (Erstspalte = Stufen
+   ab 1, größte Tabelle gewinnt), Köpfe entlückt/eindeutig. **Alle 12 Klassen** liefern
+   Stufen 1–20 und „Unterklasse ab 3"; Barbar/Kämpfer zusätzlich die
+   Waffenbeherrschungs-Spalte (vorher: 6 von 12 still `nicht_pruefbar`).
+4. **MCP-Lookup: eingebettete Abschnitte + Deutsch-first** (`app/tools/nachschlagen.py`):
+   `hol_klasse("Rage")` lieferte die ENGLISCHE 2014-Fassung, obwohl „Kampfrausch" als
+   Abschnitt in „Klassenmerkmale des Barbaren" (srd-de 2024) steht. (a) Neuer
+   `_unterabschnitts_treffer`: vor jedem Editions-/Sprach-Rückfall werden Kandidaten der
+   ZIEL-Edition auf Abschnitts-Überschriften mit dem (glossar-aufgelösten) Begriff
+   geprüft — Antwort trägt `hinweis_unterabschnitt`. (b) `exakt` wird EXPLIZIT
+   Deutsch-first sortiert (die FTS-Rangfolge stellte den englischen Open5e-Volltreffer
+   vor den deutschen Präfix-Titel „Mönch-Unterklasse: Krieger der Offenen Hand").
+5. **Seeding erweitert** (`finde_container_sub_paare`): Spezies- und Talent-Sub-Features
+   („Feenblut ↔ Fey Ancestry", Grappler-Benefits) — Container über offizielle
+   Glossar-Namen, Subs NUR über belegte Paare + Ausschlussprinzip. KEINE Positions-
+   Annahme: die 2024-Bücher listen alphabetisch ENGLISCH, srd-de sortiert alphabetisch
+   DEUTSCH um (Zwerg: „Steingespür" Pos. 2 ↔ „Stonecunning" Pos. 4 → Unbelegtes wird
+   ehrlich verworfen statt positionsgeraten).
+
 ### `*`-Sterne: nachfragegetriebenes Nachschlagen (16.07.2026)
 
 **Die Korpus-Lücke ist strukturell gelöst.** Ursprünglicher Befund: Auf der Mac-DB trugen
