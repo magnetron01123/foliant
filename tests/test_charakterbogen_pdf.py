@@ -527,13 +527,40 @@ def test_sinne_erscheinen_auf_dem_bogen():
 
 
 def test_fortsetzungs_kopie_traegt_charakternamen():
-    """Die Vorlagen-Kopie ist einem Charakter zuzuordnen (Name/Klasse/Stufe im Kopf)."""
+    """Die Vorlagen-Kopie ist einem Charakter zuzuordnen (Name im Kopf)."""
     c = _mini_charakter()
     c.merkmale = [Merkmal(name=UeText(en="Riesenmerkmal"), quelle="PHB-2024", seite="1",
                           beschreibung=UeText(en="Sehr langer Text. " * 600), herkunft="klasse")]
     doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
     assert doc.page_count > 2
     assert "Sorin Vale" in doc[1].get_text()   # Kopie direkt hinter Seite 1
+
+
+def test_fortsetzungs_kopie_befuellt_nur_den_namen():
+    """Klasse ist auf der Kopie nicht relevant (Befund 17.07.2026) - 'Monk' darf NICHT ein
+    zweites Mal im Kopf der Kopie auftauchen, nur einmal auf der Originalseite."""
+    c = _mini_charakter()
+    c.merkmale = [Merkmal(name=UeText(en="Riesenmerkmal"), quelle="PHB-2024", seite="1",
+                          beschreibung=UeText(en="Sehr langer Text. " * 600), herkunft="klasse")]
+    doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
+    assert doc.page_count > 2
+    voll = _text_von(_rendere_synth(c))
+    assert voll.count("Monk") == 1
+
+
+def test_seitenzahlen_nur_bei_fortsetzung():
+    """Ohne Überlauf bleibt der Bogen unverändert (keine Seitenzahl); mit Überlauf tragen
+    ALLE Seiten 'Seite N von M' - lose Blätter bleiben beim Ausdrucken sortierbar."""
+    ohne_ueberlauf = _text_von(_rendere_synth(_mini_charakter()))
+    assert "Seite 1 von" not in ohne_ueberlauf
+
+    c = _mini_charakter()
+    c.merkmale = [Merkmal(name=UeText(en="Riesenmerkmal"), quelle="PHB-2024", seite="1",
+                          beschreibung=UeText(en="Sehr langer Text. " * 600), herkunft="klasse")]
+    doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
+    assert doc.page_count > 2
+    for i in range(doc.page_count):
+        assert f"Seite {i + 1} von {doc.page_count}" in doc[i].get_text()
 
 
 # --- Review-Runde 4 (17.07.2026): Kurzfassung (nur Merkmal-Namen) -------------

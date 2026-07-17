@@ -98,8 +98,9 @@ Aus dem E2E-Befundbericht (`docs/CHARAKTERBOGEN-BEFUNDBERICHT-2026-07-16.md`):
 - **Eine Schriftgröße je Kasten** (2-Spalten-Boxen fitten gemeinsam) und **Fortsetzungsseiten
   erben die Größe** der Ursprungsbox (kein Schriftgrad-Sprung mehr).
 - **Fortsetzungskopf immer**: Bricht ein Merkmal an Zeilen- ODER Satzgrenze über die Box,
-  nennt die Fortsetzung das Merkmal („… (Fortsetzung):", fett); Vorlagen-Kopien tragen
-  Name/Klasse/Stufe im Kopf. Spaltenfluss innerhalb einer Box bekommt keinen Kopf.
+  nennt die Fortsetzung das Merkmal („… (Fortsetzung):", fett); Vorlagen-Kopien tragen den
+  Namen im Kopf (s. Review-Runde 3: Klasse/Stufe wieder entfernt). Spaltenfluss innerhalb
+  einer Box bekommt keinen Kopf.
 - **Einzeiler-Überlauf-Stufen**: Auto-Fit → §5-Klammer opfern → horizontal stauchen; nie
   über die Boxgrenze (Unterklasse vs. Stufe-Oval, Zauber-Reichweiten).
 - **Deterministische Notation**: zentrale d→W-Wandlung in `_saeubere` (5d8→5W8); Zauber-
@@ -117,6 +118,20 @@ Aus dem E2E-Befundbericht (`docs/CHARAKTERBOGEN-BEFUNDBERICHT-2026-07-16.md`):
 aber nicht gerendert — Entscheidung 16.07.2026): passive Einsicht/Untersuchung (aus den
 Fertigkeiten ableitbar), Zauber-Herkunft/Seitenreferenzen, der statische ACTIONS/BONUS-
 ACTIONS-Block (Regel-Boilerplate; Bonusaktions-Infos stehen in den Merkmalen), Spielername.
+
+## Review-Runde 3 (17.07.2026) — umgesetzt
+
+David-Befund: Der Kopf einer Fortsetzungsseite füllte fälschlich auch **Klasse** (das Feld
+oben links neben dem Namen) - obwohl die Kopie nur ein einzelnes übergelaufenes Merkmal
+fortsetzt und die restlichen Felder der kopierten Vorlagenseite bewusst leer bleiben.
+
+- `_KOPIE_KOPF` trägt jetzt nur noch **`identitaet.name`** - Klasse/Stufe sind auf der Kopie
+  nicht relevant und blieben trotzdem befüllt (`app/charakterbogen/de_bogen.py`).
+- **Seitenzahlen** (`_seitenzahlen`, "Seite N von M" rechts unten) - NUR wenn Fortsetzungs-
+  seiten eingefügt wurden, damit lose Blätter beim Ausdrucken sortierbar bleiben. Der
+  unveränderte 2-Seiten-Bogen ohne Überlauf bleibt am Fuß frei.
+- Tests: `test_fortsetzungs_kopie_befuellt_nur_den_namen`, `test_seitenzahlen_nur_bei_fortsetzung`
+  (`tests/test_charakterbogen_pdf.py`).
 
 ## Kurzfassung ohne Merkmalstexte (17.07.2026) — umgesetzt
 
