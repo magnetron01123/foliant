@@ -49,18 +49,35 @@ def _slug(begriff: str) -> str:
 
 
 def hole(client, begriff: str, pause_s: float = PAUSE_S) -> dict:
-    """Antwort aus Cache oder API (dann gedrosselt); Cache macht Re-Runs offline (O2)."""
-    cache = cache_verzeichnis()
-    cache.mkdir(parents=True, exist_ok=True)
-    cache_datei = cache / f"{_slug(begriff)}.json"
-    if cache_datei.exists():
+    """Antwort aus Cache oder API (dann gedrosselt); Cache macht Re-Runs offline (O2).
+
+    Der Cache ist eine OPTIMIERUNG, keine Pflicht: Ist er nicht beschreibbar (der
+    Web-Container läuft `read_only` und mountet ihn absichtlich nur lesend), wird die
+    API-Antwort trotzdem geliefert - nur eben nicht gespeichert."""
+    cache_datei = _cache_datei(begriff)
+    if cache_datei is not None and cache_datei.exists():
         return json.loads(cache_datei.read_text(encoding="utf-8"))
     antwort = client.get(api_url(), params={"s": begriff, "o": "dict"})
     antwort.raise_for_status()
     daten = antwort.json()
-    cache_datei.write_text(json.dumps(daten, ensure_ascii=False), encoding="utf-8")
+    if cache_datei is not None:
+        try:
+            cache_datei.write_text(json.dumps(daten, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass                        # nur-lesender Cache -> Antwort gilt trotzdem
     time.sleep(pause_s)
     return daten
+
+
+def _cache_datei(begriff: str) -> Path | None:
+    """Cache-Pfad des Begriffs; None, wenn kein Cache-Verzeichnis nutzbar ist."""
+    cache = cache_verzeichnis()
+    try:
+        cache.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        if not cache.is_dir():
+            return None                 # weder vorhanden noch anlegbar -> ohne Cache weiter
+    return cache / f"{_slug(begriff)}.json"
 
 
 def edition_aus_buch(buch: str | None) -> str | None:

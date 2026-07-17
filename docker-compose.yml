@@ -71,6 +71,12 @@ services:
     volumes:
       - ./data/glossar_web.sqlite:/glossar/glossar_web.sqlite:ro
       - ./vorlagen/charakterboegen/offiziell/Charakterbogen_2024_DE.pdf:/vorlagen/Charakterbogen_2024_DE.pdf:ro
+      # dnddeutsch-Cache NUR LESEND (die Container-Haertung read_only bleibt unangetastet):
+      # das Glossar-Seeding hat ihn bereits gefuellt -> der Nachschlager loest die meisten
+      # Begriffe ohne Netz und ohne Drossel auf. Cache-Misses fragen die API und verzichten
+      # aufs Speichern (app/dnddeutsch.hole toleriert das); der naechste Seeding-Lauf
+      # nimmt sie dauerhaft auf.
+      - ./data/cache/dnddeutsch:/app/data/cache/dnddeutsch:ro
     read_only: true
     tmpfs:
       - /tmp:size=64m,noexec,nosuid,nodev
