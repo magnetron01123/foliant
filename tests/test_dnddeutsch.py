@@ -130,3 +130,40 @@ def test_schreibe_zeilen_upsert():
     dnddeutsch.schreibe_zeilen(con, [Zeile("Oil", "Öl", 1, "Langname PHB(de)", "2014", "5")])
     zeile = con.execute("SELECT offiziell, quelle FROM glossar WHERE term_en='Oil'").fetchone()
     assert tuple(zeile) == (1, "Langname PHB(de)")
+
+
+def test_hole_ohne_beschreibbaren_cache(tmp_path, monkeypatch):
+    """Web-Container: Cache ist read-only gemountet. Cache-HITS gelten, Cache-MISSES
+    liefern die API-Antwort trotzdem - nur ohne zu speichern (kein Crash)."""
+    ro = tmp_path / "cache"
+    ro.mkdir()
+    (ro / "monk.json").write_text(json.dumps(_antwort(_eintrag("Monk", "Mönch"))),
+                                  encoding="utf-8")
+    ro.chmod(0o500)                                   # lesen/betreten, nicht schreiben
+    monkeypatch.setattr(dnddeutsch, "cache_verzeichnis", lambda: ro)
+    monkeypatch.setattr(dnddeutsch.time, "sleep", lambda s: None)
+    try:
+        client = _FakeClient(_antwort(_eintrag("Martial Arts", "Kampfkünste")))
+        assert dnddeutsch.hole(client, "Monk")["result"]     # Cache-HIT, kein Netz
+        assert client.aufrufe == 0
+        daten = dnddeutsch.hole(client, "Martial Arts")      # Cache-MISS -> API, kein Crash
+        assert daten["result"][0]["name_de"] == "Kampfkünste"
+        assert client.aufrufe == 1
+        assert not (ro / "martial-arts.json").exists()       # nichts geschrieben
+    finally:
+        ro.chmod(0o700)                                      # tmp_path aufräumbar lassen
+
+
+def test_hole_ohne_cache_verzeichnis(tmp_path, monkeypatch):
+    """Cache weder vorhanden noch anlegbar (z.B. Pfad nicht gemountet) -> ohne Cache weiter."""
+    gesperrt = tmp_path / "nicht_anlegbar"
+    gesperrt.mkdir()
+    gesperrt.chmod(0o500)
+    monkeypatch.setattr(dnddeutsch, "cache_verzeichnis", lambda: gesperrt / "tief" / "cache")
+    monkeypatch.setattr(dnddeutsch.time, "sleep", lambda s: None)
+    try:
+        client = _FakeClient(_antwort(_eintrag("Oil (flask)", "Öl (Flasche)")))
+        assert dnddeutsch.hole(client, "Oil")["result"]
+        assert client.aufrufe == 1
+    finally:
+        gesperrt.chmod(0o700)
