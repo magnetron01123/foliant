@@ -24,21 +24,21 @@ import sys
 import time
 from pathlib import Path
 
-API_URL = "https://www.dnddeutsch.de/tools/json.php"   # Default; [glossar].api_url gewinnt
-_PAUSE_S = 1.0
+from app import dnddeutsch
+
+API_URL = dnddeutsch.API_URL                     # Default; [glossar].api_url gewinnt
+_PAUSE_S = dnddeutsch.PAUSE_S
 
 
 def _api_url() -> str:
     """A8: die in config/foliant.toml angebotene [glossar].api_url wird tatsaechlich
     verwendet (Default: API_URL)."""
-    from app import db as _db
-    return str((_db.lade_konfig().get("glossar", {}) or {}).get("api_url") or API_URL)
+    return dnddeutsch.api_url()
 
 
 def _cache_verzeichnis() -> Path:
     """A8: Cache-Pfad projektroot-relativ, nie abhaengig vom Arbeitsverzeichnis."""
-    from app import db as _db
-    return _db.projekt_pfad("data/cache/dnddeutsch")
+    return dnddeutsch.cache_verzeichnis()
 
 # Kuratierte Kernbegriffe (Zustaende, Kampf, Proben, Erholung, Charakterbau) - die Begriffe,
 # die am Spieltisch staendig fallen. Zauber-/Monsternamen kommen spaeter bei Bedarf (O4).
@@ -222,35 +222,21 @@ def seed_aktionen(con: sqlite3.Connection) -> int:
     return n
 
 
+# API-Zugriff, Cache und Antwort-Bewertung leben seit 16.07.2026 in app/dnddeutsch.py
+# (gemeinsame Grundlage mit dem nachfragegetriebenen Lookup des Charakterbogen-Übersetzers).
+# Die duennen Wrapper hier bleiben fuer Tests/Aufrufer stabil (Monkeypatch auf _hole_api).
+
 def _slug(begriff: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", begriff.lower()).strip("-") or "leer"
+    return dnddeutsch._slug(begriff)
 
 
 def _hole_api(client, begriff: str) -> dict:
     """Antwort aus Cache oder API (dann gedrosselt); Cache macht Re-Runs offline (O2)."""
-    cache = _cache_verzeichnis()
-    cache.mkdir(parents=True, exist_ok=True)
-    cache_datei = cache / f"{_slug(begriff)}.json"
-    if cache_datei.exists():
-        return json.loads(cache_datei.read_text(encoding="utf-8"))
-    antwort = client.get(_api_url(), params={"s": begriff, "o": "dict"})
-    antwort.raise_for_status()
-    daten = antwort.json()
-    cache_datei.write_text(json.dumps(daten, ensure_ascii=False), encoding="utf-8")
-    time.sleep(_PAUSE_S)
-    return daten
+    return dnddeutsch.hole(client, begriff, pause_s=_PAUSE_S)
 
 
 def _edition_aus_buch(buch: str | None) -> str | None:
-    """Konservative Heuristik fuer edition_quelle (S8/S9): '24' im Buchkuerzel -> 2024;
-    klassische (de)-Grundbuecher -> 2014; sonst unbekannt (NULL) - nicht raten."""
-    if not buch:
-        return None
-    if "24" in buch:
-        return "2024"
-    if re.match(r"^(PHB|DMG|MM)\(de\)$", buch):
-        return "2014"
-    return None
+    return dnddeutsch.edition_aus_buch(buch)
 
 
 def _upsert(con: sqlite3.Connection, term_en: str, term_de: str, offiziell: int,
@@ -277,28 +263,14 @@ def seed_glossar(con: sqlite3.Connection, begriffe_en: list[str]) -> int:
             except Exception as fehler:  # Einzelfehler ueberspringen, Lauf fortsetzen
                 print(f"  [{i}/{len(begriffe_en)}] {begriff}: FEHLER {fehler}", file=sys.stderr)
                 continue
-            ergebnisse = daten.get("result") or []
-            if not isinstance(ergebnisse, list):  # >30 Treffer o. ae. -> Fehlerantwort
+            # Bewertung (Ulisses/Buchbeleg -> offiziell, konservative Edition, A9) und die
+            # Klammer-Lemma-Regel liegen zentral in app/dnddeutsch.zeilen_aus_antwort.
+            zeilen = dnddeutsch.zeilen_aus_antwort(daten)
+            if zeilen is None:  # >30 Treffer o. ae. -> Fehlerantwort
                 print(f"  [{i}/{len(begriffe_en)}] {begriff}: unerwartete Antwort "
                       f"(zu viele Treffer? Begriff enger fassen)", file=sys.stderr)
                 continue
-            for r in ergebnisse:
-                name_en = (r.get("name_en") or "").strip()
-                ulisses = (r.get("name_de_ulisses") or "").strip()
-                name_de = ulisses or (r.get("name_de") or "").strip()
-                if not name_en or not name_de:
-                    continue
-                src = r.get("src_de") or {}
-                offiziell = 1 if (ulisses or src.get("book")) else 0
-                quelle = ("Ulisses-Glossar (dnddeutsch.de)" if ulisses
-                          else src.get("book_long") or "dnddeutsch.de (Community)")
-                # A9: 'ulisses' heisst OFFIZIELL, aber nicht automatisch Edition 2024 -
-                # Ulisses uebersetzt seit Jahren auch 2014-Buecher. Die Edition kommt
-                # KONSERVATIV aus dem belegten Buch; ohne sicheren Beleg bleibt sie
-                # unbekannt (NULL) statt geraten.
-                edition = _edition_aus_buch(src.get("book"))
-                _upsert(con, name_en, name_de, offiziell, quelle, edition, src.get("p"))
-                geschrieben += 1
+            geschrieben += dnddeutsch.schreibe_zeilen(con, zeilen)
     con.commit()
     return geschrieben
 

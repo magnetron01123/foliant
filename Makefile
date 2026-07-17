@@ -39,3 +39,17 @@ test-daten:
 PI ?= pi@raspberrypi.local
 test-golden-pi:
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T -w /app foliant python -m pytest -q tests/test_golden_bestand.py'
+
+# Glossar-Tabelle vom Pi (voller Bestand) in die lokale Dev-DB uebernehmen: macht lokale
+# Abnahmen belastbar - die Mac-DB ist nur ein Subset, ihre '*'-Sterne sind sonst nicht
+# aussagekraeftig (Korpus-Luecke, s. CLAUDE.md). Ersetzt die LOKALE glossar-Tabelle komplett.
+.PHONY: glossar-vom-pi
+glossar-vom-pi:
+	@test -f data/foliant.sqlite || (echo "FEHLER: keine data/foliant.sqlite"; exit 1)
+	ssh $(PI) "sqlite3 ~/foliant/data/foliant.sqlite -cmd '.mode insert glossar' 'SELECT * FROM glossar;'" > .glossar_pi.sql
+	@test -s .glossar_pi.sql || (echo "FEHLER: leerer Export vom Pi"; rm -f .glossar_pi.sql; exit 1)
+	.venv/bin/python -c "import sqlite3; con = sqlite3.connect('data/foliant.sqlite'); \
+		con.execute('DELETE FROM glossar'); \
+		con.executescript(open('.glossar_pi.sql', encoding='utf-8').read()); con.commit(); \
+		print('Glossar:', con.execute('SELECT count(*) FROM glossar').fetchone()[0], 'Zeilen vom Pi uebernommen')"
+	@rm -f .glossar_pi.sql
