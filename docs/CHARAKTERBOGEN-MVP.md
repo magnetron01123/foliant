@@ -6,6 +6,19 @@ als druckbares PDF. Verbindliche Spec: `KONZEPT_charakterbogen-uebersetzer.md` (
 Konflikten vor dem älteren `docs/CLAUDE-CODE-AUFTRAG-CHARAKTERBOGEN-MVP.md`). Eigentümer-Entscheid
 14.07.2026: **KONZEPT führt, Fortsetzungsseiten sind erlaubt.**
 
+## Übersetzung: zwei LLM-Stufen (16.07.2026)
+
+1. **Belegte Begriffe** kommen deterministisch aus dem Glossar (kein LLM).
+2. **Stufe 1 – unbelegte Begriffe/Eigennamen** („Warrior of Shadow"): eigener, kurzer Aufruf.
+   Ergebnis → §5-Form mit `*` **und** als bindende Vorgabe für Stufe 2.
+3. **Stufe 2 – Fließtexte/Listen**: mit allen Namen (Glossar + Stufe 1) als Vorgabe.
+
+Ohne diese Trennung übersetzte ein einziger Aufruf Feld und Fließtext unabhängig — derselbe
+Name hieß im Feld „Krieger des Schattens" und im Fließtext „Kämpfer des Schattens".
+**Gemessen** (Sorin Vale, Sonnet): Stufe 1 = 37 Felder / 449 Zeichen / **6 s**;
+Stufe 2 = 54 Felder / 6731 Zeichen / **37 s**; gesamt ~44 s (Läufe schwanken API-bedingt
+zwischen ~42 s und ~80 s; `web.ZEITLIMIT_S` = 100 s).
+
 ## Pipeline (3 Stufen, LLM klar isoliert)
 
 ```
@@ -104,6 +117,28 @@ Aus dem E2E-Befundbericht (`docs/CHARAKTERBOGEN-BEFUNDBERICHT-2026-07-16.md`):
 aber nicht gerendert — Entscheidung 16.07.2026): passive Einsicht/Untersuchung (aus den
 Fertigkeiten ableitbar), Zauber-Herkunft/Seitenreferenzen, der statische ACTIONS/BONUS-
 ACTIONS-Block (Regel-Boilerplate; Bonusaktions-Infos stehen in den Merkmalen), Spielername.
+
+### `*`-Sterne und die Korpus-Lücke (wichtig für die Abnahme)
+
+Auf der **lokalen Mac-DB** tragen PHB-Klassenmerkmale einen `*` (z. B. „Kampfkunst\* (Martial
+Arts)", „Schlagserie\* (Flurry of Blows)"), obwohl offizielle deutsche Begriffe existieren:
+**Kampfkünste**, **Schlaghagel**, **Betäubender Schlag**, **Ungerüstete Verteidigung** —
+belegt sowohl bei dnddeutsch.de (`PHB(de)`) als auch im srd-de-Bestandstext
+(„Klassenmerkmale des Mönchs").
+
+**Ursache — kein Code-Bug:** `seed_glossar_aus_bestand` fragt nur *Eintragsnamen* ab. Im
+Mac-Subset (ohne die englischen DDB-Bücher) ist „Martial Arts" **kein** Eintragsname → wird
+nie abgefragt. Auf dem Pi **ist** es einer → der Begriff wird gefunden und der Stern
+verschwindet von selbst. Verifiziert am 16.07.2026 per direkter API-Abfrage.
+
+→ **Vor der Abnahme des Bogens: `admin import --quelle glossar` auf dem Pi laufen lassen**
+und dort gegenprüfen. Ein `*`-Urteil auf Basis der Mac-DB ist nicht belastbar
+(vgl. Korpus-Lücke in `CLAUDE.md`).
+
+Ehrliche Sterne bleiben: Buch-spezifische Eigennamen ohne deutsche Ausgabe („Mist Wanderer",
+„Warrior of Shadow", „Living Shadow" aus RtHW) und Fälle, in denen das offizielle Lemma
+abweicht (DDB schreibt „Oil", das dt. Lemma ist „Öl (Flasche)" — kein exakter Treffer,
+Fuzzy ist bewusst verboten).
 
 ## Deployment (Phase 6) — Runbook
 

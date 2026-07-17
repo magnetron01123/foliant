@@ -111,16 +111,27 @@ def test_zahlen_bleiben_unberuehrt(con):
     assert c.attribute["dex"].wert == 18 and c.attribute["dex"].mod == "+4"
 
 
-def test_ein_gebuendelter_aufruf_und_gedaechtnis(con):
+def test_gebuendelte_aufrufe_und_gedaechtnis(con):
+    """Zwei gebündelte Aufrufe (Stufe 1 Begriffe, Stufe 2 Fließtexte) - nicht mehr pro Feld.
+    Das Übersetzungsgedächtnis bleibt: gleicher englischer Text -> genau EIN Eintrag."""
     c = _charakter()
     fake = FakeProvider()
     uebersetze(c, con, fake)
-    assert fake.aufrufe == 1  # genau EIN gebündelter Aufruf
+    assert fake.aufrufe == 2
     # die identische Beschreibung erscheint nur EINMAL in der Anfrage (Gedächtnis)
-    werte = list(fake.gesehene_ids[0].values())
+    werte = [w for anfrage in fake.gesehene_ids for w in anfrage.values()]
     assert werte.count("You make two Unarmed Strikes.") == 1
     # ...aber BEIDE Merkmale bekommen die Übersetzung
     assert c.merkmale[0].beschreibung.de == c.merkmale[1].beschreibung.de
+
+
+def test_ein_aufruf_wenn_nur_begriffe_offen(con):
+    """Ohne Fließtexte entfällt Stufe 2 (kein Leer-Aufruf)."""
+    c = Charakter()
+    c.identitaet.spezies = UeText(en="Mist Wanderer", art="term")
+    fake = FakeProvider()
+    uebersetze(c, con, fake)
+    assert fake.aufrufe == 1
 
 
 def test_leerer_text_bleibt_leer(con):
@@ -146,8 +157,28 @@ def test_vorgaben_enthalten_aufgeloeste_begriffe(con):
     uebersetze(c, con, fake)
     assert fake.letzte_vorgaben.get("Monk") == "Mönch"
     assert fake.letzte_vorgaben.get("Flurry of Blows") == "Schlaghagel"
-    # unbelegte Begriffe (Mist Wanderer) stehen NICHT als amtliche Vorgabe drin
-    assert "Mist Wanderer" not in fake.letzte_vorgaben
+
+
+def test_unbelegte_begriffe_werden_zur_vorgabe_fuer_den_fliesstext(con):
+    """Der Kern der Zweistufigkeit (Befund 16.07.2026): Ein unbelegter Begriff wird ZUERST
+    übersetzt und geht dann als Vorgabe in den Fließtext-Aufruf - sonst hieß derselbe Name
+    im Feld 'Krieger des Schattens' und im Fließtext 'Kämpfer des Schattens'."""
+    c = Charakter()
+    c.identitaet.unterklasse = UeText(en="Warrior of Shadow", art="term")
+    c.merkmale.append(Merkmal(name=UeText(en="Monk", art="term"),
+                              beschreibung=UeText(en="You are a Warrior of Shadow."),
+                              herkunft="klasse"))
+    fake = FakeProvider(mapping={"Warrior of Shadow": "Krieger des Schattens"})
+    uebersetze(c, con, fake)
+
+    assert fake.aufrufe == 2
+    # Stufe 1 übersetzte NUR den Begriff ...
+    assert list(fake.gesehene_ids[0].values()) == ["Warrior of Shadow"]
+    # ... das Feld trägt die §5-Form mit Stern ...
+    assert c.identitaet.unterklasse.de == "Krieger des Schattens* (Warrior of Shadow)"
+    # ... und Stufe 2 bekam den Namen OHNE Stern/Klammer als bindende Vorgabe.
+    assert fake.letzte_vorgaben.get("Warrior of Shadow") == "Krieger des Schattens"
+    assert "You are a Warrior of Shadow." in fake.gesehene_ids[1].values()
 
 
 def test_deterministisch(con):

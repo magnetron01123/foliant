@@ -3,8 +3,9 @@
 Strategie (KONZEPT §6, AUFTRAG §8):
 - FESTE Begriffe/Namen (art="term"): deterministisch über `terminologie.aufloesen` (die
   bestehende Foliant-Glossar-Logik). Exakter Treffer -> §5-Form ohne LLM.
-- FREIER Text (art="text") und unbelegte Begriffe -> EIN gebündelter LLM-Aufruf.
-  Unbelegte Begriffe werden anschließend mit '*' markiert (§5).
+- ZWEI LLM-Stufen: erst die unbelegten Begriffe (Stufe 1, kurz), dann die Fließtexte
+  (Stufe 2) - MIT den Begriffen aus Stufe 1 als Vorgabe. So heißt derselbe Name im Feld
+  und im Fließtext gleich; unbelegte Begriffe tragen '*' (§5).
 - Namen (art="name") werden nie übersetzt.
 - Zahlen/Würfel/Modifikatoren sind KEINE UeText -> laufen nie durch das Modell.
 - Übersetzungsgedächtnis: gleicher englischer String -> überall dieselbe deutsche Fassung
@@ -105,12 +106,20 @@ def _listen_items(s: str) -> list[str]:
 
 def uebersetze(charakter: Charakter, con: sqlite3.Connection,
                provider: Uebersetzungsprovider) -> Charakter:
-    """Füllt `.de` aller übersetzbaren Felder in-place und gibt `charakter` zurück."""
+    """Füllt `.de` aller übersetzbaren Felder in-place und gibt `charakter` zurück.
+
+    ZWEISTUFIG (Befund 16.07.2026): Erst werden die unbelegten BEGRIFFE/Eigennamen übersetzt
+    (Stufe 1), dann laufen sie als `vorgaben` in den Fließtext-Aufruf (Stufe 2). Vorher
+    übersetzte ein einziger Aufruf beides unabhängig voneinander - derselbe Name hieß dann
+    im Feld "Krieger des Schattens" und im Fließtext "Kämpfer des Schattens". Belegte
+    Begriffe brauchen die Stufe nicht: sie kommen deterministisch aus dem Glossar.
+    """
     uetexte: list[UeText] = []
     _alle_uetexte(charakter, uetexte)
 
-    vorgaben: dict[str, str] = {}                  # EN-Begriff -> amtl. dt. Name (Konsistenz im Fließtext)
-    zu_uebersetzen: dict[str, list[UeText]] = {}   # eindeutiger EN -> alle Vorkommen (Gedächtnis)
+    vorgaben: dict[str, str] = {}                  # EN-Begriff -> dt. Name (Konsistenz im Fließtext)
+    begriffe: dict[str, list[UeText]] = {}         # art="term" OHNE Glossar-Treffer -> Stufe 1
+    texte: dict[str, list[UeText]] = {}            # Fließtext/Listen -> Stufe 2
     for ue in uetexte:
         en = (ue.en or "").strip()
         if not en:
@@ -125,18 +134,32 @@ def uebersetze(charakter: Charakter, con: sqlite3.Connection,
                 ue.de = aufl                        # exakter Glossar-Treffer -> ohne LLM
                 vorgaben[en] = _de_klar(aufl)       # denselben Namen im Fließtext erzwingen (Bug: Zauber
                 continue                            # hieß in Tabelle "Magierhand", in Merkmal "Zauberhand")
-        zu_uebersetzen.setdefault(en, []).append(ue)
+            begriffe.setdefault(en, []).append(ue)
+            continue
+        texte.setdefault(en, []).append(ue)
 
-    if zu_uebersetzen:
-        eindeutig = list(zu_uebersetzen.keys())
+    # Stufe 1: unbelegte Begriffe/Eigennamen -> §5-Form mit '*' UND feste Vorgabe für Stufe 2
+    if begriffe:
+        eindeutig = list(begriffe.keys())
+        ids = {str(i): en for i, en in enumerate(eindeutig)}
+        ergebnis, _ = _mit_wiederholung(provider, ids, vorgaben)
+        for i, en in enumerate(eindeutig):
+            de = ergebnis[str(i)]
+            for ue in begriffe[en]:
+                ue.de = terminologie.markiere_fallback(en, de)
+            vorgaben[en] = _de_klar(de)
+
+    # Stufe 2: Fließtexte/Listen - mit allen Namen aus Glossar + Stufe 1 als Vorgabe
+    if texte:
+        eindeutig = list(texte.keys())
         _glossar_vorgaben(con, eindeutig, vorgaben)
         ids = {str(i): en for i, en in enumerate(eindeutig)}
         listen_ids = {str(i) for i, en in enumerate(eindeutig)
-                      if any(ue.art == "liste" for ue in zu_uebersetzen[en])}
+                      if any(ue.art == "liste" for ue in texte[en])}
         ergebnis, kaputte = _mit_wiederholung(provider, ids, vorgaben, listen_ids)
         for i, en in enumerate(eindeutig):
             k = str(i)
-            for ue in zu_uebersetzen[en]:
+            for ue in texte[en]:
                 if k in kaputte and ue.art == "liste":
                     ue.de = en          # Item-Anzahl weicht auch nach Retry ab -> ehrlich
                 else:                   # englisch lassen statt erfundene Einträge rendern
@@ -200,10 +223,11 @@ _SYSTEM = (
     "RK (Rüstungsklasse), TP (Trefferpunkte); 'Übungsbonus' ausschreiben. "
     "SPRACHE: offizielle deutsche D&D-Begriffe; korrektes Genus und Kongruenz ('ein Talent', "
     "nicht 'einen Talent'); zusammengesetzte Namen durchkoppeln ('Nebelwanderer-"
-    "Attributswerterhöhung'); 'Vorteil/Nachteil BEI' Würfen. NEGATIONEN exakt erhalten: "
-    "'you aren't wearing armor or wielding a Shield' = 'du trägst KEINE Rüstung und führst "
-    "KEINEN Schild' (die Verneinung gilt für beide Glieder, nie 'oder einen'). "
-    "Keine Erklärungen, nur JSON."
+    "Attributswerterhöhung'); 'Vorteil/Nachteil BEI' Würfen. Negationen exakt erhalten - die "
+    "Verneinung gilt für beide Glieder: 'you aren't wearing armor or wielding a Shield' = "
+    "'du trägst keine Rüstung und führst keinen Schild' (nie '... oder einen Schild'). "
+    "Schreibe normal - übernimm KEINE Grossschreibung aus diesen Anweisungen in die "
+    "Übersetzung. Keine Erklärungen, nur JSON."
 )
 
 
