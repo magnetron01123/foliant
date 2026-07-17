@@ -40,8 +40,8 @@ Würfel und Modifikatoren laufen NIE durch das Sprachmodell.
 | `feldkarten/code_map.json` | Feste Kürzel (`1A`→`1 Aktion`, `STÄ/GES…`, Münzen). |
 | `terminologie.py` | Löst feste Begriffe **in-process über `app.glossar`** auf (kein zweites Glossar) → §5-Form `Deutsch (English)` / `Deutsch* (English)`. |
 | `uebersetzer.py` | Provider-Vertrag + Anthropic-Adapter (httpx) + Fake. Feldweise Übersetzung, EIN gebündelter Aufruf, Übersetzungsgedächtnis, JSON-Vertrag mit 1× Retry. |
-| `de_bogen.py` | **Renderer** (fitz-Overlay): zeichnet Werte auf eine Kopie der DE-Vorlage, Auto-Fit, Fortsetzungsseiten bei Überlauf, Kalibrier-Modus. `kurzfassung=True` listet Klassenmerkmale/Spezies-Merkmale/Talente nur namentlich (kein Erklärtext, nicht fett). |
-| `web.py` | Schmale Starlette-App: `GET /` (Upload), `POST /bogen` (Konvertierung, liefert IMMER ein ZIP mit vollständigem Bogen + Kurzfassung), `GET /health`. Sicherheitsgrenzen, Ein-Konvertierung-Semaphore, keine Persistenz, `no-store`/CSP. |
+| `de_bogen.py` | **Renderer** (fitz-Overlay): zeichnet Werte auf eine Kopie der DE-Vorlage, Auto-Fit, Fortsetzungsseiten bei Überlauf, Kalibrier-Modus. |
+| `web.py` | Schmale Starlette-App: `GET /` (Upload), `POST /bogen` (Konvertierung), `GET /health`. Sicherheitsgrenzen, Ein-Konvertierung-Semaphore, keine Persistenz, `no-store`/CSP. |
 | `templates/`, `static/` | Einspaltige Upload-Karte im Bogen-Stil (keine externen Fonts/CDNs). |
 
 ## Regel §5 (die einzige Übersetzungsregel)
@@ -133,25 +133,14 @@ fortsetzt und die restlichen Felder der kopierten Vorlagenseite bewusst leer ble
 - Tests: `test_fortsetzungs_kopie_befuellt_nur_den_namen`, `test_seitenzahlen_nur_bei_fortsetzung`
   (`tests/test_charakterbogen_pdf.py`).
 
-## Kurzfassung ohne Merkmalstexte (17.07.2026) — umgesetzt
+## Kurzfassung ohne Merkmalstexte (17.07.2026) — ZURÜCKGENOMMEN
 
-David-Wunsch: Klassenmerkmale, Spezies-Merkmale und Talente sind auf dem vollständigen Bogen oft
-das, was zuerst auf Fortsetzungsseiten überläuft. `POST /bogen` liefert deshalb jetzt **immer
-zwei Bögen** in einer ZIP-Datei:
-
-- **Vollständig** (`<name>-deutsch.pdf`) - unverändert, mit allen Erklärtexten.
-- **Kurzfassung** (`<name>-deutsch-kurzfassung.pdf`) - Klassenmerkmale/Spezies-Merkmale/Talente
-  erscheinen nur als **Namensliste**, ohne Beschreibung, ohne Quellenangabe, **nicht fett**
-  (fett gäbe es hier nichts abzusetzen). Alle anderen Boxen (Attribute, Fertigkeiten,
-  Ausrüstung, Zauber, Geschichte …) und die Übersetzung selbst sind in beiden Fassungen
-  identisch - nur EIN Übersetzungslauf pro Upload, zweimal gerendert.
-
-`rendere(charakter, kurzfassung=True)` (`app/charakterbogen/de_bogen.py`, neue Funktion
-`_merkmale_kurz`); `web.py::_konvertiere` rendert beide Varianten und packt sie in ein
-`zipfile.ZipFile`. Tests: `test_kurzfassung_*` (`tests/test_charakterbogen_pdf.py`),
-`test_gueltiger_ddb_export_liefert_zip_mit_zwei_pdfs` (`tests/test_charakterbogen_web.py`).
-Am echten Bogen (Sorin Vale) verifiziert: die Kurzfassung braucht keine Fortsetzungsseite mehr
-(2 statt 3 Seiten), alle übrigen Boxen unverändert.
+Zwischenzeitlich lieferte `POST /bogen` eine ZIP mit zwei Bögen (vollständig + Kurzfassung,
+in der Klassenmerkmale/Spezies-Merkmale/Talente nur als Namensliste erschienen). Nach zwei
+Nachbesserungsrunden (Gruppenkopf-Gliederung, Spezies-Wert-Sätze) Eigentümer-Entscheid
+17.07.2026: **Feature komplett entfernt** — die reine Namensliste trägt zu wenig Information,
+`POST /bogen` liefert wieder EINE vollständige PDF. Der im Zuge der Kurzfassung entstandene
+Struktur- und Glossar-Feinschliff (nächste Abschnitte) bleibt.
 
 ## Merkmal-Struktur wie im DDB-Original (17.07.2026) — umgesetzt
 
@@ -188,11 +177,11 @@ Zeilenumbruch auch hier als solche lesbar — Wegfiltern war die falsche Antwort
 „nicht erkennbar". → `test_leeres_merkmal_bleibt_als_ueberschrift_sichtbar`
 
 Am echten Bogen verifiziert: Der volle Bogen wächst durch die Absätze von 3 auf **4 Seiten**
-(erwartet — genau dafür gibt es die Kurzfassung, die bei 2 Seiten bleibt).
+(erwartet und akzeptiert — Strukturtreue geht vor Kompaktheit).
 
 ## Review-Runde 4 (17.07.2026) — Nutzertest-Befunde, umgesetzt
 
-Selbsttest als Spieler (Bogen in der Hand, Foliant-MCP daneben) deckte fünf Punkte auf:
+Selbsttest als Spieler (Bogen in der Hand, Foliant-MCP daneben) deckte diese Punkte auf:
 
 1. **Amtliche 2024-Klassenmerkmalsnamen aus dem BESTAND** (größter Hebel): Der Bogen sagte
    „Angriffe abwehren\* (Deflect Attacks)", der Foliant amtlich „**Angriffe umleiten**"
@@ -213,9 +202,7 @@ Selbsttest als Spieler (Bogen in der Hand, Foliant-MCP daneben) deckte fünf Pun
    (`_ist_ueberschrift`; ein reiner `\x01`-Start-Check hielt fette Sub-Köpfe wie
    „Wappne dich." für Überschriften).
 3. **Keep-with-next**: eine Überschrift bleibt nie als letzte Zeile vor dem Umbruch zurück.
-4. **Kurzfassung gegliedert**: `Core X Traits`/`X Subclass` als fette Zwischenüberschriften,
-   Folge-Merkmale rücken mit `· ` ein.
-5. **`make glossar-vom-pi`** repariert (sqlite3-CLI fehlt auf dem Pi-Host → Download + ATTACH).
+4. **`make glossar-vom-pi`** repariert (sqlite3-CLI fehlt auf dem Pi-Host → Download + ATTACH).
 
 E2E am echten Bogen (echter Anthropic-Lauf): alle 13 Klassenmerkmale amtlich und **ohne
 Stern** (einzig „Core Monk Traits" ehrlich mit `*`), Bogen und Foliant nennen dieselben

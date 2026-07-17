@@ -4,9 +4,7 @@ Nur synthetische Fixtures + FakeProvider (keine echte API, keine privaten Binär
 """
 from __future__ import annotations
 
-import io
 import sqlite3
-import zipfile
 
 import fitz
 import pytest
@@ -95,32 +93,21 @@ def test_fehlendes_dateifeld(client):
 
 # --- POST /bogen: Erfolg -----------------------------------------------------
 
-def test_gueltiger_ddb_export_liefert_zip_mit_zwei_pdfs(client):
-    """`/bogen` liefert IMMER zwei Boegen (vollstaendig + Kurzfassung) in einer ZIP-Datei
-    (Review-Runde 4: Klassenmerkmale/Spezies-Merkmale/Talente sparen dort Platz)."""
+def test_gueltiger_ddb_export_liefert_pdf(client):
     ddb = baue_ddb_pdf(BEISPIEL)
     r = client.post("/bogen", files={"datei": ("held.pdf", ddb, "application/pdf")})
     assert r.status_code == 200
-    assert r.headers["content-type"].startswith("application/zip")
+    assert r.headers["content-type"].startswith("application/pdf")
+    assert r.content.startswith(b"%PDF")
     assert "attachment" in r.headers["content-disposition"]
-    assert "-deutsch.zip" in r.headers["content-disposition"]
+    assert "-deutsch.pdf" in r.headers["content-disposition"]
     assert r.headers["cache-control"] == "no-store"
-
-    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
-        namen = zf.namelist()
-        assert any(n.endswith("-deutsch.pdf") for n in namen), namen
-        assert any(n.endswith("-deutsch-kurzfassung.pdf") for n in namen), namen
-        for n in namen:
-            assert zf.read(n).startswith(b"%PDF")
 
 
 def test_dateiname_aus_charaktername(client):
     ddb = baue_ddb_pdf(BEISPIEL)  # CharacterName = "Testheld"
     r = client.post("/bogen", files={"datei": ("egal.pdf", ddb, "application/pdf")})
-    assert "Testheld-deutsch.zip" in r.headers["content-disposition"]
-    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
-        assert "Testheld-deutsch.pdf" in zf.namelist()
-        assert "Testheld-deutsch-kurzfassung.pdf" in zf.namelist()
+    assert "Testheld-deutsch.pdf" in r.headers["content-disposition"]
 
 
 # --- Sicherheitsprüfung (Unit) ----------------------------------------------

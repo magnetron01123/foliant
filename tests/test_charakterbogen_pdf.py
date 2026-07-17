@@ -375,31 +375,6 @@ def test_ueberschrift_nie_letzte_zeile_der_box():
     assert FORTS_MARKE in gezeichnet
 
 
-def test_kurzfassung_gruppenkoepfe_gliedern_die_liste():
-    """'Core Monk Traits'/'Monk Subclass' sind fette Zwischenüberschriften der Kurzfassung;
-    die Merkmale darunter ruecken mit '·' ein (flache Liste war nicht als Hierarchie
-    erkennbar, David-Befund 17.07.2026)."""
-    from app.charakterbogen.de_bogen import _merkmale_kurz
-
-    c = _mini_charakter()
-    c.merkmale = [
-        Merkmal(name=UeText(en="Core Monk Traits", de="Grundlegende Mönchs-Eigenschaften* (Core Monk Traits)"),
-                beschreibung=UeText(en=""), herkunft="klasse"),
-        Merkmal(name=UeText(en="Martial Arts", de="Kampfkünste (Martial Arts)"),
-                beschreibung=UeText(en="Text."), herkunft="klasse"),
-        Merkmal(name=UeText(en="Monk Subclass", de="Mönch-Unterklasse* (Monk Subclass)"),
-                beschreibung=UeText(en=""), herkunft="klasse"),
-        Merkmal(name=UeText(en="Shadow Arts", de="Schattenkünste (Shadow Arts)"),
-                beschreibung=UeText(en="Text."), herkunft="klasse"),
-    ]
-    text = _merkmale_kurz(c, "klasse")
-    bloecke = text.split("\n\n")
-    assert bloecke[0] == "\x01Grundlegende Mönchs-Eigenschaften* (Core Monk Traits)\x02"
-    assert bloecke[1] == "· Kampfkünste (Martial Arts)"
-    assert bloecke[2] == "\x01Mönch-Unterklasse* (Monk Subclass)\x02"
-    assert bloecke[3] == "· Schattenkünste (Shadow Arts)"
-
-
 # --- Rüstungsvertrautheit / K-R-M / Fußnote / Zauberwirken-Kopf ---------------
 
 def test_ruestungs_schluessel_mapping():
@@ -563,84 +538,6 @@ def test_seitenzahlen_nur_bei_fortsetzung():
         assert f"Seite {i + 1} von {doc.page_count}" in doc[i].get_text()
 
 
-# --- Review-Runde 4 (17.07.2026): Kurzfassung (nur Merkmal-Namen) -------------
-
-def _charakter_mit_merkmalen() -> Charakter:
-    # Einwort-Marker statt Mehrwort-Phrasen: get_text() bricht Zeilen mit '\n' um, eine
-    # Mehrwort-Phrase kann dabei ueber zwei Zeilen zerrissen werden (falsches Testsignal).
-    # Der Spezies-Body ist bewusst MEHRZEILIG: Spezies-EINZEILER zeigen in der Kurzfassung
-    # ihren Wert-Satz mit an (test_kurzfassung_spezies_zeigt_wert_saetze).
-    c = _mini_charakter()
-    c.merkmale = [
-        Merkmal(name=UeText(en="Martial Arts"), quelle="PHB-2024", seite="101",
-               beschreibung=UeText(en="Erklaerungstext KLASSENMARKIERUNG."), herkunft="klasse"),
-        Merkmal(name=UeText(en="Darkvision"), quelle="PHB-2024", seite="194",
-               beschreibung=UeText(en="Erklaerungstext SPEZIESMARKIERUNG.\n\nZweiter Absatz."),
-               herkunft="spezies"),
-        Merkmal(name=UeText(en="Grappler"), quelle="PHB-2024", seite="204",
-               beschreibung=UeText(en="Erklaerungstext TALENTMARKIERUNG."), herkunft="talent"),
-    ]
-    return c
-
-
-def test_kurzfassung_listet_nur_namen_ohne_erklaerung():
-    c = _charakter_mit_merkmalen()
-    voll = _text_von(_rendere_synth(c))
-    kurz = _text_von(_rendere_synth(c, kurzfassung=True))
-    for name in ("Martial Arts", "Darkvision", "Grappler"):
-        assert name in voll and name in kurz
-    for marker in ("KLASSENMARKIERUNG", "SPEZIESMARKIERUNG", "TALENTMARKIERUNG"):
-        assert marker in voll
-        assert marker not in kurz
-
-
-def test_kurzfassung_spezies_zeigt_wert_saetze():
-    """Spezies-Merkmale sind oft reine WERT-Angaben - das nackte Label ('Kreaturentyp')
-    sagt nichts (David-Befund 17.07.2026). Einzeiler-Bodies erscheinen als 'Name: Wert';
-    lange Merkmale und andere Herkuenfte (Klasse/Talent) bleiben reine Namen."""
-    from app.charakterbogen.de_bogen import _merkmale_kurz
-
-    c = _mini_charakter()
-    c.merkmale = [
-        Merkmal(name=UeText(en="Creature Type", de="Kreaturentyp* (Creature Type)"),
-                beschreibung=UeText(en="You're a Humanoid.", de="Du bist ein Humanoide."),
-                herkunft="spezies"),
-        Merkmal(name=UeText(en="Speed", de="Bewegungsrate (Speed)"),
-                beschreibung=UeText(en="Your Speed is 30 ft.",
-                                    de="Deine Bewegungsrate beträgt 9 m."),
-                herkunft="spezies"),
-        Merkmal(name=UeText(en="Langes Merkmal", de="Langes Merkmal"),
-                beschreibung=UeText(en="x", de="Sehr langer Erklärtext. " * 10),
-                herkunft="spezies"),
-        Merkmal(name=UeText(en="Slow Fall", de="Sturz abfedern (Slow Fall)"),
-                beschreibung=UeText(en="x", de="Du kannst eine Reaktion nutzen."),
-                herkunft="klasse"),
-    ]
-    spezies = _merkmale_kurz(c, "spezies").split("\n\n")
-    assert spezies[0] == "Kreaturentyp* (Creature Type): Du bist ein Humanoide."
-    assert spezies[1] == "Bewegungsrate (Speed): Deine Bewegungsrate beträgt 9 m."
-    assert spezies[2] == "Langes Merkmal"                      # lang -> nur Name
-    klasse = _merkmale_kurz(c, "klasse").split("\n\n")
-    assert klasse == ["Sturz abfedern (Slow Fall)"]            # Klasse: weiterhin nur Name
-
-
-def test_kurzfassung_namen_nicht_fett():
-    """Volle Fassung: Merkmalskopf ist fett. Kurzfassung: reiner Listeneintrag, nicht fett -
-    es gibt nichts mehr, wovon sich der Name fett absetzen müsste."""
-    c = _charakter_mit_merkmalen()
-
-    def _fette_texte(pdf: bytes) -> list[str]:
-        doc = fitz.open(stream=pdf, filetype="pdf")
-        spans = [s for i in range(doc.page_count) for b in doc[i].get_text("dict")["blocks"]
-                for l in b.get("lines", []) for s in l.get("spans", [])]
-        return [s["text"] for s in spans if "Bold" in s["font"]]
-
-    fette_voll = _fette_texte(_rendere_synth(c))
-    fette_kurz = _fette_texte(_rendere_synth(c, kurzfassung=True))
-    assert any("Martial Arts" in t for t in fette_voll), fette_voll
-    assert not any("Martial Arts" in t for t in fette_kurz), fette_kurz
-
-
 # --- Merkmal-Struktur wie im DDB-Original (17.07.2026) ------------------------
 # David-Befund: Der Merkmalsname ist eine UEBERSCHRIFT, darunter fallen die Benefits.
 # Vorher klebte alles in einer Zeile ('Nebelwanderer-Attributswerterhoehung* (…) (RtHW 27).
@@ -698,17 +595,6 @@ def test_leeres_merkmal_bleibt_als_ueberschrift_sichtbar():
         Merkmal(name=UeText(en="Martial Arts"), quelle="PHB-2024", seite="101",
                beschreibung=UeText(en="Erklaerungstext ECHTESMERKMAL."), herkunft="klasse"),
     ]
-    for fassung in (_text_von(_rendere_synth(c)), _text_von(_rendere_synth(c, kurzfassung=True))):
-        assert "Core Monk Traits" in fassung
-        assert "Martial Arts" in fassung
-
-
-def test_kurzfassung_veraendert_uebrige_boxen_nicht():
-    """Nur Klassenmerkmale/Spezies-Merkmale/Talente werden gekürzt - Ausrüstung, Geschichte,
-    Sprachen usw. bleiben unveraendert (KONZEPT: die Übersetzung bleibt wie gehabt)."""
-    c = _mini_charakter()
-    c.ausruestung.gegenstaende.append(Gegenstand(name=UeText(en="Rope"), menge="1", gewicht="5 lb."))
-    voll = _text_von(_rendere_synth(c))
-    kurz = _text_von(_rendere_synth(c, kurzfassung=True))
-    for erwartet in ("Rope", "2,3 kg", "Sorin Vale", "Darkness"):
-        assert erwartet in voll and erwartet in kurz
+    fassung = _text_von(_rendere_synth(c))
+    assert "Core Monk Traits" in fassung
+    assert "Martial Arts" in fassung

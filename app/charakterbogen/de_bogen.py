@@ -470,51 +470,6 @@ def _merkmale(charakter, herkunft) -> str:
     return "\n\n".join(_merkmal_text(m) for m in charakter.merkmale if m.herkunft == herkunft)
 
 
-# DDB-Gruppenköpfe (2024-Klassenformat): 'Core <Klasse> Traits' überschreibt die folgenden
-# Kern-Merkmale, '<Klasse> Subclass' die Unterklassen-Merkmale - beide ohne eigenen
-# Erklärtext. In der Vollfassung wirken sie durch den Textfluss als Überschrift; in der
-# flachen Namensliste der Kurzfassung brauchen sie explizite Gliederung (David-Befund).
-_GRUPPENKOPF = re.compile(r"^(Core .+ Traits|.+ Subclass)$")
-
-
-def _ist_gruppenkopf(m) -> bool:
-    return (not (m.beschreibung.en or "").strip()
-            and bool(_GRUPPENKOPF.match((m.name.en or "").strip())))
-
-
-# Spezies-Merkmale sind oft reine WERT-Angaben mit einem Kurzsatz als Body ('Du bist ein
-# Humanoide.', 'Deine Bewegungsrate beträgt 9 m.'). Ein nacktes Label ('Kreaturentyp')
-# waere in der Kurzfassung wertlos (David-Befund 17.07.2026) -> der Kurzsatz kommt mit.
-_WERT_BODY_MAX = 100
-
-
-def _merkmale_kurz(charakter, herkunft) -> str:
-    """Wie `_merkmale`, aber ohne Erklärtexte und Quellen (Review-Runde 4: platzsparende
-    Kurzfassung). Gruppenköpfe ('Core Monk Traits', 'Monk Subclass') werden fette
-    Zwischenüberschriften, ihre Folge-Merkmale rücken mit '· ' ein - sonst stünde der
-    inhaltsleere Abschnittstitel wie ein normales Merkmal in der Liste (David-Befund
-    17.07.2026). SPEZIES-Merkmale mit Einzeiler-Body ('Kreaturentyp', 'Bewegungsrate' ...)
-    zeigen 'Name: Kurzsatz' - der WERT ist dort die eigentliche Information, das nackte
-    Label sagte nichts. Leerzeilen zwischen den Einträgen markieren eigene Blöcke, damit
-    ein Seitenumbruch zwischen zwei Einträgen keinen Fortsetzungskopf auslöst."""
-    zeilen: list[str] = []
-    eingerueckt = False
-    for m in charakter.merkmale:
-        if m.herkunft != herkunft or not _text(m.name):
-            continue
-        if _ist_gruppenkopf(m):
-            zeilen.append(f"{_FA}{_text(m.name)}{_FE}")
-            eingerueckt = True
-            continue
-        eintrag = _text(m.name)
-        body = _text(m.beschreibung).strip()
-        if (herkunft == "spezies" and body and "\n" not in body
-                and len(body) <= _WERT_BODY_MAX):
-            eintrag = f"{eintrag}: {body}"
-        zeilen.append(f"· {eintrag}" if eingerueckt else eintrag)
-    return "\n\n".join(zeilen)
-
-
 def _geschichte_text(charakter) -> str:
     p = charakter.persoenlichkeit
     teile = [("Persönlichkeitsmerkmale", p.wesenszuege), ("Ideale", p.ideale),
@@ -544,12 +499,11 @@ def _ausruestung_text(charakter) -> str:
     return "\n".join(zeilen)
 
 
-def _grossbox_texte(charakter, kurz: bool = False) -> dict[str, str]:
-    merkmale = _merkmale_kurz if kurz else _merkmale
+def _grossbox_texte(charakter) -> dict[str, str]:
     return {
-        "klassenmerkmale": merkmale(charakter, "klasse"),
-        "spezies_merkmale": merkmale(charakter, "spezies"),
-        "talente": merkmale(charakter, "talent"),
+        "klassenmerkmale": _merkmale(charakter, "klasse"),
+        "spezies_merkmale": _merkmale(charakter, "spezies"),
+        "talente": _merkmale(charakter, "talent"),
         "aussehen": _text(charakter.persoenlichkeit.aussehen),
         "geschichte": _geschichte_text(charakter),
         "sprachen": _ue_liste(charakter.uebungen.sprachen),
@@ -793,11 +747,8 @@ def _stern_fussnote(doc, ink) -> None:
 
 def rendere(charakter: Charakter, template_pfad: Path | None = None,
             layout: dict | None = None, codemap: dict | None = None,
-            kalibrierung: bool = False, kurzfassung: bool = False) -> bytes:
-    """Rendert `charakter` auf die DE-Vorlage und gibt das fertige PDF als Bytes zurück.
-    `kurzfassung=True`: Klassenmerkmale/Spezies-Merkmale/Talente werden nur mit Namen
-    aufgelistet statt erklärt (spart Platz/Fortsetzungsseiten) - der Rest des Bogens
-    (Attribute, Fertigkeiten, Ausrüstung, Zauber, Übersetzung) ist unverändert."""
+            kalibrierung: bool = False) -> bytes:
+    """Rendert `charakter` auf die DE-Vorlage und gibt das fertige PDF als Bytes zurück."""
     layout = layout or lade_layout()
     codemap = codemap or lade_codemap()
     vorlage_pfad = template_pfad or _TEMPLATE_STD
@@ -853,7 +804,7 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
                 _marke(p, spec["prof"], ink)
 
         # 4) Grossboxen (Überlauf-Sammlung je Quellseite)
-        texte = _grossbox_texte(charakter, kurz=kurzfassung)
+        texte = _grossbox_texte(charakter)
         reste: dict[int, list[tuple[dict, str]]] = {}
         for key, spec in layout["grossbox"].items():
             text = texte.get(key, "")

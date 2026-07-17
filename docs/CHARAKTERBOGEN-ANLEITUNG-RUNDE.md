@@ -16,18 +16,11 @@ Ihr habt euren Charakter in **D&D Beyond**, aber der Bogen ist auf Englisch? Auf
 
 4. **Kurz warten.** Nach **etwa einer Minute** ist der deutsche Bogen fertig.
 
-5. **Herunterladen.** Ihr bekommt eine **ZIP-Datei mit zwei PDFs** zum Download — das war's.
+5. **Herunterladen.** Ihr bekommt das fertige PDF zum Download — das war's.
 
 ---
 
 ## Häufige Fragen
-
-**Warum bekomme ich zwei PDFs?**
-In der ZIP-Datei steckt der **vollständige Bogen** (mit allen Erklärtexten zu Klassenmerkmalen,
-Spezies-Merkmalen und Talenten) und eine **Kurzfassung**, in der diese drei Bereiche nur als
-Namensliste erscheinen — ohne Erklärung. Die Kurzfassung spart Platz (weniger Fortsetzungsseiten)
-und eignet sich z. B. zum schnellen Ausdrucken, wenn ihr die Regeln ohnehin kennt oder im
-Foliant-Chat nachschlagt.
 
 **Was passiert mit meinen Daten?**
 Nichts wird gespeichert. Euer PDF wird nur im Arbeitsspeicher verarbeitet, der fertige Bogen wird nicht abgelegt. Nach dem Download ist alles weg.

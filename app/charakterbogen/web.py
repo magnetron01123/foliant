@@ -14,13 +14,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
-import io
 import os
 import re
 import secrets
 import sqlite3
 import time
-import zipfile
 from pathlib import Path
 
 import fitz
@@ -163,8 +161,6 @@ def _fehlversuch(ip: str) -> None:
 
 def _konvertiere(pdf_bytes: bytes, provider, glossar_pfad: str | None,
                  template_pfad: str | None, nachschlager=None) -> tuple[bytes, str]:
-    """Übersetzt EINMAL und rendert daraus ZWEI Bögen (vollständig + Kurzfassung ohne
-    Merkmalstexte), verpackt als ZIP - die Übersetzung selbst ist in beiden identisch."""
     charakter = extrahiere(pdf_bytes)                       # -> DDBFormatFehler bei Nicht-DDB
     # Glossar strikt READ-ONLY öffnen (Container mountet es ro; kein Journal/WAL-Schreibversuch)
     # - der Nachschlager schreibt deshalb hier nie, er liefert sein Direktergebnis.
@@ -177,14 +173,8 @@ def _konvertiere(pdf_bytes: bytes, provider, glossar_pfad: str | None,
         uebersetze(charakter, con, provider, nachschlager=nachschlager)
     finally:
         con.close()
-    voll = rendere(charakter, template_pfad=template_pfad)                     # -> Überlauf hart? (Renderer entscheidet)
-    kurz = rendere(charakter, template_pfad=template_pfad, kurzfassung=True)
-    name = _sicherer_name(charakter.identitaet.name)
-    puffer = io.BytesIO()
-    with zipfile.ZipFile(puffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(f"{name}-deutsch.pdf", voll)
-        zf.writestr(f"{name}-deutsch-kurzfassung.pdf", kurz)
-    return puffer.getvalue(), name
+    pdf = rendere(charakter, template_pfad=template_pfad)   # -> Überlauf hart? (Renderer entscheidet)
+    return pdf, _sicherer_name(charakter.identitaet.name)
 
 
 def _pruefe_sicher(pdf_bytes: bytes) -> str | None:
@@ -279,7 +269,7 @@ def erstelle_app(provider=None, glossar_pfad: str | None = None,
 
             nachschlager = nachschlager_factory() if nachschlager_factory else None
             try:
-                zip_bytes, name = await asyncio.wait_for(
+                pdf, name = await asyncio.wait_for(
                     run_in_threadpool(_konvertiere, roh, prov, glossar_pfad, template_pfad,
                                       nachschlager),
                     timeout=ZEITLIMIT_S)
@@ -291,8 +281,8 @@ def erstelle_app(provider=None, glossar_pfad: str | None = None,
                 return HTMLResponse(_seite(NICHT_SICHER), status_code=500, headers=_HTML_HEADER)
 
             kopf = dict(_HTML_HEADER)
-            kopf["Content-Disposition"] = f'attachment; filename="{name}-deutsch.zip"'
-            return Response(zip_bytes, media_type="application/zip", headers=kopf)
+            kopf["Content-Disposition"] = f'attachment; filename="{name}-deutsch.pdf"'
+            return Response(pdf, media_type="application/pdf", headers=kopf)
 
     routen = [
         Route("/", index, methods=["GET"]),
