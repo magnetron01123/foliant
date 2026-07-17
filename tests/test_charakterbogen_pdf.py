@@ -314,6 +314,92 @@ def test_fortsetzungsseite_nennt_merkmal_auch_bei_zeilen_split():
         "Angriffe abwehren* (Deflect Attacks) (Fortsetzung): ·"), rest[:90]
 
 
+def test_fortsetzungskopf_bei_umbruch_an_subfeature_grenze():
+    """Faellt der Umbruch auf eine ABSATZGRENZE innerhalb eines Merkmals (Sub-Feature-
+    Struktur seit 17.07.2026), nennt die Fortsetzung trotzdem das Merkmal - vorher begann
+    sie verwaist ('Fasse dich.' ohne 'Der Überlebende (Fortsetzung):')."""
+    import fitz
+    from app.charakterbogen.de_bogen import FORTS_MARKE, _ohne_marker, _para
+
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    text = ("\x01Der Überlebende (Survivor) (RtHW 32)\x02\n"
+            "Übervorsicht. Wann immer du Initiative würfelst, kannst du den W20 neu würfeln, "
+            "falls die gewürfelte Zahl 9 oder niedriger ist. Du musst das neue Ergebnis verwenden.\n"
+            "\n"
+            "Fasse dich. Einmal pro lange Rast kannst du eine Reaktion nutzen, um +3 zu addieren.")
+    rest = _para(page, [20, 20, 250, 78], text, 8.5, 8.5, (0, 0, 0), endmarke=FORTS_MARKE)
+    assert rest, "Es muss ein Rest ueberlaufen"
+    assert _ohne_marker(rest).startswith("Der Überlebende (Survivor) (Fortsetzung): Fasse dich."), \
+        repr(_ohne_marker(rest)[:90])
+
+
+def test_kein_fortsetzungskopf_wenn_rest_mit_neuem_merkmal_beginnt():
+    """Beginnt der Rest mit einem NEUEN Merkmalskopf (\\x01), waere ein Fortsetzungskopf des
+    vorigen Merkmals falsch - es wird ja nichts fortgesetzt."""
+    import fitz
+    from app.charakterbogen.de_bogen import FORTS_MARKE, _para
+
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    text = ("\x01Erstes Merkmal (PHB-2024 1)\x02\n"
+            "Kurzer Text, der noch in die Box passt und dort endet.\n"
+            "\n"
+            "\x01Zweites Merkmal (PHB-2024 2)\x02\n"
+            "Text des zweiten Merkmals, das komplett in die Fortsetzung wandert.")
+    rest = _para(page, [20, 20, 250, 55], text, 8.5, 8.5, (0, 0, 0), endmarke=FORTS_MARKE)
+    assert rest, "Es muss ein Rest ueberlaufen"
+    assert rest.startswith("\x01Zweites Merkmal"), repr(rest[:60])
+    assert "(Fortsetzung):" not in rest
+
+
+def test_ueberschrift_nie_letzte_zeile_der_box():
+    """Keep-with-next: eine Merkmals-Überschrift bleibt nicht als letzte Zeile vor dem
+    Umbruch zurueck (Befund 17.07.2026: 'Betäubender Schlag' stand allein am Boxende,
+    der Body komplett auf der Folgeseite) - sie wandert mit in die Fortsetzung."""
+    import fitz
+    from app.charakterbogen.de_bogen import FORTS_MARKE, _ohne_marker, _para
+
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    text = ("\x01Erstes Merkmal (PHB-2024 1)\x02\n"
+            "Eine Zeile Text.\n"
+            "\n"
+            "\x01Betäubender Schlag (Stunning Strike) (PHB-2024 103)\x02\n"
+            "Einmal pro Zug kannst du einen betäubenden Schlag versuchen.")
+    # Box fasst 4 Nutz-Zeilen: Merkmal 1 (2) + Leerzeile + Überschrift 2 - deren Body nicht.
+    rest = _para(page, [20, 20, 250, 76], text, 8.5, 8.5, (0, 0, 0), endmarke=FORTS_MARKE)
+    assert rest.startswith("\x01Betäubender Schlag"), repr(rest[:60])
+    gezeichnet = page.get_text()
+    assert "Betäubender Schlag" not in gezeichnet          # nicht als Witwe zurueckgeblieben
+    assert FORTS_MARKE in gezeichnet
+
+
+def test_kurzfassung_gruppenkoepfe_gliedern_die_liste():
+    """'Core Monk Traits'/'Monk Subclass' sind fette Zwischenüberschriften der Kurzfassung;
+    die Merkmale darunter ruecken mit '·' ein (flache Liste war nicht als Hierarchie
+    erkennbar, David-Befund 17.07.2026)."""
+    from app.charakterbogen.de_bogen import _merkmale_kurz
+
+    c = _mini_charakter()
+    c.merkmale = [
+        Merkmal(name=UeText(en="Core Monk Traits", de="Grundlegende Mönchs-Eigenschaften* (Core Monk Traits)"),
+                beschreibung=UeText(en=""), herkunft="klasse"),
+        Merkmal(name=UeText(en="Martial Arts", de="Kampfkünste (Martial Arts)"),
+                beschreibung=UeText(en="Text."), herkunft="klasse"),
+        Merkmal(name=UeText(en="Monk Subclass", de="Mönch-Unterklasse* (Monk Subclass)"),
+                beschreibung=UeText(en=""), herkunft="klasse"),
+        Merkmal(name=UeText(en="Shadow Arts", de="Schattenkünste (Shadow Arts)"),
+                beschreibung=UeText(en="Text."), herkunft="klasse"),
+    ]
+    text = _merkmale_kurz(c, "klasse")
+    bloecke = text.split("\n\n")
+    assert bloecke[0] == "\x01Grundlegende Mönchs-Eigenschaften* (Core Monk Traits)\x02"
+    assert bloecke[1] == "· Kampfkünste (Martial Arts)"
+    assert bloecke[2] == "\x01Mönch-Unterklasse* (Monk Subclass)\x02"
+    assert bloecke[3] == "· Schattenkünste (Shadow Arts)"
+
+
 # --- Rüstungsvertrautheit / K-R-M / Fußnote / Zauberwirken-Kopf ---------------
 
 def test_ruestungs_schluessel_mapping():
@@ -493,6 +579,68 @@ def test_kurzfassung_namen_nicht_fett():
     fette_kurz = _fette_texte(_rendere_synth(c, kurzfassung=True))
     assert any("Martial Arts" in t for t in fette_voll), fette_voll
     assert not any("Martial Arts" in t for t in fette_kurz), fette_kurz
+
+
+# --- Merkmal-Struktur wie im DDB-Original (17.07.2026) ------------------------
+# David-Befund: Der Merkmalsname ist eine UEBERSCHRIFT, darunter fallen die Benefits.
+# Vorher klebte alles in einer Zeile ('Nebelwanderer-Attributswerterhoehung* (…) (RtHW 27).
+# [Erhoehe zwei Werte (+2 / +1)]') - besonders sichtbar bei Kopf + genau EINEM Benefit.
+
+def test_merkmalskopf_steht_auf_eigener_zeile():
+    from app.charakterbogen.de_bogen import _merkmal_text, _ohne_marker
+    m = Merkmal(name=UeText(en="Mist Wanderer Ability Score Increase", de="Nebelwanderer-ASE"),
+                quelle="RtHW", seite="27", beschreibung=UeText(en=""),
+                aktionsoekonomie=[UeText(en="Increase two scores (+2 / +1)")], herkunft="talent")
+    zeilen = _ohne_marker(_merkmal_text(m)).split("\n")
+    assert zeilen[0] == "Nebelwanderer-ASE (RtHW 27)"          # Ueberschrift, EIGENE Zeile
+    assert zeilen[1] == "· Increase two scores (+2 / +1)"      # Benefit DARUNTER
+
+
+def test_oekonomie_zeile_ohne_ddb_endbullet():
+    """DDB haengt an die abgeschnittene letzte Box-Zeile ein Trenn-Bullet ohne Fortsetzung -
+    als eigene Zeile stuende es sichtbar und sinnlos am Schluss."""
+    from app.charakterbogen.de_bogen import _merkmal_text, _ohne_marker
+    m = Merkmal(name=UeText(en="X", de="X"), beschreibung=UeText(en=""),
+                aktionsoekonomie=[UeText(en="Zwei Werte erhöhen (+2 / +1) •")], herkunft="talent")
+    assert _ohne_marker(_merkmal_text(m)).split("\n")[1] == "· Zwei Werte erhöhen (+2 / +1)"
+
+
+def test_merkmalskopf_bleibt_fett_body_darunter():
+    m = Merkmal(name=UeText(en="Grappler", de="Ringer"), quelle="PHB-2024", seite="204",
+                beschreibung=UeText(en="First.\n\nSecond.", de="Erster Benefit.\n\nZweiter Benefit."),
+                herkunft="talent")
+    from app.charakterbogen.de_bogen import _merkmal_text
+    text = _merkmal_text(m)
+    assert text.startswith("\x01Ringer (PHB-2024 204)\x02\n")   # fett + Umbruch dahinter
+    assert "\n\nZweiter Benefit." in text                       # Absatzgrenze erhalten
+
+
+def test_absatzgrenzen_der_benefits_bleiben_im_render():
+    """Jeder Benefit ist ein eigener Absatz - nicht zu einem Fliesstext-Brei verklebt."""
+    c = _mini_charakter()
+    c.merkmale = [Merkmal(name=UeText(en="Grappler"), quelle="PHB-2024", seite="204",
+                          beschreibung=UeText(en="ERSTERBENEFIT text.\n\nZWEITERBENEFIT text."),
+                          herkunft="talent")]
+    doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
+    zeilen = [l for i in range(doc.page_count) for l in doc[i].get_text().split("\n")]
+    # Kopf und erster Benefit stehen NICHT in derselben Zeile
+    assert not any("Grappler" in z and "ERSTERBENEFIT" in z for z in zeilen), zeilen
+    assert not any("ERSTERBENEFIT" in z and "ZWEITERBENEFIT" in z for z in zeilen), zeilen
+
+
+def test_leeres_merkmal_bleibt_als_ueberschrift_sichtbar():
+    """'Core Monk Traits' hat im DDB-Original keinen Erklaertext - es steht dort trotzdem
+    (als Ueberschrift der folgenden Merkmale) und muss auch hier stehen bleiben."""
+    c = _mini_charakter()
+    c.merkmale = [
+        Merkmal(name=UeText(en="Core Monk Traits"), quelle="PHB-2024", seite="101",
+               beschreibung=UeText(en=""), herkunft="klasse"),
+        Merkmal(name=UeText(en="Martial Arts"), quelle="PHB-2024", seite="101",
+               beschreibung=UeText(en="Erklaerungstext ECHTESMERKMAL."), herkunft="klasse"),
+    ]
+    for fassung in (_text_von(_rendere_synth(c)), _text_von(_rendere_synth(c, kurzfassung=True))):
+        assert "Core Monk Traits" in fassung
+        assert "Martial Arts" in fassung
 
 
 def test_kurzfassung_veraendert_uebrige_boxen_nicht():

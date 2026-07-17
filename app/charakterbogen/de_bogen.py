@@ -211,6 +211,19 @@ def _blockstart(absaetze: list[str], idx: int) -> int:
     return start
 
 
+def _merkmalskopf_vor(absaetze: list[str], idx: int) -> str | None:
+    """Fortsetzungskopf aus der letzten ÜBERSCHRIFTSZEILE (\\x01-Start = Merkmalskopf) vor
+    `absaetze[idx]` - None, wenn davor keine steht (markerloser Text oder Spaltenfluss).
+    Seit die Merkmale intern Absatz-Leerzeilen tragen (Sub-Feature-Struktur, 17.07.2026),
+    taugt die Leerzeilen-Blockgrenze nicht mehr als Merkmalsgrenze: ein Umbruch ZWISCHEN
+    zwei Sub-Features eines Merkmals bekam gar keinen Kopf ('Fasse dich.' begann verwaist),
+    ein Umbruch IN einem Sub-Feature den falschen (Sub-Feature- statt Merkmalsname)."""
+    for i in range(idx - 1, -1, -1):
+        if absaetze[i].lstrip().startswith(_FA):
+            return _fortsetzungskopf(_erster_satz(absaetze[i]))
+    return None
+
+
 def _erster_satz(zeile: str) -> str:
     """Erster Satz OHNE Fett-Marker: der Punkt des Merkmalskopfs steht direkt vor \\x02,
     mit Markern erkennt _SATZENDE ihn nicht und der 'Kopf' fräse den ganzen Regelsatz mit."""
@@ -245,17 +258,29 @@ def _layout(text: str, breite: float, hoehe: float, sz: float,
         gezeichnet.extend(blk)
         naechster += 1
 
+    # Keep-with-next: eine ÜBERSCHRIFT (\x01-Merkmalskopf) darf nicht als letzter Absatz vor
+    # dem Umbruch stehen (Befund 17.07.2026: 'Betäubender Schlag' stand allein am Boxende,
+    # der gesamte Body erst auf der Fortsetzungsseite) - sie wandert mit in die Fortsetzung.
+    while (naechster > 0 and naechster < len(absaetze)
+           and absaetze[naechster - 1].lstrip().startswith(_FA)):
+        blk = bloecke[naechster - 1]
+        gezeichnet = gezeichnet[: len(gezeichnet) - len(blk)]
+        naechster -= 1
+
     kopf: str | None = None
     if gezeichnet:
         rest_abs = absaetze[naechster:]
-        # Bricht der Fluss MITTEN im Merkmal (vorige Zeile ist keine Leerzeile), braucht die
-        # Fortsetzung einen Kopf, der das Merkmal nennt. Beginnt schon DIESER Text mitten im
-        # Merkmal (Spaltenfluss), traegt `kopf0` den echten Merkmalskopf weiter.
-        if rest_abs and rest_abs[0].strip() and absaetze[naechster - 1].strip():
-            start = _blockstart(absaetze, naechster)
-            if start == 0 and kopf0:
-                kopf = kopf0
-            else:
+        # Beginnt der Rest (erste NICHT-LEERE Zeile - er kann mit der Absatz-Leerzeile
+        # starten) NICHT mit einem neuen Merkmalskopf (\x01-Überschrift), setzt er ein
+        # laufendes Merkmal fort und braucht dessen Kopf: aus der letzten Überschrift
+        # davor; ohne Überschrift davor traegt `kopf0` den Kopf aus der Vorspalte weiter
+        # (Spaltenfluss). Markerlose Texte (z.B. Ausrüstung) fallen auf die alte
+        # Leerzeilen-Blockgrenze zurück - dort IST der Block die sinnvolle Einheit.
+        erste_zeile = next((a for a in rest_abs if a.strip()), "")
+        if erste_zeile and not erste_zeile.lstrip().startswith(_FA):
+            kopf = _merkmalskopf_vor(absaetze, naechster) or kopf0
+            if kopf is None and rest_abs[0].strip() and absaetze[naechster - 1].strip():
+                start = _blockstart(absaetze, naechster)
                 kopf = _fortsetzungskopf(_erster_satz(absaetze[start]))
         rest = "\n".join(rest_abs)
     else:
@@ -386,12 +411,32 @@ def _markiere_subkoepfe(body: str) -> str:
 
 
 def _merkmal_text(m) -> str:
-    """Merkmalskopf FETT vor der Erklärung (D&D-Beyond-Optik), Sub-Features ebenso."""
-    kopf = _text(m.name)
+    """Merkmal in der Struktur des DDB-Originals: der Name ist eine ÜBERSCHRIFT auf eigener
+    Zeile (fett), darunter die Benefits - Beschreibungsabsätze (Sub-Features fett) und
+    zuletzt die Aktionsökonomie-Zeilen ('| Increase two scores (+2 / +1)').
+
+    Vorher klebte alles in EINER Zeile hintereinander ('Nebelwanderer-Attributswerterhöhung*
+    (…) (RtHW 27). [Erhöhe zwei Werte (+2 / +1)]') - die Überschrift war nicht mehr als
+    solche erkennbar und die Benefits verschmolzen mit ihr (David-Befund 17.07.2026,
+    besonders sichtbar bei Merkmalen aus Überschrift + genau EINEM Benefit)."""
     quelle = f" ({m.quelle} {m.seite})" if m.quelle else ""
+    zeilen = [f"{_FA}{_text(m.name)}{quelle}{_FE}"]
     body = _markiere_subkoepfe(_text(m.beschreibung))
-    oek = ("  [" + "; ".join(_text(x) for x in m.aktionsoekonomie) + "]") if m.aktionsoekonomie else ""
-    return f"{_FA}{kopf}{quelle}.{_FE} {body}{oek}".strip()
+    if body:
+        zeilen.append(body)
+    zeilen.extend(f"· {oek}" for oek in
+                  (_oekonomie_zeile(_text(x)) for x in m.aktionsoekonomie) if oek)
+    return "\n".join(zeilen).strip()
+
+
+_ENDE_BULLET = re.compile(r"[\s•·]+$")
+
+
+def _oekonomie_zeile(text: str) -> str:
+    """'Increase two scores (+2 / +1) •' -> '… (+2 / +1)'. Das Bullet am Zeilenende ist ein
+    DDB-Trennzeichen ohne Fortsetzung (die Box endet dort) - als eigene Zeile gerendert
+    stünde es sonst sichtbar und sinnlos am Schluss."""
+    return _ENDE_BULLET.sub("", text or "")
 
 
 _LB = re.compile(r"([\d]+(?:[.,]\d+)?)\s*lb\.?", re.IGNORECASE)
@@ -416,14 +461,36 @@ def _merkmale(charakter, herkunft) -> str:
     return "\n\n".join(_merkmal_text(m) for m in charakter.merkmale if m.herkunft == herkunft)
 
 
+# DDB-Gruppenköpfe (2024-Klassenformat): 'Core <Klasse> Traits' überschreibt die folgenden
+# Kern-Merkmale, '<Klasse> Subclass' die Unterklassen-Merkmale - beide ohne eigenen
+# Erklärtext. In der Vollfassung wirken sie durch den Textfluss als Überschrift; in der
+# flachen Namensliste der Kurzfassung brauchen sie explizite Gliederung (David-Befund).
+_GRUPPENKOPF = re.compile(r"^(Core .+ Traits|.+ Subclass)$")
+
+
+def _ist_gruppenkopf(m) -> bool:
+    return (not (m.beschreibung.en or "").strip()
+            and bool(_GRUPPENKOPF.match((m.name.en or "").strip())))
+
+
 def _merkmale_kurz(charakter, herkunft) -> str:
-    """Wie `_merkmale`, aber NUR die Namen - keine Beschreibung, keine Quelle, kein Fett
-    (Review-Runde 4: platzsparende Kurzfassung, Klassenmerkmale/Spezies-Merkmale/Talente
-    werden nur aufgelistet statt erklärt). Leerzeilen zwischen den Namen (wie bei `_merkmale`)
-    markieren sie als eigene Blöcke, damit ein Seitenumbruch zwischen zwei Namen KEINEN
-    Fortsetzungskopf auslöst (der wäre hier sinnlos - es gibt nichts, das mitten abbricht)."""
-    return "\n\n".join(_text(m.name) for m in charakter.merkmale
-                       if m.herkunft == herkunft and _text(m.name))
+    """Wie `_merkmale`, aber NUR die Namen - keine Beschreibung, keine Quelle
+    (Review-Runde 4: platzsparende Kurzfassung). Gruppenköpfe ('Core Monk Traits',
+    'Monk Subclass') werden fette Zwischenüberschriften, ihre Folge-Merkmale rücken mit
+    '· ' ein - sonst stünde der inhaltsleere Abschnittstitel wie ein normales Merkmal in
+    der Liste (David-Befund 17.07.2026). Leerzeilen zwischen den Namen markieren eigene
+    Blöcke, damit ein Seitenumbruch zwischen zwei Namen keinen Fortsetzungskopf auslöst."""
+    zeilen: list[str] = []
+    eingerueckt = False
+    for m in charakter.merkmale:
+        if m.herkunft != herkunft or not _text(m.name):
+            continue
+        if _ist_gruppenkopf(m):
+            zeilen.append(f"{_FA}{_text(m.name)}{_FE}")
+            eingerueckt = True
+        else:
+            zeilen.append(f"· {_text(m.name)}" if eingerueckt else _text(m.name))
+    return "\n\n".join(zeilen)
 
 
 def _geschichte_text(charakter) -> str:

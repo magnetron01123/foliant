@@ -173,17 +173,47 @@ def _ist_kopf_duplikat(name: str, praefixe: list[str]) -> bool:
     return False
 
 
+# Ein Sub-Feature-Kopf ('Attack Advantage. You have ...', 'Step of the Wind. You can ...'):
+# kurzer Satz, gross beginnend, ohne Satzzeichen im Innern. Nur fuer die Frage relevant, ob
+# eine BOX-GRENZE ein Absatzwechsel war (s. _verbinde_fragmente) - der Extractor sieht immer
+# den englischen DDB-Text, daher englische Stoppwoerter (die deutsche Entsprechung fuer den
+# uebersetzten Text lebt im Renderer, `de_bogen._SUBKOPF`).
+_SUB_KOPF_START = re.compile(r"^[A-Z][^.!?:\n]{1,42}\.\s")
+_SUB_KOPF_STOPP = ("You ", "Your", "The ", "This ", "That ", "If ", "When", "While ", "Once ",
+                   "As ", "At ", "On ", "In ", "To ", "For ", "A ", "An ", "It ", "They ",
+                   "Each ", "Whenever ", "Immediately ", "After ", "Before ", "Choose ")
+_SATZENDE_ZEICHEN = (".", "!", "?")
+
+
+def _ist_absatzwechsel(links: str, rechts: str) -> bool:
+    """Lag die Box-Grenze zwischen zwei ABSAETZEN (statt mitten im Satz)? D&D Beyond fuellt
+    seine 6 FeaturesTraits-Boxen randvoll und schneidet dabei mal mitten im Wort/Satz
+    ('...the target has' + 'the Stunned condition...'), mal exakt an einer Absatzgrenze
+    ('...only once per turn.' + 'Attack Advantage. You have...'). Ohne diese Unterscheidung
+    verschmolz der Join beides zu einer Zeile und die Sub-Feature-Struktur ging genau an den
+    Box-Grenzen verloren (David-Befund 17.07.2026).
+
+    Beleg fuer den Absatzwechsel: links endet auf einem Satzzeichen UND rechts beginnt mit
+    einem Sub-Feature-Kopf. Im Zweifel FALSE -> das bisherige Leerzeichen (nie Text zerreissen).
+    """
+    if not links.rstrip().endswith(_SATZENDE_ZEICHEN):
+        return False
+    r = rechts.lstrip()
+    return bool(_SUB_KOPF_START.match(r)) and not r.startswith(_SUB_KOPF_STOPP)
+
+
 def _verbinde_fragmente(fragmente: list[str]) -> str:
     """Smart-Join: verbindet Box-Fragmente verlustfrei; ein Leerzeichen NUR, wenn zwei
     Nicht-Whitespace-Zeichen aneinanderstossen (D&D Beyond bricht an Wortgrenzen um und
-    verschluckt das Leerzeichen). Fragmentinhalt wird nie veraendert -> jedes Fragment
-    bleibt ein zusammenhaengender Teilstring (verlustfrei, §7.5)."""
+    verschluckt das Leerzeichen) - bzw. ein Absatzumbruch, wenn die Box-Grenze nachweislich
+    zwischen zwei Absaetzen lag (`_ist_absatzwechsel`). Fragmentinhalt wird nie veraendert
+    -> jedes Fragment bleibt ein zusammenhaengender Teilstring (verlustfrei, §7.5)."""
     out = ""
     for f in fragmente:
         if not f:
             continue
         if out and not out[-1].isspace() and not f[0].isspace():
-            out += " "
+            out += "\n\n" if _ist_absatzwechsel(out, f) else " "
         out += f
     return out
 
@@ -324,12 +354,23 @@ def _parse_aktionen(char: Charakter, idx: dict, feldkarte: dict) -> None:
 _FEATURE_KOPF = re.compile(r"^\*\s*(?P<name>.+?)\s*•\s*(?P<quelle>\S+)(?:\s+(?P<seite>\d+))?\s*$")
 
 
+_MEHRFACH_LEERZEILE = re.compile(r"\n{3,}")
+
+
+def _saeubere_beschreibung(text: str) -> str:
+    """Rand-Leerzeilen weg, Absatzabstand auf GENAU eine Leerzeile normieren (DDB streut
+    unterschiedlich viele) - die Absatzgrenzen selbst bleiben erhalten."""
+    return _MEHRFACH_LEERZEILE.sub("\n\n", text).strip()
+
+
 def _parse_merkmale(char: Charakter, idx: dict, feldkarte: dict) -> None:
-    """FeaturesTraits1..6 verbinden (§7.5), dann nach Abschnitten/Feature-Markern zerlegen."""
+    """FeaturesTraits1..6 verbinden (§7.5), dann nach Abschnitten/Feature-Markern zerlegen.
+    Absatzgrenzen (Leerzeilen) bleiben erhalten: sie tragen die Sub-Feature-Struktur."""
     fragmente = [idx[f] for f in feldkarte["rich_felder"]["features"] if f in idx]
     if not fragmente:
         return
     verbunden = _verbinde_fragmente(fragmente)
+    neue: list[Merkmal] = []
     for titel, koerper in _teile_abschnitte(verbunden):
         herkunft = _herkunft_aus_titel(titel)
         aktuell: Merkmal | None = None
@@ -345,11 +386,19 @@ def _parse_merkmale(char: Charakter, idx: dict, feldkarte: dict) -> None:
                     beschreibung=UeText(en="", art="text"),
                 )
                 char.merkmale.append(aktuell)
+                neue.append(aktuell)
             elif aktuell is not None and gestrippt.startswith("|"):
                 aktuell.aktionsoekonomie.append(UeText(en=gestrippt.lstrip("| ").rstrip(), art="text"))
-            elif aktuell is not None and gestrippt:
-                aktuell.beschreibung.en = (aktuell.beschreibung.en + "\n" + zeile).strip("\n") \
+            elif aktuell is not None and (gestrippt or aktuell.beschreibung.en):
+                # LEERZEILEN MITFUEHREN: sie sind die Absatzgrenzen des Originals (jedes
+                # Sub-Feature - 'Punch and Grab.', 'Fast Wrestler.' - ist ein eigener Absatz).
+                # Vorher filterte ein `and gestrippt` sie weg und alle Benefits eines Merkmals
+                # klebten zu einem Fliesstext-Brei zusammen (David-Befund 17.07.2026).
+                # Fuehrende Leerzeilen (zwischen Kopf und Body) faengt das `or` ab.
+                aktuell.beschreibung.en = (aktuell.beschreibung.en + "\n" + zeile) \
                     if aktuell.beschreibung.en else zeile
+    for m in neue:
+        m.beschreibung.en = _saeubere_beschreibung(m.beschreibung.en)
 
 
 def _herkunft_aus_titel(titel: str) -> str | None:

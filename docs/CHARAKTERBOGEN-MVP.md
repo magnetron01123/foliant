@@ -138,6 +138,43 @@ zwei Bögen** in einer ZIP-Datei:
 Am echten Bogen (Sorin Vale) verifiziert: die Kurzfassung braucht keine Fortsetzungsseite mehr
 (2 statt 3 Seiten), alle übrigen Boxen unverändert.
 
+## Merkmal-Struktur wie im DDB-Original (17.07.2026) — umgesetzt
+
+David-Befund: „hier wird die ursprüngliche Struktur nicht mehr eingehalten … das ist die
+Überschrift und darunter fallen Benefits". Der Vergleich mit dem englischen DDB-Original
+(`vorlagen/charakterboegen/ddb-beispiele/`) belegte **drei** Strukturverluste — am
+deutlichsten beim Nebelwanderer, weil dort nur Überschrift + EIN Benefit steht:
+
+| | Original | vorher |
+|---|---|---|
+| Kopf | `* Mist Wanderer Ability Score Increase • RtHW 27` (eigene Zeile) | inline mit dem Body verklebt |
+| Benefit | `   \| Increase two scores (+2 / +1)` (eigene Zeile) | `[Erhöhe zwei Werte (+2 / +1)]` ans Ende geklebt |
+| Sub-Features | eigener Absatz je Benefit | zu einem Fließtext-Brei verschmolzen |
+
+Ursachen und Fixes (alle mit Test):
+
+1. **`ddb_pdf.py::_parse_merkmale`** verwarf Leerzeilen (`elif … and gestrippt:`) — genau die
+   Absatzgrenzen des Originals. Sie werden jetzt mitgeführt, Ränder/Mehrfach-Leerzeilen
+   normiert `_saeubere_beschreibung`. → `test_absatzgrenzen_im_merkmal_bleiben_erhalten`
+2. **`ddb_pdf.py::_verbinde_fragmente`** klebte an JEDER Box-Grenze ein Leerzeichen. DDB füllt
+   seine 6 `FeaturesTraits`-Boxen randvoll und schneidet mal mitten im Satz (`…the target has`
+   + `the Stunned condition…` → Leerzeichen korrekt), mal exakt an einer Absatzgrenze
+   (`…only once per turn.` + `Attack Advantage. You have…` → Absatz!). Neu entscheidet
+   `_ist_absatzwechsel` das anhand von Satzende links + Sub-Feature-Kopf rechts (mit
+   Stoppwortliste, im Zweifel Leerzeichen — nie Text zerreißen). Das räumt auch dem
+   Sprachmodell die Struktur auf, bevor es übersetzt. → `test_smart_join_erkennt_absatzwechsel_an_der_box_grenze`
+3. **`de_bogen.py::_merkmal_text`** baut den Kopf jetzt als eigene fette Zeile, darunter die
+   Beschreibungsabsätze und zuletzt die Aktionsökonomie als `· …`-Zeilen (`_oekonomie_zeile`
+   entfernt DDBs Trenn-Bullet am abgeschnittenen Zeilenende). → `test_merkmalskopf_steht_auf_eigener_zeile`
+
+**Der Gruppenkopf-Filter von vorhin ist damit zurückgenommen**: `Core Monk Traits` steht im
+Original ebenfalls (als Überschrift der folgenden Kern-Merkmale) und ist mit dem
+Zeilenumbruch auch hier als solche lesbar — Wegfiltern war die falsche Antwort auf
+„nicht erkennbar". → `test_leeres_merkmal_bleibt_als_ueberschrift_sichtbar`
+
+Am echten Bogen verifiziert: Der volle Bogen wächst durch die Absätze von 3 auf **4 Seiten**
+(erwartet — genau dafür gibt es die Kurzfassung, die bei 2 Seiten bleibt).
+
 ### `*`-Sterne: nachfragegetriebenes Nachschlagen (16.07.2026)
 
 **Die Korpus-Lücke ist strukturell gelöst.** Ursprünglicher Befund: Auf der Mac-DB trugen

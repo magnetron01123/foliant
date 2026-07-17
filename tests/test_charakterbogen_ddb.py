@@ -317,6 +317,47 @@ def test_smart_join_regeln():
     assert "abc" in j and "def" in j and "ghi" in j
 
 
+def test_smart_join_erkennt_absatzwechsel_an_der_box_grenze():
+    """DDB schneidet seine 6 Boxen mal mitten im Satz, mal exakt an einer Absatzgrenze.
+    Echte Faelle aus dem Sorin-Vale-Export (17.07.2026)."""
+    # ABSATZ: Satzende + Sub-Feature-Kopf -> Leerzeile (sonst verschmelzen die Benefits)
+    assert _verbinde_fragmente(
+        ["You can use this benefit only once per turn.",
+         "Attack Advantage. You have Advantage on attack rolls."]
+    ) == ("You can use this benefit only once per turn.\n\n"
+          "Attack Advantage. You have Advantage on attack rolls.")
+    # MITTEN IM SATZ: kleiner Anfangsbuchstabe -> weiterhin nur ein Leerzeichen
+    assert _verbinde_fragmente(["On a failed save, the target has",
+                                "the Stunned condition until"]) == \
+        "On a failed save, the target has the Stunned condition until"
+    # Satzende, aber KEIN Sub-Kopf (Stoppwort 'You ') -> kein Absatz erfunden
+    assert _verbinde_fragmente(["You take the Attack action.",
+                                "You can attack twice instead of once."]) == \
+        "You take the Attack action. You can attack twice instead of once."
+    # Kein Satzende links ('•') -> kein Absatz
+    assert _verbinde_fragmente(["Lengthened Strike: 3 / Long Rest •", "Special"]) == \
+        "Lengthened Strike: 3 / Long Rest • Special"
+
+
+def test_absatzgrenzen_im_merkmal_bleiben_erhalten():
+    """Leerzeilen zwischen den Benefits eines Merkmals sind die Struktur des Originals -
+    sie wurden vorher weggefiltert und alle Benefits klebten zusammen."""
+    from app.charakterbogen.ddb_pdf import _parse_merkmale
+    from app.charakterbogen.modelle import Charakter
+
+    c = Charakter()
+    idx = {"FeaturesTraits1": (
+        "=== FEATS === \n\n* Grappler • PHB-2024 204 \n"
+        "Ability Score Increase. Increase your Str. by 1. \n\n"
+        "Punch and Grab. On your turn, you can grab. \n"
+    )}
+    _parse_merkmale(c, idx, {"rich_felder": {"features": ["FeaturesTraits1"]}})
+    assert len(c.merkmale) == 1
+    body = c.merkmale[0].beschreibung.en
+    assert "\n\nPunch and Grab." in body, repr(body)
+    assert not body.startswith("\n") and not body.endswith("\n")   # Raender sauber
+
+
 def test_zaubermodifikator_wird_abgeleitet():
     """Zaubermodifikator = Attributsmodifikator des Zauberattributs (reine Querreferenz
     innerhalb desselben Bogens); unbekanntes Attribut -> nichts raten."""
