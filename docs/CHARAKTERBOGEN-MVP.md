@@ -40,8 +40,8 @@ Würfel und Modifikatoren laufen NIE durch das Sprachmodell.
 | `feldkarten/code_map.json` | Feste Kürzel (`1A`→`1 Aktion`, `STÄ/GES…`, Münzen). |
 | `terminologie.py` | Löst feste Begriffe **in-process über `app.glossar`** auf (kein zweites Glossar) → §5-Form `Deutsch (English)` / `Deutsch* (English)`. |
 | `uebersetzer.py` | Provider-Vertrag + Anthropic-Adapter (httpx) + Fake. Feldweise Übersetzung, EIN gebündelter Aufruf, Übersetzungsgedächtnis, JSON-Vertrag mit 1× Retry. |
-| `de_bogen.py` | **Renderer** (fitz-Overlay): zeichnet Werte auf eine Kopie der DE-Vorlage, Auto-Fit, Fortsetzungsseiten bei Überlauf, Kalibrier-Modus. |
-| `web.py` | Schmale Starlette-App: `GET /` (Upload), `POST /bogen` (Konvertierung), `GET /health`. Sicherheitsgrenzen, Ein-Konvertierung-Semaphore, keine Persistenz, `no-store`/CSP. |
+| `de_bogen.py` | **Renderer** (fitz-Overlay): zeichnet Werte auf eine Kopie der DE-Vorlage, Auto-Fit, Fortsetzungsseiten bei Überlauf, Kalibrier-Modus. `kurzfassung=True` listet Klassenmerkmale/Spezies-Merkmale/Talente nur namentlich (kein Erklärtext, nicht fett). |
+| `web.py` | Schmale Starlette-App: `GET /` (Upload), `POST /bogen` (Konvertierung, liefert IMMER ein ZIP mit vollständigem Bogen + Kurzfassung), `GET /health`. Sicherheitsgrenzen, Ein-Konvertierung-Semaphore, keine Persistenz, `no-store`/CSP. |
 | `templates/`, `static/` | Einspaltige Upload-Karte im Bogen-Stil (keine externen Fonts/CDNs). |
 
 ## Regel §5 (die einzige Übersetzungsregel)
@@ -117,6 +117,26 @@ Aus dem E2E-Befundbericht (`docs/CHARAKTERBOGEN-BEFUNDBERICHT-2026-07-16.md`):
 aber nicht gerendert — Entscheidung 16.07.2026): passive Einsicht/Untersuchung (aus den
 Fertigkeiten ableitbar), Zauber-Herkunft/Seitenreferenzen, der statische ACTIONS/BONUS-
 ACTIONS-Block (Regel-Boilerplate; Bonusaktions-Infos stehen in den Merkmalen), Spielername.
+
+## Kurzfassung ohne Merkmalstexte (17.07.2026) — umgesetzt
+
+David-Wunsch: Klassenmerkmale, Spezies-Merkmale und Talente sind auf dem vollständigen Bogen oft
+das, was zuerst auf Fortsetzungsseiten überläuft. `POST /bogen` liefert deshalb jetzt **immer
+zwei Bögen** in einer ZIP-Datei:
+
+- **Vollständig** (`<name>-deutsch.pdf`) - unverändert, mit allen Erklärtexten.
+- **Kurzfassung** (`<name>-deutsch-kurzfassung.pdf`) - Klassenmerkmale/Spezies-Merkmale/Talente
+  erscheinen nur als **Namensliste**, ohne Beschreibung, ohne Quellenangabe, **nicht fett**
+  (fett gäbe es hier nichts abzusetzen). Alle anderen Boxen (Attribute, Fertigkeiten,
+  Ausrüstung, Zauber, Geschichte …) und die Übersetzung selbst sind in beiden Fassungen
+  identisch - nur EIN Übersetzungslauf pro Upload, zweimal gerendert.
+
+`rendere(charakter, kurzfassung=True)` (`app/charakterbogen/de_bogen.py`, neue Funktion
+`_merkmale_kurz`); `web.py::_konvertiere` rendert beide Varianten und packt sie in ein
+`zipfile.ZipFile`. Tests: `test_kurzfassung_*` (`tests/test_charakterbogen_pdf.py`),
+`test_gueltiger_ddb_export_liefert_zip_mit_zwei_pdfs` (`tests/test_charakterbogen_web.py`).
+Am echten Bogen (Sorin Vale) verifiziert: die Kurzfassung braucht keine Fortsetzungsseite mehr
+(2 statt 3 Seiten), alle übrigen Boxen unverändert.
 
 ### `*`-Sterne: nachfragegetriebenes Nachschlagen (16.07.2026)
 

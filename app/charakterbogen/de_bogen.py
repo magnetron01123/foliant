@@ -416,6 +416,16 @@ def _merkmale(charakter, herkunft) -> str:
     return "\n\n".join(_merkmal_text(m) for m in charakter.merkmale if m.herkunft == herkunft)
 
 
+def _merkmale_kurz(charakter, herkunft) -> str:
+    """Wie `_merkmale`, aber NUR die Namen - keine Beschreibung, keine Quelle, kein Fett
+    (Review-Runde 4: platzsparende Kurzfassung, Klassenmerkmale/Spezies-Merkmale/Talente
+    werden nur aufgelistet statt erklärt). Leerzeilen zwischen den Namen (wie bei `_merkmale`)
+    markieren sie als eigene Blöcke, damit ein Seitenumbruch zwischen zwei Namen KEINEN
+    Fortsetzungskopf auslöst (der wäre hier sinnlos - es gibt nichts, das mitten abbricht)."""
+    return "\n\n".join(_text(m.name) for m in charakter.merkmale
+                       if m.herkunft == herkunft and _text(m.name))
+
+
 def _geschichte_text(charakter) -> str:
     p = charakter.persoenlichkeit
     teile = [("Persönlichkeitsmerkmale", p.wesenszuege), ("Ideale", p.ideale),
@@ -445,11 +455,12 @@ def _ausruestung_text(charakter) -> str:
     return "\n".join(zeilen)
 
 
-def _grossbox_texte(charakter) -> dict[str, str]:
+def _grossbox_texte(charakter, kurz: bool = False) -> dict[str, str]:
+    merkmale = _merkmale_kurz if kurz else _merkmale
     return {
-        "klassenmerkmale": _merkmale(charakter, "klasse"),
-        "spezies_merkmale": _merkmale(charakter, "spezies"),
-        "talente": _merkmale(charakter, "talent"),
+        "klassenmerkmale": merkmale(charakter, "klasse"),
+        "spezies_merkmale": merkmale(charakter, "spezies"),
+        "talente": merkmale(charakter, "talent"),
         "aussehen": _text(charakter.persoenlichkeit.aussehen),
         "geschichte": _geschichte_text(charakter),
         "sprachen": _ue_liste(charakter.uebungen.sprachen),
@@ -677,8 +688,11 @@ def _stern_fussnote(doc, ink) -> None:
 
 def rendere(charakter: Charakter, template_pfad: Path | None = None,
             layout: dict | None = None, codemap: dict | None = None,
-            kalibrierung: bool = False) -> bytes:
-    """Rendert `charakter` auf die DE-Vorlage und gibt das fertige PDF als Bytes zurück."""
+            kalibrierung: bool = False, kurzfassung: bool = False) -> bytes:
+    """Rendert `charakter` auf die DE-Vorlage und gibt das fertige PDF als Bytes zurück.
+    `kurzfassung=True`: Klassenmerkmale/Spezies-Merkmale/Talente werden nur mit Namen
+    aufgelistet statt erklärt (spart Platz/Fortsetzungsseiten) - der Rest des Bogens
+    (Attribute, Fertigkeiten, Ausrüstung, Zauber, Übersetzung) ist unverändert."""
     layout = layout or lade_layout()
     codemap = codemap or lade_codemap()
     vorlage_pfad = template_pfad or _TEMPLATE_STD
@@ -734,7 +748,7 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
                 _marke(p, spec["prof"], ink)
 
         # 4) Grossboxen (Überlauf-Sammlung je Quellseite)
-        texte = _grossbox_texte(charakter)
+        texte = _grossbox_texte(charakter, kurz=kurzfassung)
         reste: dict[int, list[tuple[dict, str]]] = {}
         for key, spec in layout["grossbox"].items():
             text = texte.get(key, "")

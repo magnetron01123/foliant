@@ -448,3 +448,59 @@ def test_fortsetzungs_kopie_traegt_charakternamen():
     doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
     assert doc.page_count > 2
     assert "Sorin Vale" in doc[1].get_text()   # Kopie direkt hinter Seite 1
+
+
+# --- Review-Runde 4 (17.07.2026): Kurzfassung (nur Merkmal-Namen) -------------
+
+def _charakter_mit_merkmalen() -> Charakter:
+    # Einwort-Marker statt Mehrwort-Phrasen: get_text() bricht Zeilen mit '\n' um, eine
+    # Mehrwort-Phrase kann dabei ueber zwei Zeilen zerrissen werden (falsches Testsignal).
+    c = _mini_charakter()
+    c.merkmale = [
+        Merkmal(name=UeText(en="Martial Arts"), quelle="PHB-2024", seite="101",
+               beschreibung=UeText(en="Erklaerungstext KLASSENMARKIERUNG."), herkunft="klasse"),
+        Merkmal(name=UeText(en="Darkvision"), quelle="PHB-2024", seite="194",
+               beschreibung=UeText(en="Erklaerungstext SPEZIESMARKIERUNG."), herkunft="spezies"),
+        Merkmal(name=UeText(en="Grappler"), quelle="PHB-2024", seite="204",
+               beschreibung=UeText(en="Erklaerungstext TALENTMARKIERUNG."), herkunft="talent"),
+    ]
+    return c
+
+
+def test_kurzfassung_listet_nur_namen_ohne_erklaerung():
+    c = _charakter_mit_merkmalen()
+    voll = _text_von(_rendere_synth(c))
+    kurz = _text_von(_rendere_synth(c, kurzfassung=True))
+    for name in ("Martial Arts", "Darkvision", "Grappler"):
+        assert name in voll and name in kurz
+    for marker in ("KLASSENMARKIERUNG", "SPEZIESMARKIERUNG", "TALENTMARKIERUNG"):
+        assert marker in voll
+        assert marker not in kurz
+
+
+def test_kurzfassung_namen_nicht_fett():
+    """Volle Fassung: Merkmalskopf ist fett. Kurzfassung: reiner Listeneintrag, nicht fett -
+    es gibt nichts mehr, wovon sich der Name fett absetzen müsste."""
+    c = _charakter_mit_merkmalen()
+
+    def _fette_texte(pdf: bytes) -> list[str]:
+        doc = fitz.open(stream=pdf, filetype="pdf")
+        spans = [s for i in range(doc.page_count) for b in doc[i].get_text("dict")["blocks"]
+                for l in b.get("lines", []) for s in l.get("spans", [])]
+        return [s["text"] for s in spans if "Bold" in s["font"]]
+
+    fette_voll = _fette_texte(_rendere_synth(c))
+    fette_kurz = _fette_texte(_rendere_synth(c, kurzfassung=True))
+    assert any("Martial Arts" in t for t in fette_voll), fette_voll
+    assert not any("Martial Arts" in t for t in fette_kurz), fette_kurz
+
+
+def test_kurzfassung_veraendert_uebrige_boxen_nicht():
+    """Nur Klassenmerkmale/Spezies-Merkmale/Talente werden gekürzt - Ausrüstung, Geschichte,
+    Sprachen usw. bleiben unveraendert (KONZEPT: die Übersetzung bleibt wie gehabt)."""
+    c = _mini_charakter()
+    c.ausruestung.gegenstaende.append(Gegenstand(name=UeText(en="Rope"), menge="1", gewicht="5 lb."))
+    voll = _text_von(_rendere_synth(c))
+    kurz = _text_von(_rendere_synth(c, kurzfassung=True))
+    for erwartet in ("Rope", "2,3 kg", "Sorin Vale", "Darkness"):
+        assert erwartet in voll and erwartet in kurz
