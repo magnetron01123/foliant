@@ -37,9 +37,30 @@ from app.charakterbogen.uebersetzer import (
 )
 
 _HIER = Path(__file__).parent
-_INDEX = (_HIER / "templates" / "index.html").read_text(encoding="utf-8")
-_ANMELDUNG = (_HIER / "templates" / "anmeldung.html").read_text(encoding="utf-8")
 _STATIC = _HIER / "static"
+
+
+def _mit_versionsstempel(html: str) -> str:
+    """Haengt den Inhalts-Hash an die statischen Verweise (site.css/site.js).
+
+    Ohne das liefert der Browser - und vor allem Cloudflares Edge-Cache - nach
+    einem Deploy weiter die ALTE Datei aus: die Seite sieht dann unveraendert
+    aus, obwohl der Server laengst den neuen Stand hat. Der Stempel aendert sich
+    nur, wenn sich die Datei aendert, und macht den Cache damit selbstheilend.
+    """
+    for name in ("site.css", "site.js"):
+        datei = _STATIC / name
+        if not datei.exists():
+            continue
+        stempel = hashlib.sha256(datei.read_bytes()).hexdigest()[:8]
+        html = html.replace(f"static/{name}", f"static/{name}?v={stempel}")
+    return html
+
+
+_INDEX = _mit_versionsstempel(
+    (_HIER / "templates" / "index.html").read_text(encoding="utf-8"))
+_ANMELDUNG = _mit_versionsstempel(
+    (_HIER / "templates" / "anmeldung.html").read_text(encoding="utf-8"))
 
 MAX_BYTES = 15 * 1024 * 1024        # §7.1: Standard 15 MB
 MAX_SEITEN = 50
