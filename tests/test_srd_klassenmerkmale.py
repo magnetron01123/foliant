@@ -275,8 +275,12 @@ def test_spezies_subfeatures_ohne_reihenfolge_annahme():
                 "('Keen Senses', 'Scharfe Sinne', 1), ('Fey Ancestry', 'Feenblut', 1)")
     elf_de = ("*Kontext: Spezies*\n\n**_Dunkelsicht:_** X. **_Elfische Abstammung:_** X. "
               "**_Feenblut:_** X. **_Scharfe Sinne:_** X. **_Trance:_** X.")
-    elf_en = ("*Kontext: Species*\n\n***Darkvision.*** X. ***Elven Lineage.*** X. "
-              "***Fey Ancestry.*** X. ***Keen Senses.*** X. ***Trance.*** X.")
+    # DDB chunkt Intro und Merkmale getrennt: die ***Sub.***-Koepfe stehen im
+    # SEPARATEN '<Name> Traits'-Eintrag, der Haupteintrag ist nur Fluff.
+    elf_en_intro = "*Kontext: Species*\n\nElves are magical people."
+    elf_en_traits = ("*Kontext: Species > Elf*\n\n***Darkvision.*** X. "
+                     "***Elven Lineage.*** X. ***Fey Ancestry.*** X. "
+                     "***Keen Senses.*** X. ***Trance.*** X.")
     # Zwerg: nur Dunkelsicht belegt; die drei uebrigen sind je Sprache anders sortiert.
     zwerg_de = ("*Kontext: Spezies*\n\n**_Dunkelsicht:_** X. **_Steingespür:_** X. "
                 "**_Zwergische Unverwüstlichkeit:_** X. **_Zwergische Zähigkeit:_** X.")
@@ -285,7 +289,8 @@ def test_spezies_subfeatures_ohne_reihenfolge_annahme():
     con.execute("INSERT INTO eintraege (quelle_id, kategorie, name_de, body_md) VALUES "
                 "(1, 'spezies', 'Elf', ?), (1, 'spezies', 'Zwerg', ?)", (elf_de, zwerg_de))
     con.execute("INSERT INTO eintraege (quelle_id, kategorie, name_en, body_md) VALUES "
-                "(2, 'spezies', 'Elf', ?), (2, 'spezies', 'Dwarf', ?)", (elf_en, zwerg_en))
+                "(2, 'spezies', 'Elf', ?), (2, 'spezies', 'Elf Traits', ?), "
+                "(2, 'spezies', 'Dwarf', ?)", (elf_en_intro, elf_en_traits, zwerg_en))
     g._GLOSSAR_CACHE.clear()
     try:
         paare, report = finde_container_sub_paare(con, "spezies")

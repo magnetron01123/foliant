@@ -246,6 +246,19 @@ Aus dem Kreuz-Audit (deutscher Bogen ↔ DDB-Original) und den 22 User-Tests:
    DEUTSCH um (Zwerg: „Steingespür" Pos. 2 ↔ „Stonecunning" Pos. 4 → Unbelegtes wird
    ehrlich verworfen statt positionsgeraten).
 
+**Pi-Nachschärfungen beim Deploy (18.07.2026)** — drei Punkte, die nur am vollen Bestand
+sichtbar wurden: (a) DDB chunkt Spezies als Intro + separatem `<Name> Traits`-Eintrag —
+der EN-Body wird jetzt aus beiden zusammengesetzt, sonst blieben alle Spezies-Subs
+ungepaart. (b) Sub-Features sind KEINE Eintragsnamen und wurden vom dnddeutsch-Vollseeding
+nie angefragt — `en_subnamen()` schickt sie jetzt gezielt durchs Seeding (Cache-gestützt),
+erst damit greift die belegte-Paare-Stufe (Feenblut, Steingespür, Zwergische Zähigkeit …).
+(c) Der Unterabschnitts-Fallback bekam eine **Nachsuche nur in der Ziel-Edition**
+(`_unterabschnitts_nachsuche`): auf dem vollen Bestand verdrängten der wörtliche
+2014-Treffer „Rage" + FTS-Rauschen den srd-de-Sammel-Eintrag aus den Top-6 — lokal (ohne
+2014-Quelle) war der Fallback grün, live nicht. **Endstand: 214 offizielle Paare**;
+`hol_klasse("Rage")` liefert live die deutsche 2024-Fassung mit `hinweis_unterabschnitt`,
+`pruefe_build(Schurke, 3, Dieb)` prüft die Unterklassen-Stufe mit Beleg (S. 78).
+
 ### `*`-Sterne: nachfragegetriebenes Nachschlagen (16.07.2026)
 
 **Die Korpus-Lücke ist strukturell gelöst.** Ursprünglicher Befund: Auf der Mac-DB trugen

@@ -230,6 +230,19 @@ def _sub_paare_ohne_reihenfolge(con: sqlite3.Connection, subs_de: list[str],
     return paare
 
 
+def en_subnamen(con: sqlite3.Connection, kategorie: str) -> list[str]:
+    """Alle englischen Sub-Feature-Namen der Kategorie (aus den ddb-br-Bodies, inkl. der
+    '<Name> Traits'-Eintraege) - Futter fuer das dnddeutsch-Seeding: das Vollseeding fragt
+    nur EINTRAGSNAMEN ab, Sub-Features ('Fey Ancestry') wurden deshalb nie nachgeschlagen
+    und blieben unbelegt (Befund 18.07.2026: fast alle Spezies-Subs wurden verworfen)."""
+    rows = con.execute(
+        "SELECT e.body_md FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+        "WHERE q.kuerzel = 'ddb-br-2024-en' AND e.kategorie = ? AND e.edition = '2024'",
+        (kategorie,)).fetchall()
+    namen = {s.strip() for (body,) in rows for s in _EN_SUB.findall(body or "")}
+    return sorted(n for n in namen if n)
+
+
 def finde_container_sub_paare(con: sqlite3.Connection,
                               kategorie: str) -> tuple[list[tuple[str, str]], list[str]]:
     """Sub-Feature-Paare fuer SPEZIES- und TALENT-Eintraege: der Container (Elf<->Elf,
@@ -254,9 +267,14 @@ def finde_container_sub_paare(con: sqlite3.Connection,
             continue
         kandidaten = [z["term_en"] for z in glossar.lookup(con, name_de, richtung="de_en")
                       if z["match"] == "exakt" and z["offiziell"]]
-        body_en = next((en_nach_name[k] for k in kandidaten if k in en_nach_name), None)
-        if body_en is None:
+        name_en = next((k for k in kandidaten if k in en_nach_name), None)
+        if name_en is None:
             continue                     # kein EN-Gegenstueck im Bestand - keine Aussage
+        # DDB chunkt Intro und Merkmale getrennt ('Elf' + 'Elf Traits') - die
+        # ***Sub.***-Koepfe stehen im Traits-Eintrag (Befund 18.07.2026: die Spezies-Subs
+        # blieben sonst komplett ungepaart, weil der Haupteintrag nur Fluff enthaelt).
+        body_en = "\n\n".join(b for b in (en_nach_name.get(name_en),
+                                          en_nach_name.get(f"{name_en} Traits")) if b)
         subs_en = _EN_SUB.findall(body_en)
         gepaart = _sub_paare_ohne_reihenfolge(con, subs_de, subs_en)
         paare.extend(gepaart)

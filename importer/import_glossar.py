@@ -457,7 +457,7 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
     dnddeutsch-Seeding laufen. Auf einer DB ohne ddb-br-2024-en (Mac-Subset) findet der
     Abgleich schlicht nichts - harmlos, der Pi-Lauf traegt die Paare."""
     from app import glossar as _glossar
-    from importer.srd_klassenmerkmale import (QUELLE, apostroph_varianten,
+    from importer.srd_klassenmerkmale import (QUELLE, apostroph_varianten, en_subnamen,
                                               finde_container_sub_paare, finde_paare)
     # LIKE-Praefix: kanonisiere_konflikte haengt an demotete Zeilen ein '(demotet: ...)'
     # an die Quelle - ein exakter Vergleich liesse solche Alt-Zeilen als Zombies stehen
@@ -467,6 +467,13 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
     # Alt-Zeilen noch als 'belegt' (und ein Re-Lauf wuerde alte Fehlpaare fortschreiben).
     _glossar._GLOSSAR_CACHE.clear()
     paare, report = finde_paare(con)
+    # Spezies-/Talent-Sub-Features ('Fey Ancestry') sind KEINE Eintragsnamen - das
+    # Vollseeding hat sie nie bei dnddeutsch angefragt. Hier gezielt nachholen (Cache
+    # macht Re-Runs offline), damit die belegte-Paare-Stufe der Container-Paarung greift.
+    subnamen = sorted({s for kat in ("spezies", "talent") for s in en_subnamen(con, kat)})
+    if subnamen:
+        seed_glossar(con, subnamen)
+        _glossar._GLOSSAR_CACHE.clear()
     for kategorie in ("spezies", "talent"):
         p2, r2 = finde_container_sub_paare(con, kategorie)
         paare += [p for p in p2 if p not in paare]

@@ -512,6 +512,24 @@ _SUB_UEBERSCHRIFTEN = (
 )
 
 
+def _unterabschnitts_nachsuche(con: sqlite3.Connection, kategorie: str,
+                               varianten: set[str], edition: str) -> list[dict]:
+    """Zusatz-Kandidaten fuer den Unterabschnitts-Check: eine gezielte FTS-Suche NUR in
+    der Ziel-Edition. Noetig, weil die editionsuebergreifende Top-6-Liste auf dem vollen
+    Bestand von woertlichen Alt-Treffern dominiert wird (Pi-Befund 18.07.2026: der
+    2014-Eintrag 'Rage' + Rauschen verdraengten 'Klassenmerkmale des Barbaren' - lokal,
+    ohne 2014-Quelle, war derselbe Eintrag sichtbar und der Fallback griff)."""
+    gesehen: set[int] = set()
+    extra: list[dict] = []
+    for begriff in sorted(varianten):
+        for k in _db.fts_suche(con, begriff, kategorie=kategorie, edition=edition,
+                               limit=8)["treffer"]:
+            if k["id"] not in gesehen:
+                gesehen.add(k["id"])
+                extra.append(k)
+    return extra
+
+
 def _unterabschnitts_treffer(con: sqlite3.Connection, kandidaten: list[dict],
                              varianten: set[str], edition: str) -> tuple[dict, str] | None:
     """Findet unter den FTS-Kandidaten der ZIEL-Edition einen Eintrag, der den gesuchten
@@ -653,7 +671,11 @@ def _hole_detail(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
                 weitere_abschnitte = [_knapp(k) for _v, k in voll_paare[1:]]
             else:
                 gewaehlt = kopf
-        elif (sub := _unterabschnitts_treffer(con, kandidaten, varianten, edition)):
+        elif (sub := (_unterabschnitts_treffer(con, kandidaten, varianten, edition)
+                      or _unterabschnitts_treffer(
+                          con, _unterabschnitts_nachsuche(con, kategorie, varianten,
+                                                          edition),
+                          varianten, edition))):
             # Der Begriff existiert in der ZIEL-Edition als Abschnitts-Ueberschrift eines
             # Sammel-Eintrags (srd-de-Chunking) - das schlaegt den Rueckfall auf aeltere/
             # fremdsprachige Fassungen: die aktuelle deutsche Antwort ist ja im Bestand.
