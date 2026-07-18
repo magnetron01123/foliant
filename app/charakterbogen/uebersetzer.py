@@ -20,6 +20,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import os
+import re
 import sqlite3
 from typing import Protocol
 
@@ -63,11 +64,10 @@ def _alle_uetexte(obj, out: list[UeText]) -> None:
 
 
 def _anwenden(ue: UeText, en: str, de_roh: str) -> str:
-    """LLM-Ergebnis in die §5-Endform bringen."""
+    """LLM-Ergebnis in die §5-Endform bringen (Listen kommen hier nie an - sie werden
+    deterministisch über `_liste_deterministisch` gebildet)."""
     if ue.art == "term":
         return terminologie.markiere_fallback(en, de_roh)   # "de* (en)"
-    if ue.art == "liste":
-        return f"{de_roh} ({en})"                            # §5 auf Listenebene, kein per-Item-*
     return de_roh                                            # freier Text unverändert
 
 
@@ -102,6 +102,35 @@ def _glossar_vorgaben(con: sqlite3.Connection, texte: list[str],
 
 def _listen_items(s: str) -> list[str]:
     return [t.strip() for t in (s or "").split(",") if t.strip()]
+
+
+def _liste_deterministisch(con: sqlite3.Connection, en: str, nachschlager,
+                           vorgaben: dict[str, str]) -> str:
+    """Listen (Waffen-/Werkzeug-/Sprachlisten) KOMPLETT ohne Sprachmodell: jedes Item
+    einzeln ueber Glossar bzw. Nachschlager aufloesen; Unbelegtes bleibt unveraendert
+    englisch. Der Komma-Split ist sicher, weil invertierte SRD-Namen ('Crossbow, Hand')
+    schon im Extractor normalisiert wurden. Grund (Befund 17.07.2026): das LLM uebersetzte
+    unbelegte Eigennamen ('Wargong') bei jedem Lauf anders ('Kriegsgong'/'Trommel'/
+    unveraendert) - deterministisch heisst hier: belegte Items IMMER amtlich, unbelegte
+    IMMER original. §5 bleibt auf Listenebene gewahrt ('de1, de2, en3 (en1, en2, en3)');
+    ist KEIN Item belegt, bleibt die Liste ehrlich englisch ohne redundante Klammer."""
+    items = _listen_items(en)
+    des: list[str] = []
+    uebersetzt = False
+    for item in items:
+        aufl = terminologie.aufloesen(con, item)
+        if aufl is None and nachschlager is not None:
+            aufl = nachschlager(con, item)
+        if aufl is not None:
+            de_item = _de_klar(aufl)
+            vorgaben.setdefault(item, de_item)      # Konsistenz im Fliesstext (Stufe 2)
+            des.append(de_item)
+            uebersetzt = True
+        else:
+            des.append(item)
+    if not uebersetzt:
+        return en
+    return f"{', '.join(des)} ({en})"
 
 
 class DnddeutschNachschlager:
@@ -157,6 +186,40 @@ class DnddeutschNachschlager:
         return glossar.markiere(best.term_de, begriff, bool(best.offiziell))
 
 
+_MEHRKLASSEN_TEIL = re.compile(r"\s*([^\d/]+?)\s+(\d+)\s*$")
+
+
+def _mehrklassen_aufbereiten(charakter: Charakter, con: sqlite3.Connection) -> None:
+    """Mehrklassig ('Fighter 3 / Wizard 2'): Der Extractor laesst klasse/stufe bewusst
+    leer (nicht eindeutig einklassig, §7.4) - auf dem Bogen standen dadurch STUMM leere
+    Felder, was wie ein Konvertierungsfehler aussah (Befund 17.07.2026). Deterministische
+    Aufbereitung OHNE Raten: jede Teil-Klasse nur bei EXAKTEM Glossar-Treffer uebersetzt
+    (sonst bleibt sie englisch), die Charakterstufe ist regeldefiniert die SUMME der
+    Klassenstufen (srd-de 'Klassenkombinationen', S. 28)."""
+    ident = charakter.identitaet
+    roh = (ident.klasse_stufe_roh or "").strip()
+    if ident.klasse is not None or not roh or "/" not in roh:
+        return
+    teile = [_MEHRKLASSEN_TEIL.fullmatch(t) for t in roh.split("/")]
+    if not all(teile):
+        return                                       # unbekanntes Format - nichts raten
+    namen_de: list[str] = []
+    uebersetzt = False
+    summe = 0
+    for m in teile:
+        en, stufe = m.group(1).strip(), int(m.group(2))
+        summe += stufe
+        aufl = terminologie.aufloesen(con, en)
+        if aufl is not None:
+            namen_de.append(f"{_de_klar(aufl)} {stufe}")
+            uebersetzt = True
+        else:
+            namen_de.append(f"{en} {stufe}")
+    anzeige = " / ".join(namen_de)
+    ident.mehrklassen_anzeige = f"{anzeige} ({roh})" if uebersetzt else roh
+    ident.stufe = summe
+
+
 def uebersetze(charakter: Charakter, con: sqlite3.Connection,
                provider: Uebersetzungsprovider,
                nachschlager=None) -> Charakter:
@@ -195,6 +258,11 @@ def uebersetze(charakter: Charakter, con: sqlite3.Connection,
                 continue                            # hieß in Tabelle "Magierhand", in Merkmal "Zauberhand")
             begriffe.setdefault(en, []).append(ue)
             continue
+        if ue.art == "liste":
+            # Listen KOMPLETT deterministisch - item-weise Glossar/Nachschlager, nie LLM
+            # (Befund 17.07.2026: 'Wargong' hiess sonst bei jedem Lauf anders).
+            ue.de = _liste_deterministisch(con, en, nachschlager, vorgaben)
+            continue
         texte.setdefault(en, []).append(ue)
 
     # Stufe 0: nachfragegetriebenes Nachschlagen (dnddeutsch) - Treffer sind BELEGT
@@ -221,32 +289,27 @@ def uebersetze(charakter: Charakter, con: sqlite3.Connection,
                 ue.de = terminologie.markiere_fallback(en, de)
             vorgaben[en] = _de_klar(de)
 
-    # Stufe 2: Fließtexte/Listen - mit allen Namen aus Glossar + Stufe 1 als Vorgabe
+    # Stufe 2: Fließtexte - mit allen Namen aus Glossar + Stufe 1 + Listen als Vorgabe
+    # (Listen selbst laufen seit 17.07.2026 deterministisch, nie durchs Modell).
     if texte:
         eindeutig = list(texte.keys())
         _glossar_vorgaben(con, eindeutig, vorgaben)
         ids = {str(i): en for i, en in enumerate(eindeutig)}
-        listen_ids = {str(i) for i, en in enumerate(eindeutig)
-                      if any(ue.art == "liste" for ue in texte[en])}
-        ergebnis, kaputte = _mit_wiederholung(provider, ids, vorgaben, listen_ids)
+        ergebnis, _ = _mit_wiederholung(provider, ids, vorgaben)
         for i, en in enumerate(eindeutig):
-            k = str(i)
             for ue in texte[en]:
-                if k in kaputte and ue.art == "liste":
-                    ue.de = en          # Item-Anzahl weicht auch nach Retry ab -> ehrlich
-                else:                   # englisch lassen statt erfundene Einträge rendern
-                    ue.de = _anwenden(ue, en, ergebnis[k])
+                ue.de = _anwenden(ue, en, ergebnis[str(i)])
+
+    _mehrklassen_aufbereiten(charakter, con)
     return charakter
 
 
 def _mit_wiederholung(provider: Uebersetzungsprovider, ids: dict[str, str],
                       vorgaben: dict[str, str] | None = None,
-                      listen_ids: frozenset[str] | set[str] = frozenset(),
                       ) -> tuple[dict[str, str], set[str]]:
     """Ein gebündelter Aufruf; bei ungültigem/unvollständigem Ergebnis genau EINMAL erneut,
-    danach kontrolliert scheitern (AUFTRAG §8.3). Listenfelder (art='liste') müssen dieselbe
-    Item-Anzahl behalten (Befund 16.07.2026: 'Crossbow, Hand' wurde zu ZWEI Waffen) - eine
-    Abweichung erzwingt den Retry; bleibt sie, meldet die Rückgabe die betroffenen ids."""
+    danach kontrolliert scheitern (AUFTRAG §8.3). (Der frühere Listen-Anzahl-Guard ist
+    obsolet: Listen laufen seit 17.07.2026 gar nicht mehr durchs Sprachmodell.)"""
     letzter: Exception | None = None
     for versuch in range(2):
         try:
@@ -255,12 +318,7 @@ def _mit_wiederholung(provider: Uebersetzungsprovider, ids: dict[str, str],
         except Exception as e:  # noqa: BLE001 - Provider-/Format-Fehler bewusst gefangen
             letzter = e
             continue
-        kaputte = {k for k in listen_ids
-                   if len(_listen_items(ergebnis[k])) != len(_listen_items(ids[k]))}
-        if kaputte and versuch == 0:
-            letzter = UebersetzungsFehler(f"Listen-Item-Anzahl abweichend: {sorted(kaputte)}")
-            continue
-        return ergebnis, kaputte
+        return ergebnis, set()
     raise UebersetzungsFehler(f"Übersetzung fehlgeschlagen: {letzter}")
 
 

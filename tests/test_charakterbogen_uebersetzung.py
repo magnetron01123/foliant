@@ -143,12 +143,23 @@ def test_leerer_text_bleibt_leer(con):
 
 
 def test_liste_bekommt_klammer_ohne_stern(con):
-    """art='liste' -> '(English)' auf Listenebene, aber KEIN irreführender einzelner Stern."""
+    """art='liste' -> item-weise DETERMINISTISCH aus dem Glossar (nie LLM), '(English)'
+    auf Listenebene, KEIN irreführender einzelner Stern."""
+    con.execute("INSERT INTO glossar VALUES ('Gemeinsprache','Common',1,'U','2024',''),"
+                "('Elfisch','Elvish',1,'U','2024','')")
+    con.commit()
+    from app import glossar as g
+    g._GLOSSAR_CACHE.clear()
     c = Charakter()
     c.uebungen.sprachen.append(UeText(en="Common, Elvish", art="liste"))
-    uebersetze(c, con, FakeProvider(mapping={"Common, Elvish": "Gemeinsprache, Elfisch"}))
+    try:
+        fake = FakeProvider()
+        uebersetze(c, con, fake)
+    finally:
+        g._GLOSSAR_CACHE.clear()
     assert c.uebungen.sprachen[0].de == "Gemeinsprache, Elfisch (Common, Elvish)"
     assert "*" not in c.uebungen.sprachen[0].de
+    assert fake.aufrufe == 0                     # Listen erreichen das Modell nie
 
 
 def test_vorgaben_enthalten_aufgeloeste_begriffe(con):
@@ -214,26 +225,35 @@ def test_json_aus_text_toleriert_codefence():
 
 # --- Review-Runde 2 (16.07.2026): Listen-Guard + Fließtext-Vorgaben ------------
 
-def test_listen_guard_laesst_liste_englisch_bei_falscher_item_anzahl(con):
-    """Erfindet der Provider Listeneinträge (Befund: 'Crossbow, Hand' -> zwei Waffen),
-    bleibt die Liste nach dem Retry ehrlich englisch statt verfälscht deutsch."""
+def test_liste_unbelegt_bleibt_ehrlich_englisch(con):
+    """KEIN Item belegt -> Liste bleibt unveraendert englisch (keine redundante Klammer,
+    kein LLM-Aufruf). Der fruehere Item-Anzahl-Guard ist damit obsolet: das Modell kann
+    keine Eintraege mehr erfinden, weil es Listen gar nicht mehr sieht."""
     c = Charakter()
-    c.uebungen.waffen.append(UeText(en="Hand Crossbow, Scimitar", art="liste"))
-    provider = FakeProvider(mapping={"Hand Crossbow, Scimitar": "Armbrust, Handarmbrust, Krummsäbel"})
-    uebersetze(c, sqlite3.connect(":memory:"), provider) if False else None
-    # In-Memory-Glossar der Fixture nutzen (hat die quelle-Spalte)
-    uebersetze(c, con, provider)
-    assert provider.aufrufe == 2                       # Guard erzwang den Retry
-    assert c.uebungen.waffen[0].de == "Hand Crossbow, Scimitar"   # ehrlich englisch
+    c.uebungen.waffen.append(UeText(en="Wargong, Mystery Blade", art="liste"))
+    fake = FakeProvider(mapping={"Wargong, Mystery Blade": "Kriegsgong, Raetselklinge"})
+    uebersetze(c, con, fake)
+    assert c.uebungen.waffen[0].de == "Wargong, Mystery Blade"
+    assert fake.aufrufe == 0
 
 
-def test_listen_mit_korrekter_anzahl_werden_uebernommen(con):
+def test_liste_teilbelegt_mischt_deterministisch(con):
+    """Belegte Items amtlich, unbelegte unveraendert - laufuebergreifend stabil
+    (Befund 17.07.2026: 'Wargong' hiess je Lauf 'Kriegsgong'/'Trommel'/englisch)."""
+    con.execute("INSERT INTO glossar VALUES "
+                "('Handarmbrust','Hand Crossbow',1,'U','2024',''),"
+                "('Krummsäbel','Scimitar',1,'U','2024','')")
+    con.commit()
+    from app import glossar as g
+    g._GLOSSAR_CACHE.clear()
     c = Charakter()
-    c.uebungen.waffen.append(UeText(en="Hand Crossbow, Scimitar", art="liste"))
-    provider = FakeProvider(mapping={"Hand Crossbow, Scimitar": "Handarmbrust, Krummsäbel"})
-    uebersetze(c, con, provider)
-    assert provider.aufrufe == 1
-    assert c.uebungen.waffen[0].de == "Handarmbrust, Krummsäbel (Hand Crossbow, Scimitar)"
+    c.uebungen.waffen.append(UeText(en="Hand Crossbow, Wargong, Scimitar", art="liste"))
+    try:
+        uebersetze(c, con, FakeProvider())
+    finally:
+        g._GLOSSAR_CACHE.clear()
+    assert c.uebungen.waffen[0].de == \
+        "Handarmbrust, Wargong, Krummsäbel (Hand Crossbow, Wargong, Scimitar)"
 
 
 def test_fliesstext_begriffe_werden_als_vorgaben_erzwungen(con):
@@ -308,3 +328,54 @@ def test_dnddeutsch_nachschlager_degradiert_bei_fehlern(con, monkeypatch):
 
     muede = DnddeutschNachschlager(zeitbudget_s=-1)  # Budget sofort erschöpft
     assert muede(con, "Martial Arts") is None
+
+
+# --- Mehrklassen-Anzeige (17.07.2026) ----------------------------------------
+# Der Extractor laesst klasse/stufe bei 'Fighter 3 / Wizard 2' bewusst leer (§7.4) -
+# auf dem Bogen standen dadurch STUMM leere Felder. Der Uebersetzer baut jetzt eine
+# deterministische Anzeige (nur exakte Glossar-Treffer, sonst englisch) und setzt die
+# Charakterstufe als regeldefinierte SUMME (srd-de 'Klassenkombinationen', S. 28).
+
+def _mehrklassen_charakter():
+    from app.charakterbogen.modelle import Charakter
+    c = Charakter()
+    c.identitaet.name = "Rowan"
+    c.identitaet.klasse_stufe_roh = "Monk 3 / Rogue 2"
+    return c
+
+
+def test_mehrklassen_anzeige_und_stufensumme(con):
+    con.execute("INSERT INTO glossar VALUES ('Schurke','Rogue',1,'Ulisses','2024','')")
+    con.commit()
+    from app import glossar as g
+    g._GLOSSAR_CACHE.clear()
+    try:
+        c = uebersetze(_mehrklassen_charakter(), con, FakeProvider())
+    finally:
+        g._GLOSSAR_CACHE.clear()
+    assert c.identitaet.mehrklassen_anzeige == "Mönch 3 / Schurke 2 (Monk 3 / Rogue 2)"
+    assert c.identitaet.stufe == 5                       # Summe, regeldefiniert
+    assert c.identitaet.klasse is None                   # Beleg-Semantik unveraendert
+
+
+def test_mehrklassen_unbelegte_klasse_bleibt_englisch(con):
+    # 'Rogue' ist hier NICHT belegt -> Teil bleibt englisch, kein Raten
+    from app import glossar as g
+    g._GLOSSAR_CACHE.clear()
+    try:
+        c = uebersetze(_mehrklassen_charakter(), con, FakeProvider())
+    finally:
+        g._GLOSSAR_CACHE.clear()
+    assert c.identitaet.mehrklassen_anzeige == "Mönch 3 / Rogue 2 (Monk 3 / Rogue 2)"
+    assert c.identitaet.stufe == 5
+
+
+def test_einklassig_bleibt_unberuehrt(con):
+    from app.charakterbogen.modelle import Charakter, UeText
+    c = Charakter()
+    c.identitaet.klasse = UeText(en="Monk", art="term")
+    c.identitaet.stufe = 5
+    c.identitaet.klasse_stufe_roh = "Monk 5"
+    c = uebersetze(c, con, FakeProvider())
+    assert c.identitaet.mehrklassen_anzeige is None
+    assert c.identitaet.stufe == 5

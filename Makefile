@@ -44,12 +44,19 @@ test-golden-pi:
 # Abnahmen belastbar - die Mac-DB ist nur ein Subset, ihre '*'-Sterne sind sonst nicht
 # aussagekraeftig (Korpus-Luecke, s. CLAUDE.md). Ersetzt die LOKALE glossar-Tabelle komplett.
 .PHONY: glossar-vom-pi
+# DB komplett ziehen und nur die glossar-Tabelle uebernehmen (ATTACH): der fruehere Weg
+# ueber die sqlite3-CLI scheiterte, weil sie auf dem Pi-HOST nicht installiert ist
+# (nur im Container). Der Download (~10 MB) laeuft gegen die Online-DB - fuer die reine
+# glossar-Uebernahme unkritisch (Tabelle aendert sich nur bei admin-glossar-Laeufen).
 glossar-vom-pi:
 	@test -f data/foliant.sqlite || (echo "FEHLER: keine data/foliant.sqlite"; exit 1)
-	ssh $(PI) "sqlite3 ~/foliant/data/foliant.sqlite -cmd '.mode insert glossar' 'SELECT * FROM glossar;'" > .glossar_pi.sql
-	@test -s .glossar_pi.sql || (echo "FEHLER: leerer Export vom Pi"; rm -f .glossar_pi.sql; exit 1)
+	scp $(PI):foliant/data/foliant.sqlite .glossar_pi.sqlite
+	@test -s .glossar_pi.sqlite || (echo "FEHLER: leerer Download vom Pi"; rm -f .glossar_pi.sqlite; exit 1)
 	.venv/bin/python -c "import sqlite3; con = sqlite3.connect('data/foliant.sqlite'); \
+		con.execute(\"ATTACH '.glossar_pi.sqlite' AS pi\"); \
 		con.execute('DELETE FROM glossar'); \
-		con.executescript(open('.glossar_pi.sql', encoding='utf-8').read()); con.commit(); \
+		con.execute('INSERT INTO glossar (term_en, term_de, offiziell, quelle, edition_quelle, seite) \
+			SELECT term_en, term_de, offiziell, quelle, edition_quelle, seite FROM pi.glossar'); \
+		con.commit(); \
 		print('Glossar:', con.execute('SELECT count(*) FROM glossar').fetchone()[0], 'Zeilen vom Pi uebernommen')"
-	@rm -f .glossar_pi.sql
+	@rm -f .glossar_pi.sqlite

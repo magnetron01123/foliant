@@ -314,6 +314,67 @@ def test_fortsetzungsseite_nennt_merkmal_auch_bei_zeilen_split():
         "Angriffe abwehren* (Deflect Attacks) (Fortsetzung): ·"), rest[:90]
 
 
+def test_fortsetzungskopf_bei_umbruch_an_subfeature_grenze():
+    """Faellt der Umbruch auf eine ABSATZGRENZE innerhalb eines Merkmals (Sub-Feature-
+    Struktur seit 17.07.2026), nennt die Fortsetzung trotzdem das Merkmal - vorher begann
+    sie verwaist ('Fasse dich.' ohne 'Der Überlebende (Fortsetzung):')."""
+    import fitz
+    from app.charakterbogen.de_bogen import FORTS_MARKE, _ohne_marker, _para
+
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    text = ("\x01Der Überlebende (Survivor) (RtHW 32)\x02\n"
+            "Übervorsicht. Wann immer du Initiative würfelst, kannst du den W20 neu würfeln, "
+            "falls die gewürfelte Zahl 9 oder niedriger ist. Du musst das neue Ergebnis verwenden.\n"
+            "\n"
+            "Fasse dich. Einmal pro lange Rast kannst du eine Reaktion nutzen, um +3 zu addieren.")
+    rest = _para(page, [20, 20, 250, 78], text, 8.5, 8.5, (0, 0, 0), endmarke=FORTS_MARKE)
+    assert rest, "Es muss ein Rest ueberlaufen"
+    assert _ohne_marker(rest).startswith("Der Überlebende (Survivor) (Fortsetzung): Fasse dich."), \
+        repr(_ohne_marker(rest)[:90])
+
+
+def test_kein_fortsetzungskopf_wenn_rest_mit_neuem_merkmal_beginnt():
+    """Beginnt der Rest mit einem NEUEN Merkmalskopf (\\x01), waere ein Fortsetzungskopf des
+    vorigen Merkmals falsch - es wird ja nichts fortgesetzt."""
+    import fitz
+    from app.charakterbogen.de_bogen import FORTS_MARKE, _para
+
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    text = ("\x01Erstes Merkmal (PHB-2024 1)\x02\n"
+            "Kurzer Text, der noch in die Box passt und dort endet.\n"
+            "\n"
+            "\x01Zweites Merkmal (PHB-2024 2)\x02\n"
+            "Text des zweiten Merkmals, das komplett in die Fortsetzung wandert.")
+    rest = _para(page, [20, 20, 250, 55], text, 8.5, 8.5, (0, 0, 0), endmarke=FORTS_MARKE)
+    assert rest, "Es muss ein Rest ueberlaufen"
+    assert rest.startswith("\x01Zweites Merkmal"), repr(rest[:60])
+    assert "(Fortsetzung):" not in rest
+
+
+def test_ueberschrift_nie_letzte_zeile_der_box():
+    """Keep-with-next: eine Merkmals-Überschrift bleibt nicht als letzte Zeile vor dem
+    Umbruch zurueck (Befund 17.07.2026: 'Betäubender Schlag' stand allein am Boxende,
+    der Body komplett auf der Folgeseite) - sie wandert mit in die Fortsetzung."""
+    import fitz
+    from app.charakterbogen.de_bogen import FORTS_MARKE, _ohne_marker, _para
+
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    text = ("\x01Erstes Merkmal (PHB-2024 1)\x02\n"
+            "Eine Zeile Text.\n"
+            "\n"
+            "\x01Betäubender Schlag (Stunning Strike) (PHB-2024 103)\x02\n"
+            "Einmal pro Zug kannst du einen betäubenden Schlag versuchen.")
+    # Box fasst 4 Nutz-Zeilen: Merkmal 1 (2) + Leerzeile + Überschrift 2 - deren Body nicht.
+    rest = _para(page, [20, 20, 250, 76], text, 8.5, 8.5, (0, 0, 0), endmarke=FORTS_MARKE)
+    assert rest.startswith("\x01Betäubender Schlag"), repr(rest[:60])
+    gezeichnet = page.get_text()
+    assert "Betäubender Schlag" not in gezeichnet          # nicht als Witwe zurueckgeblieben
+    assert FORTS_MARKE in gezeichnet
+
+
 # --- Rüstungsvertrautheit / K-R-M / Fußnote / Zauberwirken-Kopf ---------------
 
 def test_ruestungs_schluessel_mapping():
@@ -441,10 +502,99 @@ def test_sinne_erscheinen_auf_dem_bogen():
 
 
 def test_fortsetzungs_kopie_traegt_charakternamen():
-    """Die Vorlagen-Kopie ist einem Charakter zuzuordnen (Name/Klasse/Stufe im Kopf)."""
+    """Die Vorlagen-Kopie ist einem Charakter zuzuordnen (Name im Kopf)."""
     c = _mini_charakter()
     c.merkmale = [Merkmal(name=UeText(en="Riesenmerkmal"), quelle="PHB-2024", seite="1",
                           beschreibung=UeText(en="Sehr langer Text. " * 600), herkunft="klasse")]
     doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
     assert doc.page_count > 2
     assert "Sorin Vale" in doc[1].get_text()   # Kopie direkt hinter Seite 1
+
+
+def test_fortsetzungs_kopie_befuellt_nur_den_namen():
+    """Klasse ist auf der Kopie nicht relevant (Befund 17.07.2026) - 'Monk' darf NICHT ein
+    zweites Mal im Kopf der Kopie auftauchen, nur einmal auf der Originalseite."""
+    c = _mini_charakter()
+    c.merkmale = [Merkmal(name=UeText(en="Riesenmerkmal"), quelle="PHB-2024", seite="1",
+                          beschreibung=UeText(en="Sehr langer Text. " * 600), herkunft="klasse")]
+    doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
+    assert doc.page_count > 2
+    voll = _text_von(_rendere_synth(c))
+    assert voll.count("Monk") == 1
+
+
+def test_seitenzahlen_nur_bei_fortsetzung():
+    """Ohne Überlauf bleibt der Bogen unverändert (keine Seitenzahl); mit Überlauf tragen
+    ALLE Seiten 'Seite N von M' - lose Blätter bleiben beim Ausdrucken sortierbar."""
+    ohne_ueberlauf = _text_von(_rendere_synth(_mini_charakter()))
+    assert "Seite 1 von" not in ohne_ueberlauf
+
+    c = _mini_charakter()
+    c.merkmale = [Merkmal(name=UeText(en="Riesenmerkmal"), quelle="PHB-2024", seite="1",
+                          beschreibung=UeText(en="Sehr langer Text. " * 600), herkunft="klasse")]
+    doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
+    assert doc.page_count > 2
+    for i in range(doc.page_count):
+        assert f"Seite {i + 1} von {doc.page_count}" in doc[i].get_text()
+
+
+# --- Merkmal-Struktur wie im DDB-Original (17.07.2026) ------------------------
+# David-Befund: Der Merkmalsname ist eine UEBERSCHRIFT, darunter fallen die Benefits.
+# Vorher klebte alles in einer Zeile ('Nebelwanderer-Attributswerterhoehung* (…) (RtHW 27).
+# [Erhoehe zwei Werte (+2 / +1)]') - besonders sichtbar bei Kopf + genau EINEM Benefit.
+
+def test_merkmalskopf_steht_auf_eigener_zeile():
+    from app.charakterbogen.de_bogen import _merkmal_text, _ohne_marker
+    m = Merkmal(name=UeText(en="Mist Wanderer Ability Score Increase", de="Nebelwanderer-ASE"),
+                quelle="RtHW", seite="27", beschreibung=UeText(en=""),
+                aktionsoekonomie=[UeText(en="Increase two scores (+2 / +1)")], herkunft="talent")
+    zeilen = _ohne_marker(_merkmal_text(m)).split("\n")
+    assert zeilen[0] == "Nebelwanderer-ASE (RtHW 27)"          # Ueberschrift, EIGENE Zeile
+    assert zeilen[1] == "· Increase two scores (+2 / +1)"      # Benefit DARUNTER
+
+
+def test_oekonomie_zeile_ohne_ddb_endbullet():
+    """DDB haengt an die abgeschnittene letzte Box-Zeile ein Trenn-Bullet ohne Fortsetzung -
+    als eigene Zeile stuende es sichtbar und sinnlos am Schluss."""
+    from app.charakterbogen.de_bogen import _merkmal_text, _ohne_marker
+    m = Merkmal(name=UeText(en="X", de="X"), beschreibung=UeText(en=""),
+                aktionsoekonomie=[UeText(en="Zwei Werte erhöhen (+2 / +1) •")], herkunft="talent")
+    assert _ohne_marker(_merkmal_text(m)).split("\n")[1] == "· Zwei Werte erhöhen (+2 / +1)"
+
+
+def test_merkmalskopf_bleibt_fett_body_darunter():
+    m = Merkmal(name=UeText(en="Grappler", de="Ringer"), quelle="PHB-2024", seite="204",
+                beschreibung=UeText(en="First.\n\nSecond.", de="Erster Benefit.\n\nZweiter Benefit."),
+                herkunft="talent")
+    from app.charakterbogen.de_bogen import _merkmal_text
+    text = _merkmal_text(m)
+    assert text.startswith("\x01Ringer (PHB-2024 204)\x02\n")   # fett + Umbruch dahinter
+    assert "\n\nZweiter Benefit." in text                       # Absatzgrenze erhalten
+
+
+def test_absatzgrenzen_der_benefits_bleiben_im_render():
+    """Jeder Benefit ist ein eigener Absatz - nicht zu einem Fliesstext-Brei verklebt."""
+    c = _mini_charakter()
+    c.merkmale = [Merkmal(name=UeText(en="Grappler"), quelle="PHB-2024", seite="204",
+                          beschreibung=UeText(en="ERSTERBENEFIT text.\n\nZWEITERBENEFIT text."),
+                          herkunft="talent")]
+    doc = fitz.open(stream=_rendere_synth(c), filetype="pdf")
+    zeilen = [l for i in range(doc.page_count) for l in doc[i].get_text().split("\n")]
+    # Kopf und erster Benefit stehen NICHT in derselben Zeile
+    assert not any("Grappler" in z and "ERSTERBENEFIT" in z for z in zeilen), zeilen
+    assert not any("ERSTERBENEFIT" in z and "ZWEITERBENEFIT" in z for z in zeilen), zeilen
+
+
+def test_leeres_merkmal_bleibt_als_ueberschrift_sichtbar():
+    """'Core Monk Traits' hat im DDB-Original keinen Erklaertext - es steht dort trotzdem
+    (als Ueberschrift der folgenden Merkmale) und muss auch hier stehen bleiben."""
+    c = _mini_charakter()
+    c.merkmale = [
+        Merkmal(name=UeText(en="Core Monk Traits"), quelle="PHB-2024", seite="101",
+               beschreibung=UeText(en=""), herkunft="klasse"),
+        Merkmal(name=UeText(en="Martial Arts"), quelle="PHB-2024", seite="101",
+               beschreibung=UeText(en="Erklaerungstext ECHTESMERKMAL."), herkunft="klasse"),
+    ]
+    fassung = _text_von(_rendere_synth(c))
+    assert "Core Monk Traits" in fassung
+    assert "Martial Arts" in fassung

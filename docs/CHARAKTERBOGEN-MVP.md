@@ -98,8 +98,9 @@ Aus dem E2E-Befundbericht (`docs/CHARAKTERBOGEN-BEFUNDBERICHT-2026-07-16.md`):
 - **Eine Schriftgröße je Kasten** (2-Spalten-Boxen fitten gemeinsam) und **Fortsetzungsseiten
   erben die Größe** der Ursprungsbox (kein Schriftgrad-Sprung mehr).
 - **Fortsetzungskopf immer**: Bricht ein Merkmal an Zeilen- ODER Satzgrenze über die Box,
-  nennt die Fortsetzung das Merkmal („… (Fortsetzung):", fett); Vorlagen-Kopien tragen
-  Name/Klasse/Stufe im Kopf. Spaltenfluss innerhalb einer Box bekommt keinen Kopf.
+  nennt die Fortsetzung das Merkmal („… (Fortsetzung):", fett); Vorlagen-Kopien tragen den
+  Namen im Kopf (s. Review-Runde 3: Klasse/Stufe wieder entfernt). Spaltenfluss innerhalb
+  einer Box bekommt keinen Kopf.
 - **Einzeiler-Überlauf-Stufen**: Auto-Fit → §5-Klammer opfern → horizontal stauchen; nie
   über die Boxgrenze (Unterklasse vs. Stufe-Oval, Zauber-Reichweiten).
 - **Deterministische Notation**: zentrale d→W-Wandlung in `_saeubere` (5d8→5W8); Zauber-
@@ -117,6 +118,146 @@ Aus dem E2E-Befundbericht (`docs/CHARAKTERBOGEN-BEFUNDBERICHT-2026-07-16.md`):
 aber nicht gerendert — Entscheidung 16.07.2026): passive Einsicht/Untersuchung (aus den
 Fertigkeiten ableitbar), Zauber-Herkunft/Seitenreferenzen, der statische ACTIONS/BONUS-
 ACTIONS-Block (Regel-Boilerplate; Bonusaktions-Infos stehen in den Merkmalen), Spielername.
+
+## Review-Runde 3 (17.07.2026) — umgesetzt
+
+David-Befund: Der Kopf einer Fortsetzungsseite füllte fälschlich auch **Klasse** (das Feld
+oben links neben dem Namen) - obwohl die Kopie nur ein einzelnes übergelaufenes Merkmal
+fortsetzt und die restlichen Felder der kopierten Vorlagenseite bewusst leer bleiben.
+
+- `_KOPIE_KOPF` trägt jetzt nur noch **`identitaet.name`** - Klasse/Stufe sind auf der Kopie
+  nicht relevant und blieben trotzdem befüllt (`app/charakterbogen/de_bogen.py`).
+- **Seitenzahlen** (`_seitenzahlen`, "Seite N von M" rechts unten) - NUR wenn Fortsetzungs-
+  seiten eingefügt wurden, damit lose Blätter beim Ausdrucken sortierbar bleiben. Der
+  unveränderte 2-Seiten-Bogen ohne Überlauf bleibt am Fuß frei.
+- Tests: `test_fortsetzungs_kopie_befuellt_nur_den_namen`, `test_seitenzahlen_nur_bei_fortsetzung`
+  (`tests/test_charakterbogen_pdf.py`).
+
+## Kurzfassung ohne Merkmalstexte (17.07.2026) — ZURÜCKGENOMMEN
+
+Zwischenzeitlich lieferte `POST /bogen` eine ZIP mit zwei Bögen (vollständig + Kurzfassung,
+in der Klassenmerkmale/Spezies-Merkmale/Talente nur als Namensliste erschienen). Nach zwei
+Nachbesserungsrunden (Gruppenkopf-Gliederung, Spezies-Wert-Sätze) Eigentümer-Entscheid
+17.07.2026: **Feature komplett entfernt** — die reine Namensliste trägt zu wenig Information,
+`POST /bogen` liefert wieder EINE vollständige PDF. Der im Zuge der Kurzfassung entstandene
+Struktur- und Glossar-Feinschliff (nächste Abschnitte) bleibt.
+
+## Merkmal-Struktur wie im DDB-Original (17.07.2026) — umgesetzt
+
+David-Befund: „hier wird die ursprüngliche Struktur nicht mehr eingehalten … das ist die
+Überschrift und darunter fallen Benefits". Der Vergleich mit dem englischen DDB-Original
+(`vorlagen/charakterboegen/ddb-beispiele/`) belegte **drei** Strukturverluste — am
+deutlichsten beim Nebelwanderer, weil dort nur Überschrift + EIN Benefit steht:
+
+| | Original | vorher |
+|---|---|---|
+| Kopf | `* Mist Wanderer Ability Score Increase • RtHW 27` (eigene Zeile) | inline mit dem Body verklebt |
+| Benefit | `   \| Increase two scores (+2 / +1)` (eigene Zeile) | `[Erhöhe zwei Werte (+2 / +1)]` ans Ende geklebt |
+| Sub-Features | eigener Absatz je Benefit | zu einem Fließtext-Brei verschmolzen |
+
+Ursachen und Fixes (alle mit Test):
+
+1. **`ddb_pdf.py::_parse_merkmale`** verwarf Leerzeilen (`elif … and gestrippt:`) — genau die
+   Absatzgrenzen des Originals. Sie werden jetzt mitgeführt, Ränder/Mehrfach-Leerzeilen
+   normiert `_saeubere_beschreibung`. → `test_absatzgrenzen_im_merkmal_bleiben_erhalten`
+2. **`ddb_pdf.py::_verbinde_fragmente`** klebte an JEDER Box-Grenze ein Leerzeichen. DDB füllt
+   seine 6 `FeaturesTraits`-Boxen randvoll und schneidet mal mitten im Satz (`…the target has`
+   + `the Stunned condition…` → Leerzeichen korrekt), mal exakt an einer Absatzgrenze
+   (`…only once per turn.` + `Attack Advantage. You have…` → Absatz!). Neu entscheidet
+   `_ist_absatzwechsel` das anhand von Satzende links + Sub-Feature-Kopf rechts (mit
+   Stoppwortliste, im Zweifel Leerzeichen — nie Text zerreißen). Das räumt auch dem
+   Sprachmodell die Struktur auf, bevor es übersetzt. → `test_smart_join_erkennt_absatzwechsel_an_der_box_grenze`
+3. **`de_bogen.py::_merkmal_text`** baut den Kopf jetzt als eigene fette Zeile, darunter die
+   Beschreibungsabsätze und zuletzt die Aktionsökonomie als `· …`-Zeilen (`_oekonomie_zeile`
+   entfernt DDBs Trenn-Bullet am abgeschnittenen Zeilenende). → `test_merkmalskopf_steht_auf_eigener_zeile`
+
+**Der Gruppenkopf-Filter von vorhin ist damit zurückgenommen**: `Core Monk Traits` steht im
+Original ebenfalls (als Überschrift der folgenden Kern-Merkmale) und ist mit dem
+Zeilenumbruch auch hier als solche lesbar — Wegfiltern war die falsche Antwort auf
+„nicht erkennbar". → `test_leeres_merkmal_bleibt_als_ueberschrift_sichtbar`
+
+Am echten Bogen verifiziert: Der volle Bogen wächst durch die Absätze von 3 auf **4 Seiten**
+(erwartet und akzeptiert — Strukturtreue geht vor Kompaktheit).
+
+## Review-Runde 4 (17.07.2026) — Nutzertest-Befunde, umgesetzt
+
+Selbsttest als Spieler (Bogen in der Hand, Foliant-MCP daneben) deckte diese Punkte auf:
+
+1. **Amtliche 2024-Klassenmerkmalsnamen aus dem BESTAND** (größter Hebel): Der Bogen sagte
+   „Angriffe abwehren\* (Deflect Attacks)", der Foliant amtlich „**Angriffe umleiten**"
+   (SRD 5.2.1 de, S. 70) — Glossar und dnddeutsch kannten die 2024-Namen nicht, obwohl der
+   eigene Bestand sie führt. Neues Modul `importer/srd_klassenmerkmale.py`: Struktur-Abgleich
+   srd-de (`###### N. Stufe: Name` + `**_Sub:_**`) ↔ ddb-br-2024-en (`Level N: Name`-Einträge
+   + `***Sub.***`), Klassenbrücke über das Glossar. NUR beweisbare Zuordnungen — srd-de
+   sortiert je Stufe alphabetisch DEUTSCH, DDB alphabetisch ENGLISCH, reine Positions-Paarung
+   erzeugte real `Extra Attack → Betäubender Schlag`: (1) Anker `<K> Subclass` ↔
+   `…-Unterklasse`, (2) belegte Glossar-Paare, (3) belegte SUB-Features identifizieren ihr
+   Eltern-Merkmal (Schlaghagel → Mönchsfokus), (4) Ausschlussprinzip bei genau 1 Rest; alles
+   andere wird verworfen (Report). **182 offizielle Paare** auf dem Pi geseedet
+   (`seed_klassenmerkmale_aus_bestand`, in der admin-glossar-Orchestrierung; Selbst-
+   bereinigung per LIKE-Präfix, weil `kanonisiere_konflikte` demotete Quellen umbenennt).
+   Bekannte Lücken (ehrlich verworfen): Barbar St. 7, Druide St. 1, Zauberwirken-Sub-Blöcke.
+2. **Fortsetzungskopf-Regression**: Umbruch an Sub-Feature-Absatzgrenze → kopflose
+   Fortsetzung. Merkmalsgrenze jetzt am **ganzzeiligen** Fett-Lauf erkannt
+   (`_ist_ueberschrift`; ein reiner `\x01`-Start-Check hielt fette Sub-Köpfe wie
+   „Wappne dich." für Überschriften).
+3. **Keep-with-next**: eine Überschrift bleibt nie als letzte Zeile vor dem Umbruch zurück.
+4. **`make glossar-vom-pi`** repariert (sqlite3-CLI fehlt auf dem Pi-Host → Download + ATTACH).
+
+E2E am echten Bogen (echter Anthropic-Lauf): alle 13 Klassenmerkmale amtlich und **ohne
+Stern** (einzig „Core Monk Traits" ehrlich mit `*`), Bogen und Foliant nennen dieselben
+Namen. Golden-Suite 16/16 am vollen Pi-Bestand, `admin check` sauber, `glossar_web.sqlite`
+neu exportiert, web-Container neu gestartet.
+
+## Review-Runde 5 (17.07.2026) — Restbefunde vollständig gelöst
+
+Aus dem Kreuz-Audit (deutscher Bogen ↔ DDB-Original) und den 22 User-Tests:
+
+1. **Mehrklassen-Anzeige** (`uebersetzer._mehrklassen_aufbereiten` + Renderer-Fallback):
+   „Fighter 3 / Wizard 2" ließ Klasse/Stufe STUMM leer (sah aus wie ein Konvertierungs-
+   fehler). Jetzt: Klasse-Feld zeigt „Kämpfer 3 / Magier 2 (Fighter 3 / Wizard 2)" —
+   jede Teilklasse NUR bei exaktem Glossar-Treffer übersetzt, sonst englisch; die
+   Charakterstufe ist die regeldefinierte SUMME (srd-de „Klassenkombinationen", S. 28).
+   Modell-Semantik unangetastet (`klasse`/`klasse_stufe_roh` bleiben Beleg).
+2. **Listen komplett deterministisch** (`_liste_deterministisch`): Waffen-/Werkzeug-/
+   Sprachlisten laufen NICHT mehr durchs Sprachmodell — item-weise Glossar/dnddeutsch,
+   Unbelegtes bleibt unverändert englisch („Wargong" hieß je Lauf „Kriegsgong"/„Trommel"/
+   englisch). Belegte Items sind damit laufübergreifend stabil; der Item-Anzahl-Guard
+   ist obsolet (das Modell kann nichts mehr erfinden, es sieht keine Listen).
+3. **Build-Prüfung, Stufentabellen** (`app/tools/charakter.py`): Der Parser hing am
+   „Stufe"-Kopf — der PDF-Import verklebt bei den Zauberklassen die mehrzeiligen Köpfe
+   („Stufebonus", Magier-Kopf ohne Stufenspalte), beim Schurken liegt die Tabelle in
+   „Ein Schurke werden ...". Erkennung jetzt über die DATENFORM (Erstspalte = Stufen
+   ab 1, größte Tabelle gewinnt), Köpfe entlückt/eindeutig. **Alle 12 Klassen** liefern
+   Stufen 1–20 und „Unterklasse ab 3"; Barbar/Kämpfer zusätzlich die
+   Waffenbeherrschungs-Spalte (vorher: 6 von 12 still `nicht_pruefbar`).
+4. **MCP-Lookup: eingebettete Abschnitte + Deutsch-first** (`app/tools/nachschlagen.py`):
+   `hol_klasse("Rage")` lieferte die ENGLISCHE 2014-Fassung, obwohl „Kampfrausch" als
+   Abschnitt in „Klassenmerkmale des Barbaren" (srd-de 2024) steht. (a) Neuer
+   `_unterabschnitts_treffer`: vor jedem Editions-/Sprach-Rückfall werden Kandidaten der
+   ZIEL-Edition auf Abschnitts-Überschriften mit dem (glossar-aufgelösten) Begriff
+   geprüft — Antwort trägt `hinweis_unterabschnitt`. (b) `exakt` wird EXPLIZIT
+   Deutsch-first sortiert (die FTS-Rangfolge stellte den englischen Open5e-Volltreffer
+   vor den deutschen Präfix-Titel „Mönch-Unterklasse: Krieger der Offenen Hand").
+5. **Seeding erweitert** (`finde_container_sub_paare`): Spezies- und Talent-Sub-Features
+   („Feenblut ↔ Fey Ancestry", Grappler-Benefits) — Container über offizielle
+   Glossar-Namen, Subs NUR über belegte Paare + Ausschlussprinzip. KEINE Positions-
+   Annahme: die 2024-Bücher listen alphabetisch ENGLISCH, srd-de sortiert alphabetisch
+   DEUTSCH um (Zwerg: „Steingespür" Pos. 2 ↔ „Stonecunning" Pos. 4 → Unbelegtes wird
+   ehrlich verworfen statt positionsgeraten).
+
+**Pi-Nachschärfungen beim Deploy (18.07.2026)** — drei Punkte, die nur am vollen Bestand
+sichtbar wurden: (a) DDB chunkt Spezies als Intro + separatem `<Name> Traits`-Eintrag —
+der EN-Body wird jetzt aus beiden zusammengesetzt, sonst blieben alle Spezies-Subs
+ungepaart. (b) Sub-Features sind KEINE Eintragsnamen und wurden vom dnddeutsch-Vollseeding
+nie angefragt — `en_subnamen()` schickt sie jetzt gezielt durchs Seeding (Cache-gestützt),
+erst damit greift die belegte-Paare-Stufe (Feenblut, Steingespür, Zwergische Zähigkeit …).
+(c) Der Unterabschnitts-Fallback bekam eine **Nachsuche nur in der Ziel-Edition**
+(`_unterabschnitts_nachsuche`): auf dem vollen Bestand verdrängten der wörtliche
+2014-Treffer „Rage" + FTS-Rauschen den srd-de-Sammel-Eintrag aus den Top-6 — lokal (ohne
+2014-Quelle) war der Fallback grün, live nicht. **Endstand: 214 offizielle Paare**;
+`hol_klasse("Rage")` liefert live die deutsche 2024-Fassung mit `hinweis_unterabschnitt`,
+`pruefe_build(Schurke, 3, Dieb)` prüft die Unterklassen-Stufe mit Beleg (S. 78).
 
 ### `*`-Sterne: nachfragegetriebenes Nachschlagen (16.07.2026)
 

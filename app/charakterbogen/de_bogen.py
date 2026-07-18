@@ -211,6 +211,28 @@ def _blockstart(absaetze: list[str], idx: int) -> int:
     return start
 
 
+def _ist_ueberschrift(zeile: str) -> bool:
+    """Merkmals-ÜBERSCHRIFT = die GANZE Zeile ist ein Fett-Lauf ('\\x01Name (Quelle)\\x02').
+    Sub-Feature-Köpfe sind nur am ZeilenANFANG fett ('\\x01Wappne dich.\\x02 Einmal pro …') -
+    ein reiner startswith-Check hielte sie für Merkmalsgrenzen (Befund 17.07.2026: die
+    Fortsetzung begann bei 'Wappne dich.' wieder kopflos)."""
+    s = zeile.strip()
+    return s.startswith(_FA) and s.endswith(_FE)
+
+
+def _merkmalskopf_vor(absaetze: list[str], idx: int) -> str | None:
+    """Fortsetzungskopf aus der letzten ÜBERSCHRIFTSZEILE vor `absaetze[idx]` - None, wenn
+    davor keine steht (markerloser Text oder Spaltenfluss). Seit die Merkmale intern
+    Absatz-Leerzeilen tragen (Sub-Feature-Struktur, 17.07.2026), taugt die Leerzeilen-
+    Blockgrenze nicht mehr als Merkmalsgrenze: ein Umbruch ZWISCHEN zwei Sub-Features
+    eines Merkmals bekam gar keinen Kopf ('Fasse dich.' begann verwaist), ein Umbruch IN
+    einem Sub-Feature den falschen (Sub-Feature- statt Merkmalsname)."""
+    for i in range(idx - 1, -1, -1):
+        if _ist_ueberschrift(absaetze[i]):
+            return _fortsetzungskopf(_erster_satz(absaetze[i]))
+    return None
+
+
 def _erster_satz(zeile: str) -> str:
     """Erster Satz OHNE Fett-Marker: der Punkt des Merkmalskopfs steht direkt vor \\x02,
     mit Markern erkennt _SATZENDE ihn nicht und der 'Kopf' fräse den ganzen Regelsatz mit."""
@@ -245,17 +267,29 @@ def _layout(text: str, breite: float, hoehe: float, sz: float,
         gezeichnet.extend(blk)
         naechster += 1
 
+    # Keep-with-next: eine ÜBERSCHRIFT (ganzzeiliger Fett-Lauf) darf nicht als letzter
+    # Absatz vor dem Umbruch stehen (Befund 17.07.2026: 'Betäubender Schlag' stand allein
+    # am Boxende, der gesamte Body erst auf der Fortsetzungsseite) - sie wandert mit.
+    while (naechster > 0 and naechster < len(absaetze)
+           and _ist_ueberschrift(absaetze[naechster - 1])):
+        blk = bloecke[naechster - 1]
+        gezeichnet = gezeichnet[: len(gezeichnet) - len(blk)]
+        naechster -= 1
+
     kopf: str | None = None
     if gezeichnet:
         rest_abs = absaetze[naechster:]
-        # Bricht der Fluss MITTEN im Merkmal (vorige Zeile ist keine Leerzeile), braucht die
-        # Fortsetzung einen Kopf, der das Merkmal nennt. Beginnt schon DIESER Text mitten im
-        # Merkmal (Spaltenfluss), traegt `kopf0` den echten Merkmalskopf weiter.
-        if rest_abs and rest_abs[0].strip() and absaetze[naechster - 1].strip():
-            start = _blockstart(absaetze, naechster)
-            if start == 0 and kopf0:
-                kopf = kopf0
-            else:
+        # Ist der Rest (erste NICHT-LEERE Zeile - er kann mit der Absatz-Leerzeile starten)
+        # KEIN neuer Merkmalskopf (ganzzeiliger Fett-Lauf), setzt er ein laufendes Merkmal
+        # fort und braucht dessen Kopf: aus der letzten Überschrift davor; ohne Überschrift
+        # davor traegt `kopf0` den Kopf aus der Vorspalte weiter (Spaltenfluss). Markerlose
+        # Texte (z.B. Ausrüstung) fallen auf die alte Leerzeilen-Blockgrenze zurück - dort
+        # IST der Block die sinnvolle Einheit.
+        erste_zeile = next((a for a in rest_abs if a.strip()), "")
+        if erste_zeile and not _ist_ueberschrift(erste_zeile):
+            kopf = _merkmalskopf_vor(absaetze, naechster) or kopf0
+            if kopf is None and rest_abs[0].strip() and absaetze[naechster - 1].strip():
+                start = _blockstart(absaetze, naechster)
                 kopf = _fortsetzungskopf(_erster_satz(absaetze[start]))
         rest = "\n".join(rest_abs)
     else:
@@ -386,12 +420,32 @@ def _markiere_subkoepfe(body: str) -> str:
 
 
 def _merkmal_text(m) -> str:
-    """Merkmalskopf FETT vor der Erklärung (D&D-Beyond-Optik), Sub-Features ebenso."""
-    kopf = _text(m.name)
+    """Merkmal in der Struktur des DDB-Originals: der Name ist eine ÜBERSCHRIFT auf eigener
+    Zeile (fett), darunter die Benefits - Beschreibungsabsätze (Sub-Features fett) und
+    zuletzt die Aktionsökonomie-Zeilen ('| Increase two scores (+2 / +1)').
+
+    Vorher klebte alles in EINER Zeile hintereinander ('Nebelwanderer-Attributswerterhöhung*
+    (…) (RtHW 27). [Erhöhe zwei Werte (+2 / +1)]') - die Überschrift war nicht mehr als
+    solche erkennbar und die Benefits verschmolzen mit ihr (David-Befund 17.07.2026,
+    besonders sichtbar bei Merkmalen aus Überschrift + genau EINEM Benefit)."""
     quelle = f" ({m.quelle} {m.seite})" if m.quelle else ""
+    zeilen = [f"{_FA}{_text(m.name)}{quelle}{_FE}"]
     body = _markiere_subkoepfe(_text(m.beschreibung))
-    oek = ("  [" + "; ".join(_text(x) for x in m.aktionsoekonomie) + "]") if m.aktionsoekonomie else ""
-    return f"{_FA}{kopf}{quelle}.{_FE} {body}{oek}".strip()
+    if body:
+        zeilen.append(body)
+    zeilen.extend(f"· {oek}" for oek in
+                  (_oekonomie_zeile(_text(x)) for x in m.aktionsoekonomie) if oek)
+    return "\n".join(zeilen).strip()
+
+
+_ENDE_BULLET = re.compile(r"[\s•·]+$")
+
+
+def _oekonomie_zeile(text: str) -> str:
+    """'Increase two scores (+2 / +1) •' -> '… (+2 / +1)'. Das Bullet am Zeilenende ist ein
+    DDB-Trennzeichen ohne Fortsetzung (die Box endet dort) - als eigene Zeile gerendert
+    stünde es sonst sichtbar und sinnlos am Schluss."""
+    return _ENDE_BULLET.sub("", text or "")
 
 
 _LB = re.compile(r"([\d]+(?:[.,]\d+)?)\s*lb\.?", re.IGNORECASE)
@@ -614,13 +668,15 @@ def _grossbox(page, spec, text, ink) -> str:
     return _para(page, rect, text, spec["size"], spec["min"], ink, endmarke=FORTS_MARKE)
 
 
-# Kopf-Felder, die jede Vorlagen-Kopie trägt, damit eine lose Fortsetzungsseite ihrem
-# Charakter zuzuordnen bleibt (Befund 16.07.2026: der Kopf der Kopie war komplett leer).
-_KOPIE_KOPF = ("identitaet.name", "identitaet.klasse", "identitaet.stufe")
+# Kopf-Feld, das jede Vorlagen-Kopie trägt, damit eine lose Fortsetzungsseite ihrem Charakter
+# zuzuordnen bleibt (Befund 16.07.2026: der Kopf der Kopie war komplett leer). NUR der Name -
+# Klasse/Stufe sind auf der Kopie nicht relevant und wurden dort fälschlich mitgefüllt (Befund
+# 17.07.2026); die Seitenreihenfolge übernehmen jetzt die Seitenzahlen (_seitenzahlen).
+_KOPIE_KOPF = ("identitaet.name",)
 
 
 def _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, ink,
-                        charakter) -> None:
+                        charakter) -> bool:
     """Überlauf wandert auf KOPIEN der LEEREN Vorlagenseite, die direkt hinter der
     Ursprungsseite eingefügt werden: jeder Rest fließt dort in DIESELBE Box weiter (die
     gedruckten Boxtitel der Vorlage beschriften ihn) - in DERSELBEN Schriftgröße wie auf
@@ -631,7 +687,7 @@ def _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, 
     zauber_seite = layout["zauber_tabelle"]["s"]
     quellseiten = set(reste) | ({zauber_seite} if zauber_rest else set())
     if not quellseiten:
-        return
+        return False
     vorlage = fitz.open(str(vorlage_pfad))
     try:
         # Hintere Quellseite zuerst: Einfügen dahinter verschiebt vordere Indizes nicht.
@@ -660,9 +716,23 @@ def _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, 
                 pos += 1
     finally:
         vorlage.close()
+    return True
 
 
 _FUSSNOTE = "* = eigene deutsche Wiedergabe (kein offizieller deutscher Begriff belegt)"
+
+
+def _seitenzahlen(doc, ink) -> None:
+    """Nummeriert alle Seiten ('Seite N von M') rechts unten - nur wenn das Dokument über die
+    Original-Vorlage hinaus gewachsen ist (Fortsetzungsseiten eingefügt), damit lose Blätter
+    beim Ausdrucken wieder in der richtigen Reihenfolge liegen. Der unveränderte 2-Seiten-
+    Bogen ohne Überlauf bleibt am Fuß frei - nichts Zusätzliches ohne Anlass (KONZEPT §9)."""
+    gesamt = doc.page_count
+    for i, seite in enumerate(doc):
+        text = f"Seite {i + 1} von {gesamt}"
+        breite = _textlaenge(text, _FONT, 5.5)
+        seite.insert_text((seite.rect.width - 16 - breite, 771.5), text,
+                          fontname=_FONT, fontsize=5.5, color=ink)
 
 
 def _stern_fussnote(doc, ink) -> None:
@@ -706,7 +776,15 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
                                    sinne, 7, 5.5, "c", ink)
                 continue
             pfad = _SPEZIAL_PFAD.get(key, key)
-            _zeichne_einzeilig(seiten[spec["s"]], spec["rect"], _text(_navigiere(charakter, pfad)),
+            wert = _text(_navigiere(charakter, pfad))
+            # Mehrklassig laesst der Extractor `klasse` bewusst leer (§7.4) - das Feld
+            # zeigt dann die deterministisch aufbereitete Anzeige ('Kämpfer 3 / Magier 2
+            # (Fighter 3 / Wizard 2)') bzw. notfalls den Rohwert, statt STUMM leer zu
+            # bleiben (Befund 17.07.2026: sah aus wie ein Konvertierungsfehler).
+            if key == "identitaet.klasse" and not wert:
+                wert = (charakter.identitaet.mehrklassen_anzeige
+                        or charakter.identitaet.klasse_stufe_roh or "")
+            _zeichne_einzeilig(seiten[spec["s"]], spec["rect"], wert,
                                spec["size"], spec["min"], spec.get("align", "l"), ink)
 
         # 2) Attribute
@@ -754,8 +832,10 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
 
         # 6) Fortsetzungsseiten (KONZEPT §9): Kopien der leeren Vorlagenseite direkt hinter
         #    der Ursprungsseite; Reste fliessen in dieselben Boxen/Tabellen weiter
-        _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, ink,
-                            charakter)
+        gewachsen = _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap,
+                                        ink, charakter)
+        if gewachsen:
+            _seitenzahlen(doc, ink)
 
         # 7) §5-Fussnote: '*' am Seitenfuss erklären, wo es zum Einsatz kam
         _stern_fussnote(doc, ink)

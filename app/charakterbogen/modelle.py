@@ -66,6 +66,9 @@ class Identitaet:
     klasse: UeText | None = None                  # aus "CLASS  LEVEL" abgespalten (term)
     stufe: int | None = None                      # aus "CLASS  LEVEL" abgespalten (Zahl)
     klasse_stufe_roh: str | None = None           # Originalwert "Monk 5" (Beleg, nichts raten)
+    mehrklassen_anzeige: str | None = None        # "Kämpfer 3 / Magier 2 (…)" - vom Übersetzer
+                                                  # deterministisch aus klasse_stufe_roh gebaut,
+                                                  # wenn klasse/stufe wegen Mehrklassigkeit leer sind
     unterklasse: UeText | None = None             # nur aus eindeutigem Inhalt; sonst None
     spezies: UeText | None = None                 # "RACE" (term)
     hintergrund: UeText | None = None             # "BACKGROUND" (term)

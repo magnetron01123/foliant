@@ -501,6 +501,60 @@ def _kontext_von(body: str | None) -> str:
     return m.group(1) if m else ""
 
 
+# Abschnitts-Ueberschriften IN einem Eintrag: Markdown-Header (optional mit srd-de-
+# Stufenpraefix 'N. Stufe:') sowie fette Merkmals-/Sub-Feature-Koepfe ('**_Kampfrausch:_**',
+# '***Rage.***'). Nur EXAKTE (normalisierte) Gleichheit mit dem gesuchten Begriff zaehlt -
+# die breiten Muster sind unkritisch, weil jeder Fund noch den Namensvergleich bestehen muss.
+_SUB_UEBERSCHRIFTEN = (
+    re.compile(r"^#+\s*\**\s*(?:\d+\.\s*Stufe:\s*)?(.+?)\s*\**\s*$", re.MULTILINE),
+    re.compile(r"\*\*_([^_\n]{2,80}?)[.:]?_\*\*"),
+    re.compile(r"\*\*\*([^*\n]{2,80}?)[.:]?\*\*\*"),
+)
+
+
+def _unterabschnitts_nachsuche(con: sqlite3.Connection, kategorie: str,
+                               varianten: set[str], edition: str) -> list[dict]:
+    """Zusatz-Kandidaten fuer den Unterabschnitts-Check: eine gezielte FTS-Suche NUR in
+    der Ziel-Edition. Noetig, weil die editionsuebergreifende Top-6-Liste auf dem vollen
+    Bestand von woertlichen Alt-Treffern dominiert wird (Pi-Befund 18.07.2026: der
+    2014-Eintrag 'Rage' + Rauschen verdraengten 'Klassenmerkmale des Barbaren' - lokal,
+    ohne 2014-Quelle, war derselbe Eintrag sichtbar und der Fallback griff)."""
+    gesehen: set[int] = set()
+    extra: list[dict] = []
+    for begriff in sorted(varianten):
+        for k in _db.fts_suche(con, begriff, kategorie=kategorie, edition=edition,
+                               limit=8)["treffer"]:
+            if k["id"] not in gesehen:
+                gesehen.add(k["id"])
+                extra.append(k)
+    return extra
+
+
+def _unterabschnitts_treffer(con: sqlite3.Connection, kandidaten: list[dict],
+                             varianten: set[str], edition: str) -> tuple[dict, str] | None:
+    """Findet unter den FTS-Kandidaten der ZIEL-Edition einen Eintrag, der den gesuchten
+    Begriff als ABSCHNITTS-UEBERSCHRIFT im Body traegt - z. B. 'Kampfrausch' als
+    '1. Stufe: Kampfrausch' in 'Klassenmerkmale des Barbaren' (srd-de chunkt Klassen-/
+    Spezies-Merkmale als Sammelseiten, nicht als Einzeleintraege). Ohne diesen Schritt
+    fiel der Lookup auf eine AELTERE oder FREMDSPRACHIGE Fassung zurueck, obwohl die
+    aktuelle deutsche Antwort im Bestand steht (Befund 17.07.2026: hol_klasse('Rage')
+    lieferte die englische 2014-Fassung). Die Kandidatenliste ist prioritaets-/Deutsch-
+    first-sortiert - der erste Body-Treffer ist die kanonische Quelle.
+    Rueckgabe: (kandidat, gefundene_ueberschrift) oder None."""
+    for k in kandidaten:
+        if k.get("edition") != edition:
+            continue
+        voll = _db.hole_eintrag(con, k["id"])
+        if not voll:
+            continue
+        body = voll.get("body_md") or ""
+        for muster in _SUB_UEBERSCHRIFTEN:
+            for m in muster.finditer(body):
+                if _glossar.norm_begriff(m.group(1)) in varianten:
+                    return k, m.group(1).strip()
+    return None
+
+
 def _kinder_texte(con: sqlite3.Connection, voll: dict) -> list[str]:
     """Direkte Unterabschnitte eines Options-Eintrags fuer die Detail-ZUSAMMENFUEHRUNG (DDB
     zerlegt eine Option in Intro + '<Name> Traits' + ggf. Abstammungen; die Werte stehen im
@@ -577,10 +631,17 @@ def _hole_detail(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
         varianten |= {_glossar.norm_begriff(a)
                       for a in _db._glossar_alternativen(con, name, nur_exakt=True)}
         exakt = [k for k in kandidaten if _eintrag_namen(k) & varianten]
+        # S10 EXPLIZIT statt per Annahme: die FTS-Rangfolge stellt einen englischen
+        # Volltreffer ('Warrior of the Open Hand', Open5e) vor den deutschen Praefix-Titel
+        # ('Moench-Unterklasse: Krieger der Offenen Hand', srd-de) - fuer die Detailwahl
+        # zaehlt aber Deutsch-first. Stabile Sortierung: DE-Fassungen nach vorn, sonst
+        # FTS-Reihenfolge unveraendert (Befund 17.07.2026).
+        exakt.sort(key=lambda k: k.get("sprache") != "de")
         ziel_exakt = [k for k in exakt if k["edition"] == edition]
 
         gewaehlt = None
         weitere_abschnitte: list[dict] = []
+        unterabschnitt: str | None = None
         if ziel_exakt:
             # ziel_exakt ist prioritaets-/Deutsch-first-sortiert (_dedupe_und_sortiere.rang):
             # [0] ist der kanonische Treffer der Vorrang-Quelle (deutsche Quelle vor DDB/
@@ -610,6 +671,15 @@ def _hole_detail(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
                 weitere_abschnitte = [_knapp(k) for _v, k in voll_paare[1:]]
             else:
                 gewaehlt = kopf
+        elif (sub := (_unterabschnitts_treffer(con, kandidaten, varianten, edition)
+                      or _unterabschnitts_treffer(
+                          con, _unterabschnitts_nachsuche(con, kategorie, varianten,
+                                                          edition),
+                          varianten, edition))):
+            # Der Begriff existiert in der ZIEL-Edition als Abschnitts-Ueberschrift eines
+            # Sammel-Eintrags (srd-de-Chunking) - das schlaegt den Rueckfall auf aeltere/
+            # fremdsprachige Fassungen: die aktuelle deutsche Antwort ist ja im Bestand.
+            gewaehlt, unterabschnitt = sub
         elif exakt:
             if edition == _db.STANDARD_EDITION:
                 gewaehlt = exakt[0]      # nur aeltere Fassung vorhanden (B5)
@@ -646,6 +716,11 @@ def _hole_detail(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
             voll = dict(voll)
             voll["body_md"] = voll["body_md"].rstrip() + "\n\n" + "\n\n".join(kinder)
         antwort = {"gefunden": True, **_detail(voll, con)}
+        if unterabschnitt:
+            antwort["hinweis_unterabschnitt"] = (
+                f"'{name}' steht als Abschnitt '{unterabschnitt}' im gelieferten Eintrag "
+                f"'{antwort.get('anzeige_name')}' - den dortigen Abschnitt wiedergeben "
+                f"(Quelle/Regelversion wie angegeben).")
         if kinder:
             antwort["hinweis_zusammengefuehrt"] = (
                 f"{len(kinder)} Unterabschnitt(e) (z. B. Merkmale/Abstammungen) sind in den "

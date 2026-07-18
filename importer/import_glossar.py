@@ -448,6 +448,48 @@ def seed_monster_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     return n
 
 
+def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
+    """2024-Klassenmerkmalsnamen (inkl. Sub-Features wie Schlaghagel/Windschritt) als
+    OFFIZIELLE Glossar-Bruecke per Struktur-Abgleich srd-de <-> ddb-br-2024-en (Modul
+    importer/srd_klassenmerkmale). Schliesst die Charakterbogen-Luecke 'Angriffe abwehren*'
+    statt amtlich 'Angriffe umleiten'. Selbst-bereinigend; Apostroph-Varianten (U+2019/')
+    werden beide belegt. Braucht die Klassennamen-Bruecke im Glossar -> NACH dem
+    dnddeutsch-Seeding laufen. Auf einer DB ohne ddb-br-2024-en (Mac-Subset) findet der
+    Abgleich schlicht nichts - harmlos, der Pi-Lauf traegt die Paare."""
+    from app import glossar as _glossar
+    from importer.srd_klassenmerkmale import (QUELLE, apostroph_varianten, en_subnamen,
+                                              finde_container_sub_paare, finde_paare)
+    # LIKE-Praefix: kanonisiere_konflikte haengt an demotete Zeilen ein '(demotet: ...)'
+    # an die Quelle - ein exakter Vergleich liesse solche Alt-Zeilen als Zombies stehen
+    # (real: 'Weapon Mastery -> Zauberwirken (demotet)' ueberlebte den Re-Lauf).
+    con.execute("DELETE FROM glossar WHERE quelle LIKE ?", (QUELLE + "%",))
+    # Cache leeren, sonst saehe der Ausschluss-Abgleich die soeben GELOESCHTEN eigenen
+    # Alt-Zeilen noch als 'belegt' (und ein Re-Lauf wuerde alte Fehlpaare fortschreiben).
+    _glossar._GLOSSAR_CACHE.clear()
+    paare, report = finde_paare(con)
+    # Spezies-/Talent-Sub-Features ('Fey Ancestry') sind KEINE Eintragsnamen - das
+    # Vollseeding hat sie nie bei dnddeutsch angefragt. Hier gezielt nachholen (Cache
+    # macht Re-Runs offline), damit die belegte-Paare-Stufe der Container-Paarung greift.
+    subnamen = sorted({s for kat in ("spezies", "talent") for s in en_subnamen(con, kat)})
+    if subnamen:
+        seed_glossar(con, subnamen)
+        _glossar._GLOSSAR_CACHE.clear()
+    for kategorie in ("spezies", "talent"):
+        p2, r2 = finde_container_sub_paare(con, kategorie)
+        paare += [p for p in p2 if p not in paare]
+        report += r2
+    n = 0
+    for term_en, term_de in paare:
+        for variante in apostroph_varianten(term_en):
+            _upsert(con, variante, term_de, 1, QUELLE, "2024", None)
+            n += 1
+    for zeile in report:
+        print(f"  klassenmerkmale: {zeile}", file=sys.stderr)
+    con.commit()
+    _glossar._GLOSSAR_CACHE.clear()   # Folge-Seeder sollen die neuen Paare sehen
+    return n
+
+
 def seed_kernwortschatz_aus_bestand(con: sqlite3.Connection) -> int:
     """SRD-Kernwortschatz (Fertigkeiten, Groessen, Kreaturentypen) QUELLENGETRIEBEN aus dem
     Bestand herleiten und als offizielle Bruecke schreiben (Modul importer/srd_kernwortschatz).
