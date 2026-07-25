@@ -405,12 +405,12 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
          "hinweis_sprache_begriffe": _HINWEIS_STERN}
     if e.get("lizenz"):
         # A12/Q6: die Quellenlizenz wird im Detailpfad nicht verworfen; CC-BY verlangt
-        # die mitgefuehrte Attribution (Wortlaut konsistent mit docs/ATTRIBUTION.md).
+        # die mitgefuehrte Attribution (Wortlaut konsistent mit README.md, Lizenz & Recht).
         d["lizenz"] = e["lizenz"]
         if str(e["lizenz"]).upper().startswith("CC-BY"):
             d["attribution"] = ("Enthaelt Material aus dem System Reference Document "
                                 "5.2.1 von Wizards of the Coast LLC, lizenziert unter "
-                                "CC-BY-4.0 (Details: docs/ATTRIBUTION.md).")
+                                "CC-BY-4.0.")
     # SYN-P0-007: Abenteuer-/Setting-Quellen sind bewusst geladen (Terminologie), aber
     # jede Antwort daraus traegt die Kennzeichnung - Spoiler-Schutz und 'kein finales
     # Spieler-Regelwerk' duerfen nicht allein am Quellentitel haengen. Defensiv gegen

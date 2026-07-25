@@ -1,7 +1,7 @@
 """Charakterbogen-Uebersetzer: DDB-Export (EN) -> offizieller deutscher WotC-Bogen.
 
 Eigenstaendiges Feature neben dem Foliant-MCP. Pipeline, Module und die tragenden
-Entwurfsregeln: docs/CHARAKTERBOGEN-MVP.md.
+Entwurfsregeln: CONCEPT.md §7 (Anforderungen: SPEC.md §14).
 
     ddb_pdf.py      Extractor    deterministisch  -> neutrales Charaktermodell (EN)
     uebersetzer.py  Uebersetzer  Claude + Foliant  -> Modell (DE, §5-Konvention)

@@ -4,57 +4,141 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)
 
-Self-hosted MCP-Server als **Regel-Nachschlagewerk für D&D 5e (Fassung 2024)**, Deutsch-first —
-kurz: **Foliant**.
-Beantwortet Regelfragen (Kampf + außerhalb), liefert Steckbriefe und unterstützt die
-Charaktererstellung — geerdet auf importierte Quellen, mit Quelle/Seite/Version und korrektem
-Spieldeutsch (englischer Begriff in Klammern, `*` wenn keine offizielle Übersetzung).
+Self-hosted MCP-Server als **Regel-Nachschlagewerk für D&D 5e (Fassung 2024)**, Deutsch-first
+— kurz: **Foliant**. Beantwortet Regelfragen (Kampf + außerhalb), liefert Steckbriefe und
+unterstützt die Charaktererstellung — geerdet auf importierte Quellen, mit Quelle, Seite und
+Regelversion, in korrektem Spieldeutsch (englischer Begriff in Klammern, `*` wenn keine
+offizielle Übersetzung existiert).
 
-## Aufbau
-- `PROJEKT-UEBERSICHT.md` — **Wegweiser** über alle Dokumente (dort starten).
-- `docs/foliant-anforderungen.md` — verbindliche Anforderungen (das „Was", Rev. 8).
-- `CLAUDE.md` — operative Anleitung für Claude Code (Betrieb, Pipelines, Gotchas).
-- `docs/RUNBOOK.md` — kanonischer Betriebsweg · `docs/ROADMAP.md` — was noch offen ist.
-- `app/` — FastMCP-Server, Tools, Zugriffsschutz, Admin-CLI, Charakterbogen-Übersetzer.
-  `importer/` — PDF/OCR/Markdown/Glossar/Open5e/DDB. `db/` — Schema + Init. `config/` —
-  Verhaltensregeln + Config-Vorlage. `tests/` — Abnahme (T1–T12), Smoke, Golden-Suite.
+Daneben läuft der **Charakterbogen-Übersetzer**: ein englischer D&D-Beyond-PDF-Export wird zum
+ausgefüllten offiziellen deutschen WotC-Bogen 2024, druckbar.
+
+## Der Kern in drei Sätzen
+
+1. **Geerdet:** Foliant antwortet nur aus dem importierten Bestand; findet es nichts, sagt es
+   das — statt zu erfinden. Websuche nur als klar gekennzeichneter Fallback, niemals Spoiler.
+2. **Deutsch-first:** offizielle deutsche Begriffe, englisches Original in Klammern, `*` wenn
+   keine offizielle Übersetzung existiert.
+3. **Version immer:** aktuelle Regeln (2024) als Standard; ältere Stände klar gekennzeichnet.
 
 ## Stand (25.07.2026)
-**MVP komplett und live** auf dem Raspberry Pi: ~9490 Einträge aus 12 Quellen
-(dt. SRD 5.2.1, Open5e, 10 D&D-Beyond-Bücher), 16 Tools, Zugang über Geheimpfad +
-IP-Allowlist, Datenbank-QS abgeschlossen. Daneben läuft der **Charakterbogen-Übersetzer**
-als eigene Website: englischer D&D-Beyond-PDF-Export → fertiger deutscher WotC-Bogen 2024
-(`docs/CHARAKTERBOGEN-MVP.md`). Offene Schritte bis zur Gruppennutzung: `docs/ROADMAP.md`.
 
-## Schnellstart Entwicklung (am Mac)
-1. `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
-2. `python db/init_db.py data/foliant.sqlite`
-3. `cp config/foliant.example.toml config/foliant.toml` und Quellen/Pfade eintragen.
-4. Importieren: `python -m app.admin import --quelle srd-de` (bzw. `open5e-srd-2024`,
-   `glossar`); prüfen mit **`make test`** (= pytest beider venvs + `admin check` +
-   Smoke + Golden-Suite gegen den echten Bestand).
-5. Server lokal: `.venv/bin/uvicorn app.server:app --port 8000` → `GET /ready` = 200,
-   MCP-Endpoint unter `http://localhost:8000/mcp` (Dev ohne Geheimpfad).
+**MVP komplett und live** auf einem Raspberry Pi 4: ~9490 Einträge aus 12 Quellen (dt. SRD
+5.2.1, Open5e, 10 D&D-Beyond-Bücher), 16 Tools, Zugang über geheimen Pfad + IP-Allowlist,
+Datenbank-QS abgeschlossen. Der Charakterbogen-Übersetzer läuft als eigener Container daneben.
+Was noch offen ist: [BACKLOG.md](BACKLOG.md).
 
-Betrieb/Deployment (Pi, Docker, Tunnel, Zugangsschutz, OCR-Vorstufe, DDB-Import):
-`docs/RUNBOOK.md` (Reihenfolge) und `docs/DEPLOY-raspberry-pi.md` (Details).
+## Dokumentation — vier Dateien, mehr nicht
+
+| Datei | Enthält |
+|---|---|
+| **[SPEC.md](SPEC.md)** | Das verbindliche **„Was"**: Anforderungen, Sprach- und Versionsregeln, Verhalten, Abnahmekriterien, die Projektanweisung zum Kopieren |
+| **[CONCEPT.md](CONCEPT.md)** | Das **„Wie"**: Architektur, Datenmodell, Import-Pipelines, Betrieb und Deployment, Entscheidungen, Fallen, Sicherheitsmodell |
+| **[BACKLOG.md](BACKLOG.md)** | Was **offen** ist: Phasen mit Gates, Abnahme-Checkliste, Rest-Posten, Ausbaustufen, erledigte Chronik |
+| **README.md** | Diese Datei: Einstieg, Schnellstart, Nutzung, Recht |
+
+`CLAUDE.md` ist kein fünftes Dokument, sondern der Einstiegspunkt für Claude Code — er
+verweist nur auf die vier oben.
+
+## Aufbau des Repositorys
+
+```
+app/         FastMCP-Server, Tools, Zugriffsschutz, Admin-CLI, Charakterbogen-Übersetzer
+importer/    PDF · OCR · Markdown · Glossar · Open5e · DDB
+db/          Schema + Init          config/   Verhaltensregeln + Config-Vorlage
+tests/       Abnahme (T1–T12), Smoke, Golden-Suite am echten Bestand
+deploy/      Caddyfile              .github/  CI
+```
+
+## Schnellstart (Entwicklung am Mac)
+
+```bash
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+python db/init_db.py data/foliant.sqlite
+cp config/foliant.example.toml config/foliant.toml    # Quellen/Pfade eintragen
+python -m app.admin import --quelle srd-de            # bzw. open5e-srd-2024, glossar
+make test                                             # das EINE Gate
+.venv/bin/uvicorn app.server:app --port 8000          # GET /ready == 200
+```
+
+Der MCP-Endpoint liegt lokal unter `http://localhost:8000/mcp` (Dev ohne Geheimpfad).
+Betrieb, Deployment und die Import-Wege im Detail: [CONCEPT.md](CONCEPT.md) §8–9.
+
+## Nutzung
+
+### Foliant im Claude-Chat
+Custom Connector mit der **vollen URL inkl. Geheimpfad** hinzufügen —
+`https://<host>/<token>/mcp`, kein OAuth. Einrichten am Desktop; benutzen geht danach auch aus
+der Mobile-App. Für konsistentes Verhalten die Projektanweisung aus [SPEC.md](SPEC.md) §8 in
+ein Claude-Projekt einfügen.
+
+### Charakterbogen-Übersetzer — Kurzanleitung für die Runde
+
+Ihr habt euren Charakter in **D&D Beyond**, aber der Bogen ist auf Englisch? Auf der Seite
+macht ihr daraus in etwa einer Minute einen **deutschen Charakterbogen** auf der offiziellen
+deutschen WotC-Vorlage (2024) — fertig zum Ausdrucken.
+
+1. **Anmelden.** Es gibt nur ein Feld: das **Kennwort**. Kein Benutzername, keine
+   Registrierung. Danach bleibt ihr **30 Tage angemeldet**.
+2. **Bei D&D Beyond exportieren.** Charakter öffnen → *Character Sheet → Print/Export* → als
+   **englisches** PDF speichern.
+3. **PDF hochladen**, etwa eine Minute warten, **herunterladen.** Das war's.
+
+**Häufige Fragen**
+- *Was passiert mit meinen Daten?* Nichts wird gespeichert. Das PDF wird nur im
+  Arbeitsspeicher verarbeitet; nach dem Download ist alles weg.
+- *Funktioniert ein deutscher DDB-Export?* Nein — nur **englische** Exporte.
+- *Warum hat mein Bogen plötzlich mehr Seiten?* Passt der Inhalt nicht auf die zwei Seiten der
+  Vorlage, kommt automatisch eine Anhang-Seite dazu. Es geht nichts verloren.
+- *Was bedeutet das Sternchen?* Zum Beispiel „Angriffe abwehren\* (Deflect Attacks)": Für
+  diesen Begriff gibt es (noch) **keine offizielle deutsche Fassung** — das ist eine sinngemäße
+  Übersetzung, das Original steht in Klammern. Begriffe **ohne** Sternchen sind die
+  **amtlichen** Bezeichnungen.
+- *„Gerade belegt"?* Es läuft immer nur **eine** Konvertierung gleichzeitig. Kurz warten.
+
+**Eine Bitte:** Behaltet URL und Kennwort in der Runde — bitte nicht weitergeben. Danke! 🎲
 
 ## Öffentlicher Code, private Inhalte
+
 Dieses Repository enthält den **Quellcode** und die **SRD-5.2.1-Import-Pipeline** (CC-BY-4.0)
 als vollständiges Referenzbeispiel. Es enthält **keine** kommerziellen Regelinhalte. Die aus
 gekauften Druck-Büchern abgeleiteten Import-Reparaturen liegen bewusst in privaten,
-`.gitignore`-ten Modulen (`importer/frhof_reparatur.py`, `importer/reparatur_ddb_privat.py`,
+gitignorierten Modulen (`importer/frhof_reparatur.py`, `importer/reparatur_ddb_privat.py`,
 `tests/test_ddb_druck_privat.py`). Ohne sie bleibt der Server voll funktionsfähig — nur die
-kommerziellen Druck-Importe entfallen (die zugehörigen Tests überspringen sich selbst).
+kommerziellen Druck-Importe entfallen, die zugehörigen Tests überspringen sich selbst.
 
 ## Mitwirken
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — Setup, Tests, die vier Kernregeln.
-- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — Verhaltenskodex.
-- [`SECURITY.md`](SECURITY.md) — Sicherheitsmodell und privater Meldeweg.
+
+Vor dem ersten Beitrag bitte die **vier nicht verhandelbaren Kernregeln** in
+[SPEC.md](SPEC.md) §7 lesen — sie prägen fast jede Designentscheidung. Für Pull Requests gilt:
+`make test` muss grün sein, neue Funktionalität braucht Tests, Bugfixes brauchen einen
+Regressionstest, der ohne den Fix fehlschlägt. Der Code ist durchgehend deutschsprachig
+kommentiert; halte dich an den vorhandenen Stil. Details: [CONCEPT.md](CONCEPT.md) §11.
+
+**Nicht ins Repository gehören:** Geheimnisse (`.env`, Token, DDB-Cobalt), Datenbanken
+(`data/`), Quell-PDFs (`quellen/`) — alle bereits gitignored — und kommerzielle Regelinhalte.
+Bitte auch keine urheberrechtlich geschützten Regeltexte in Issues zitieren.
+
+**Sicherheitslücken** bitte **nicht** über öffentliche Issues melden, sondern über die private
+„Report a vulnerability"-Funktion (GitHub → *Security* → *Advisories*). Das Sicherheitsmodell
+steht in [CONCEPT.md](CONCEPT.md) §13.
+
+Umgangston: freundlich, respektvoll, sachlich — im Zweifel gilt der
+[Contributor Covenant](https://www.contributor-covenant.org/de/version/2/1/code_of_conduct.html).
 
 ## Lizenz & Recht
-- **Code:** MIT — siehe [`LICENSE`](LICENSE).
-- **SRD 5.2.1** (deutsch/englisch) und **Open5e-Daten:** CC-BY-4.0, siehe
-  [`docs/ATTRIBUTION.md`](docs/ATTRIBUTION.md).
+
+- **Code:** MIT — siehe [LICENSE](LICENSE).
+- **SRD 5.2.1:** Dieses Projekt nutzt Material aus dem **System Reference Document 5.2.1**
+  („SRD 5.2.1") von Wizards of the Coast LLC, verfügbar unter https://www.dndbeyond.com/srd.
+  Das SRD 5.2.1 steht unter der **Creative Commons Attribution 4.0 International License**
+  (https://creativecommons.org/licenses/by/4.0/legalcode).
+- **Open5e** (`api.open5e.com`): OGL 1.0a (srd-2014) bzw. CC-BY-4.0 (srd-2024); Attribution
+  gemäß den jeweiligen Open5e-Dokumenten.
+- **Deutsche Begriffe** u. a. über dnddeutsch.de (Ulisses-Terminologie).
 - **Kommerzielle D&D-Bücher** (z. B. via D&D Beyond) sind urheberrechtlich geschützt, werden
-  nicht mitgeliefert und nur privat/rechtmäßig erworben zum Eigenbedarf verarbeitet.
+  nicht mitgeliefert und nur privat, rechtmäßig erworben und zum Eigenbedarf verarbeitet
+  (`lizenz = "privat"`, `herkunft = "ddb"` an jedem Eintrag). Sie werden der eigenen Spielrunde
+  über einen zugangsgeschützten Endpoint bereitgestellt — bewusste, protokollierte
+  Eigentümer-Entscheidung ([SPEC.md](SPEC.md) §12.1). Eine Weitergabe über die Runde hinaus
+  findet nicht statt.

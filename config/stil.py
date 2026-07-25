@@ -7,7 +7,7 @@ Der Nutzer stellt nichts davon ein.
 Erweitert 11.07.2026 (Davids Anforderung): explizite PRIORITÄTSLEITER (Bestand vor
 allem anderen), Websuche nur als klar gekennzeichneter Fallback, einheitliches
 Format-/Emoji-Schema, Spoiler-Schutz als oberste Regel. Derselbe Kern steht als
-Copy-Paste-Projektanweisung in docs/CLAUDE-PROJEKT-ANWEISUNG.md (Kanal: Claude-Projekt)
+Copy-Paste-Projektanweisung in SPEC.md §8 (Kanal: Claude-Projekt)
 — bei Änderungen BEIDE Stellen synchron halten.
 """
 

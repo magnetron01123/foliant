@@ -522,7 +522,7 @@ def cmd_backup(args) -> None:
     Verifikation (integrity_check + FTS-Zeilengleichheit + nicht leer), sonst wird das Backup
     verworfen. Aufbewahrung: nur die neuesten --behalten Dateien. Fuer Off-Site: dieses
     Kommando per Cron laufen lassen und danach das Ziel-Verzeichnis auf ein zweites Geraet
-    rsyncen (docs/RUNBOOK.md) - der eigentliche M3-Schutz gegen Datenverlust."""
+    rsyncen (CONCEPT.md §8) - der eigentliche M3-Schutz gegen Datenverlust."""
     import datetime
 
     quelle = _db.standard_pfad()

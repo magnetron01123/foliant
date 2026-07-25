@@ -14,7 +14,7 @@ services:
       # Kandidaten-DB, Backups, DDB-Artefakte) beschreibbar. Ein anonymes leeres Volume
       # UEBERDECKT das Unterverzeichnis - eine kompromittierte Runtime erreicht die
       # privaten Rohdaten nicht mehr. DDB-Import braucht deshalb einen Einmal-Lauf mit
-      # explizitem Mount (docs/DEPLOY-raspberry-pi.md, Abschnitt DDB).
+      # explizitem Mount (CONCEPT.md §9, DDB-Buchimport).
       - /app/data/private
       - ./quellen:/app/quellen:ro   # Quelldateien (read-only; bei Serve-only leer/optional)
       - ./config:/app/config:ro     # Konfiguration (read-only)
