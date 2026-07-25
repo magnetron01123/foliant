@@ -38,16 +38,6 @@ prioritaet = 20
 dateipfad = "quellen/PHB_2024_DE.pdf"   # bei Scan: "data/ocr/PHB_2024_DE.ocr.pdf"
 
 [[quelle]]
-kuerzel = "srd-en"
-titel = "SRD 5.2.1 (English, Markdown)"
-sprache = "en"
-edition = "2024"
-herkunft = "srd-md"
-lizenz = "CC-BY-4.0"
-prioritaet = 30
-dateipfad = "quellen/srd-en-markdown/"
-
-[[quelle]]
 # Kuerzel-Schema des Importers: "open5e-<dokument-key>" (Quelle wird beim Import angelegt)
 kuerzel = "open5e-srd-2024"
 titel = "System Reference Document 5.2 (Open5e)"

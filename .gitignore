@@ -19,10 +19,9 @@ vorlagen/charakterboegen/ddb-beispiele/
 tests/test_charakterbogen_ddb_golden_privat.py
 tests/test_charakterbogen_pdf_golden_privat.py
 
-# Lokale Claude-Code-Einstellungen + Auslieferungs-Archive (entpackt, redundant)
+# Lokale Claude-Code-Einstellungen + Sicherungen davon
 .claude/settings.local.json
-foliant-dokumente.zip
-foliant-mvp-geruest.zip
+.claude/settings.json.bak-*
 
 # macOS-Finder-Metadaten
 .DS_Store
