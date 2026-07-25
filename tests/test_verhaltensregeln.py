@@ -1,0 +1,74 @@
+"""Die Verhaltensregeln laufen ueber drei Kanaele (SPEC.md §7). Zwei davon sind
+Freitext und driften deshalb lautlos auseinander: die Server-Instruktion in
+`config/stil.py` und die Copy-Paste-Projektanweisung in SPEC.md §8. CLAUDE.md
+verlangt seit jeher, beide synchron zu halten - bisher war das eine Bitte an den
+Menschen, hier wird es geprueft.
+
+Der Test prueft NICHT auf Wortgleichheit (die Kanaele haben unterschiedliche
+Adressaten und duerfen anders formulieren), sondern darauf, dass jede tragende
+Regel in beiden vorkommt. Faellt eine raus, faellt der Test.
+"""
+from __future__ import annotations
+
+import pathlib
+import re
+
+import pytest
+
+from config.stil import INSTRUCTIONS
+
+_SPEC = pathlib.Path(__file__).resolve().parents[1] / "SPEC.md"
+
+
+@pytest.fixture(scope="module")
+def projektanweisung() -> str:
+    """Der Codeblock aus SPEC.md §8 - das ist der Text, den David einfuegt."""
+    text = _SPEC.read_text(encoding="utf-8")
+    bloecke = re.findall(r"```\n(Du hilfst unserer D&D-Runde.*?)```", text, re.S)
+    assert len(bloecke) == 1, "SPEC.md §8 muss genau EINEN Projektanweisungs-Block haben"
+    return bloecke[0]
+
+
+# Je Regel ein Kennzeichen, das in BEIDEN Kanaelen vorkommen muss. Bewusst kurze,
+# stabile Fragmente - keine ganzen Saetze, sonst bricht der Test bei jeder Umformulierung.
+_TRAGENDE_REGELN = [
+    ("Spoiler-Ablehnung", "🚫"),
+    ("Leerbefund-Kennzeichnung", "❌"),
+    ("Web-Kennzeichnung", "🌐"),
+    ("Bestand ist einzige Quelle", "Trainingswissen"),
+    ("Belegzeile", "📖"),
+    ("Altstand-Warnung", "⚠️"),
+    ("SL-Verweis bei Regelluecke", "⚖️"),
+    ("Stern-Regel", "*"),
+    ("amtliche Begriffe aus dem Tool", "begriffe_deutsch"),
+    ("2024-Baureihenfolge", "Hintergrund"),
+    ("Pflichtwahl Sprachen", "SPRACHEN"),
+    ("Parameterfehler ist kein Leerbefund", "fehler"),
+    ("Gegenprobe vor dem Leerbefund", "foliant_suche_bestand"),
+    ("gekuerzte Trefferliste", "hinweis_gekuerzt"),
+    ("Spoiler-Kennzeichnung der Quelle", "abenteuer_setting"),
+]
+
+
+@pytest.mark.parametrize("name,kennzeichen", _TRAGENDE_REGELN,
+                         ids=[n for n, _ in _TRAGENDE_REGELN])
+def test_regel_steht_in_beiden_kanaelen(name, kennzeichen, projektanweisung):
+    assert kennzeichen in INSTRUCTIONS, f"{name}: fehlt in config/stil.py"
+    assert kennzeichen in projektanweisung, f"{name}: fehlt in der Projektanweisung (SPEC.md §8)"
+
+
+def test_spoilerschutz_steht_ganz_oben():
+    """Reihenfolge ist Wirkung: der Spoiler-Schutz ist die oberste Verhaltensregel
+    (SPEC.md §7) und muss vor allen Wissensquellen-Regeln stehen."""
+    assert INSTRUCTIONS.index("KEINE SPOILER") < INSTRUCTIONS.index("PRIORITÄTSLEITER")
+
+
+def test_instruktion_bleibt_kompakt():
+    """Die Instruktion liegt bei JEDER Verbindung im Kontext. Waechst sie unbegrenzt,
+    verduennt sie sich selbst: je mehr Regeln, desto weniger Gewicht je Regel.
+
+    7500 ist ein Budget mit Luft, keine Klippe - der Stand liegt bei ~6000. Loest der
+    Test aus, ist die Frage nicht "Grenze anheben", sondern welche Regel dafuer raus
+    kann oder in die Tool-Ausgabe gehoert (der zuverlaessigere Kanal, SPEC.md §7)."""
+    assert len(INSTRUCTIONS) < 7500, (
+        f"stil.py INSTRUCTIONS: {len(INSTRUCTIONS)} Zeichen - erst kuerzen, dann anheben")
