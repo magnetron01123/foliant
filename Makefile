@@ -7,7 +7,7 @@
 # nur ein SUBSET (z. B. ohne die englischen DDB-Buecher). Korpusabhaengige Regressionen -
 # etwa der Deutsch-first-Ranking-Bug 'Reaktionen'/'Counterspell' - bleiben dort UNSICHTBAR
 # gruen. Nach jedem Deploy / srd-de-Re-Import daher zusaetzlich `make test-golden-pi` gegen
-# den VOLLEN Bestand fahren (RUNBOOK §2).
+# den VOLLEN Bestand fahren (CONCEPT.md §8).
 
 .PHONY: test test-haupt test-ddb test-daten test-golden-pi
 

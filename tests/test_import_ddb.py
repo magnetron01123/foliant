@@ -156,7 +156,7 @@ def test_import_aktiviert_private_db_und_laesst_oeffentliche_unveraendert(tmp_pa
     finally:
         con.close()
     assert bericht["kategorien"] == {"monster": 1, "regel": 1, "zauber": 1}
-    assert "nicht ueber den authlosen" in bericht["hinweis"]
+    assert "PRIVATE Datenbank" in bericht["hinweis"]
 
 
 def test_import_in_bedienten_bestand_merged_und_erhaelt(tmp_path, dbs):

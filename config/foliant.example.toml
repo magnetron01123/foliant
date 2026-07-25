@@ -61,15 +61,15 @@ prioritaet = 60          # geringer als deutsche Quellen -> fuellt Luecken, gewi
 # DDB-Buchimport: zweistufig - kurzlebiger Exporter (Netz+Secret, KEIN DB-Zugriff)
 # erzeugt Artefakte; der Offline-Import schreibt in die DB. KEINE Secrets hier: Cobalt
 # wird zur Laufzeit verdeckt gelesen (Keychain/Datei/TTY, nie .env/argv). Automatik:
-# 'ddb-exporter sync' + 'admin ddb-import-all' (Anleitung: docs/DDB-IMPORT-anleitung.md).
-# Architektur: docs/ddb-architektur-entscheidung.md (der ddb-proxy-Weg ist verworfen).
+# 'ddb-exporter sync' + 'admin ddb-import-all' (Anleitung: CONCEPT.md §9).
+# Architektur: CONCEPT.md §10, ADR (der ddb-proxy-Weg ist verworfen).
 [ddb]
 artifact_dir = "data/private/ddb-artifacts"
 work_dir = "data/private/ddb-work"
 min_reimport_ratio = 0.70
 
 # ZIEL des DDB-Imports:
-# - Standard (Vorsicht, B2): separate private DB, NICHT ueber den authlosen Tunnel bedient.
+# - Standard (Vorsicht, B2): separate private DB, vom oeffentlichen Endpoint NICHT bedient.
 #   private_db = "data/private/foliant-private.sqlite"
 # - Bewusste Bereitstellung (Eigentuemer-Entscheidung): DDB-Buecher in die BEDIENTE DB
 #   mergen. Auf dem Pi (Betriebsort) gesetzt:

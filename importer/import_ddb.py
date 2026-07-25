@@ -1,6 +1,6 @@
 """DDB-Offline-Import (Phase 3): geprueftes Artefakt -> PRIVATE Kandidaten-DB.
 
-ARCHITEKTUR (docs/ddb-architektur-entscheidung.md): Dieses Modul ist der DB-SCHREIBER der
+ARCHITEKTUR (CONCEPT.md §10, ADR): Dieses Modul ist der DB-SCHREIBER der
 zweistufigen Pipeline. Es liest AUSSCHLIESSLICH lokale, validierte Artefakte
 (importer/ddb_artefakt.py) und enthaelt bewusst KEINEN HTTP-, Cobalt- oder
 Entschluesselungscode - der kurzlebige Exporter (Netz + Secret) ist ein getrennter
@@ -275,8 +275,10 @@ def importiere_ddb_artefakt(artefakt: str | Path, buch: dict, *,
                 "dry_run": dry_run, "aktiviert": None if dry_run else str(private_db),
                 "backup": str(backup) if backup else None,
                 "backups_rotiert": [str(p) for p in rotiert],
-                "hinweis": ("PRIVATE Datenbank - nicht ueber den authlosen oeffentlichen "
-                            "Endpoint bereitstellen (B2, eigener Go-live-Beschluss).")}
+                "hinweis": ("PRIVATE Datenbank - eine Bereitstellung ueber den oeffentlichen "
+                            "Endpoint ist eine eigene Eigentuemer-Entscheidung (B2). Der "
+                            "Endpoint ist seit 11.07.2026 zugangsgeschuetzt (Geheimpfad + "
+                            "IP-Allowlist), aber NICHT anonym: siehe SPEC.md §12.1.")}
     except BaseException:
         kandidat.unlink(missing_ok=True)       # kein halber Kandidat bleibt liegen
         raise

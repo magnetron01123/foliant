@@ -157,7 +157,7 @@ def test_golden_deutsch_first_schlaegt_laengeren_fremdeintrag():
     Laengenwahl (SYN-P0-003) und verdraengte den srd-de-Kernabschnitt. Fix: die Laengenwahl
     vergleicht nur gleichnamige Abschnitte DERSELBEN Quelle; verschiedene QUELLEN entscheidet
     die Quellen-Prioritaet (Q2/S10). Am Mac-Subset (ohne DDB) haelt der Fall trivial - er
-    beisst erst am vollen Korpus (Pi-Container-Golden-Lauf, s. RUNBOOK)."""
+    beisst erst am vollen Korpus (Pi-Container-Golden-Lauf, s. CONCEPT.md §11)."""
     faelle = ((ns.foliant_hol_regel, "Reaktionen", "Reaktionen"),
               (ns.foliant_hol_regel, "Bonusaktionen", "Bonusaktionen"),
               (ns.foliant_hol_zauber, "Counterspell", "Gegenzauber"))

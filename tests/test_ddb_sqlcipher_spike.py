@@ -1,7 +1,7 @@
-"""DDB-Spike Schritt 1-2 (docs/ddb-spike-runbook.md), als Test dokumentiert:
+"""DDB-Spike Schritt 1-2 (Machbarkeitsnachweis), als Test dokumentiert:
 apsw-sqlite3mc kann auf dieser Maschine SQLCipher-v3-Datenbanken erstellen und
 READONLY wieder oeffnen - mit den EXPLIZITEN Legacy-Parametern (keine stillen
-Bibliotheksdefaults, Vorschlag §6.1).
+Bibliotheksdefaults). Architektur: CONCEPT.md §10 (ADR).
 
 `legacy=3` entspricht dem SQLCipher-v3-Profil: 1.024-Byte-Seiten, 64.000
 KDF-Iterationen, SHA-1 fuer KDF/HMAC - das Format der DDB-Buchdatenbanken laut

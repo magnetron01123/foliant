@@ -14,7 +14,7 @@ koennen weder eigene Header noch Browser-Logins liefern - nur URL eintragen oder
 
 BEWUSST im Server statt als Cloudflare-Dashboard-Regel: versioniert, getestet und ohne
 Dashboard-Zugriff deploybar. Die gleichwertige Edge-Regel (blockt schon an der Cloudflare-
-Kante) steht als optionales Upgrade in docs/DEPLOY-raspberry-pi.md.
+Kante) steht als optionales Upgrade in CONCEPT.md §9.
 
 /health bleibt IMMER offen: verraet nur {"status","name"} (keine Inhalte) und traegt
 externes Uptime-Monitoring. Ohne CF-Header (lokale Tests, compose-Healthcheck, LAN)

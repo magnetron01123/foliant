@@ -296,7 +296,7 @@ MERGE_REGELN: dict[str, list[dict[str, str]]] = {
 
 # Aus DDB-Kaufbuechern (Eberron: Forge of the Artificer; FR: Heroes of Faerun)
 # abgeleitete Druck-PDF-Reparaturen liegen in einem privaten, NICHT veroeffentlichten
-# Modul (privater Eigenbedarf, DDB-ToS - siehe README/SECURITY.md). Der oeffentliche
+# Modul (privater Eigenbedarf, DDB-ToS - siehe README.md / CONCEPT.md §13). Der oeffentliche
 # Code enthaelt nur die srd-de-Pipeline (CC-BY 4.0) als vollstaendiges Referenzbeispiel.
 # Ist das Privatmodul lokal vorhanden, ergaenzt es SPLIT_REGELN/BEREINIGUNG um seine
 # Quellen; fehlt es (oeffentliches Repo, CI), bleibt die srd-de-Pipeline voll nutzbar.
