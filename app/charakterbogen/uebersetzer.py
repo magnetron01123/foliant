@@ -36,6 +36,11 @@ class UebersetzungsFehler(RuntimeError):
     """Der Provider lieferte kein gültiges, vollständiges Ergebnis (auch nach Wiederholung)."""
 
 
+class EndgueltigerFehler(UebersetzungsFehler):
+    """Ein Fehler, den dieselbe Anfrage nicht heilen kann - die Wiederholung wird
+    uebersprungen (sie kostet nur Zeit und Geld und trifft dieselbe Wand)."""
+
+
 class Uebersetzungsprovider(Protocol):
     def uebersetze(self, felder: dict[str, str],
                    vorgaben: dict[str, str] | None = None) -> dict[str, str]:
@@ -315,6 +320,8 @@ def _mit_wiederholung(provider: Uebersetzungsprovider, ids: dict[str, str],
         try:
             ergebnis = provider.uebersetze(dict(ids), vorgaben)
             _pruefe_schluessel(ids, ergebnis)
+        except EndgueltigerFehler:
+            raise                      # Token-Limit/Ablehnung: Retry trifft dieselbe Wand
         except Exception as e:  # noqa: BLE001 - Provider-/Format-Fehler bewusst gefangen
             letzter = e
             continue
@@ -361,6 +368,30 @@ _SYSTEM = (
 )
 
 
+# Modelle, bei denen 'thinking: disabled' NICHT gesendet werden darf. Zwei Gruppen:
+# (a) Fable/Mythos lehnen die Angabe mit HTTP 400 ab - jede Konvertierung schluege fehl,
+#     sobald jemand ANTHROPIC_MODEL darauf setzt.
+# (b) Opus 5 akzeptiert sie zwar (bis effort 'high'), leakt mit abgeschaltetem Denken aber
+#     dokumentiert '<thinking>'-Tags in den sichtbaren Text - der landet hier UNGEPRUEFT
+#     auf dem gedruckten Charakterbogen.
+# Fuer beide gilt der dokumentierte Ersatz: Denken anlassen und stattdessen die Tiefe ueber
+# 'effort' senken - das haelt die Latenz im Rahmen (Cloudflare kappt bei 120 s), ohne die
+# Angabe zu senden. Praefix-Abgleich, damit kuenftige Punktstaende mitgreifen.
+_KEIN_THINKING_DISABLED = ("claude-fable-", "claude-mythos-", "claude-opus-5")
+
+
+def _denk_konfig(modell: str) -> dict:
+    """Request-Felder zur Denk-Steuerung fuer dieses Modell.
+
+    Uebersetzen ist keine Reasoning-Aufgabe: volles Denken macht den Aufruf nur langsam
+    (>3 min sprengt Timeouts/Cloudflare) ohne Qualitaetsgewinn. Wo 'disabled' erlaubt und
+    unschaedlich ist, schalten wir es also ab; sonst drosseln wir ueber 'effort'."""
+    m = (modell or "").strip().lower()
+    if any(m.startswith(p) for p in _KEIN_THINKING_DISABLED):
+        return {"output_config": {"effort": "low"}}
+    return {"thinking": {"type": "disabled"}}
+
+
 class AnthropicProvider:
     """MVP-Adapter über die Anthropic Messages API (httpx). Key/Modell kommen vom Aufrufer
     (aus .env), werden NIE hart kodiert. Es wird nur der nötige Text gesendet, kein PDF."""
@@ -387,11 +418,9 @@ class AnthropicProvider:
         rumpf = {
             "model": self._modell,
             "max_tokens": self._max_tokens,
-            # Übersetzen ist keine Reasoning-Aufgabe: Extended Thinking macht den Aufruf nur
-            # langsam (>3 min, sprengt Timeouts/Cloudflare) ohne Qualitätsgewinn -> aus.
-            "thinking": {"type": "disabled"},
             "system": system,
             "messages": [{"role": "user", "content": json.dumps(felder, ensure_ascii=False)}],
+            **_denk_konfig(self._modell),
         }
         kopf = {"x-api-key": self._key, "anthropic-version": "2023-06-01",
                 "content-type": "application/json"}
@@ -405,8 +434,30 @@ class AnthropicProvider:
                 antwort = client.post(self._url, headers=kopf, json=rumpf)
             antwort.raise_for_status()
             daten = antwort.json()
+        _pruefe_stop_reason(daten)
         text = "".join(b.get("text", "") for b in daten.get("content", []) if b.get("type") == "text")
         return _json_aus_text(text)
+
+
+def _pruefe_stop_reason(daten: dict) -> None:
+    """Abbruchgruende benennen, BEVOR am Text geparst wird.
+
+    Ohne diese Pruefung enden beide Faelle in 'Keine JSON-Antwort erhalten' - eine
+    Fehlmeldung, die auf einen Formatfehler des Modells zeigt statt auf die echte Ursache:
+    - 'max_tokens': die Antwort ist mitten im JSON abgeschnitten. Bei einem langen Bogen
+      erreichbar; die Wiederholung in _mit_wiederholung laeuft dann in dieselbe Wand.
+    - 'refusal': die Sicherheitsklassifikatoren neuerer Modelle haben abgelehnt; 'content'
+      ist leer oder nur teilweise gefuellt. Ein Retry mit demselben Text hilft nicht."""
+    grund = daten.get("stop_reason")
+    if grund == "max_tokens":
+        raise EndgueltigerFehler(
+            "Antwort am Token-Limit abgeschnitten (stop_reason=max_tokens) - der Bogen ist "
+            "fuer max_tokens zu umfangreich. Limit erhoehen oder Felder aufteilen.")
+    if grund == "refusal":
+        kategorie = (daten.get("stop_details") or {}).get("category") or "unbekannt"
+        raise EndgueltigerFehler(
+            f"Das Modell hat die Anfrage abgelehnt (stop_reason=refusal, Kategorie: "
+            f"{kategorie}). Eine Wiederholung mit demselben Text aendert daran nichts.")
 
 
 def _json_aus_text(text: str) -> dict:

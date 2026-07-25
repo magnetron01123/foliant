@@ -379,3 +379,72 @@ def test_einklassig_bleibt_unberuehrt(con):
     c = uebersetze(c, con, FakeProvider())
     assert c.identitaet.mehrklassen_anzeige is None
     assert c.identitaet.stufe == 5
+
+
+# --- Provider-Robustheit: Modell-Gates und Abbruchgruende --------------------
+# Alle drei Faelle enden ohne diese Pruefungen in derselben irrefuehrenden Meldung
+# ("Keine JSON-Antwort erhalten") oder in einem 400, das erst in Produktion auffaellt.
+
+@pytest.mark.parametrize("modell", ["claude-fable-5", "claude-mythos-5", "claude-opus-5"])
+def test_denk_konfig_sendet_kein_thinking_disabled(modell):
+    """Fable/Mythos lehnen 'thinking: disabled' mit HTTP 400 ab; Opus 5 leakt damit
+    '<thinking>'-Tags in den sichtbaren Text - der landet ungeprueft auf dem Bogen.
+    Fuer beide ist der Ersatz: Denken an, Tiefe ueber 'effort' drosseln."""
+    konfig = uebersetzer._denk_konfig(modell)
+    assert "thinking" not in konfig
+    assert konfig["output_config"]["effort"] == "low"
+
+
+@pytest.mark.parametrize("modell", ["claude-sonnet-5", "claude-opus-4-8", "claude-haiku-4-5"])
+def test_denk_konfig_schaltet_denken_ab_wo_erlaubt(modell):
+    """Wo 'disabled' unterstuetzt und unschaedlich ist, bleibt es - Uebersetzen ist keine
+    Reasoning-Aufgabe und volles Denken sprengt das Cloudflare-Zeitlimit."""
+    assert uebersetzer._denk_konfig(modell) == {"thinking": {"type": "disabled"}}
+
+
+def test_abgeschnittene_antwort_wird_als_solche_gemeldet():
+    with pytest.raises(uebersetzer.EndgueltigerFehler, match="max_tokens"):
+        uebersetzer._pruefe_stop_reason({"stop_reason": "max_tokens", "content": []})
+
+
+def test_ablehnung_nennt_kategorie():
+    with pytest.raises(uebersetzer.EndgueltigerFehler, match="cyber"):
+        uebersetzer._pruefe_stop_reason(
+            {"stop_reason": "refusal", "stop_details": {"category": "cyber"}, "content": []})
+
+
+def test_normaler_abschluss_wirft_nicht():
+    uebersetzer._pruefe_stop_reason({"stop_reason": "end_turn", "content": []})
+
+
+def test_endgueltiger_fehler_wird_nicht_wiederholt():
+    """Ein zweiter Aufruf trifft dieselbe Wand und kostet nur Zeit und API-Geld."""
+    class Abbrechend:
+        def __init__(self):
+            self.aufrufe = 0
+
+        def uebersetze(self, felder, vorgaben=None):
+            self.aufrufe += 1
+            raise uebersetzer.EndgueltigerFehler("Token-Limit")
+
+    p = Abbrechend()
+    with pytest.raises(uebersetzer.EndgueltigerFehler):
+        uebersetzer._mit_wiederholung(p, {"0": "Fireball"})
+    assert p.aufrufe == 1, "endgueltiger Fehler darf keine Wiederholung ausloesen"
+
+
+def test_formatfehler_wird_genau_einmal_wiederholt():
+    """Ein kaputtes JSON kann beim zweiten Anlauf gut gehen - dieser Retry bleibt."""
+    class Wackelig:
+        def __init__(self):
+            self.aufrufe = 0
+
+        def uebersetze(self, felder, vorgaben=None):
+            self.aufrufe += 1
+            if self.aufrufe == 1:
+                raise uebersetzer.UebersetzungsFehler("kaputtes JSON")
+            return {k: "de:" + v for k, v in felder.items()}
+
+    p = Wackelig()
+    ergebnis, _ = uebersetzer._mit_wiederholung(p, {"0": "Fireball"})
+    assert ergebnis == {"0": "de:Fireball"} and p.aufrufe == 2
