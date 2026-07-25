@@ -14,15 +14,17 @@ Spieldeutsch (englischer Begriff in Klammern, `*` wenn keine offizielle Überset
 - `PROJEKT-UEBERSICHT.md` — **Wegweiser** über alle Dokumente (dort starten).
 - `docs/foliant-anforderungen.md` — verbindliche Anforderungen (das „Was", Rev. 8).
 - `CLAUDE.md` — operative Anleitung für Claude Code (Betrieb, Pipelines, Gotchas).
-- `app/` — FastMCP-Server, Tools, Zugriffsschutz, Admin-CLI. `importer/` — PDF/OCR/
-  Markdown/Glossar/Open5e/DDB. `db/` — Schema + Init. `config/` — Verhaltensregeln +
-  Config-Vorlage. `tests/` — Abnahme (T1–T12), Smoke, Regressionen. `docs/archiv/` — historisch.
+- `docs/RUNBOOK.md` — kanonischer Betriebsweg · `docs/ROADMAP.md` — was noch offen ist.
+- `app/` — FastMCP-Server, Tools, Zugriffsschutz, Admin-CLI, Charakterbogen-Übersetzer.
+  `importer/` — PDF/OCR/Markdown/Glossar/Open5e/DDB. `db/` — Schema + Init. `config/` —
+  Verhaltensregeln + Config-Vorlage. `tests/` — Abnahme (T1–T12), Smoke, Golden-Suite.
 
-## Stand (11.07.2026)
+## Stand (25.07.2026)
 **MVP komplett und live** auf dem Raspberry Pi: ~9490 Einträge aus 12 Quellen
 (dt. SRD 5.2.1, Open5e, 10 D&D-Beyond-Bücher), 16 Tools, Zugang über Geheimpfad +
-IP-Allowlist, Datenbank-QS abgeschlossen. Offene Schritte bis zur Gruppennutzung:
-`docs/MVP-ABGLEICH-UND-ROADMAP.md`.
+IP-Allowlist, Datenbank-QS abgeschlossen. Daneben läuft der **Charakterbogen-Übersetzer**
+als eigene Website: englischer D&D-Beyond-PDF-Export → fertiger deutscher WotC-Bogen 2024
+(`docs/CHARAKTERBOGEN-MVP.md`). Offene Schritte bis zur Gruppennutzung: `docs/ROADMAP.md`.
 
 ## Schnellstart Entwicklung (am Mac)
 1. `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
@@ -35,7 +37,7 @@ IP-Allowlist, Datenbank-QS abgeschlossen. Offene Schritte bis zur Gruppennutzung
    MCP-Endpoint unter `http://localhost:8000/mcp` (Dev ohne Geheimpfad).
 
 Betrieb/Deployment (Pi, Docker, Tunnel, Zugangsschutz, OCR-Vorstufe, DDB-Import):
-`docs/DEPLOY-raspberry-pi.md` und `docs/DDB-IMPORT-anleitung.md`.
+`docs/RUNBOOK.md` (Reihenfolge) und `docs/DEPLOY-raspberry-pi.md` (Details).
 
 ## Öffentlicher Code, private Inhalte
 Dieses Repository enthält den **Quellcode** und die **SRD-5.2.1-Import-Pipeline** (CC-BY-4.0)

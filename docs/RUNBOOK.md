@@ -1,8 +1,9 @@
 # Foliant — Runbook (kanonischer Betriebsweg)
 
-**Ein** verbindlicher Weg von Null bis „Runde nutzt es"; andere Dokumente vertiefen
-Einzelschritte (`DEPLOY-raspberry-pi.md`, `DDB-IMPORT-anleitung.md`). Adressiert
-SYN-P2-006 (Doku-Drift: bislang lag der Betriebsweg über mehrere Dokumente verteilt).
+**Ein** verbindlicher Weg von Null bis „Runde nutzt es". Die Detailtiefe (Pi-Ersteinrichtung,
+Zugangsschutz, OCR- und DDB-Import, Website) steht in `DEPLOY-raspberry-pi.md`; dieses
+Dokument ist die Reihenfolge. *(Adressiert SYN-P2-006: der Betriebsweg lag früher über
+mehrere Dokumente verteilt.)*
 
 ## Voraussetzungen
 - Python **3.11+** (Container: 3.12); Docker + Docker Compose auf dem Pi (ARM64).
@@ -16,8 +17,8 @@ python -m app.admin import --quelle srd-de        # dt. SRD (Reparaturpaket grei
 python -m app.admin import --quelle open5e-srd-2024   # füllt zauber_meta/monster_meta (Facetten) mit
 python -m app.admin import --quelle glossar       # inkl. Kern-Singulare (SYN-P1-006)
 ```
-Hinweis: Der Open5e-Import befüllt zusätzlich `zauber_meta`(grad/schule/klassen) und
-`monster_meta`(hg/typ) aus Open5es nativen Feldern — sie erscheinen additiv als `facetten`
+Hinweis: Der Open5e-Import befüllt zusätzlich `zauber_meta` (grad/schule/klassen) und
+`monster_meta` (hg/typ) aus Open5es nativen Feldern — sie erscheinen additiv als `facetten`
 in `foliant_hol_zauber`/`_monster`. Alt-DBs (v0/v1) heilt `app.db.connect()` beiläufig auf
 Schema v2 (zieht `inhaltsart` nach, setzt `user_version=2`) — jeder Import/Admin-Aufruf genügt.
 
@@ -49,10 +50,10 @@ zusätzlich im Pi-Container gegen den vollen Bestand: `make test-golden-pi PI=pi
 
 ## 4. Connector eintragen
 Volle URL inkl. Geheimpfad: `https://<host>/<FOLIANT_PFAD_TOKEN>/mcp` — kein OAuth.
-Verhaltensschicht: das Claude-Projekt mit `docs/CLAUDE-PROJEKT-ANWEISUNG.md` einrichten.
+Verhaltensschicht: das Claude-Projekt mit `CLAUDE-PROJEKT-ANWEISUNG.md` einrichten.
 
 ## 5. Abnahme fahren
-`docs/EVAL-CHECKLISTE.md` im Connector durchspielen (T2/T10/T12 + P0-Verifikation).
+`ABNAHME-UND-EVAL.md`, Schicht 3, im Connector durchspielen (T2/T10/T12 + P0-Verifikation).
 
 ## 6. Betrieb
 - **Readiness:** `curl http://localhost:8000/ready` (503 bei kaputtem/leerem Bestand).
@@ -70,12 +71,27 @@ Verhaltensschicht: das Claude-Projekt mit `docs/CLAUDE-PROJEKT-ANWEISUNG.md` ein
   foliant` → neue URL an die Runde; **alte Logs gelten als tokenbelastet** (der Pfad war
   das Secret) — Access-Logs sind per `--no-access-log` aus, Blockier-Logs redigieren.
 
-## 7. DDB-/Privatinhalte (bewusste Eigentümer-Entscheidung)
+## 7. Admin-CLI (vollständig)
+```
+status        Bestand je Quelle/Edition/Kategorie + Glossar
+manifest      Korpus-Fingerabdruck (inhalts_hash) - nach jedem Import festhalten
+import        --quelle <kuerzel> (born-digital PDF / Open5e / Glossar)
+pdf-triage    welche PDFs haben keine Textschicht?
+ocr-pdf       --datei <pfad> [--redo] [--voll]  (OCR-Vorstufe fuer Scans)
+reindex-fts   FTS neu aufbauen (macht der Importer selbst mit)
+check         Integritaet, FK, FTS-Suchbarkeit, Editionen, Textqualitaet
+glossar-audit Glossar-Stand und -Herkunft pruefen
+backup        konsistentes, verifiziertes Online-Backup mit Rotation
+ddb-pruefe | ddb-import | ddb-import-all | ddb-remove    (DDB-Buchimport)
+```
+
+## 8. DDB-/Privatinhalte (bewusste Eigentümer-Entscheidung)
 Der Serve-Container sieht `data/private` **nicht** (SYN-P1-005). DDB-Import als
-Einmal-Container mit explizitem Mount (siehe `DEPLOY-raspberry-pi.md` §DDB). Abenteuer-/
+Einmal-Container mit explizitem Mount (`DEPLOY-raspberry-pi.md` §4b). Abenteuer-/
 Setting-Bände tragen `inhaltsart=abenteuer_setting` und lösen in jeder Antwort den
 Spoiler-Hinweis aus; Playtest-Material wird gar nicht erst importiert (SYN-P0-007).
 
 ## Was bewusst offen bleibt (nach MVP / langfristig)
 `concept/variant/relation`-Modell, SL-Rollen-Isolation, Regelbeziehungsgraph, Errata-
-Tracking, OAuth-Identität — siehe Synthese Kap. 18 Stufen D/E. Nicht rundenblockierend.
+Tracking, OAuth-Identität — siehe `syn-befunde-register.md` (SYN-P2-002, SYN-P3-001…004).
+Nicht rundenblockierend.

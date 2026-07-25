@@ -1,7 +1,7 @@
 """DDB-Artefaktvertrag Version 1 (Validator + Kategorien-Mapping) — architekturneutral.
 
-Der kurzlebige DDB-Exporter (separater Prozess mit Netz+Secret, noch nicht gebaut -
-Machbarkeits-Gate, s. docs/ddb-architektur-entscheidung.md) schreibt pro Buch ein
+Der kurzlebige DDB-Exporter (separater Prozess mit Netz+Secret, s.
+docs/foliant-technisches-konzept.md §12, ADR) schreibt pro Buch ein
 unveraenderliches Artefakt:
 
     data/private/ddb-artifacts/<quellenkuerzel>/<export-id>/

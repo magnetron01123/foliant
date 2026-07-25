@@ -85,5 +85,5 @@ nicht überspringen.
 | Websuche-Schalter aus | du | der einzige **harte** Garant gegen Web-Vermischung |
 
 Modellverhalten ist steuerbar, nicht beweisbar erzwingbar (außer dem Schalter) — deshalb
-prüft die Abnahme-Checkliste (`docs/ABNAHME-PROTOKOLL.md`) genau diese Verhaltensregeln,
+prüft die Abnahme-Checkliste (`ABNAHME-UND-EVAL.md`, Schicht 3) genau diese Verhaltensregeln,
 inklusive der 🌐-Kennzeichnung, sobald du sie fährst.

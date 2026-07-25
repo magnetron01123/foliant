@@ -1,6 +1,6 @@
 """DDB-Offline-Import (Phase 3): geprueftes Artefakt -> PRIVATE Kandidaten-DB.
 
-ARCHITEKTUR (docs/ddb-architektur-entscheidung.md): Dieses Modul ist der DB-SCHREIBER der
+ARCHITEKTUR (docs/foliant-technisches-konzept.md §12, ADR): Dieses Modul ist der DB-SCHREIBER der
 zweistufigen Pipeline. Es liest AUSSCHLIESSLICH lokale, validierte Artefakte
 (importer/ddb_artefakt.py) und enthaelt bewusst KEINEN HTTP-, Cobalt- oder
 Entschluesselungscode - der kurzlebige Exporter (Netz + Secret) ist ein getrennter

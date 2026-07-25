@@ -61,8 +61,8 @@ prioritaet = 60          # geringer als deutsche Quellen -> fuellt Luecken, gewi
 # DDB-Buchimport: zweistufig - kurzlebiger Exporter (Netz+Secret, KEIN DB-Zugriff)
 # erzeugt Artefakte; der Offline-Import schreibt in die DB. KEINE Secrets hier: Cobalt
 # wird zur Laufzeit verdeckt gelesen (Keychain/Datei/TTY, nie .env/argv). Automatik:
-# 'ddb-exporter sync' + 'admin ddb-import-all' (Anleitung: docs/DDB-IMPORT-anleitung.md).
-# Architektur: docs/ddb-architektur-entscheidung.md (der ddb-proxy-Weg ist verworfen).
+# 'ddb-exporter sync' + 'admin ddb-import-all' (Anleitung: docs/DEPLOY-raspberry-pi.md §4b).
+# Architektur: docs/foliant-technisches-konzept.md §12, ADR (ddb-proxy ist verworfen).
 [ddb]
 artifact_dir = "data/private/ddb-artifacts"
 work_dir = "data/private/ddb-work"

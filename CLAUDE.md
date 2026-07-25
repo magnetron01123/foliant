@@ -3,14 +3,16 @@
 Foliant ist ein self-hosted MCP-Server: ein **Regel-Nachschlagewerk für D&D 5e (Fassung 2024),
 Deutsch-first**. Die **verbindlichen Anforderungen** stehen in `docs/foliant-anforderungen.md`
 (Rev. 8) — bei fachlichen Fragen zuerst dort nachsehen. Wegweiser über alle Dokumente:
-`PROJEKT-UEBERSICHT.md`. Historische Arbeitsaufträge liegen in `docs/archiv/`.
+`PROJEKT-UEBERSICHT.md`. Historisches (erledigte Aufträge, Review-Volltexte) steht nur noch
+in der Git-Historie; die SYN-IDs aus den Reviews löst `docs/syn-befunde-register.md` auf.
 
-**STATUS (11.07.2026): MVP komplett und live.** Server auf dem Pi (`pi@<pi-host>`,
+**STATUS (25.07.2026): MVP komplett und live.** Server auf dem Pi (`pi@<pi-host>`,
 `~/foliant`), öffentlich via Cloudflare Named Tunnel unter Geheimpfad + IP-Allowlist.
 Bestand ~9490 Einträge aus 12 Quellen (dt. SRD 5.2.1, Open5e, 8 DDB-Bücher, 2 DDB-Druck-
-Bücher), 16 Tools, Datenbank-QS abgeschlossen (`docs/QS-BERICHT-datenbank.md`). Offen ist
-die Roadmap `docs/MVP-ABGLEICH-UND-ROADMAP.md` (M-Phasen bis zur Gruppennutzung) — NICHTS
-aus den abgeschlossenen Phasen neu bauen.
+Bücher), 16 Tools, Datenbank-QS abgeschlossen. Daneben live: der **Charakterbogen-
+Übersetzer** als eigener `web`-Container hinter einem Caddy-`gateway`
+(`docs/CHARAKTERBOGEN-MVP.md`). Offen ist die Roadmap `docs/ROADMAP.md` (M-Phasen bis zur
+Gruppennutzung) — NICHTS aus den abgeschlossenen Phasen neu bauen.
 
 ## Oberste Regeln (nicht verhandelbar)
 1. **Geerdet, keine Halluzination (B1):** Antworten NUR aus dem Bestand. Nichts im Bestand →
@@ -37,10 +39,14 @@ aus den abgeschlossenen Phasen neu bauen.
 - **Zugang** (`app/zugriff.py`): MCP-Endpoint unter `/<FOLIANT_PFAD_TOKEN>/mcp` (Token in
   Pi-`.env`) + IP-Allowlist auf Anthropics Egress-Ranges via `CF-Connecting-IP`.
   Rotation: Token ändern → rebuild → neue URL an die Runde. `/health` bleibt offen.
-- Admin-CLI: `status | import | reindex-fts | check | manifest | pdf-triage | ocr-pdf | ddb-*`.
-  Nach jedem Import: **`make test`** (Gate über beide venvs + Golden-Suite) und
-  `admin manifest` als Korpus-Fingerabdruck festhalten. Kanonischer Betriebsweg:
-  `docs/RUNBOOK.md`; Verhaltensabnahme: `docs/EVAL-CHECKLISTE.md`.
+- **Gateway:** Der Tunnel zeigt auf `gateway:8080` (Caddy) → `/mcp`+`/health`+`/ready` an
+  `foliant`, alles andere an `web`. Einzelne Dienste NUR mit `--no-deps` bauen, sonst startet
+  `depends_on` den Live-MCP durch. Nach jeder Caddyfile-Änderung der 403-Test (DEPLOY §2).
+- Admin-CLI: `status | manifest | import | pdf-triage | ocr-pdf | reindex-fts | check |
+  glossar-audit | backup | ddb-*`. Nach jedem Import: **`make test`** (Gate über beide venvs
+  + Golden-Suite) und `admin manifest` als Korpus-Fingerabdruck festhalten. Kanonischer
+  Betriebsweg: `docs/RUNBOOK.md`; Details: `docs/DEPLOY-raspberry-pi.md`;
+  Verhaltensabnahme: `docs/ABNAHME-UND-EVAL.md`.
 
 ## Import-Pipelines (welcher Weg für welche Quelle)
 - **Born-digital-PDF** (z. B. dt. SRD): `[[quelle]]`-Block in `config/foliant.toml` →
@@ -58,7 +64,7 @@ aus den abgeschlossenen Phasen neu bauen.
   Qualitätsnachweis per Kreuz-Audit (Original vs. OCR: Würfel/Zahlen/Preise seitenweise).
 - **DDB-Bücher (Konto):** `docker compose --profile ddb run --rm ddb-exporter sync`
   (Cobalt kurzzeitig in `~/.ddb-cobalt`, danach löschen) → `admin ddb-import-all`.
-  Doku: `docs/DDB-IMPORT-anleitung.md`.
+  Doku: `docs/DEPLOY-raspberry-pi.md` §4b.
 
 ## Gotchas (kuratiert — Details in `app/bekannte_macken.py`)
 - **pymupdf4llm OCRt textlose Seiten STILL, sobald Tesseract installiert ist** →
@@ -84,13 +90,13 @@ aus den abgeschlossenen Phasen neu bauen.
   (so blieb der Deutsch-first-Ranking-Bug „Reaktionen"/„Counterspell" unentdeckt). Nach
   jedem Deploy / srd-de-Re-Import zusätzlich **`make test-golden-pi PI=pi@<host>`** (Golden-
   Suite im Pi-Container gegen den VOLLEN Bestand) — sonst gibt das Gate falsche Sicherheit.
-- T2/T10/T12 sind **Verhaltenstests** → manuelle Checkliste `docs/ABNAHME-PROTOKOLL.md`
+- T2/T10/T12 sind **Verhaltenstests** → manuelle Checkliste `docs/ABNAHME-UND-EVAL.md`
   (Schicht 1+2 bestanden; Schicht 3 macht David im Chat).
 - Wichtigster Dauertest: **T2** — Frage außerhalb des Bestands → ehrliches „nicht gefunden".
 
-## Offene Arbeit (Stand 11.07.2026 — Details in der Roadmap)
+## Offene Arbeit (Stand 25.07.2026 — Details in `docs/ROADMAP.md`)
 - **M2 Schicht 3:** Davids 3-Fragen-Checkliste (nachdem er das Claude-Projekt eingerichtet hat).
-- **M3-Betrieb:** Uptime-Monitoring + Off-Site-Backup der SQLite.
-- **M4:** spielerfeste Kurzanleitung für die Runde.
+- **M3-Betrieb:** Uptime-Monitoring + Off-Site-Spiegel der Backups (`admin backup` steht).
+- **M4:** spielerfeste Connector-Kurzanleitung für die Runde (die Website hat schon eine).
 - **M1:** deutsche 2024-Grundregelwerke, sobald David PDFs liefert (OCR-Weg steht).
 - **O4:** Feedback-/Korrektur-Meldeweg. — Und Davids Cobalt-Rotation (DDB-Logout).

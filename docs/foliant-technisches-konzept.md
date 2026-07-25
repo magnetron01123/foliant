@@ -1,6 +1,6 @@
 # Foliant — Technisches Konzept (Architektur & Umsetzung)
 
-**D&D-5e-Regelassistent (Fassung 2024), Deutsch-first · self-hosted MCP-Server · Stand: 08.07.2026**
+**D&D-5e-Regelassistent (Fassung 2024), Deutsch-first · self-hosted MCP-Server · Stand: 25.07.2026**
 
 > **Rolle im Dokumentensatz:** Dies ist die **technische Sicht** auf Foliant (Architektur,
 > Datenmodell, Pipeline, Deployment, Entscheidungen). Die **fachliche Sicht** (was Foliant können
@@ -22,14 +22,17 @@ Quelle und Regelversion (Seite, wenn die Quelle eine hat). **Kein Netz zur Laufz
 ```
 IMPORT (einmalig/gelegentlich)                         LAUFZEIT (dauerhaft)
 ────────────────────────────────                       ─────────────────────────────
-Dt. SRD 5.2.1 (PDF) ─┐                                  Claude (Client, Mobile/Desktop)
-Engl. SRD (Markdown) ─┤  PyMuPDF4LLM/Docling                     │  https://…/<geheimpfad>/mcp
-Eigene dt. PDFs ──────┤────────────────► Markdown                ▼
-Open5e (API) ─────────┤  Transform      ─► Chunks       Cloudflare Tunnel + IP-Filter/Pfad
+Dt. SRD 5.2.1 (PDF) ─┐                                  Claude (Client) │ Browser (Website)
+Engl. SRD (Markdown) ─┤  PyMuPDF4LLM/Docling                     │              │
+Eigene dt. PDFs ──────┤────────────────► Markdown                ▼              ▼
+Open5e (API) ─────────┤  Transform      ─► Chunks       Cloudflare Named Tunnel
 DDB-Bücher (Exporter) ─┘                     │                    │
 dnddeutsch-API ─────────────► Glossar       ▼                    ▼
-                                       SQLite + FTS5  ◄──── FastMCP-Tools (uvicorn ASGI)
-                                            ▲                    (nur lokale Abfragen)
+                                            │          gateway (Caddy, routet nach Pfad)
+                                            │            │                      │
+                                            ▼            ▼                      ▼
+                                       SQLite + FTS5 ◄─ foliant (FastMCP)   web (Charakterbogen)
+                                            ▲            IP-Filter + Geheimpfad
                         Admin-CLI ──────────┤
                         Datasette (127.0.0.1, read-only, SSH-Tunnel)
 ```
@@ -39,6 +42,12 @@ Zwei klar getrennte Ebenen:
   Pi (oder bei Bedarf auf einem stärkeren Rechner, dann nur die fertige DB rüberkopieren).
 - **Laufzeit:** FastMCP serviert die Werkzeuge über HTTP (uvicorn) hinter einem Cloudflare Named
   Tunnel. Nur lokale SQLite-Abfragen — **offline, schnell, geerdet**.
+
+Seit dem Charakterbogen-Übersetzer (14.07.2026) steht ein **Caddy-Gateway** vor beiden
+Diensten: `/mcp`, `/<token>/mcp`, `/health` und `/ready` gehen an `foliant`, alles andere an
+`web`. Der Zugangsschutz des MCP bleibt unverändert im Server (`app/zugriff.py`) — ein
+falscher Token-Pfad landet bei `foliant` und bekommt dort 403/404, nie Website-HTML.
+Details: `CHARAKTERBOGEN-MVP.md`, Betrieb: `DEPLOY-raspberry-pi.md`.
 
 ---
 
@@ -54,6 +63,7 @@ Zwei klar getrennte Ebenen:
 | Weitere Quelle | **Open5e-API** (v2) | engl. Sofort-Basis (Zauber/Monster/Hintergründe) |
 | Container | **Docker + docker compose** | Isolation + ARM64-Portabilität |
 | Erreichbarkeit | **cloudflared** (Named Tunnel) | Geheimpfad + IP-Allowlist (`app/zugriff.py`) |
+| Gateway | **Caddy** | routet `/mcp`+`/health`+`/ready` → `foliant`, sonst → `web` |
 | Daten-Inspektion | **Datasette** (optional, lokal) | read-only Admin-Blick |
 
 ---
@@ -130,7 +140,8 @@ liegen als Instruktionstext in `config/stil.py`.
 
 ## 8. Deployment
 - **Raspberry Pi 4 (64-bit)**, containerisiert (Docker + compose). uvicorn serviert `app.server:app`.
-- **Cloudflare Named Tunnel** → `dnd.magnetron.me/<geheimpfad>/mcp`. **Kein OAuth** (Claude-
+- **Cloudflare Named Tunnel** → Origin `http://gateway:8080` (Caddy), von dort nach Pfad an
+  `foliant` bzw. `web`. Öffentlich: `dnd.magnetron.me/<geheimpfad>/mcp`. **Kein OAuth** (Claude-
   Connectors können keine Custom-Header senden); Zugang seit 11.07.2026 über **Geheimpfad**
   (URL = Schlüssel, Token in der Pi-`.env`) **+ IP-Allowlist** auf Anthropics Egress-Ranges
   (`app/zugriff.py`, geprüft an `CF-Connecting-IP`) — nötig, seit private DDB-Inhalte
@@ -146,8 +157,9 @@ Bewusst **kein öffentliches Web-Panel** (Angriffsfläche auf dem getunnelten Pi
 - **Admin-CLI** (`app/admin.py`): `status` (fertig & getestet), `import`, `reindex-fts`, `check`
   — via `docker compose exec foliant python -m app.admin …`.
 - **Datasette** (read-only, an `127.0.0.1`, Zugriff per SSH-Tunnel) für die Import-Kontrolle.
-- **Backup:** SQLite-Datei sichern; Wiederherstellung ohne Re-Import. Aktualisierte DB einspielen =
-  Datei kopieren + `restart`.
+- **Backup:** `admin backup` — konsistentes Online-Backup über die SQLite-Backup-API (verträgt
+  einen laufenden Import), verifiziert (integrity_check + FTS-Zeilengleichheit) und rotiert.
+  Wiederherstellung ohne Re-Import. Aktualisierte DB einspielen = Datei kopieren + `restart`.
 
 ---
 
@@ -183,6 +195,27 @@ Bewusst **kein öffentliches Web-Panel** (Angriffsfläche auf dem getunnelten Pi
 | **Docker** | Mehrprojekt-Isolation + ARM64-Portabilität (Pi → Mac mini) |
 | **Kein Runtime-Cache** | lokales FTS5 ist schneller als jeder Cache-Layer |
 | **Seite optional, Quelle Pflicht** | API-Quellen (Open5e) haben keine Seiten; entlastet auch das PDF-Parsing |
+| **Edition sichtbar, nicht wegnormalisiert** | Referenz-MCP-Server normalisieren so, „dass die LLM den Unterschied nicht sieht" — für uns ein Anti-Pattern: **Datenshape** vereinheitlichen, **Provenienz** behalten (Zitatpflicht; stille 2014/2024-Mischung korrumpiert Antworten) |
+| **`such_*`/`hol_*` je Entitätstyp trennen** | Suche liefert knappe Treffer, Detail die volle Ausgabe — hält die Kontextlast niedrig |
+| **Quellen-Macken zentral kapseln** | `app/bekannte_macken.py` + kuratierte Reparaturpakete je Quelle, damit dieselbe Falle nicht zweimal gelöst wird |
+
+### DDB-Buchimport: warum der Exporter-Weg und nicht `ddb-proxy` (ADR, 10.07.2026)
+
+Verglichen wurden zwei Wege. Entschieden wurde **mobile-API-Abruf des ganzen Buchs**
+(user-data → available-user-content → owned-Filter → get-book-url → ZIP → book-codes →
+readonly SQLCipher-v3-Entschlüsselung → `Content.RenderedHTML` → Markdown) in einem
+kurzlebigen Export-Prozess ohne DB-Zugriff, mit **Artefaktvertrag v1** (manifest.json +
+entries.jsonl) und offlinem Import.
+
+**`ddb-proxy` ist ausdrücklich verworfen** (extern verifiziert 10.07.2026): Der self-hosted
+Proxy liefert nur Charaktere, Zauber, Items und Monster — **keine** Klassen/Spezies/
+Hintergründe/Talente und keinen Buch-Fließtext; er ist ein „cut down MVP" (letzte Release
+Feb 2024). **F5 („Bücher/Regelinhalte") wäre damit nicht erfüllbar.** Diese Notiz steht hier,
+damit der Weg nicht später „hilfreich" wieder geöffnet wird — `[ddb].proxy_url` und
+`FOLIANT_COBALT` sind bewusst aus allen Vorlagen entfernt. Die Bedenken gegen undokumentierte
+Endpunkte adressiert die Architektur durch Kapselung in **genau ein** Adaptermodul.
+**Rückfallebene:** Scheitert der Weg dauerhaft, erfüllen gekaufte deutsche Buch-PDFs über die
+bestehende Pipeline den Inhaltsbedarf; DDB bliebe dann unerschlossen.
 
 ---
 
@@ -201,6 +234,8 @@ DDB-Charakterabruf · Kampagnenspezifik · Rollen Spielleiter/Spieler + struktur
 
 ## 15. Zugehörige Dokumente
 `foliant-anforderungen.md` (fachlich, Rev. 8) · `CLAUDE.md` (Bauanleitung + Leitplanken) ·
-`db/schema.sql` (Schema) · `docs/DEPLOY-raspberry-pi.md` (Deployment) ·
-`docs/foliant-mcp-best-practices.md` (Best Practices) · `docs/ATTRIBUTION.md` (Lizenzen) ·
-`README.md` (Kurzüberblick). Wegweiser: `PROJEKT-UEBERSICHT.md`.
+`db/schema.sql` (Schema) · `RUNBOOK.md` (kanonischer Betriebsweg) ·
+`DEPLOY-raspberry-pi.md` (Deployment + Importe im Detail) ·
+`CHARAKTERBOGEN-MVP.md` (Übersetzer-Pipeline) · `syn-befunde-register.md` (SYN-IDs) ·
+`ATTRIBUTION.md` (Lizenzen) · `README.md` (Kurzüberblick).
+Wegweiser: `PROJEKT-UEBERSICHT.md`.
