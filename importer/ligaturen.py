@@ -5,7 +5,7 @@ ALGORITHMISCH statt per corrupt->korrekt-Liste: fuer jedes Wort mit GENAU EINEM 
 Ligatur-Einsetzungen generiert und gegen ein VOKABULAR geprueft. Genau eine gueltige
 Einsetzung -> aufgeloest. Das Vokabular ist Pi-nativ (kein Mac-/Systemabhaengigkeit): eine
 gebuendelte gemeinfreie englische Wortliste (Webster's web2, public domain) plus der eigene
-Korpus (data/ligatur_vokabular.txt.gz, reproduzierbar aus den Quellen). Nicht im Vokabular
+Korpus (importer/wortlisten/ligatur_vokabular.txt.gz). Nicht im Vokabular
 gefuehrte Eigennamen bekommt der Aufrufer ueber `zusatzvokabular` beigesteuert; echte
 fi/fl-Doppeldeutigkeiten (flat/fiat) ueber `override`. Gilt fuer JEDE Quelle - Quellen ohne
 � sind ein No-op. Ersetzt die frueheren per-Buch-Korrekturlisten (Prinzip: Logik statt

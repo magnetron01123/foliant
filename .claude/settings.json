@@ -3,8 +3,6 @@
   "permissions": {
     "defaultMode": "acceptEdits",
     "deny": [
-      "Bash(rm)",
-      "Bash(rm *)",
       "Bash(sudo)",
       "Bash(sudo *)",
       "Bash(git push --all)",
@@ -74,10 +72,8 @@
       "Bash(.venv/bin/mypy *)",
       "Bash(black *)",
       "Bash(.venv/bin/black *)",
-
       "Bash(sqlite3 -readonly *)",
       "Bash(datasette *)",
-
       "Bash(git status)",
       "Bash(git status *)",
       "Bash(git diff)",
@@ -111,7 +107,6 @@
       "Bash(git tag *)",
       "Bash(git worktree *)",
       "Bash(git bundle *)",
-
       "Bash(gh pr create *)",
       "Bash(gh pr view *)",
       "Bash(gh pr list *)",
@@ -123,7 +118,6 @@
       "Bash(gh run *)",
       "Bash(gh workflow *)",
       "Bash(gh issue *)",
-
       "Bash(ssh *)",
       "Bash(scp *)",
       "Bash(rsync *)",
@@ -131,7 +125,6 @@
       "Bash(docker-compose *)",
       "Bash(curl *)",
       "Bash(wget *)",
-
       "Bash(ls)",
       "Bash(ls *)",
       "Bash(cat *)",
@@ -155,7 +148,41 @@
       "Bash(uniq *)",
       "Bash(diff *)",
       "Bash(chmod *)",
-      "Bash(unzip *)"
+      "Bash(unzip *)",
+      "Bash(rm -rf .pytest_cache)",
+      "Bash(rm -rf ./.pytest_cache)"
+    ]
+  },
+  "autoMode": {
+    "environment": [
+      "$defaults",
+      "Foliant ist ein self-hosted MCP-Server (D&D-Regelnachschlagewerk) plus ein Charakterbogen-Uebersetzer. Die Produktion laeuft in Docker-Containern auf einem Raspberry Pi im LAN des Eigentuemers; der Mac ist reine Entwicklungs- und Administrationsmaschine.",
+      "NICHT in Git und damit unwiederbringlich: data/ (Bestand, Backups, Glossar-Cache), quellen/ (Quell-PDFs), vorlagen/ (offizieller WotC-Bogen, private DDB-Beispiele) sowie importer/*_privat.py und tests/*_privat.py.",
+      "Der lokale Branch archiv-privat-vor-veroeffentlichung ist der einzige Git-Stand der privaten Reparaturmodule und wurde nie gepusht.",
+      "Auf demselben Pi laeuft ein zweiter, projektfremder Tunnel des Eigentuemers.",
+      "Die Doku ist bewusst anonymisiert: Hostnamen gehoeren nicht in versionierte Dateien."
+    ],
+    "allow": [
+      "$defaults",
+      "Build- und Testartefakte im Projektverzeichnis loeschen: __pycache__, .pytest_cache, .DS_Store, leere Verzeichnisse.",
+      "Lesende Kommandos auf dem Produktions-Pi: ls, cat, tail, docker compose ps, docker compose logs, python -m app.admin status|check|manifest.",
+      "Gemergte Remote-Branches loeschen, nachdem der Merge bestaetigt ist.",
+      "Lesende gh-Abfragen sowie Pull Requests anlegen und aktualisieren."
+    ],
+    "soft_deny": [
+      "$defaults",
+      "Loeschen oder Ueberschreiben in data/, quellen/ oder vorlagen/ und an importer/*_privat.py oder tests/*_privat.py - nichts davon liegt in Git.",
+      "rsync auf das Pi mit --delete, oder rsync das data/ einschliesst: die lokale DB ist nur ein Subset und wuerde den vollen Bestand ueberschreiben.",
+      "Schreibende Kommandos auf dem Produktions-Pi: docker compose up/restart/stop, Importe, Re-Indexierung.",
+      "Den Branch archiv-privat-vor-veroeffentlichung loeschen oder ueberschreiben.",
+      "Aenderungen an .claude/settings.json oder .claude/settings.local.json - nur auf ausdrueckliche Anweisung in derselben Sitzung."
+    ],
+    "hard_deny": [
+      "$defaults",
+      "Den projektfremden Tunnel oder fremde Container auf dem Pi anfassen.",
+      "Cloudflare aendern: Tunnel-Origin, DNS-Eintraege oder WAF-Regeln.",
+      "Pull Requests mergen.",
+      "Geheimnisse ausgeben oder committen: .env, FOLIANT_PFAD_TOKEN, ANTHROPIC_API_KEY, WEB_PASSWORT, DDB-Cobalt."
     ]
   }
 }
