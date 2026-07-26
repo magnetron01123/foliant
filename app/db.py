@@ -361,6 +361,13 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
         erweitert = set(namen)
         for n in namen:
             erweitert |= bruecke.get(n, set())
+            # Klammer-Suffix auch fuer die Brueckensuche abziehen (SYN-P0-002 kanonisch):
+            # 'Kerze (1 KM)' soll die Bruecke Kerze<->Candle treffen. Bewusst NUR die
+            # Brueckenziele uebernehmen, nicht die suffixfreie Form selbst - sonst
+            # verschmoelzen gleichbasige Eintraege ohne belegte Entsprechung.
+            ohne = _KLAMMER_SUFFIX.sub("", n).strip()
+            if ohne and ohne != n:
+                erweitert |= bruecke.get(ohne, set())
         schluessel = {(n, t["edition"], t["kategorie"]) for n in erweitert}
         betroffen = {id(index[s]): index[s] for s in schluessel if s in index}
         if betroffen:
@@ -477,7 +484,10 @@ def fts_suche(con: sqlite3.Connection, query: str, kategorie: str | None = None,
     editionsuebergreifend (interner Modus, z. B. Detail-Auswahl); leere/unbekannte
     Editionen -> ValueError (A1). Liefert KNAPPE Treffer (Name, Auszug, Quelle, ggf.
     Seite, Version) - nicht die vollen Bodies (BP #1). Rueckgabe:
-      {"treffer": [...], "andere_editionen": [...], "suchweg": "direkt|glossar|fuzzy|-"}
+      {"treffer": [...], "andere_editionen": [...], "suchweg": "direkt|glossar|fuzzy|-",
+       "anzahl_gesamt": <Treffer VOR dem Limit>}
+    anzahl_gesamt > len(treffer) heisst: Liste wurde gekappt - die Tool-Schicht muss das
+    als 'hinweis_gekuerzt' ausweisen (stil.py/SPEC par. 8 versprechen dieses Signal).
     treffer: nur die angeforderte Edition, editions-gefiltert VOR dem Roh-Limit (A1).
     andere_editionen: Treffer aller uebrigen Editionen, IMMER getrennt (Q1/V5) - die
     Tool-Schicht benennt sie kontextgerecht (bei 2024-Standard: 'aeltere_staende'/B5)."""
@@ -518,6 +528,7 @@ def fts_suche(con: sqlite3.Connection, query: str, kategorie: str | None = None,
         "treffer": sortiert[:limit],
         "andere_editionen": andere[: max(3, limit // 2)],
         "suchweg": suchweg,
+        "anzahl_gesamt": len(sortiert),
     }
 
 

@@ -9,6 +9,14 @@ name = "Foliant für D&D"
 pfad = "/mcp"
 stateless_http = true
 
+[protokoll]
+# Abfrage-Protokoll (O4/M5): separate Log-DB fuer 'admin suchbericht' - datengetriebene
+# Glossar-/Synonym-Pflege (Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten). Keine PII,
+# liegt bewusst ausserhalb von Backup-Glob und Manifest.
+aktiv = true
+pfad = "data/foliant-protokoll.sqlite"
+max_zeilen = 50000
+
 [glossar]
 # Echte API (verifiziert 10.07.2026) - ein "/api/" existiert auf dnddeutsch.de nicht:
 api_url = "https://www.dnddeutsch.de/tools/json.php"

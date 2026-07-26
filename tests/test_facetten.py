@@ -106,10 +106,12 @@ def test_name_sauber_filtert_kurzfragmente_nicht_komposita():
 
 def test_srd_de_name_notfall_minimal():
     from importer import import_glossar as ig
-    # Die Zerlegungen loest jetzt der Algorithmus (importer.namensreparatur, s.
-    # tests/test_namensreparatur.py); als fester Fix bleibt NUR der eine Buchstabenverlust-
-    # Notfall - und dessen Ziel ist ein sauberer Name.
-    assert len(ig.SRD_DE_NAME_NOTFALL) == 1
+    # Die Zerlegungen loest der Algorithmus (importer.namensreparatur, s.
+    # tests/test_namensreparatur.py); als feste Fixe bleiben NUR die dokumentierten
+    # Buchstabenverlust-Notfaelle (fehlendes 'l' in 'flieg...', kein Anagramm-Signal,
+    # 'Riesenfliege' zudem ohne TOC-Anker). Der Deckel schuetzt vor Listenwachstum -
+    # jede Erhoehung braucht einen belegten Einzelfall wie diese beiden.
+    assert len(ig.SRD_DE_NAME_NOTFALL) == 2
     assert all(ig._name_sauber(v) for v in ig.SRD_DE_NAME_NOTFALL.values())
 
 

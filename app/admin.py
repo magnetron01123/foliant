@@ -64,7 +64,9 @@ def cmd_import(args) -> None:
         from importer.import_glossar import (KERNBEGRIFFE_EN, kanonisiere_konflikte,
                                              kanonisiere_schreibvarianten,
                                              repariere_srd_de_namen, seed_abkuerzungen,
-                                             seed_aktionen, seed_glossar,
+                                             seed_aktionen,
+                                             seed_gegenstands_bruecke_aus_bestand,
+                                             seed_glossar,
                                              seed_glossar_aus_bestand, seed_kern_singulare,
                                              seed_kernwortschatz_aus_bestand,
                                              seed_klassenmerkmale_aus_bestand,
@@ -80,12 +82,14 @@ def cmd_import(args) -> None:
         mb = seed_monster_bruecke_aus_bestand(c)   # Struktur-Abgleich dt./engl. Monster (Dedup)
         kw = seed_kernwortschatz_aus_bestand(c)    # Fertigkeiten/Groessen/Typen (nach der Monster-Bruecke!)
         km = seed_klassenmerkmale_aus_bestand(c)   # 2024-Klassenmerkmale srd-de<->ddb-br (nach Klassennamen-Seeding!)
+        gg = seed_gegenstands_bruecke_aus_bestand(c)   # Preis-Bucket-Abgleich srd-de<->Open5e (vor den Kanonisierern!)
         d = kanonisiere_konflikte(c)   # kuratierte Fassung schlaegt konkurrierende (Deutsch-Qualitaet)
         sv = kanonisiere_schreibvarianten(c)   # ß/ss- + Gross-/Klein-Schreibvarianten vereinheitlichen
         print(f"Glossar: {rn} srd-Namen repariert, {n} Kern-Zeilen, {a} Abkuerzungen, "
               f"{p} SRD-Paare, {k} Kern-Singulare, {ak} Aktionen, {b} Zeilen aus Bestandsnamen, "
               f"{mb} Monster-Bruecken, {kw} Kernwortschatz-Paare, {km} Klassenmerkmal-Paare, "
-              f"{d} Konflikte kanonisiert, {sv} Schreibvarianten demotet.")
+              f"{gg} Gegenstands-Bruecken, {d} Konflikte kanonisiert, "
+              f"{sv} Schreibvarianten demotet.")
         c.close()
         return
 
@@ -522,6 +526,148 @@ def cmd_glossar_audit(args) -> None:
         c.close()
 
 
+def cmd_glossar_paare(args) -> None:
+    """Vorschau der Struktur-Abgleich-Kandidaten (READ-ONLY, schreibt nichts): zeigt je
+    Paar die Beweisstufe plus den Verwerfungs-Report - Davids Review VOR dem echten
+    Seeding-Lauf ('admin import --quelle glossar'). Neue Paare sind solche ohne exakte
+    Glossar-Zeile; nach dem Lauf muss 'glossar-audit' konfliktfrei bleiben (Gate)."""
+    import json as _json
+
+    from app import glossar as _glossar
+    from importer.import_glossar import _finde_monster_paare
+    from importer.srd_begriffsbruecken import finde_gegenstands_paare, seed_paar
+
+    c = _con(getattr(args, "db", None))
+    try:
+        def _neu(term_en: str, term_de: str) -> bool:
+            return _glossar.norm_begriff(term_de) not in {
+                _glossar.norm_begriff(z["term_de"])
+                for z in _glossar.lookup(c, term_en, richtung="en_de")
+                if z["match"] == "exakt"}
+
+        gegenstaende, report = finde_gegenstands_paare(c)
+        monster = [(en, de, "statschluessel") for en, de, _k in _finde_monster_paare(c)]
+        bericht = {
+            "gegenstaende": [
+                {"term_en": seed_paar(en, de)[0], "term_de": seed_paar(en, de)[1],
+                 "beweis": stufe, "neu": _neu(*seed_paar(en, de))}
+                for en, de, stufe in gegenstaende],
+            "monster": [{"term_en": en, "term_de": de, "beweis": stufe,
+                         "neu": _neu(en, de)} for en, de, stufe in monster],
+            "verworfen": report,
+        }
+        if getattr(args, "json", False):
+            print(_json.dumps(bericht, ensure_ascii=False, indent=2))
+            return
+        for titel, zeilen in (("Gegenstands-Paare", bericht["gegenstaende"]),
+                              ("Monster-Paare", bericht["monster"])):
+            neue = [z for z in zeilen if z["neu"]]
+            print(f"{titel}: {len(zeilen)} belegt, davon {len(neue)} NEU")
+            for z in (neue if getattr(args, "nur_neue", False) else zeilen):
+                marke = "NEU " if z["neu"] else "    "
+                print(f"  {marke}[{z['beweis']:<12}] {z['term_en']} -> {z['term_de']}")
+            print()
+        if report:
+            print(f"Verworfen ({len(report)} Bucket(s) - lieber Luecke als falsches Paar):")
+            for zeile in report:
+                print(f"  {zeile}")
+    finally:
+        c.close()
+
+
+def cmd_suchbericht(args) -> None:
+    """Feedback-Schleife O4/M5 (READ-ONLY auf der Protokoll-DB): macht Kurations-Signale
+    aus echten Anfragen sichtbar - Nulltreffer (Glossar-/Synonym-Kandidaten), Fuzzy-
+    Landungen (Schreibvarianten-Kandidaten), Glossar-Bruecken (funktionierende Umwege),
+    Mehrdeutigkeiten (B4-Kandidaten) und Uebersetzungs-Luecken. Kopf mit p50/p95 der
+    Antwortzeiten (B9). Ohne Protokoll-DB: freundlicher Hinweis, Exit 0."""
+    import json as _json
+    from datetime import datetime, timedelta, timezone
+
+    from app import protokoll as _protokoll
+
+    con = _protokoll.verbinde_lesend()
+    if con is None:
+        print(f"Kein Abfrage-Protokoll unter {_protokoll.protokoll_pfad()} - es entsteht "
+              f"automatisch mit der ersten Nachschlage-Anfrage ([protokoll] in "
+              f"config/foliant.toml).")
+        return
+    try:
+        tage, limit = int(args.tage), int(args.limit)
+        seit = (datetime.now(timezone.utc) - timedelta(days=tage)
+                ).isoformat(timespec="seconds")
+
+        def _gruppe(wo: str, params: tuple = (), extra: str = "") -> list[dict]:
+            return [dict(r) for r in con.execute(
+                f"""SELECT lower(suchbegriff) AS begriff, count(*) AS anzahl,
+                           max(zeitpunkt) AS zuletzt{extra}
+                    FROM abfragen
+                    WHERE zeitpunkt >= ? AND suchbegriff IS NOT NULL AND {wo}
+                    GROUP BY lower(suchbegriff)
+                    ORDER BY anzahl DESC, zuletzt DESC LIMIT ?""",
+                (seit, *params, limit))]
+
+        dauern = sorted(r[0] for r in con.execute(
+            "SELECT dauer_ms FROM abfragen WHERE zeitpunkt >= ? AND dauer_ms IS NOT NULL",
+            (seit,)))
+
+        def _perzentil(p: float) -> int | None:
+            if not dauern:
+                return None
+            return int(dauern[min(len(dauern) - 1, int(p * len(dauern)))])
+
+        bericht = {
+            "zeitraum_tage": tage,
+            "anfragen_gesamt": con.execute(
+                "SELECT count(*) FROM abfragen WHERE zeitpunkt >= ?", (seit,)).fetchone()[0],
+            "dauer_ms_p50": _perzentil(0.50),
+            "dauer_ms_p95": _perzentil(0.95),
+            # Nulltreffer ueber alle Nachschlage-Werkzeuge; Parameterfehler sind bewusst
+            # KEIN Leerbefund (SYN-P0-006) und bleiben draussen.
+            "nulltreffer": _gruppe("anzahl_treffer = 0 AND suchweg != 'fehler' "
+                                   "AND werkzeug != 'uebersetze_begriff'"),
+            "fuzzy_treffer": _gruppe("suchweg = 'fuzzy' AND werkzeug != 'uebersetze_begriff'"),
+            "glossar_bruecken": _gruppe("suchweg LIKE 'glossar:%'",
+                                        extra=", max(suchweg) AS bruecke"),
+            "mehrdeutig": _gruppe("mehrdeutig = 1"),
+            "uebersetzungs_luecken": _gruppe("werkzeug = 'uebersetze_begriff' "
+                                             "AND gefunden = 0"),
+        }
+
+        if getattr(args, "json", False):
+            print(_json.dumps(bericht, ensure_ascii=False, indent=2))
+            return
+
+        print(f"Suchbericht (letzte {tage} Tage) - {bericht['anfragen_gesamt']} Anfragen, "
+              f"Antwortzeit p50 {bericht['dauer_ms_p50']} ms / p95 "
+              f"{bericht['dauer_ms_p95']} ms\n")
+
+        def _abschnitt(titel: str, zeilen: list[dict], leer_ok: str) -> None:
+            print(f"  {titel}:")
+            if not zeilen:
+                print(f"    {leer_ok}")
+            for z in zeilen:
+                zusatz = f"  [{z['bruecke'][8:]}]" if z.get("bruecke") else ""
+                print(f"    {z['anzahl']:>4}x  {z['begriff']}{zusatz}  "
+                      f"(zuletzt {z['zuletzt'][:10]})")
+            print()
+
+        _abschnitt("Nulltreffer (Glossar-/Synonym-Kandidaten, ggf. fehlt ein Buch)",
+                   bericht["nulltreffer"], "keine - alles gefunden ✓")
+        _abschnitt("Nur per Tippfehler-Toleranz gefunden (Schreibvarianten-Kandidaten)",
+                   bericht["fuzzy_treffer"], "keine ✓")
+        _abschnitt("Per Glossar-Bruecke gefunden (Bruecke funktioniert; [Ziel])",
+                   bericht["glossar_bruecken"], "keine")
+        _abschnitt("Mehrdeutig geblieben (B4 - evtl. Chunking/Namen schaerfen)",
+                   bericht["mehrdeutig"], "keine ✓")
+        _abschnitt("Uebersetzungs-Luecken (kein exakter Glossar-Eintrag)",
+                   bericht["uebersetzungs_luecken"], "keine ✓")
+        print("  Kur-Weg: Kandidaten pruefen -> Glossar-Paar/Alias ergaenzen -> "
+              "'admin import --quelle glossar' (CONCEPT.md §5).")
+    finally:
+        con.close()
+
+
 def cmd_backup(args) -> None:
     """Online-Backup der SQLite-Datei ueber die SQLite-Backup-API - konsistent AUCH bei
     laufendem Import (anders als cp/rsync auf eine offene DB). Danach eine selbst-enthaltene
@@ -614,6 +760,20 @@ def main(argv=None) -> None:
                     help="je Kategorie bis zu N fehlende EN-Namen listen (Kuratier-Kandidaten)")
     pg.add_argument("--json", action="store_true", help="Maschinenlesbare JSON-Ausgabe")
     pg.set_defaults(func=cmd_glossar_audit)
+    pgp = sub.add_parser("glossar-paare",
+                         help="Vorschau der Struktur-Abgleich-Paare (Gegenstaende/Monster) "
+                              "mit Beweisstufe - Review vor 'import --quelle glossar'")
+    pgp.add_argument("--nur-neue", dest="nur_neue", action="store_true",
+                     help="nur Paare ohne bestehende exakte Glossar-Zeile zeigen")
+    pgp.add_argument("--json", action="store_true", help="maschinenlesbare Ausgabe")
+    pgp.set_defaults(func=cmd_glossar_paare)
+    ps = sub.add_parser("suchbericht",
+                        help="Abfrage-Protokoll auswerten: Nulltreffer, Fuzzy-Landungen, "
+                             "Mehrdeutigkeiten (Kuratier-Kandidaten, O4/M5)")
+    ps.add_argument("--tage", type=int, default=30, help="Zeitraum in Tagen (Default 30)")
+    ps.add_argument("--limit", type=int, default=25, help="Zeilen je Abschnitt (Default 25)")
+    ps.add_argument("--json", action="store_true", help="maschinenlesbare Ausgabe")
+    ps.set_defaults(func=cmd_suchbericht)
     pb = sub.add_parser("backup",
                         help="Online-Backup der SQLite (konsistent) + Verifikation (M3)")
     pb.add_argument("--ziel", help="Zielverzeichnis (Standard: <db-Ordner>/backups)")

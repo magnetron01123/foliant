@@ -158,6 +158,16 @@ schreiben.
   sind die häufigste Quelle falscher Antworten.
 - **Zweisprachig fast geschenkt:** `name_de` und `name_en` sind beide indexiert. Das Glossar
   überbrückt nur den *Suchbegriff*, wenn er im Eintrag nicht vorkommt.
+- **Glossar-Brücken aus Struktur-Abgleich** (nie Positions- oder Übersetzungs-Raten):
+  Monster über den Stat-Fingerabdruck (Typ+HG+RK+TP+Attribute; Teil-Schlüssel-Ausschluss,
+  wenn eine Attributstabelle unlesbar ist), Klassenmerkmale über die Stufenstruktur,
+  **Gegenstände über Preis-Buckets** (`importer/srd_begriffsbruecken.py`: Glossar-Hop →
+  Kategorie-Sub-Ausschluss → Gesamt-Ausschluss; deutsche Tausenderpunkte beachten —
+  „1.000 GM" ist tausend). Geseedet wird nur die **suffixfreie** Form („Backpack" →
+  „Rucksack"), sonst entstünden EN→mehrere-offizielle-DE-Konflikte neben den
+  dnddeutsch-Zeilen; Dedupe und Anzeige ziehen Klammer-Suffixe kanonisch ab
+  (`glossar.KLAMMER_SUFFIX`). Review vor dem Lauf: `admin glossar-paare --vorschau`,
+  Gate danach: `admin glossar-audit` bleibt konfliktfrei.
 - **Exakt vs. fuzzy ist getrennt** (SYN-P0-001): Ein Fuzzy-Glossartreffer begründet **nie**
   Identität — sonst wurde aus „Aktionen" die Regel „Reaktionen".
 - **Deutsch-first-Sortierung ist explizit**, nicht dem FTS-Rang überlassen: Der englische
@@ -351,6 +361,17 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
   bestehen.
 - **Token-Rotation bei Leak:** neuen Token in `.env` → `docker compose up -d --build foliant`
   → neue URL an die Runde. **Alte Logs gelten als tokenbelastet** (der Pfad *war* das Secret).
+- **Feedback-Schleife (O4/M5):** Der Server protokolliert jede Nachschlage-Anfrage in eine
+  **separate** Log-DB (`data/foliant-protokoll.sqlite`, Config `[protokoll]`, Rotation bei
+  50 000 Zeilen) — die Korpus-DB bleibt read-only, ein Log-Fehler bricht nie einen Lookup.
+  Regelmäßig sichten:
+  ```
+  docker compose exec -T foliant python -m app.admin suchbericht        # --tage 30 --json
+  ```
+  Nulltreffer/Fuzzy-Landungen/Mehrdeutigkeiten/Übersetzungs-Lücken sind die
+  Kuratier-Kandidaten für Glossar-Paare und Chunking-Korrekturen; der Kopf liefert die
+  B9-Antwortzeiten (p50/p95). Die Log-DB liegt bewusst außerhalb von Backup-Glob und
+  Manifest und ist im Datasette-Container (read-only auf `data/`) direkt browsbar.
 
 ### Admin-CLI (vollständig)
 ```
@@ -639,6 +660,10 @@ Kuratiert; weitere Details in `app/bekannte_macken.py`.
 - **Fail-fast:** Mit `FOLIANT_PRODUKTION=an` verweigert der Server den Start, wenn das
   Pfad-Token kürzer als 16 Zeichen ist.
 - **Eingabegrenzen:** Suchanfragen sind längenbegrenzt, `limit` wird gedeckelt (DoS-Schutz).
+- **Abfrage-Protokoll ohne PII:** Das Log (`data/foliant-protokoll.sqlite`) enthält nur
+  Suchbegriffe, Filter und Zeiten — keine Nutzerkennungen, IPs oder Gesprächsinhalte. Es
+  ist die einzige Schreib-Ausnahme des Serving-Pfads und liegt deshalb in einer eigenen
+  Datei; die bediente Korpus-DB bleibt strikt `mode=ro`.
 - **Laufzeit offline** (MCP), read-only auf legal erworbenen Daten; Admin-Funktionen **nie**
   über den Tunnel, nur lokal/SSH.
 - **Inhalte-Recht:** Das Repository enthält **keine** kommerziellen Regelinhalte. Die aus

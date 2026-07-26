@@ -328,34 +328,68 @@ def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]
 
     de_by_key: dict[tuple, set[str]] = {}
     en_by_key: dict[tuple, set[str]] = {}
+    de_by_teil: dict[tuple, set[str]] = {}
+    en_by_teil: dict[tuple, set[str]] = {}
+    attr_von: dict[str, tuple] = {}              # lesbare Attributstabelle je Name
     for r in con.execute("SELECT name_de, name_en, sprache, body_md FROM eintraege "
                          "WHERE kategorie='monster'"):
         key = _f.monster_statschluessel(r["body_md"])
-        if any(x is None for x in key):          # unvollstaendiger Statblock -> nicht abgleichen
-            continue
+        teil = key[:4]                           # (typ, hg, rk, tp) ohne Attributstabelle
+        name = r["name_de"] if r["sprache"] == "de" else r["name_en"]
+        if name and key[4] is not None:
+            attr_von[name] = key[4]
         if r["sprache"] == "de" and r["name_de"]:
-            de_by_key.setdefault(key, set()).add(r["name_de"])
+            if not any(x is None for x in key):
+                de_by_key.setdefault(key, set()).add(r["name_de"])
+            if not any(x is None for x in teil):
+                de_by_teil.setdefault(teil, set()).add(r["name_de"])
         elif r["sprache"] == "en" and r["name_en"]:
-            en_by_key.setdefault(key, set()).add(r["name_en"])
-    paare: list[tuple[str, str, tuple]] = []
-    for key, de_namen in de_by_key.items():
-        en_namen = en_by_key.get(key, set())
+            if not any(x is None for x in key):
+                en_by_key.setdefault(key, set()).add(r["name_en"])
+            if not any(x is None for x in teil):
+                en_by_teil.setdefault(teil, set()).add(r["name_en"])
+
+    def _eindeutige(de_namen: set[str], en_namen: set[str]) -> tuple[str, str] | None:
         if len(de_namen) != 1 or len(en_namen) != 1:
-            continue                             # nicht eindeutig -> nicht raten
+            return None                          # nicht eindeutig -> nicht raten
         de_name, en_name = next(iter(de_namen)), next(iter(en_namen))
         if _norm(de_name) == _norm(en_name):     # gleicher Name -> keine Bruecke noetig
-            continue
+            return None
         if not _name_sauber(de_name):            # korrupter dt. Name -> NIE seeden
+            return None
+        return en_name, de_name
+
+    paare: list[tuple[str, str, tuple]] = []
+    for key, de_namen in de_by_key.items():
+        p = _eindeutige(de_namen, en_by_key.get(key, set()))
+        if p:
+            paare.append((*p, key))
+    # Stufe 2 (Teil-Fingerabdruck): Statbloecke mit unlesbarer Attributstabelle
+    # (srd-de 'Koboldkrieger') fielen aus Stufe 1, obwohl (typ, hg, rk, tp) beidseitig
+    # eindeutig auf dieselbe Kreatur zeigt. Ausschlussprinzip NACH Abzug der bereits
+    # gepaarten Namen - der Teil-Schluessel darf nie ein Stufe-1-Paar umdeuten.
+    vergeben = {n for en, de, _k in paare for n in (en, de)}
+    for teil, de_namen in de_by_teil.items():
+        p = _eindeutige(de_namen - vergeben, en_by_teil.get(teil, set()) - vergeben)
+        if not p:
             continue
-        paare.append((en_name, de_name, key))
+        en_name, de_name = p
+        a_de, a_en = attr_von.get(de_name), attr_von.get(en_name)
+        if a_de is not None and a_en is not None and a_de != a_en:
+            continue    # beidseitig lesbare, ABWEICHENDE Attribute = verschiedene Kreaturen
+        paare.append((en_name, de_name, teil))
     return paare
 
 
-# Rest-NOTFALL (einzige srd-de-Zerlegung mit Buchstaben-VERLUST: '...gfie...' = 'fliegendes',
-# ein 'l' fehlt): kein sicheres Anagramm-/Sequenz-Signal, also der eine dokumentierte
-# Einzelfix. Ziel autoritativ aus dem PDF-Inhaltsverzeichnis. Alles andere loest der
-# Algorithmus (importer.namensreparatur) selbst; diese Liste soll nicht wachsen.
-SRD_DE_NAME_NOTFALL = {"Belebtesgfie endes Schwert": "Belebtes fliegendes Schwert"}
+# Rest-NOTFALL (srd-de-Zerlegungen mit Buchstaben-VERLUST, beide Male ein fehlendes 'l'
+# in 'flieg...'): kein sicheres Anagramm-/Sequenz-Signal, also dokumentierte Einzelfixe.
+# Ziele autoritativ belegt: 'Belebtes fliegendes Schwert' aus dem PDF-Inhaltsverzeichnis;
+# 'Riesenfliege' hat KEINEN TOC-Anker (Statblock im Magische-Gegenstaende-Anhang), die
+# korrekte Form steht aber im Fliesstext des Bestands (Befund 26.07.2026, Monster-
+# Bruecken-Vorschau haette sonst den Tippfehler als offizielles Deutsch geseedet).
+# Alles andere loest der Algorithmus (importer.namensreparatur) selbst.
+SRD_DE_NAME_NOTFALL = {"Belebtesgfie endes Schwert": "Belebtes fliegendes Schwert",
+                       "Riesenfiege": "Riesenfliege"}
 
 
 def repariere_srd_de_namen(con: sqlite3.Connection) -> int:
@@ -487,6 +521,42 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
         print(f"  klassenmerkmale: {zeile}", file=sys.stderr)
     con.commit()
     _glossar._GLOSSAR_CACHE.clear()   # Folge-Seeder sollen die neuen Paare sehen
+    return n
+
+
+def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
+    """Gegenstands-Paare per Struktur-Abgleich (Preis-Bucket + Glossar-Hop/Ausschluss,
+    Modul importer/srd_begriffsbruecken) als OFFIZIELLE Bruecke - schliesst die groesste
+    Audit-Luecke (Open5e-Preissuffixe liessen das dnddeutsch-Seeding leerlaufen).
+    Selbst-bereinigend; belegt vollen Namen UND suffixfreie Kurzform. Auf einer DB ohne
+    open5e-srd-2024 findet der Abgleich schlicht nichts - harmlos (Subset-Muster)."""
+    from app import glossar as _glossar
+    from importer.srd_begriffsbruecken import (QUELLE, finde_gegenstands_paare,
+                                               seed_paar)
+    con.execute("DELETE FROM glossar WHERE quelle LIKE ?", (QUELLE + "%",))
+    _glossar._GLOSSAR_CACHE.clear()   # geloeschte Alt-Zeilen duerfen nicht als 'belegt' zaehlen
+    paare, report = finde_gegenstands_paare(con)
+    n = 0
+    gesehen: set[tuple[str, str]] = set()
+    for term_en, term_de, _stufe in paare:
+        v_en, v_de = seed_paar(term_en, term_de)
+        if (v_en, v_de) in gesehen:
+            continue
+        gesehen.add((v_en, v_de))
+        # Bereits belegte Paare (z. B. dnddeutsch) NICHT kapern: der Upsert wuerde ihre
+        # quelle ueberschreiben und die Selbstbereinigung des naechsten Laufs loeschte
+        # dann eine fremde Zeile, falls der Abgleich sie nicht wiederfindet.
+        belegt = {_glossar.norm_begriff(z["term_de"])
+                  for z in _glossar.lookup(con, v_en, richtung="en_de")
+                  if z["match"] == "exakt"}
+        if _glossar.norm_begriff(v_de) in belegt:
+            continue
+        _upsert(con, v_en, v_de, 1, QUELLE, "2024", None)
+        n += 1
+    for zeile in report:
+        print(f"  gegenstaende: {zeile}", file=sys.stderr)
+    con.commit()
+    _glossar._GLOSSAR_CACHE.clear()
     return n
 
 
