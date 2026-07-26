@@ -121,7 +121,7 @@ def _bereite_index(mcp_url: str | None) -> str:
 
     Die Projektanweisung ist der GEMEINSAME Ort für die Runde: mehrere Spieler richten je
     ein eigenes Claude-Projekt ein, und jeder braucht denselben aktuellen Text. Er kommt
-    deshalb zur Laufzeit aus SPEC.md §8 (config.stil.projektanweisung) statt als Kopie im
+    deshalb zur Laufzeit aus config/projektanweisung.md (config.stil) statt als Kopie im
     Template - so verteilt die Seite nie eine veraltete Fassung."""
     seite = _INDEX
     anweisung = stil.projektanweisung() if mcp_url else None

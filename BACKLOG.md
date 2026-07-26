@@ -16,7 +16,8 @@ Der Eval-Harness-Lauf gegen den **Pi-Vollbestand** (26.07.2026, `claude-sonnet-5
 prüfbaren P0-Zeilen bestanden — Protokoll in §2. **Es fehlt genau ein Fall:** A4 (Websuche
 getrennt gekennzeichnet) lässt sich nur im echten Chat prüfen, weil das Harness kein
 Web-Werkzeug stellt. Dazu optional E1 (Prompt-Injection, braucht eine präparierte Quelle).
-Voraussetzung für den Chat-Test: Claude-Projekt mit der Anweisung aus [SPEC.md](SPEC.md) §8.
+Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
+[`config/projektanweisung.md`](config/projektanweisung.md).
 **Gate:** alle T1–T12 nachweislich erfüllt, Ergebnisse in §2 eingetragen.
 
 ### M3 — Betrieb für die Gruppe · *klein · Zugang ✅, Betrieb teilweise*

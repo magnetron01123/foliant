@@ -344,7 +344,7 @@ python -m app.admin manifest > korpus-manifest.json
 
 ### 4. Connector eintragen
 Volle URL inkl. Geheimpfad: `https://<host>/<FOLIANT_PFAD_TOKEN>/mcp` — kein OAuth.
-Verhaltensschicht: Claude-Projekt mit der Anweisung aus [SPEC.md](SPEC.md) §8 einrichten —
+Verhaltensschicht: Claude-Projekt mit `config/projektanweisung.md` einrichten —
 die Spieler finden sie kopierbereit auf der Charakterbogen-Website („Foliant im Claude-Chat“).
 Die Seite rendert sie zur Laufzeit aus SPEC.md (`config.stil.projektanweisung`), verteilt also
 nie eine veraltete Fassung; nach Prompt-Änderungen `docker compose up -d --build --no-deps web`.

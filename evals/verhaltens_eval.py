@@ -11,8 +11,8 @@ Architektur-Entscheidungen:
   HTTP-Connector (Netz/Serialisierung) - das prueft Schicht 2.
 - API direkt per httpx (Muster app/charakterbogen/uebersetzer.py - das Projekt pinnt
   bewusst kein anthropic-SDK). Key NUR aus der Umgebung, nie geloggt.
-- System-Prompt = der §8-Codeblock aus SPEC.md, mit demselben Extraktor wie
-  tests/test_verhaltensregeln.py - eine Quelle, kein Duplikat.
+- System-Prompt = config/projektanweisung.md ueber config.stil - dieselbe Leseestelle
+  wie Website und Kanal-Sync-Test, eine Quelle, kein Duplikat.
 - Report-Kopf = BACKLOG-§2-Pflichtfelder (Datum, Modell, Client, inhalts_hash) via
   admin.berechne_manifest. Ausgabe nach evals/ergebnisse/ (gitignored - die
   Vier-Dokumente-Regel gilt).
@@ -49,11 +49,11 @@ _RICHTER_MODELL = "claude-haiku-4-5-20251001"
 
 
 def projektanweisung() -> str:
-    """Der §8-Codeblock aus SPEC.md - EINE Extraktionsstelle fuer alle Nutzer des Textes
+    """Der Text aus config/projektanweisung.md - EINE Leseestelle fuer alle Nutzer
     (Website, Eval, deploy/projektanweisung.sh), damit keine veraltete Kopie umgeht."""
     text = stil.projektanweisung()
     if text is None:
-        sys.exit("SPEC.md §8 muss genau EINEN Projektanweisungs-Block enthalten.")
+        sys.exit("config/projektanweisung.md fehlt - ohne Projektanweisung kein Eval.")
     return text
 
 

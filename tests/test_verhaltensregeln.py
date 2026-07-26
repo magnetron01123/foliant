@@ -1,6 +1,7 @@
 """Die Verhaltensregeln laufen ueber drei Kanaele (SPEC.md §7). Zwei davon sind
 Freitext und driften deshalb lautlos auseinander: die Server-Instruktion in
-`config/stil.py` und die Copy-Paste-Projektanweisung in SPEC.md §8. CLAUDE.md
+`config/stil.py` und die Copy-Paste-Projektanweisung in `config/projektanweisung.md`.
+CLAUDE.md
 verlangt seit jeher, beide synchron zu halten - bisher war das eine Bitte an den
 Menschen, hier wird es geprueft.
 
@@ -11,22 +12,20 @@ Regel in beiden vorkommt. Faellt eine raus, faellt der Test.
 from __future__ import annotations
 
 import pathlib
-import re
 
 import pytest
 
+from config import stil
 from config.stil import INSTRUCTIONS
-
-_SPEC = pathlib.Path(__file__).resolve().parents[1] / "SPEC.md"
 
 
 @pytest.fixture(scope="module")
 def projektanweisung() -> str:
-    """Der Codeblock aus SPEC.md §8 - das ist der Text, den David einfuegt."""
-    text = _SPEC.read_text(encoding="utf-8")
-    bloecke = re.findall(r"```\n(Du hilfst unserer D&D-Runde.*?)```", text, re.S)
-    assert len(bloecke) == 1, "SPEC.md §8 muss genau EINEN Projektanweisungs-Block haben"
-    return bloecke[0]
+    """Der Text aus config/projektanweisung.md - genau das, was in ein Claude-Projekt
+    eingefuegt wird und was die Website ausliefert (EINE Quelle, keine Kopie)."""
+    text = stil.projektanweisung()
+    assert text, "config/projektanweisung.md fehlt oder ist leer"
+    return text
 
 
 # Je Regel ein Kennzeichen, das in BEIDEN Kanaelen vorkommen muss. Bewusst kurze,
@@ -58,7 +57,7 @@ _TRAGENDE_REGELN = [
                          ids=[n for n, _ in _TRAGENDE_REGELN])
 def test_regel_steht_in_beiden_kanaelen(name, kennzeichen, projektanweisung):
     assert kennzeichen in INSTRUCTIONS, f"{name}: fehlt in config/stil.py"
-    assert kennzeichen in projektanweisung, f"{name}: fehlt in der Projektanweisung (SPEC.md §8)"
+    assert kennzeichen in projektanweisung, f"{name}: fehlt in config/projektanweisung.md"
 
 
 def test_spoilerschutz_steht_ganz_oben():
@@ -76,3 +75,15 @@ def test_instruktion_bleibt_kompakt():
     kann oder in die Tool-Ausgabe gehoert (der zuverlaessigere Kanal, SPEC.md §7)."""
     assert len(INSTRUCTIONS) < 7500, (
         f"stil.py INSTRUCTIONS: {len(INSTRUCTIONS)} Zeichen - erst kuerzen, dann anheben")
+
+
+def test_projektanweisung_liegt_als_eigene_datei_vor():
+    """Die Datei IST die Quelle - fuer die Website, den Eval-Harness, das Kopier-Skript
+    und diesen Test. Faellt sie weg oder wird sie leer, muss das hier auffallen und nicht
+    erst als leerer Abschnitt auf der Seite der Runde."""
+    datei = pathlib.Path(__file__).resolve().parents[1] / "config" / "projektanweisung.md"
+    assert datei.exists(), "config/projektanweisung.md fehlt"
+    text = datei.read_text(encoding="utf-8").strip()
+    assert text.startswith("Du hilfst unserer D&D-Runde")
+    assert len(text) > 3000, "verdaechtig kurz - versehentlich gekuerzt?"
+    assert stil.projektanweisung() == text          # eine Quelle, kein Abschreiben
