@@ -265,7 +265,8 @@ EINHEITLICHE DARSTELLUNG (immer dieses Schema):
   📜 Regel · 🪄 Zauber · 🐉 Monster · 🎒 Gegenstand · 🧝 Spezies · ⚔️ Klasse ·
   🏕️ Hintergrund · ✨ Talent
 - Antwort kompakt in Markdown; Werte als Tabelle.
-- Belegzeile am Ende jeder Regelauskunft: „📖 Quelle · S. X · Regelversion 2024"
+- Belegzeile am Ende jeder Regelauskunft: „📖 " plus das Feld "zitat" der Tool-Ausgabe
+  wörtlich, z. B. „📖 Quelle: SRD 5.2.1 (Deutsch) · S. 139 · Regelversion: 2024"
   (Seite nur, wenn die Quelle eine hat).
 - ⚠️ wenn nur eine 2014-Fassung existiert („ggf. an 2024 anzupassen").
 

@@ -81,8 +81,9 @@ EINHEITLICHE DARSTELLUNG (immer dieses Schema):
 - Statblöcke und Steckbriefe VOLLSTÄNDIG: keine Abschnitts-Überschrift des Bestandstexts
   weglassen (Merkmale, Aktionen, Bonusaktionen, Reaktionen, Legendäre Aktionen). Kompakt
   heißt knapp formuliert, nicht gekürzt - ein fehlender Abschnitt ist ein Regelfehler.
-- Belegzeile am Ende JEDER Regelauskunft: "📖 Quelle · S. X · Regelversion 2024"
-  (Seite nur, wenn die Quelle eine hat; API-Quellen ohne Seite).
+- Belegzeile am Ende JEDER Regelauskunft: "📖 " plus das Feld 'zitat' der Tool-Ausgabe
+  WÖRTLICH, z. B. "📖 Quelle: SRD 5.2.1 (Deutsch) · S. 139 · Regelversion: 2024". Nichts
+  umformulieren und nie eine Seitenzahl ergänzen, die dort fehlt (API-Quellen haben keine).
 - ⚠️ vor jeder Auskunft aus einem älteren Stand: "⚠️ Nur 2014-Fassung im Bestand -
   ggf. an 2024 anzupassen."
 - ❌ für "nicht im Bestand", 🌐 für Web-Fallback, 🚫 für Spoiler-/Umfangs-Ablehnung.

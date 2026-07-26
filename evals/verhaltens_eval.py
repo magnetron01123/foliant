@@ -38,8 +38,11 @@ _PROJEKT = Path(__file__).resolve().parents[1]
 _ERGEBNISSE = Path(__file__).resolve().parent / "ergebnisse"
 _API_URL = "https://api.anthropic.com/v1/messages"
 _ANWEISUNG_RE = re.compile(r"```\n(Du hilfst unserer D&D-Runde.*?)```", re.S)
-# Belegzeilen-Format aus stil.py: '📖 Quelle · S. X · Regelversion 2024' (Seite optional).
-BELEG_RE = re.compile(r"📖 .+Regelversion \d{4}")
+# Belegzeile = '📖 ' + das 'zitat'-Feld der Tool-Ausgabe, z. B.
+# '📖 Quelle: SRD 5.2.1 (Deutsch) · S. 139 · Regelversion: 2024' (Seite optional).
+# Der Doppelpunkt ist optional: der Server baut das Zitat mit, die Prompt-Beispiele
+# standen frueher ohne - der Volllauf 26.07.2026 lief genau in diese Luecke.
+BELEG_RE = re.compile(r"📖 .+Regelversion:? \d{4}")
 _MAX_RUNDEN = 8
 _STANDARD_MODELL = "claude-sonnet-5"
 _RICHTER_MODELL = "claude-haiku-4-5-20251001"
