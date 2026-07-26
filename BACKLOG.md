@@ -154,6 +154,30 @@ Nebenfund behoben: zwei DDB-Kapitel-Header standen als Pseudo-Klassen in der Lis
 `admin manifest`. Fehlantworten mit Wortlaut notieren und als Golden-Test oder
 Bestandskorrektur nachziehen (M5).
 
+### Lauf-Protokoll
+
+**26.07.2026 · `claude-sonnet-5` · Eval-Harness (in-process) · Korpus: lokales Subset
+(3084 Einträge, `inhalts_hash 01e5e49d6786d2df`)** — 15 Fälle bestanden, 0 Fehlschläge,
+A4 und E1 nicht prüfbar (Websuche bzw. Injektions-Fixture). **Gilt nicht als Abnahme:**
+der Lauf lief gegen das Mac-Subset, nicht gegen den Pi-Vollbestand. Die B-Fälle sind
+korpusabhängig (Korpus-Lücke, [CONCEPT.md](CONCEPT.md) §11) — für M2 zählt erst
+`make eval-verhalten-pi`.
+
+Der Lauf hat vier echte Fehler gefunden, alle behoben:
+1. **Tool-Vertrag:** `foliant_hol_*` verlangte `name`, obwohl das Modell natürlich nur
+   `eintrag_id` schickt — der Aufruf scheiterte an der Schema-Validierung.
+2. **Prompt-Lücke:** `fremdsprachige_fassungen` kam in keinem Verhaltenskanal vor; die
+   abweichende englische Vampir-Fassung blieb unerwähnt (P1-009, Fall D3).
+3. **Fragment-Antwort:** Der Solar-Statblock erschien ohne die Sektion „Bonusaktionen"
+   (P0-003-Klasse, Fall B3) — „kompakt" las sich als Erlaubnis zu kürzen.
+4. **Format-Widerspruch:** Server-`zitat` („Regelversion: 2024") gegen Prompt-Beispiel
+   („Regelversion 2024"). Jetzt gilt: Belegzeile ist `📖 ` + `zitat` wörtlich.
+
+Zwei Grader waren selbst falsch (B1 verlangte ein „−2", das im deutschen SRD-Wortlaut
+nicht vorkommt; A3 verbot das Wort „Schwäche" auch in einer korrekten Ablehnung), und der
+LLM-Richter urteilte aus D&D-Trainingswissen statt aus dem Bestand — er bekommt jetzt die
+Werkzeug-Ausgaben als einzige Grundlage.
+
 ---
 
 ## 3. Bekannte Rest-Posten (bewusst niedrig priorisiert)

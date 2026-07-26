@@ -38,11 +38,15 @@ def test_grader_pflicht_verboten_und_alternativen():
 
 def test_grader_belegzeilen_format():
     fall = dict(id="X")
-    gut = "Feuerball wirkt.\n📖 SRD 5.2.1 (Deutsch) · S. 241 · Regelversion 2024"
-    assert pruefe_deterministisch(fall, gut, []) == []
+    # Beide Schreibweisen gelten: der Server baut das 'zitat' mit Doppelpunkten, aeltere
+    # Prompt-Beispiele standen ohne (Befund Volllauf 26.07.2026).
+    for gut in ("Feuerball wirkt.\n📖 SRD 5.2.1 (Deutsch) · S. 241 · Regelversion 2024",
+                "Feuerball wirkt.\n📖 Quelle: SRD 5.2.1 (Deutsch) · S. 241 · "
+                "Regelversion: 2024"):
+        assert pruefe_deterministisch(fall, gut, []) == [], gut
+        assert BELEG_RE.search(gut)
     kaputt = "Feuerball wirkt. 📖 irgendwo"
     assert any("Belegzeile" in g for g in pruefe_deterministisch(fall, kaputt, []))
-    assert BELEG_RE.search(gut)
 
 
 def test_grader_leere_antwort_ist_fail():

@@ -47,6 +47,10 @@ _TRAGENDE_REGELN = [
     ("Gegenprobe vor dem Leerbefund", "foliant_suche_bestand"),
     ("gekuerzte Trefferliste", "hinweis_gekuerzt"),
     ("Spoiler-Kennzeichnung der Quelle", "abenteuer_setting"),
+    # Eval-Volllauf 26.07.2026 (Fall D3): der Server wies die abweichende englische
+    # Vampir-Fassung als 'fremdsprachige_fassungen' aus, aber KEIN Kanal sagte dem
+    # Modell, was es damit tun soll - es gab still nur die deutsche Fassung aus.
+    ("abweichende Fassung offenlegen", "fremdsprachige_fassungen"),
 ]
 
 
