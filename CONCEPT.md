@@ -167,7 +167,12 @@ schreiben.
   „Rucksack"), sonst entstünden EN→mehrere-offizielle-DE-Konflikte neben den
   dnddeutsch-Zeilen; Dedupe und Anzeige ziehen Klammer-Suffixe kanonisch ab
   (`glossar.KLAMMER_SUFFIX`). Review vor dem Lauf: `admin glossar-paare --vorschau`,
-  Gate danach: `admin glossar-audit` bleibt konfliktfrei.
+  Gate danach: die **echten** Konflikte in `admin glossar-audit` nehmen nicht zu.
+  Editionsgetrennte Mehrfachformen („Pouch": Tasche/2014 aus dem Spielerhandbuch vs.
+  Beutel/2024 aus dem dt. SRD) zählen **nicht** dazu — dort entscheidet S8 eindeutig, und
+  `glossar.term_de` liefert genau die neuere Fassung. Das Audit weist beide Klassen
+  getrennt aus; nur „ECHTE Konflikte" (gleiche Edition oder keine belegte) brauchen
+  Handarbeit.
 - **Exakt vs. fuzzy ist getrennt** (SYN-P0-001): Ein Fuzzy-Glossartreffer begründet **nie**
   Identität — sonst wurde aus „Aktionen" die Regel „Reaktionen".
 - **Deutsch-first-Sortierung ist explizit**, nicht dem FTS-Rang überlassen: Der englische

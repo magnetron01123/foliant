@@ -51,8 +51,8 @@ python -m app.admin suchbericht` listet Nulltreffer, Fuzzy-Landungen, Mehrdeutig
 Übersetzungs-Lücken als Kuratier-Kandidaten (inkl. Antwortzeit p50/p95 → B9/M3).
 Aus einem Kandidaten wird ein Glossar-Paar über `admin glossar-paare --vorschau`
 (Struktur-Abgleich Gegenstände/Monster mit Beweisstufe, Review vor
-`import --quelle glossar`); nach jedem Seeding-Lauf muss `admin glossar-audit`
-konfliktfrei bleiben.
+`import --quelle glossar`); nach jedem Seeding-Lauf dürfen die **echten** Konflikte in
+`admin glossar-audit` nicht zunehmen (editionsgetrennte Formen regelt S8 selbst).
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking
 und Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 

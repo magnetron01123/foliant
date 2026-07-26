@@ -434,6 +434,56 @@ def cmd_manifest(_args) -> None:
         c.close()
 
 
+def _teile_konflikte(c: sqlite3.Connection) -> tuple[list[dict], list[dict]]:
+    """Mehrere OFFIZIELLE deutsche Formen zu einem englischen Begriff in zwei Klassen
+    trennen: (echte Konflikte, durch S8 geregelte).
+
+    Nicht jede Mehrdeutigkeit ist ein Risiko. Konkurrieren eine 2014- und eine
+    2024-Fassung ('Pouch': Tasche/2014 aus dem Spielerhandbuch vs. Beutel/2024 aus dem
+    dt. SRD), entscheidet die kanonische Auswahlregel eindeutig - S8: der neuere
+    offizielle Begriff gewinnt, und genau den zeigt glossar.term_de auch an. Solche
+    Zeilen als 'falsches Deutsch'-Risiko zu zaehlen, macht die Zahl unbrauchbar: beim
+    Gegenstands-Seeding auf dem Pi (26.07.2026) sprang sie von 41 auf 47, obwohl jeder
+    neue Fall korrekt aufgeloest wurde.
+
+    ECHT ist ein Konflikt, wenn die Auswahl NICHT eindeutig ist - mehrere Formen mit
+    derselben neuesten Edition oder ohne belegte Edition. Das sind die Faelle, die
+    wirklich Handarbeit brauchen (Homonyme wie Hide -> Fell/Verstecken)."""
+    from collections import defaultdict
+
+    gruppen: dict[str, list[sqlite3.Row]] = defaultdict(list)
+    for r in c.execute("SELECT term_en, term_de, edition_quelle FROM glossar "
+                       "WHERE offiziell=1 AND coalesce(quelle,'') NOT LIKE 'abkuerzung%'"):
+        gruppen[r["term_en"].lower()].append(r)
+
+    echt: list[dict] = []
+    geregelt: list[dict] = []
+    for zeilen in gruppen.values():
+        formen = {z["term_de"] for z in zeilen}
+        if len(formen) < 2:
+            continue
+        editionen = [int(z["edition_quelle"]) for z in zeilen
+                     if str(z["edition_quelle"] or "").isdigit()]
+        neueste = max(editionen, default=None)
+        gewinner = {z["term_de"] for z in zeilen
+                    if str(z["edition_quelle"] or "").isdigit()
+                    and int(z["edition_quelle"]) == neueste}
+        eintrag = dict(kandidat=zeilen[0]["term_en"], anzahl=len(formen),
+                       deutsche=",".join(sorted(formen)))
+        if neueste is not None and len(gewinner) == 1:
+            sieger = next(iter(gewinner))
+            geregelt.append({**eintrag, "gewinner": sieger, "edition": str(neueste),
+                             # Explizite Liste statt String-Ersetzung: 'Klingenteufel'
+                             # ist Teilstring von 'Klingenteufel (Hamatula)' und wurde
+                             # sonst mitten aus dem Namen geschnitten.
+                             "unterlegen": sorted(formen - {sieger})})
+        else:
+            echt.append(eintrag)
+    echt.sort(key=lambda e: (-e["anzahl"], e["kandidat"]))
+    geregelt.sort(key=lambda e: e["kandidat"])
+    return echt, geregelt
+
+
 def cmd_glossar_audit(args) -> None:
     """Deutsch-Qualitaets-Audit (READ-ONLY, schreibt nichts). Fuer den bedienten Bestand:
     deutsche Eintraege sind per se deutsch; die deutsche ANZEIGE englischer Eintraege haengt
@@ -442,7 +492,8 @@ def cmd_glossar_audit(args) -> None:
       en_stern     = nur inoffizielle Bruecke (-> *-Kennzeichnung)
       en_ohne      = KEINE Bruecke (-> nur Englisch; die eigentliche Deutsch-Luecke)
     Plus Konflikte (ein EN-Begriff -> mehrere OFFIZIELLE dt. Begriffe = 'falsches Deutsch'-
-    Risiko, schlimmer als *). Hinweis: dedupt der Bestand einen engl. Eintrag ohnehin gegen
+    Risiko, schlimmer als *) - getrennt in ECHTE (Auswahl nicht eindeutig) und durch S8
+    geregelte (2014 vs. 2024: der neuere Begriff gewinnt, siehe _teile_konflikte). Hinweis: dedupt der Bestand einen engl. Eintrag ohnehin gegen
     einen deutschen (gleiches Konzept), erscheint dem Nutzer die deutsche Fassung - die
     Roh-en_ohne-Zahl ist daher eine OBERGRENZE der real sichtbaren Luecke. --luecken N listet
     je Kategorie bis zu N fehlende Namen (Kuratier-Kandidaten fuer #4). --json fuer Maschinen."""
@@ -469,12 +520,10 @@ def cmd_glossar_audit(args) -> None:
                GROUP BY e.kategorie""")}
         # Abkuerzungs-Zeilen (quelle='abkuerzung', z. B. Armor Class->RK) sind BEABSICHTIGT,
         # kein Konflikt - ausschliessen, damit nur echte Term-Konflikte fuer die Review bleiben.
-        konflikte = [dict(kandidat=r[0], anzahl=r[1], deutsche=r[2]) for r in c.execute(
-            "SELECT term_en, count(DISTINCT term_de) AS n, group_concat(DISTINCT term_de) "
-            "FROM glossar WHERE offiziell=1 AND coalesce(quelle,'') NOT LIKE 'abkuerzung%' "
-            "GROUP BY lower(term_en) HAVING n > 1 ORDER BY n DESC, term_en")]
+        konflikte, editionsgeregelt = _teile_konflikte(c)
 
-        bericht = {"kategorien": [], "konflikte": konflikte}
+        bericht = {"kategorien": [], "konflikte": konflikte,
+                   "konflikte_editionsgeregelt": editionsgeregelt}
         for kat in _db.KATEGORIEN:
             d = deckung.get(kat, {})
             eintrag = {"kategorie": kat, "de": de_je.get(kat, 0),
@@ -517,11 +566,18 @@ def cmd_glossar_audit(args) -> None:
               f"davon mit offiziellem Deutsch: {ges['off']}, mit * : {ges['stern']}, "
               f"nur Englisch: {ges['ohne']}")
         if konflikte:
-            print(f"\n  ⚠️ {len(konflikte)} Konflikt(e) (ein EN -> mehrere offizielle DE - pruefen!):")
+            print(f"\n  ⚠️ {len(konflikte)} ECHTE Konflikt(e) - Auswahl nicht eindeutig, "
+                  f"pruefen (Homonyme/gleiche Edition):")
             for k in konflikte[:15]:
                 print(f"     {k['kandidat']} -> {k['deutsche']}")
         else:
-            print("\n  Keine EN->mehrere-offizielle-DE-Konflikte. ✓")
+            print("\n  Keine echten EN->mehrere-offizielle-DE-Konflikte. ✓")
+        if editionsgeregelt:
+            print(f"\n  ℹ️ {len(editionsgeregelt)} weitere Mehrfachform(en) sind durch S8 "
+                  f"geregelt (neuere Edition gewinnt) - kein Handlungsbedarf, z. B.:")
+            for k in editionsgeregelt[:5]:
+                print(f"     {k['kandidat']} -> {k['gewinner']} ({k['edition']}) "
+                      f"statt {', '.join(k['unterlegen'])}")
     finally:
         c.close()
 
