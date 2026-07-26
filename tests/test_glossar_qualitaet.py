@@ -74,3 +74,38 @@ def test_a9_kanonische_auswahl_deterministisch(con):
     assert zeilen[-1]["term_de"] == "Aaa Community"        # trotz Alphabet ganz hinten
     de, offiziell = gl.term_de(con, "Sample Term")
     assert (de, offiziell) == ("Neuer Begriff", True)      # S8: neuer offizieller gewinnt
+
+
+def test_konflikt_klassen_trennen_edition_von_echtem_risiko(con):
+    """Das Audit darf editionsgetrennte Mehrfachformen nicht als Risiko zaehlen: bei
+    '2014 vs. 2024' entscheidet S8 eindeutig (und term_de liefert genau die 2024-Form).
+    ECHT ist nur, was die Auswahlregel offen laesst - Homonyme oder gleiche Edition.
+    Befund Pi-Seeding 26.07.2026: die Rohzahl sprang von 41 auf 47, obwohl jeder neue
+    Fall korrekt aufgeloest wurde."""
+    from app.admin import _teile_konflikte
+
+    con.executemany(
+        "INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle) "
+        "VALUES (?,?,?,?,?)",
+        [# editionsgetrennt -> geregelt (der 2024-Begriff des dt. SRD gewinnt)
+         ("Pouch", "Tasche", 1, "Spielerhandbuch", "2014"),
+         ("Pouch", "Beutel", 1, "SRD 5.2.1 (Strukturabgleich Gegenstaende)", "2024"),
+         # gleiche Edition -> ECHTER Konflikt (Homonym-Muster)
+         ("Hide", "Fell", 1, "Spielerhandbuch 2024", "2024"),
+         ("Hide", "Verstecken", 1, "SRD 5.2.1", "2024"),
+         # ohne belegte Edition -> ECHTER Konflikt (nichts entscheidet)
+         ("Scout", "Kundschafter", 1, "Community", None),
+         ("Scout", "Spaeher", 1, "Community", None),
+         # nur eine Form -> gar kein Konflikt
+         ("Torch", "Fackel", 1, "SRD 5.2.1", "2024"),
+         # Abkuerzungszeilen sind beabsichtigt und bleiben aussen vor
+         ("Armor Class", "RK", 1, "abkuerzung", None),
+         ("Armor Class", "Ruestungsklasse", 1, "SRD 5.2.1", "2024")])
+    con.commit()
+
+    echt, geregelt = _teile_konflikte(con)
+    assert {e["kandidat"] for e in echt} == {"Hide", "Scout"}
+    assert [g["kandidat"] for g in geregelt] == ["Pouch"]
+    assert geregelt[0]["gewinner"] == "Beutel" and geregelt[0]["edition"] == "2024"
+    # Und die Anzeige bestaetigt, dass 'geregelt' wirklich geregelt ist (S8):
+    assert gl.term_de(con, "Pouch") == ("Beutel", True)
