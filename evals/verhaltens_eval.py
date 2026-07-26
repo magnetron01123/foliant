@@ -261,7 +261,9 @@ async def _lauf(argv) -> int:
 
 def _schreibe_report(kopf: dict, ergebnisse: list[dict]) -> None:
     _ERGEBNISSE.mkdir(exist_ok=True)
-    stamm = f"{kopf['datum'][:10]}-{kopf['modell']}"
+    # Datum PLUS Uhrzeit: gleichtaegige Laeufe ueberschrieben sich sonst gegenseitig -
+    # der 17-Faelle-Pi-Report ging real an einen 3-Faelle-Nachlauf verloren (26.07.2026).
+    stamm = f"{kopf['datum'][:16].replace(':', '')}-{kopf['modell']}"
     (_ERGEBNISSE / f"{stamm}.json").write_text(
         json.dumps({"kopf": kopf, "faelle": ergebnisse}, ensure_ascii=False, indent=2),
         encoding="utf-8")
