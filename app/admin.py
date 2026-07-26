@@ -388,42 +388,48 @@ def cmd_check(_args) -> None:
     print("check: OK")
 
 
-def cmd_manifest(_args) -> None:
+def berechne_manifest(c: sqlite3.Connection) -> dict:
     """Korpus-Manifest (SYN-P1-012/DND-015): reproduzierbarer Fingerabdruck des BEDIENTEN
     Bestands - Quellen (Kuerzel/Edition/Sprache/Inhaltsart/Lizenz/Anzahl) plus ein
-    inhaltsbasierter Hash. So laesst sich pruefen, ob der Pi-Bestand dem lokal getesteten
-    entspricht (Freigabe gegen einen bekannten Stand statt gegen eine beliebige Datei).
-    Ausgabe als JSON auf stdout - in die Versionsverwaltung/Release-Notiz uebernehmbar."""
+    inhaltsbasierter Hash. Als Funktion herausgeloest, damit das Eval-Harness
+    (evals/verhaltens_eval.py) den BACKLOG-§2-Pflicht-Hash in seinen Report schreiben
+    kann, ohne die CLI zu parsen."""
     import hashlib
+
+    try:
+        quellen = [dict(r) for r in c.execute(
+            "SELECT q.kuerzel, q.titel, q.edition, q.sprache, q.inhaltsart, "
+            "q.lizenz, count(e.id) AS n FROM quellen q "
+            "LEFT JOIN eintraege e ON e.quelle_id=q.id GROUP BY q.id "
+            "ORDER BY q.prioritaet, q.kuerzel")]
+    except sqlite3.OperationalError:                 # Alt-Schema ohne inhaltsart
+        quellen = [dict(r, inhaltsart="regelwerk") for r in c.execute(
+            "SELECT q.kuerzel, q.titel, q.edition, q.sprache, q.lizenz, "
+            "count(e.id) AS n FROM quellen q LEFT JOIN eintraege e "
+            "ON e.quelle_id=q.id GROUP BY q.id ORDER BY q.prioritaet, q.kuerzel")]
+    # Inhaltshash: deterministisch ueber (quelle_kuerzel, name, kategorie, edition,
+    # body) aller Eintraege - unabhaengig von rowid/Importreihenfolge.
+    h = hashlib.sha256()
+    for r in c.execute(
+            "SELECT q.kuerzel, e.kategorie, e.edition, "
+            "coalesce(e.name_de,e.name_en,''), e.body_md "
+            "FROM eintraege e JOIN quellen q ON q.id=e.quelle_id "
+            "ORDER BY q.kuerzel, e.kategorie, coalesce(e.name_de,e.name_en,''), e.id"):
+        h.update(("\x1f".join(str(x) for x in r)).encode("utf-8"))
+    gl = c.execute("SELECT count(*) FROM glossar").fetchone()[0]
+    sv = c.execute("PRAGMA user_version").fetchone()[0]
+    return {"schema_version": sv, "eintraege_gesamt": sum(q["n"] for q in quellen),
+            "glossar_zeilen": gl, "inhalts_hash": h.hexdigest(), "quellen": quellen}
+
+
+def cmd_manifest(_args) -> None:
+    """Ausgabe von berechne_manifest als JSON auf stdout - in die Versionsverwaltung/
+    Release-Notiz uebernehmbar (Freigabe gegen einen bekannten Stand)."""
     import json
 
     c = _con()
     try:
-        try:
-            quellen = [dict(r) for r in c.execute(
-                "SELECT q.kuerzel, q.titel, q.edition, q.sprache, q.inhaltsart, "
-                "q.lizenz, count(e.id) AS n FROM quellen q "
-                "LEFT JOIN eintraege e ON e.quelle_id=q.id GROUP BY q.id "
-                "ORDER BY q.prioritaet, q.kuerzel")]
-        except sqlite3.OperationalError:                 # Alt-Schema ohne inhaltsart
-            quellen = [dict(r, inhaltsart="regelwerk") for r in c.execute(
-                "SELECT q.kuerzel, q.titel, q.edition, q.sprache, q.lizenz, "
-                "count(e.id) AS n FROM quellen q LEFT JOIN eintraege e "
-                "ON e.quelle_id=q.id GROUP BY q.id ORDER BY q.prioritaet, q.kuerzel")]
-        # Inhaltshash: deterministisch ueber (quelle_kuerzel, name, kategorie, edition,
-        # body) aller Eintraege - unabhaengig von rowid/Importreihenfolge.
-        h = hashlib.sha256()
-        for r in c.execute(
-                "SELECT q.kuerzel, e.kategorie, e.edition, "
-                "coalesce(e.name_de,e.name_en,''), e.body_md "
-                "FROM eintraege e JOIN quellen q ON q.id=e.quelle_id "
-                "ORDER BY q.kuerzel, e.kategorie, coalesce(e.name_de,e.name_en,''), e.id"):
-            h.update(("\x1f".join(str(x) for x in r)).encode("utf-8"))
-        gl = c.execute("SELECT count(*) FROM glossar").fetchone()[0]
-        sv = c.execute("PRAGMA user_version").fetchone()[0]
-        manifest = {"schema_version": sv, "eintraege_gesamt": sum(q["n"] for q in quellen),
-                    "glossar_zeilen": gl, "inhalts_hash": h.hexdigest(), "quellen": quellen}
-        print(json.dumps(manifest, ensure_ascii=False, indent=2))
+        print(json.dumps(berechne_manifest(c), ensure_ascii=False, indent=2))
     finally:
         c.close()
 

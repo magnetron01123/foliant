@@ -40,6 +40,15 @@ PI ?= pi@raspberrypi.local
 test-golden-pi:
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T -w /app foliant python -m pytest -q tests/test_golden_bestand.py'
 
+# Schicht-3-Verhaltens-Evals gegen den VOLLEN Pi-Korpus (BACKLOG.md par. 2). Kostet echte
+# API-Tokens (~15 Faelle x 3-5 Runden). Der Key wird NUR fuer den Einmal-Exec injiziert -
+# der Serving-Container traegt dauerhaft keinen (bewusst, docker-compose.yml). Aufruf:
+#   ANTHROPIC_API_KEY=sk-... make eval-verhalten-pi PI=pi@<host>
+.PHONY: eval-verhalten-pi
+eval-verhalten-pi:
+	@test -n "$$ANTHROPIC_API_KEY" || { echo "FEHLER: ANTHROPIC_API_KEY fehlt."; exit 1; }
+	ssh $(PI) "cd ~/foliant && docker compose exec -T -e ANTHROPIC_API_KEY=$$ANTHROPIC_API_KEY -w /app foliant python -m evals.verhaltens_eval $(EVAL_ARGS)"
+
 # Glossar-Tabelle vom Pi (voller Bestand) in die lokale Dev-DB uebernehmen: macht lokale
 # Abnahmen belastbar - die Mac-DB ist nur ein Subset, ihre '*'-Sterne sind sonst nicht
 # aussagekraeftig (Korpus-Luecke, s. CLAUDE.md). Ersetzt die LOKALE glossar-Tabelle komplett.
