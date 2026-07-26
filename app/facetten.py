@@ -189,14 +189,19 @@ _HG_DEZIMAL = {"0.125": "1/8", "0.25": "1/4", "0.5": "1/2"}
 
 def monster_hg(body: str | None) -> str | None:
     """Herausforderungsgrad (HG/CR) aus dem Statblock, z. B. '1' oder '1/4'. Dezimal-CR
-    (Open5e '0.125') wird zur Bruchform normalisiert. None ohne Muster."""
+    (Open5e '0.125') wird zur Bruchform normalisiert, ganzzahliges Dezimal ('4.0') zur
+    Ganzzahl - sonst verfehlt hg_passt('4') die Open5e-Fassung und der Monster-
+    Strukturabgleich haelt dieselbe Kreatur fuer zwei verschiedene. None ohne Muster."""
     if not body:
         return None
     kopf = body[:900]
     for pat in _HG:
         m = pat.search(kopf)
         if m:
-            return _HG_DEZIMAL.get(m.group(1), m.group(1))
+            wert = _HG_DEZIMAL.get(m.group(1), m.group(1))
+            if re.fullmatch(r"\d+\.0+", wert):
+                wert = wert.split(".")[0]
+            return wert
     return None
 
 
