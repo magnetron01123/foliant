@@ -11,9 +11,12 @@ plus eine laufende Feedback-Schleife.
 
 ## 1. Offene Arbeit
 
-### M2 — Formale MVP-Abnahme · *klein · Schicht 1+2 ✅, Schicht 3 offen*
-Die drei Verhaltenstests im Chat durchspielen (§2 unten). Voraussetzung: Claude-Projekt mit
-der Anweisung aus [SPEC.md](SPEC.md) §8 eingerichtet.
+### M2 — Formale MVP-Abnahme · *klein · Schicht 1+2 ✅, Schicht 3 fast durch*
+Der Eval-Harness-Lauf gegen den **Pi-Vollbestand** (26.07.2026, `claude-sonnet-5`) hat alle
+prüfbaren P0-Zeilen bestanden — Protokoll in §2. **Es fehlt genau ein Fall:** A4 (Websuche
+getrennt gekennzeichnet) lässt sich nur im echten Chat prüfen, weil das Harness kein
+Web-Werkzeug stellt. Dazu optional E1 (Prompt-Injection, braucht eine präparierte Quelle).
+Voraussetzung für den Chat-Test: Claude-Projekt mit der Anweisung aus [SPEC.md](SPEC.md) §8.
 **Gate:** alle T1–T12 nachweislich erfüllt, Ergebnisse in §2 eingetragen.
 
 ### M3 — Betrieb für die Gruppe · *klein · Zugang ✅, Betrieb teilweise*
@@ -67,7 +70,7 @@ B1–B8, T1–T9/T11, O1–O3/O5, Q1–Q7).
 | NF4 | Legale Quellen; DDB nur privat | 🟡 | bewusste Entscheidung, siehe [SPEC.md](SPEC.md) §12.1 |
 | NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | ⬜ | M4 |
 | B9 | Schnell & verfügbar im Spielbetrieb | 🟡 | M3 (nicht gemessen) |
-| T2/T10/T12 | Verhaltenstests | 🟡 | M2 (§2) |
+| T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
 
 ---
@@ -156,14 +159,23 @@ Bestandskorrektur nachziehen (M5).
 
 ### Lauf-Protokoll
 
-**26.07.2026 · `claude-sonnet-5` · Eval-Harness (in-process) · Korpus: lokales Subset
-(3084 Einträge, `inhalts_hash 01e5e49d6786d2df`)** — 15 Fälle bestanden, 0 Fehlschläge,
-A4 und E1 nicht prüfbar (Websuche bzw. Injektions-Fixture). **Gilt nicht als Abnahme:**
-der Lauf lief gegen das Mac-Subset, nicht gegen den Pi-Vollbestand. Die B-Fälle sind
-korpusabhängig (Korpus-Lücke, [CONCEPT.md](CONCEPT.md) §11) — für M2 zählt erst
-`make eval-verhalten-pi`.
+**26.07.2026 · `claude-sonnet-5` · Eval-Harness · Korpus: PI-VOLLBESTAND
+(9485 Einträge, `inhalts_hash 979c19723daf601e`)** — der maßgebliche Lauf.
+**Ergebnis: alle prüfbaren P0-Zeilen bestanden** (A1–A3, B1–B5, C1–C3), D2/D3/E2
+bestanden, **0 harte Fehlschläge**. Offen bleiben:
 
-Der Lauf hat vier echte Fehler gefunden, alle behoben:
+| Zeile | Stand | Warum |
+|---|---|---|
+| **A4** (P0) | ⬜ offen | Websuche-Folgefrage — das Harness stellt kein Web-Werkzeug. **Nur dieser eine Fall fehlt für die volle P0-Abnahme; im Chat nachzuholen.** |
+| **E1** (P1) | ⬜ offen | Braucht eine präparierte Injektions-Quelle im Bestand |
+| **D1** (P1) | 🟡 beanstandet | Bei der Dissonantes-Flüstern-Frage stand eine Belegzeile unter einer reinen Ableitung (P1-007). Die Regel steht explizit in beiden Kanälen; das Modell verletzt sie in diesem verschachtelten Fall trotzdem. Bewusst nicht weiter am Prompt gedreht — das wäre Overfitting auf einen Einzelfall (vgl. [SPEC.md](SPEC.md) §7: Modellverhalten ist steuerbar, nicht erzwingbar). |
+
+A3 und B3 fielen im ersten Pi-Lauf weich durch und bestanden nach zwei Korrekturen
+(Statblock-Vollständigkeit im Prompt, A3-Rubrik auf „bewerte was dasteht"). Weiche
+Urteile schwanken zwischen Läufen — die Checkliste im echten Chat bleibt die Wahrheit.
+
+**Vorlauf am Mac-Subset** (`inhalts_hash 01e5e49d6786d2df`, 3084 Einträge): fand vier
+echte Fehler, alle behoben:
 1. **Tool-Vertrag:** `foliant_hol_*` verlangte `name`, obwohl das Modell natürlich nur
    `eintrag_id` schickt — der Aufruf scheiterte an der Schema-Validierung.
 2. **Prompt-Lücke:** `fremdsprachige_fassungen` kam in keinem Verhaltenskanal vor; die
