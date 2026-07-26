@@ -218,6 +218,11 @@ Optional der harte Schalter: Websuche in den Claude-Einstellungen deaktivieren.
 
 > **Bei Änderungen `config/stil.py` synchron halten** — die beiden sind bewusst Duplikate
 > desselben Regelwerks auf zwei Kanälen.
+>
+> **Für die Runde:** Mitspieler holen diesen Block nicht hier, sondern kopierbereit auf der
+> Charakterbogen-Website (Abschnitt „Foliant im Claude-Chat“, hinter dem Kennwort). Die Seite
+> liest ihn zur Laufzeit aus diesem Abschnitt — eine Änderung hier erreicht nach dem
+> `web`-Rebuild alle Spieler, ohne dass jemand eine Kopie pflegt.
 
 ```
 Du hilfst unserer D&D-Runde (D&D 5e, Regelfassung 2024, Deutsch-first). Es gilt strikt:
