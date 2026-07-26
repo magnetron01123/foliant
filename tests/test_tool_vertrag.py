@@ -42,7 +42,12 @@ def bestand(tmp_path, monkeypatch):
           "*Kontext: Zauber*\n\nDer Schaden betraegt 8W6 und der Radius sechs Meter."),
          (1, "zauber", "Konfliktzauber", None, "de", "2024", "11",
           "*Kontext: Zauber (Errata)*\n\nDer Schaden betraegt 10W6 und der Radius "
-          "neun Meter, ausserdem wirkt der Zauber eine Runde laenger nach.")])
+          "neun Meter, ausserdem wirkt der Zauber eine Runde laenger nach."),
+         # 12 unterscheidbare Treffer fuer denselben Suchbegriff - mehr als das
+         # fts_suche-Default-Limit (8), damit die Kuerzung ausgewiesen werden muss:
+         *[(1, "zauber", f"Testfeuer {i}", None, "de", "2024", None,
+            f"*Kontext: Zauber*\n\nTestfeuer Variante {i} verursacht {i}W6 Schaden.")
+           for i in range(1, 13)]])
     con.execute(
         "INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle) "
         "VALUES ('Nightmare','Nachtmahr',1,'Spielerhandbuch 2024','2024')")
@@ -97,6 +102,19 @@ def test_p1_gleichsprachiger_konflikt_wird_markiert(bestand):
     ausgewiesen = d.get("weitere_abschnitte") or d.get("konflikt_quellen")
     assert ausgewiesen, d                                   # Zweitfassung nicht verdeckt
     assert ausgewiesen[0].get("eintrag_id")
+
+
+def test_volltext_kuerzung_wird_ausgewiesen(bestand):
+    """hinweis_gekuerzt auch im Volltext-Pfad: stil.py/SPEC par. 8 versprechen dem Modell
+    dieses Signal generell - vor dem Fix kappte der FTS-Pfad still auf das Limit und nur
+    der reine Struktur-Filter-Pfad wies die Kuerzung aus."""
+    s = ns.foliant_suche_bestand("Testfeuer", kategorie="zauber")
+    assert len(s["treffer"]) == 8, s                     # fts_suche-Default-Limit
+    assert s["anzahl_gesamt"] == 12
+    assert "12 Treffer" in s["hinweis_gekuerzt"]
+    # Ungekuerzte Suche traegt weder Zahl noch Hinweis - kein falscher 'mehr da'-Reiz:
+    v = ns.foliant_suche_bestand("Konfliktzauber")
+    assert "hinweis_gekuerzt" not in v and "anzahl_gesamt" not in v
 
 
 def test_p1_schemas_tragen_enums_und_annotations(bestand):
