@@ -54,6 +54,7 @@ Zwei klar getrennte Ebenen:
 | `web` | Charakterbogen-Website (eigene Kennwort-Seite; `read_only`, `cap_drop: ALL`, 512 MB / 1 CPU) |
 | `gateway` | Caddy davor; routet nach Pfad. **Keine Access-Logs** — der MCP-Pfad enthält das Geheim-Token |
 | `cloudflared` | Named Tunnel → `dnd.magnetron.me`, Origin `http://gateway:8080` |
+| `discord` | Discord-Bot der Runde (Threads, `/regel`); kein Port, nur ausgehend; Guild-Sperre |
 | `datasette` | optional (`--profile admin`), read-only Datenblick, nur `127.0.0.1` |
 | `ddb-exporter` | optional (`--profile ddb`), kurzlebiger DDB-Export, **ohne DB-Mount** |
 
@@ -425,6 +426,23 @@ docker compose up -d --build foliant      # ZWINGEND - siehe Gotchas
 > **Nie `--delete`, nie `data/` mitschicken.** Die Mac-DB ist nur ein Subset und würde den
 > vollen Pi-Bestand überschreiben; gitignorierte Privatmodule würden verschwinden.
 
+### Discord-Bot einrichten (einmalig)
+
+1. **Entwicklerportal** (discord.com/developers): Application anlegen → *Bot* →
+   Token erzeugen (→ `.env` `DISCORD_BOT_TOKEN`) → **Message Content Intent aktivieren**
+   (Privileged Intent; Review-Pflicht erst ab 100 Servern — irrelevant bei einer Guild).
+2. **Einladen** mit minimalen Scopes/Rechten: Scopes `bot` + `applications.commands`,
+   Rechte *Send Messages*, *Create Public Threads*, *Send Messages in Threads*,
+   *Read Message History*.
+3. **`.env`**: `DISCORD_GUILD_ID` (Server-ID der Runde — Pflicht, sonst startet der Bot
+   nicht), optional `DISCORD_KANAL_IDS`, `DISCORD_TAGESDECKEL` (Default 100/Tag).
+4. **Start:** `docker compose up -d --build --no-deps discord` · Logs:
+   `docker compose logs -f discord` · Nutzung: `/regel <frage>` oder @Foliant erwähnen;
+   Folgefragen im automatisch erzeugten Thread. Nach einem Neustart vergisst der Bot
+   laufende Threads und sagt das dort einmalig (Verlauf ist bewusst in-memory).
+5. **Kontrolle:** Discord-Anfragen erscheinen im Abfrage-Protokoll
+   (`admin suchbericht`) — derselbe Kurations-Kreislauf wie beim MCP.
+
 ### Cloudflare Named Tunnel
 Zero-Trust-Dashboard → Networks → Tunnels → **Create tunnel** → Token in die Pi-`.env` als
 `CLOUDFLARE_TUNNEL_TOKEN`. Public-Hostname-Route: `dnd.magnetron.me` → Service
@@ -674,6 +692,11 @@ Kuratiert; weitere Details in `app/bekannte_macken.py`.
   Datei; die bediente Korpus-DB bleibt strikt `mode=ro`.
 - **Laufzeit offline** (MCP), read-only auf legal erworbenen Daten; Admin-Funktionen **nie**
   über den Tunnel, nur lokal/SSH.
+- **Discord-Bot:** keine eingehende HTTP-Fläche (nur ausgehend zu Discord/Anthropic);
+  Zugangskontrolle ist die **Guild-Sperre** plus Nutzer-Cooldown und Tagesdeckel. Die
+  Tools laufen in-process am `ZugriffsFilter` vorbei — bewusst, wie beim Eval-Harness:
+  der Filter schützt den HTTP-Weg, nicht die Prozessgrenze (SPEC.md §12 Nr. 6). Der
+  Spoiler-Schutz bleibt prompt-basiert; im gemeinsamen Kanal sieht jeder jede Antwort.
 - **Inhalte-Recht:** Das Repository enthält **keine** kommerziellen Regelinhalte. Die aus
   gekauften Druck-PDFs abgeleiteten Reparatur-Module (`importer/frhof_reparatur.py`,
   `importer/reparatur_ddb_privat.py`, `tests/test_ddb_druck_privat.py`) sind bewusst nicht

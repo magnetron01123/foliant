@@ -87,3 +87,16 @@ def test_projektanweisung_liegt_als_eigene_datei_vor():
     assert text.startswith("Du hilfst unserer D&D-Runde")
     assert len(text) > 3000, "verdaechtig kurz - versehentlich gekuerzt?"
     assert stil.projektanweisung() == text          # eine Quelle, kein Abschreiben
+
+
+def test_discord_zusatz_ist_nur_darstellung():
+    """Der Discord-Zusatz (config/discord_zusatz.md) haengt an der Projektanweisung,
+    ersetzt sie nie - und darf KEINE eigenen Verhaltensregeln einfuehren: die tragenden
+    Regeln leben allein in den zwei gemessenen Kanaelen, sonst misst der Eval (reine
+    Projektanweisung) nicht mehr das Bot-Verhalten."""
+    zusatz = stil.discord_zusatz()
+    assert zusatz, "config/discord_zusatz.md fehlt oder ist leer"
+    assert "Codeblock" in zusatz                 # der eine Grund seiner Existenz
+    assert "keine neuen Verhaltensregeln" in zusatz
+    for verboten in ("OBERSTE REGEL", "PRIORITÄTSLEITER", "Trainingswissen"):
+        assert verboten not in zusatz, f"Verhaltensregel im Darstellungs-Zusatz: {verboten}"

@@ -62,6 +62,14 @@ make test                                             # das EINE Gate
 ```
 
 Der MCP-Endpoint liegt lokal unter `http://localhost:8000/mcp` (Dev ohne Geheimpfad).
+### Foliant in Discord
+
+Auf dem Server der Runde: **`/regel <frage>`** eingeben oder **@Foliant** erwähnen — die
+Antwort öffnet einen Thread, in dem Nachfragen mit Gesprächskontext möglich sind. Nach
+einem Server-Neustart vergisst der Bot laufende Threads (er sagt es dort); dann die Frage
+einfach im Ganzen neu stellen. Es gilt ein gemeinsames Tageslimit als Kostendeckel.
+Einrichtung (einmalig, Betreiber): [CONCEPT.md](CONCEPT.md) §8 „Discord-Bot einrichten".
+
 Betrieb, Deployment und die Import-Wege im Detail: [CONCEPT.md](CONCEPT.md) §8–9.
 
 ## Nutzung

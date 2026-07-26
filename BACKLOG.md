@@ -60,6 +60,18 @@ Aus einem Kandidaten wird ein Glossar-Paar über `admin glossar-paare --vorschau
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking
 und Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 
+### M6 — Discord-Bot · *neu 26.07.2026*
+Foliant in Discord (`app/discord_bot/`): `/regel` + @Mention, Antworten öffnen Threads mit
+Gesprächskontext (in-memory), voller Bestand mit Guild-Sperre (SPEC §12 Nr. 6), Modell
+`claude-sonnet-5` (der gemessene Stand — gleiche Schleife wie der Eval, `app/llm.py`).
+- ✅ Code, Tests, Compose-Service, Doku
+- ⬜ **Discord-Seite (David):** Bot im Entwicklerportal anlegen, Token + Guild-ID in die
+  Pi-`.env`, Bot einladen (CONCEPT §8 „Discord-Bot einrichten")
+- ⬜ Erst-Test in der echten Guild (`/regel`, Mention, Thread-Folgefrage, Limits)
+
+**Gate:** ein Mitspieler stellt eine Regelfrage in Discord und bekommt eine belegte
+Antwort; `admin suchbericht` zeigt die Anfrage.
+
 ### Offene Anforderungen im Überblick
 Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11, V1–V6/V8, NF1–NF3/NF5–NF7,
 B1–B8, T1–T9/T11, O1–O3/O5, Q1–Q7).
@@ -219,6 +231,8 @@ dokumentiert, nichts blockiert die Runde.
 | **Regelbeziehungsgraph** (`exception_to`, `overrides`, Trigger/Dauer/Stapelung) | SYN-P3-002 |
 | **Errata-/Revisionstracking** + Autoritätsklassen | SYN-P3-003 |
 | **Wissensmodell-Ausbau** (`concept`/`variant`/`relation`, Revisions-Provenienz) | SYN-P2-002 |
+| Discord: Thread-Rebuild aus der Kanal-Historie nach Neustart | Komfort |
+| Discord-spezifische Eval-Fälle (Darstellungs-Zusatz messen) | Qualität |
 | Universelle Quersuche über alle Kategorien | Komfort |
 | OAuth-Identität statt Geheimpfad | erst ab mehr Nutzern sinnvoll |
 

@@ -137,3 +137,18 @@ def projektanweisung() -> str | None:
         return datei.read_text(encoding="utf-8").strip()
     except OSError:
         return None
+
+
+def discord_zusatz() -> str | None:
+    """Darstellungs-Zusatz fuer den Discord-Bot (config/discord_zusatz.md) - wird an
+    projektanweisung() ANGEHAENGT, ersetzt sie nie. Bewusst NUR Form (Tabellen ->
+    Codeblock, Laengen, keine Mentions): die tragenden Verhaltensregeln leben allein
+    in den zwei bestehenden Kanaelen, damit der Kanal-Sync-Test und der Eval (der die
+    reine Projektanweisung misst) unveraendert gelten. None, wenn die Datei fehlt."""
+    from pathlib import Path
+
+    datei = Path(__file__).resolve().parent / "discord_zusatz.md"
+    try:
+        return datei.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
