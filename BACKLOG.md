@@ -46,7 +46,10 @@ die deutsche Quelle rankt vor DDB-Englisch.
 
 ### M5 — Feedback & Iteration · *laufend, kein Gate*
 Einfacher Meldeweg für schlechte Treffer (O4), daraus iterativ Synonyme, Chunking und
-Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
+Korrekturen. Die Rest-Posten aus §3 hier mitziehen. Werkzeuge: `admin glossar-paare
+--vorschau` (Struktur-Abgleich-Kandidaten Gegenstände/Monster mit Beweisstufe, Review vor
+`import --quelle glossar`); nach jedem Seeding-Lauf muss `admin glossar-audit`
+konfliktfrei bleiben.
 
 ### Offene Anforderungen im Überblick
 Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11, V1–V6/V8, NF1–NF3/NF5–NF7,

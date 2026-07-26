@@ -64,7 +64,9 @@ def cmd_import(args) -> None:
         from importer.import_glossar import (KERNBEGRIFFE_EN, kanonisiere_konflikte,
                                              kanonisiere_schreibvarianten,
                                              repariere_srd_de_namen, seed_abkuerzungen,
-                                             seed_aktionen, seed_glossar,
+                                             seed_aktionen,
+                                             seed_gegenstands_bruecke_aus_bestand,
+                                             seed_glossar,
                                              seed_glossar_aus_bestand, seed_kern_singulare,
                                              seed_kernwortschatz_aus_bestand,
                                              seed_klassenmerkmale_aus_bestand,
@@ -80,12 +82,14 @@ def cmd_import(args) -> None:
         mb = seed_monster_bruecke_aus_bestand(c)   # Struktur-Abgleich dt./engl. Monster (Dedup)
         kw = seed_kernwortschatz_aus_bestand(c)    # Fertigkeiten/Groessen/Typen (nach der Monster-Bruecke!)
         km = seed_klassenmerkmale_aus_bestand(c)   # 2024-Klassenmerkmale srd-de<->ddb-br (nach Klassennamen-Seeding!)
+        gg = seed_gegenstands_bruecke_aus_bestand(c)   # Preis-Bucket-Abgleich srd-de<->Open5e (vor den Kanonisierern!)
         d = kanonisiere_konflikte(c)   # kuratierte Fassung schlaegt konkurrierende (Deutsch-Qualitaet)
         sv = kanonisiere_schreibvarianten(c)   # ß/ss- + Gross-/Klein-Schreibvarianten vereinheitlichen
         print(f"Glossar: {rn} srd-Namen repariert, {n} Kern-Zeilen, {a} Abkuerzungen, "
               f"{p} SRD-Paare, {k} Kern-Singulare, {ak} Aktionen, {b} Zeilen aus Bestandsnamen, "
               f"{mb} Monster-Bruecken, {kw} Kernwortschatz-Paare, {km} Klassenmerkmal-Paare, "
-              f"{d} Konflikte kanonisiert, {sv} Schreibvarianten demotet.")
+              f"{gg} Gegenstands-Bruecken, {d} Konflikte kanonisiert, "
+              f"{sv} Schreibvarianten demotet.")
         c.close()
         return
 
@@ -516,6 +520,55 @@ def cmd_glossar_audit(args) -> None:
         c.close()
 
 
+def cmd_glossar_paare(args) -> None:
+    """Vorschau der Struktur-Abgleich-Kandidaten (READ-ONLY, schreibt nichts): zeigt je
+    Paar die Beweisstufe plus den Verwerfungs-Report - Davids Review VOR dem echten
+    Seeding-Lauf ('admin import --quelle glossar'). Neue Paare sind solche ohne exakte
+    Glossar-Zeile; nach dem Lauf muss 'glossar-audit' konfliktfrei bleiben (Gate)."""
+    import json as _json
+
+    from app import glossar as _glossar
+    from importer.import_glossar import _finde_monster_paare
+    from importer.srd_begriffsbruecken import finde_gegenstands_paare, seed_paar
+
+    c = _con(getattr(args, "db", None))
+    try:
+        def _neu(term_en: str, term_de: str) -> bool:
+            return _glossar.norm_begriff(term_de) not in {
+                _glossar.norm_begriff(z["term_de"])
+                for z in _glossar.lookup(c, term_en, richtung="en_de")
+                if z["match"] == "exakt"}
+
+        gegenstaende, report = finde_gegenstands_paare(c)
+        monster = [(en, de, "statschluessel") for en, de, _k in _finde_monster_paare(c)]
+        bericht = {
+            "gegenstaende": [
+                {"term_en": seed_paar(en, de)[0], "term_de": seed_paar(en, de)[1],
+                 "beweis": stufe, "neu": _neu(*seed_paar(en, de))}
+                for en, de, stufe in gegenstaende],
+            "monster": [{"term_en": en, "term_de": de, "beweis": stufe,
+                         "neu": _neu(en, de)} for en, de, stufe in monster],
+            "verworfen": report,
+        }
+        if getattr(args, "json", False):
+            print(_json.dumps(bericht, ensure_ascii=False, indent=2))
+            return
+        for titel, zeilen in (("Gegenstands-Paare", bericht["gegenstaende"]),
+                              ("Monster-Paare", bericht["monster"])):
+            neue = [z for z in zeilen if z["neu"]]
+            print(f"{titel}: {len(zeilen)} belegt, davon {len(neue)} NEU")
+            for z in (neue if getattr(args, "nur_neue", False) else zeilen):
+                marke = "NEU " if z["neu"] else "    "
+                print(f"  {marke}[{z['beweis']:<12}] {z['term_en']} -> {z['term_de']}")
+            print()
+        if report:
+            print(f"Verworfen ({len(report)} Bucket(s) - lieber Luecke als falsches Paar):")
+            for zeile in report:
+                print(f"  {zeile}")
+    finally:
+        c.close()
+
+
 def cmd_backup(args) -> None:
     """Online-Backup der SQLite-Datei ueber die SQLite-Backup-API - konsistent AUCH bei
     laufendem Import (anders als cp/rsync auf eine offene DB). Danach eine selbst-enthaltene
@@ -608,6 +661,13 @@ def main(argv=None) -> None:
                     help="je Kategorie bis zu N fehlende EN-Namen listen (Kuratier-Kandidaten)")
     pg.add_argument("--json", action="store_true", help="Maschinenlesbare JSON-Ausgabe")
     pg.set_defaults(func=cmd_glossar_audit)
+    pgp = sub.add_parser("glossar-paare",
+                         help="Vorschau der Struktur-Abgleich-Paare (Gegenstaende/Monster) "
+                              "mit Beweisstufe - Review vor 'import --quelle glossar'")
+    pgp.add_argument("--nur-neue", dest="nur_neue", action="store_true",
+                     help="nur Paare ohne bestehende exakte Glossar-Zeile zeigen")
+    pgp.add_argument("--json", action="store_true", help="maschinenlesbare Ausgabe")
+    pgp.set_defaults(func=cmd_glossar_paare)
     pb = sub.add_parser("backup",
                         help="Online-Backup der SQLite (konsistent) + Verifikation (M3)")
     pb.add_argument("--ziel", help="Zielverzeichnis (Standard: <db-Ordner>/backups)")

@@ -153,6 +153,14 @@ def term_de(con: sqlite3.Connection, term_en: str) -> tuple[str, bool]:
     zur 'offiziellen' Uebersetzung - Aktionen -> Reaktionen)."""
     zeilen = [z for z in lookup(con, term_en, richtung="en_de") if z["match"] == "exakt"]
     if not zeilen:
+        # Klammer-Suffix abziehen (SYN-P0-002 kanonisch): Eintragsnamen wie
+        # "Alchemist's Supplies (50 GP)" tragen den Zusatz, die Bruecke fuehrt nur die
+        # suffixfreie Form. Weiterhin NUR exakte Zeilen - kein Fuzzy-Schlupfloch.
+        ohne = KLAMMER_SUFFIX.sub("", term_en).strip()
+        if ohne and ohne != term_en:
+            zeilen = [z for z in lookup(con, ohne, richtung="en_de")
+                      if z["match"] == "exakt"]
+    if not zeilen:
         return (term_en, False)
     beste = zeilen[0]
     return (beste["term_de"], bool(beste["offiziell"]))

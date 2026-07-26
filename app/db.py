@@ -361,6 +361,13 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
         erweitert = set(namen)
         for n in namen:
             erweitert |= bruecke.get(n, set())
+            # Klammer-Suffix auch fuer die Brueckensuche abziehen (SYN-P0-002 kanonisch):
+            # 'Kerze (1 KM)' soll die Bruecke Kerze<->Candle treffen. Bewusst NUR die
+            # Brueckenziele uebernehmen, nicht die suffixfreie Form selbst - sonst
+            # verschmoelzen gleichbasige Eintraege ohne belegte Entsprechung.
+            ohne = _KLAMMER_SUFFIX.sub("", n).strip()
+            if ohne and ohne != n:
+                erweitert |= bruecke.get(ohne, set())
         schluessel = {(n, t["edition"], t["kategorie"]) for n in erweitert}
         betroffen = {id(index[s]): index[s] for s in schluessel if s in index}
         if betroffen:
