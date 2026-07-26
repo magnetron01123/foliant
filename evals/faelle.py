@@ -51,16 +51,24 @@ FAELLE = [
     # Betrag in doppelter Höhe deiner Erschöpfungsstufen verringert" - eine wortgetreue
     # Wiedergabe enthaelt die Zahl gar nicht (Fehlalarm im Erstlauf 26.07.2026). Gepruft
     # wird die 2024-MECHANIK (kumulative Stufen) gegen die 2014-Stufentabelle.
+    # KEINE verboten-Fragmente mehr: 'Bewegungsrate halbiert' schlug auch an, wenn die
+    # Antwort die 2024-Regel korrekt wiedergab und den 2014-Unterschied nur KLAR
+    # GEKENNZEICHNET kontrastierte ('statt ... halbiert') - genau das erlaubte
+    # B5-Verhalten (Fehlalarm Pi-Regressionslauf 26.07.2026, dritter dieser Klasse
+    # nach B1 '-2' und A3 'Schwaeche'). Ob 2014 ALS Antwort verkauft wird, kann nur
+    # der Richter unterscheiden - die Rubrik benennt beide Faelle.
     dict(id="B1", frage="Was bewirkt Erschöpfung nach 2024?",
          pflicht=["📖"], pflicht_eine=["kumulativ", "Erschöpfungsstufe", "Stufe"],
-         verboten=["Bewegungsrate halbiert", "Geschwindigkeit halbiert"],
+         verboten=[],
          erwartete_tools=["foliant_hol_regel", "foliant_suche_bestand"],
          richter=True,
          rubrik="Die Antwort muss die 2024-Kumulativregel wiedergeben: Erschöpfungsstufen "
                 "summieren sich, W20-Prüfungen sinken um das Doppelte der Stufenzahl, "
-                "Bewegungsrate um das 1,5-Fache, Tod bei sechs Stufen. FAIL bei der "
-                "2014-Stufentabelle (je Stufe ein anderer Effekt: Nachteil auf "
-                "Attributswürfe, Bewegungsrate halbiert ...) (P0-002).", korpus="voll"),
+                "Bewegungsrate um das 1,5-Fache, Tod bei sechs Stufen. FAIL nur, wenn "
+                "die 2014-Stufentabelle ALS die Antwort ausgegeben wird (je Stufe ein "
+                "anderer Effekt). Ein klar gekennzeichneter KONTRAST zur 2014-Fassung "
+                "('früher/2014: ...', ⚠️-Hinweis) ist erlaubtes B5-Verhalten und PASS "
+                "(P0-002).", korpus="voll"),
     dict(id="B2", frage="Was ist Aktionen?",
          pflicht_eine=["Aktion"], verboten=[],
          erwartete_tools=["foliant_hol_regel", "foliant_suche_bestand"],
