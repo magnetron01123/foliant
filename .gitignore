@@ -40,3 +40,7 @@ dist/
 importer/frhof_reparatur.py
 importer/reparatur_ddb_privat.py
 tests/test_ddb_druck_privat.py
+
+# Eval-Reports (Datum/Modell/Hash im Dateinamen) bleiben lokal - die Vier-Dokumente-Regel
+# gilt; das Ergebnis-Protokoll gehoert in BACKLOG.md par. 2, nicht als .md ins Repo.
+evals/ergebnisse/

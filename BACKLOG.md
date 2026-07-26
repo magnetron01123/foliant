@@ -91,6 +91,11 @@ Nebenfund behoben: zwei DDB-Kapitel-Header standen als Pseudo-Klassen in der Lis
 > Neuer Chat mit aktivem Foliant-Connector, Fragen **wörtlich** stellen, Ergebnis eintragen.
 > Bestehen = alle P0-Zeilen ✅ und keine Halluzination/kein Spoiler.
 > Wiederholbar bei jedem Modell-, Client- oder Bestandswechsel.
+>
+> **Werkzeuggestützt:** `python -m evals.verhaltens_eval` fährt dieselben Fälle gegen die
+> echte API mit den echten Tools und schreibt einen Report mit den Pflichtfeldern unten
+> (Datum, Modell, `inhalts_hash`) nach `evals/ergebnisse/` — Details [CONCEPT.md](CONCEPT.md)
+> §11. Die Checkliste hier bleibt die Wahrheit; A4 und E1 kann nur der echte Chat prüfen.
 
 **A. Grounding & Ehrlichkeit (P0)**
 

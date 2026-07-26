@@ -578,9 +578,23 @@ zusätzlich:
 make test-golden-pi PI=pi@<host>
 ```
 
-**T2/T10/T12 sind Verhaltenstests** und in pytest nicht beweisbar → manuelle Checkliste in
+**T2/T10/T12 sind Verhaltenstests** und in pytest nicht beweisbar → Checkliste in
 [BACKLOG.md](BACKLOG.md) §2. Wichtigster Dauertest: **T2** — Frage außerhalb des Bestands →
 ehrliches „nicht gefunden".
+
+**Dritte Prüfschicht, werkzeuggestützt:** `python -m evals.verhaltens_eval` fährt die
+§2-Fälle gegen die echte Claude-API mit den echten Tools (in-process `fastmcp.Client`,
+System-Prompt = der §8-Block aus SPEC.md, eine Quelle). Deterministische Marker-/
+Format-Grader; weiche Kriterien (C3, D1 …) optional per LLM-Richter, im Report als
+`weich` gekennzeichnet. **Bewusst NICHT in `make test`** — kostet API-Tokens (~15 Fälle
+× 3–5 Runden, niedrige einstellige Dollar). Report nach `evals/ergebnisse/` (gitignored)
+mit den §2-Pflichtfeldern Datum/Modell/`inhalts_hash`; am Subset markiert er
+`korpus: lokal (Subset?)` — beweiskräftig ist der Pi-Lauf:
+```
+ANTHROPIC_API_KEY=sk-… make eval-verhalten-pi PI=pi@<host>
+```
+A4 (Websuche) und E1 (Injektions-Fixture) kann das Harness nicht prüfen — sie bleiben
+ehrlich `uebersprungen` und damit Handarbeit im echten Chat.
 
 **Für Beiträge:** Neue Funktionalität braucht Tests; Bugfixes brauchen einen Regressionstest,
 der **ohne** den Fix fehlschlägt. Neue Tool-Ausgaben nennen Quelle/Seite/Version und erfinden

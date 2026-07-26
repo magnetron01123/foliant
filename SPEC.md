@@ -327,7 +327,9 @@ Chat-Checkliste stehen in [BACKLOG.md](BACKLOG.md) §2.
 | **T12** | B7 | Charakterbau in **2024-Reihenfolge** geführt |
 
 **T2 ist der wichtigste Dauertest.** T2, T10 und T12 sind **Verhaltenstests** — sie lassen
-sich nicht in pytest beweisen und laufen als manuelle Checkliste im Chat.
+sich nicht in pytest beweisen und laufen als Checkliste im Chat **oder** werkzeuggestützt
+über das Eval-Harness (`python -m evals.verhaltens_eval`, [CONCEPT.md](CONCEPT.md) §11);
+das Ergebnis zählt gleich, festgehalten wird es in [BACKLOG.md](BACKLOG.md) §2.
 
 ---
 
