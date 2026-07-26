@@ -327,6 +327,16 @@ sie entschieden:
    Pflichtwahlen (zwei Sprachen, Spezies-Optionen) sind **in Schritt „Details" enthalten und
    dürfen nicht übersprungen werden** — so ergänzt in B7 und in der Projektanweisung.
 
+6. **NF3 vs. Discord-Bot (Nachtrag 26.07.2026).** Der Bot (`app/discord_bot/`) stellt den
+   **Vollbestand inkl. der privaten DDB-Bücher** in Discord bereit — ausschließlich in
+   **einer** allowlisteten Guild (`DISCORD_GUILD_ID`; fremde Server werden automatisch
+   verlassen). Das ist „nicht öffentlich" im Sinne von Nr. 1: derselbe Personenkreis wie
+   beim MCP-Endpoint, nur ein anderer Client. **Bewusste, protokollierte
+   Eigentümer-Entscheidung (26.07.2026)** — im Wissen, dass Discord-Nachrichten
+   **persistent** im Server-Verlauf stehen und für jeden späteren Mitglied des Servers
+   lesbar bleiben. Die Weitergabe von Inhalten über die Runde hinaus bleibt untersagt;
+   der Spoiler-Schutz bleibt prompt-basiert (A3-Rollen-Isolation ist vorgemerkt, §11).
+
 ---
 
 ## 13. Belege (externe Fakten, die den Umfang geprägt haben)

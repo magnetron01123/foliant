@@ -13,6 +13,9 @@ pymupdf==1.28.0          # DDB-Widget-Extraktion (app/charakterbogen/ddb_pdf.py)
                          # DIREKTE Abhaengigkeit (nicht nur transitiv via pymupdf4llm),
                          # deshalb explizit gepinnt (Auftrag §12). Muss zu pymupdf4llm passen.
 rapidfuzz==3.14.5        # tolerante Begriffssuche (B3)
+discord.py==2.7.1        # Discord-Bot (app/discord_bot/) - bringt aiohttp transitiv mit
+                         # (zweiter HTTP-Stack, bewusst akzeptiert: nur der Bot nutzt ihn;
+                         # Anthropic-Aufrufe bleiben auf httpx, kein anthropic-SDK)
 pytest==9.1.1            # Abnahmetests T1-T12 (tests/test_abnahme.py)
 # docling>=2.0           # optional: Fallback für schwierige Tabellen/Statblöcke (CPU/MLX)
 # tomllib ist ab Python 3.11 in der Standardbibliothek

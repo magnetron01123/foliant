@@ -96,6 +96,43 @@ services:
     depends_on:
       - foliant
 
+  # Discord-Bot (app/discord_bot/): eigener Container NEBEN dem MCP. Kein Port, kein
+  # gateway-/cloudflared-Bezug - nur ausgehend (Discord-Gateway wss + Anthropic-API).
+  # Tools laufen IN-PROCESS (wie der Eval-Harness, CONCEPT.md §13): Zugangskontrolle
+  # ist die Guild-Sperre (DISCORD_GUILD_ID), nicht HTTP. Start ist fail-soft: ohne
+  # Token/Guild-ID wartet der Container mit Log-Hinweis statt crash zu loopen.
+  discord:
+    build: .
+    container_name: foliant-discord
+    restart: unless-stopped
+    command: ["python", "-m", "app.discord_bot.haupt"]
+    environment:
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID:-}
+      - DISCORD_KANAL_IDS=${DISCORD_KANAL_IDS:-}
+      - DISCORD_TAGESDECKEL=${DISCORD_TAGESDECKEL:-100}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-}
+    volumes:
+      # data rw wie beim foliant-Service: das Abfrage-Protokoll (O4/M5) soll Discord-
+      # Anfragen in `admin suchbericht` sichtbar machen, und WAL braucht das
+      # beschreibbare VERZEICHNIS. Korpus-Schutz bleibt app-seitig
+      # (connect_readonly: mode=ro + query_only).
+      - ./data:/app/data
+      - /app/data/private           # SYN-P1-005: private Rohdaten ueberdecken
+      - ./config:/app/config:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid,nodev
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    # Bot ist leicht (kein PDF-Parsing); der Pi traegt auch MCP, Website und Davids
+    # Smarthome-Tunnel - lieber stirbt der Bot als der Rest.
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+
   # Gateway (Caddy) VOR foliant+web. Der Cloudflare-Tunnel-Origin wird spaeter (Dashboard)
   # von foliant:8000 auf gateway:8080 umgestellt. Routet /mcp -> foliant, sonst -> web.
   gateway:
