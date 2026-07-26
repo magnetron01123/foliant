@@ -30,7 +30,8 @@ der Git-Historie**. Die SYN-IDs aus Code-Kommentaren löst `CONCEPT.md` §14 auf
 
 Die Verhaltensregeln laufen über drei Kanäle: `config/stil.py`, die Tool-Beschreibungen und —
 am zuverlässigsten — die **Grounding-Hinweise in den Tool-Ausgaben**. Das Copy-Paste-Duplikat
-für Davids Claude-Projekt steht in `SPEC.md` §8; **bei Änderungen beide synchron halten.**
+für Davids Claude-Projekt steht in `config/projektanweisung.md` (Wegweiser: `SPEC.md` §8);
+**bei Änderungen beide synchron halten** — `tests/test_verhaltensregeln.py` prüft das.
 
 ## Was am teuersten schiefgeht (voll: CONCEPT.md §12)
 

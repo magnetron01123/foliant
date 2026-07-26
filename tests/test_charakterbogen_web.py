@@ -220,7 +220,7 @@ def test_mcp_link_erscheint_nur_hinter_dem_login(tmp_path):
 def test_projektanweisung_steht_kopierbereit_auf_der_seite(tmp_path):
     """Der GEMEINSAME Ort fuer die Runde: mehrere Spieler richten je ein eigenes
     Claude-Projekt ein und brauchen denselben aktuellen Anweisungstext. Er kommt zur
-    Laufzeit aus SPEC.md par. 8 - eine Kopie im Template wuerde veralten."""
+    Laufzeit aus config/projektanweisung.md - eine Kopie im Template wuerde veralten."""
     from config import stil
 
     c = _app_mit_mcp(tmp_path, MCP_URL_TEST)

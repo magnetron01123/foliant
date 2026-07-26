@@ -7,7 +7,7 @@ Der Nutzer stellt nichts davon ein.
 Erweitert 11.07.2026 (Davids Anforderung): explizite PRIORITÄTSLEITER (Bestand vor
 allem anderen), Websuche nur als klar gekennzeichneter Fallback, einheitliches
 Format-/Emoji-Schema, Spoiler-Schutz als oberste Regel. Derselbe Kern steht als
-Copy-Paste-Projektanweisung in SPEC.md §8 (Kanal: Claude-Projekt)
+Copy-Paste-Projektanweisung in config/projektanweisung.md (Kanal: Claude-Projekt)
 — bei Änderungen BEIDE Stellen synchron halten.
 """
 
@@ -119,21 +119,21 @@ ERWARTUNGEN (B8):
 
 
 def projektanweisung() -> str | None:
-    """Der Copy-Paste-Block aus SPEC.md §8 - Kanal 2 derselben Verhaltensregeln, die
-    INSTRUCTIONS oben als Kanal 1 traegt.
+    """Der Projektanweisungs-Text - Kanal 2 derselben Verhaltensregeln, die INSTRUCTIONS
+    oben als Kanal 1 traegt.
 
-    EINE Extraktionsstelle fuer alle Nutzer dieses Textes (Charakterbogen-Website,
-    Eval-Harness, deploy/projektanweisung.sh): der Block wird zur Laufzeit aus SPEC.md
-    gelesen, nie kopiert - eine veraltete Kopie waere schlimmer als keine, weil sie
-    stillschweigend andere Regeln verteilt. None, wenn SPEC.md fehlt oder nicht genau
-    EINEN Block enthaelt (Aufrufer zeigen dann einen ehrlichen Hinweis)."""
-    import re
+    Quelle ist die EIGENE Datei config/projektanweisung.md: der Text wird oft bearbeitet
+    (jede Verhaltensregel landet hier), und als Codeblock mitten in SPEC.md war jede
+    Aenderung ein Eingriff in ein Doku-Dokument samt Markdown-Fences. Jetzt liegt er
+    direkt neben diesem Modul - beide Prompt-Kanaele an einem Ort.
+
+    EINE Leseestelle fuer alle Nutzer (Charakterbogen-Website, Eval-Harness,
+    deploy/projektanweisung.sh, Kanal-Sync-Test): nie eine Kopie, die veraltet.
+    None, wenn die Datei fehlt (Aufrufer zeigen dann einen ehrlichen Hinweis)."""
     from pathlib import Path
 
-    spec = Path(__file__).resolve().parent.parent / "SPEC.md"
+    datei = Path(__file__).resolve().parent / "projektanweisung.md"
     try:
-        text = spec.read_text(encoding="utf-8")
+        return datei.read_text(encoding="utf-8").strip()
     except OSError:
         return None
-    bloecke = re.findall(r"```\n(Du hilfst unserer D&D-Runde.*?)```", text, re.S)
-    return bloecke[0].strip() if len(bloecke) == 1 else None
