@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import time
 from typing import Literal
 
 from rapidfuzz import fuzz
@@ -15,6 +16,7 @@ from rapidfuzz import fuzz
 from app import db as _db
 from app import facetten as _facetten
 from app import glossar as _glossar
+from app import protokoll as _protokoll
 
 # SYN-P1-003: geschlossene Wertemengen als Literal -> FastMCP generiert daraus
 # enum-Schemas, der Client faengt Fehlaufrufe VOR dem Server ab. Die
@@ -259,28 +261,13 @@ def _nachfiltern_facetten(con, antwort, praedikat) -> None:
         liste[:] = [k for k in liste if praedikat(body.get(k["eintrag_id"]) or "")]
 
 
-def foliant_suche_bestand(suchbegriff: str | None = None, kategorie: Kategorie | None = None,
-                          edition: str = "2024", quelle_kuerzel: str | None = None,
-                          grad: int | None = None, schule: str | None = None,
-                          klasse: str | None = None, schadensart: str | None = None,
-                          hg: str | None = None, typ: str | None = None) -> dict:
-    """Findet Eintraege im GESAMTEN Bestand - per Freitext ODER per STRUKTUR-Filter (oder
-    beides kombiniert). Liefert KNAPPE Treffer (Name, Auszug, Quelle, ggf. Seite,
-    Regelversion; Zauber/Monster zusaetzlich 'kurzinfo' mit Grad bzw. HG) - Details per
-    foliant_hol_*.
-    - Freitext: `suchbegriff` deutsch ODER englisch, auch Abkuerzungen (AoO) und Tippfehler.
-    - Struktur-Filter (fuer 'welche Grad-1-Feuerzauber kann ein Hexenmeister lernen?', die
-      der Freitext nur zufaellig trifft): Zauber ueber grad (0-9, 0=Zaubertrick), schule,
-      klasse, schadensart; Monster ueber hg ('1', '1/4') und typ. Werte deutsch ODER
-      englisch. Mehrere Filter werden UND-verknuepft; Zauber- und Monster-Facetten nicht
-      mischen. Ohne Suchbegriff genuegt EIN Filter.
-    kategorie optional: regel|zauber|monster|gegenstand|spezies|klasse|hintergrund|talent.
-    quelle_kuerzel optional: das QUELLEN-KUERZEL (z. B. 'srd-de'), NICHT der Titel. edition
-    Standard '2024'; andere Regelversionen (z. B. '2014') explizit angeben. Ungueltige
-    Parameterwerte werden mit 'fehler' abgelehnt - das bedeutet NICHT 'nicht im Bestand'.
-    Beim 2024-Standard kommen aeltere Staende getrennt als 'aeltere_staende'; bei explizit
-    anderer Edition heissen weitere Fassungen neutral 'andere_fassungen'. KERNREGELN: nur
-    aus dem Bestand; Quelle + Regelversion nennen; Deutsch-first (Original in Klammern)."""
+def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | None = None,
+                        edition: str = "2024", quelle_kuerzel: str | None = None,
+                        grad: int | None = None, schule: str | None = None,
+                        klasse: str | None = None, schadensart: str | None = None,
+                        hg: str | None = None, typ: str | None = None) -> dict:
+    """Kernlogik der Bestandssuche; Tool-Beschreibung und Protokoll-Hook sitzen im
+    oeffentlichen Wrapper foliant_suche_bestand."""
     con = _verbinde()
     if con is None:
         return {"treffer": [], "hinweis": HINWEIS_DB_FEHLT}
@@ -308,7 +295,10 @@ def foliant_suche_bestand(suchbegriff: str | None = None, kategorie: Kategorie |
                     "hinweis": "Ungueltiger PARAMETER - das ist KEIN 'nicht im Bestand'. "
                                "Aufruf mit einem gueltigen Wert (siehe fehler) "
                                "wiederholen; dem Nutzer keine Fehlanzeige melden (B1/B4)."}
-        antwort: dict = {"treffer": [_knapp(t) for t in ergebnis["treffer"]]}
+        antwort: dict = {"treffer": [_knapp(t) for t in ergebnis["treffer"]],
+                         # Privat fuer den Protokoll-Hook (Wrapper poppt den Schluessel):
+                         # der rohe Suchweg 'direkt|glossar:<begriff>|fuzzy|-'.
+                         "_suchweg": ergebnis["suchweg"]}
         andere = ergebnis["andere_editionen"]
         edition = _db.normalisiere_edition(edition)
         if andere and edition == _db.STANDARD_EDITION:
@@ -336,6 +326,14 @@ def foliant_suche_bestand(suchbegriff: str | None = None, kategorie: Kategorie |
             # einschraenken (UND-Semantik), bevor der Leer-Hinweis entscheidet.
             _nachfiltern_facetten(con, antwort, praedikat)
             antwort["gefiltert_nach"] = echo
+        if antwort["treffer"] and ergebnis["anzahl_gesamt"] > len(antwort["treffer"]):
+            # Ohne dieses Signal kappt der Volltext-Pfad still - stil.py/SPEC par. 8
+            # versprechen dem Modell aber 'hinweis_gekuerzt' generell (bisher setzte es
+            # nur der Struktur-Filter-Pfad).
+            antwort["anzahl_gesamt"] = ergebnis["anzahl_gesamt"]
+            antwort["hinweis_gekuerzt"] = (
+                f"{ergebnis['anzahl_gesamt']} Treffer, {len(antwort['treffer'])} gezeigt "
+                f"- Suche ggf. mit kategorie oder Struktur-Filtern praezisieren.")
         if not antwort["treffer"]:
             if antwort.get("aeltere_staende"):
                 antwort["hinweis"] = HINWEIS_ALT
@@ -351,6 +349,50 @@ def foliant_suche_bestand(suchbegriff: str | None = None, kategorie: Kategorie |
         return antwort
     finally:
         con.close()
+
+
+def foliant_suche_bestand(suchbegriff: str | None = None, kategorie: Kategorie | None = None,
+                          edition: str = "2024", quelle_kuerzel: str | None = None,
+                          grad: int | None = None, schule: str | None = None,
+                          klasse: str | None = None, schadensart: str | None = None,
+                          hg: str | None = None, typ: str | None = None) -> dict:
+    """Findet Eintraege im GESAMTEN Bestand - per Freitext ODER per STRUKTUR-Filter (oder
+    beides kombiniert). Liefert KNAPPE Treffer (Name, Auszug, Quelle, ggf. Seite,
+    Regelversion; Zauber/Monster zusaetzlich 'kurzinfo' mit Grad bzw. HG) - Details per
+    foliant_hol_*.
+    - Freitext: `suchbegriff` deutsch ODER englisch, auch Abkuerzungen (AoO) und Tippfehler.
+    - Struktur-Filter (fuer 'welche Grad-1-Feuerzauber kann ein Hexenmeister lernen?', die
+      der Freitext nur zufaellig trifft): Zauber ueber grad (0-9, 0=Zaubertrick), schule,
+      klasse, schadensart; Monster ueber hg ('1', '1/4') und typ. Werte deutsch ODER
+      englisch. Mehrere Filter werden UND-verknuepft; Zauber- und Monster-Facetten nicht
+      mischen. Ohne Suchbegriff genuegt EIN Filter.
+    kategorie optional: regel|zauber|monster|gegenstand|spezies|klasse|hintergrund|talent.
+    quelle_kuerzel optional: das QUELLEN-KUERZEL (z. B. 'srd-de'), NICHT der Titel. edition
+    Standard '2024'; andere Regelversionen (z. B. '2014') explizit angeben. Ungueltige
+    Parameterwerte werden mit 'fehler' abgelehnt - das bedeutet NICHT 'nicht im Bestand'.
+    Beim 2024-Standard kommen aeltere Staende getrennt als 'aeltere_staende'; bei explizit
+    anderer Edition heissen weitere Fassungen neutral 'andere_fassungen'. KERNREGELN: nur
+    aus dem Bestand; Quelle + Regelversion nennen; Deutsch-first (Original in Klammern)."""
+    start = time.monotonic()
+    antwort = _suche_bestand_impl(suchbegriff, kategorie, edition, quelle_kuerzel,
+                                  grad, schule, klasse, schadensart, hg, typ)
+    suchweg = antwort.pop("_suchweg", None)
+    if suchweg is None:
+        # Pfade ohne FTS-Lauf: Parameterfehler, reiner Struktur-Filter-Scan, fehlende DB.
+        if "fehler" in antwort:
+            suchweg = "fehler"
+        elif not (suchbegriff and suchbegriff.strip()):
+            suchweg = "struktur"
+        else:
+            suchweg = "-"
+    _protokoll.protokolliere(
+        werkzeug="suche_bestand", suchbegriff=suchbegriff, kategorie=kategorie,
+        edition=edition, quelle_kuerzel=quelle_kuerzel,
+        filter={"grad": grad, "schule": schule, "klasse": klasse,
+                "schadensart": schadensart, "hg": hg, "typ": typ},
+        anzahl_treffer=len(antwort.get("treffer", [])), suchweg=suchweg,
+        dauer_ms=(time.monotonic() - start) * 1000)
+    return antwort
 
 
 def _anzeige_name(con: sqlite3.Connection, e: dict) -> str:
@@ -581,6 +623,30 @@ def _kinder_texte(con: sqlite3.Connection, voll: dict) -> list[str]:
 def _hole_detail(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
                  aggregiere_kinder: bool = False,
                  eintrag_id: int | None = None) -> dict:
+    """Protokollierender Mantel um _hole_detail_impl - EIN Hook deckt alle acht
+    foliant_hol_*-Tools (nachschlagen.py UND charakter.py delegieren hierher)."""
+    start = time.monotonic()
+    antwort = _hole_detail_impl(kategorie, name, edition, aggregiere_kinder, eintrag_id)
+    if eintrag_id is not None:
+        suchweg = "direkt_id"        # Nachladen einer Referenz - kein Kurations-Signal
+    elif "fehler" in antwort:
+        suchweg = "fehler"
+    else:
+        suchweg = "name"
+    _protokoll.protokolliere(
+        werkzeug=f"hol_{kategorie}", kategorie=kategorie,
+        suchbegriff=None if eintrag_id is not None else name, edition=edition,
+        anzahl_treffer=(len(antwort.get("kandidaten", []))
+                        or int(bool(antwort.get("gefunden")))),
+        suchweg=suchweg, mehrdeutig=bool(antwort.get("mehrdeutig")),
+        gefunden=antwort.get("gefunden"),
+        dauer_ms=(time.monotonic() - start) * 1000)
+    return antwort
+
+
+def _hole_detail_impl(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
+                      aggregiere_kinder: bool = False,
+                      eintrag_id: int | None = None) -> dict:
     """Detail-Auswahl (A1): edition ist die GEWUENSCHTE Regelversion (Standard 2024).
     Beim Standard bleibt der B5-Fallback (nur aeltere Fassung -> liefern + Warnung);
     eine AUSDRUECKLICH angeforderte andere Edition wird nie still ersetzt - fehlt sie,
@@ -856,6 +922,27 @@ def foliant_uebersetze_begriff(begriff: str,
     'aehnliche_begriffe' (Schreibvarianten) zurueck - die sind KEINE bestaetigte
     Uebersetzung des angefragten Begriffs. KERNREGELN: englisches Original immer in
     Klammern; nichts erfinden - kein Treffer heisst kein offizieller Begriff."""
+    start = time.monotonic()
+    antwort = _uebersetze_begriff_impl(begriff, richtung)
+    if "fehler" in antwort:
+        suchweg = "fehler"
+    elif antwort.get("gefunden"):
+        suchweg = "exakt"
+    elif antwort.get("aehnliche_begriffe"):
+        suchweg = "fuzzy"
+    else:
+        suchweg = "-"                # direkte Glossar-Luecke: Kurations-Signal (O4)
+    _protokoll.protokolliere(
+        werkzeug="uebersetze_begriff", suchbegriff=begriff,
+        anzahl_treffer=len(antwort.get("begriffe", [])
+                           or antwort.get("aehnliche_begriffe", [])),
+        suchweg=suchweg, gefunden=antwort.get("gefunden"),
+        dauer_ms=(time.monotonic() - start) * 1000)
+    return antwort
+
+
+def _uebersetze_begriff_impl(begriff: str, richtung: str) -> dict:
+    """Kernlogik; Tool-Beschreibung und Protokoll-Hook sitzen im oeffentlichen Wrapper."""
     if richtung not in ("en_de", "de_en", "auto"):
         return {"gefunden": False,
                 "fehler": f"Unbekannte richtung {richtung!r} - gueltig: 'en_de', "

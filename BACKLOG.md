@@ -45,11 +45,16 @@ Qualitätserwartung ehrlich: gut für Fließtext, Statblöcke/Tabellen brauchen 
 die deutsche Quelle rankt vor DDB-Englisch.
 
 ### M5 — Feedback & Iteration · *laufend, kein Gate*
-Einfacher Meldeweg für schlechte Treffer (O4), daraus iterativ Synonyme, Chunking und
-Korrekturen. Die Rest-Posten aus §3 hier mitziehen. Werkzeuge: `admin glossar-paare
---vorschau` (Struktur-Abgleich-Kandidaten Gegenstände/Monster mit Beweisstufe, Review vor
+Der Meldeweg (O4) ist gebaut: das Abfrage-Protokoll (`data/foliant-protokoll.sqlite`,
+`[protokoll]` in der Config) loggt jede Nachschlage-Anfrage; `docker compose exec foliant
+python -m app.admin suchbericht` listet Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten und
+Übersetzungs-Lücken als Kuratier-Kandidaten (inkl. Antwortzeit p50/p95 → B9/M3).
+Aus einem Kandidaten wird ein Glossar-Paar über `admin glossar-paare --vorschau`
+(Struktur-Abgleich Gegenstände/Monster mit Beweisstufe, Review vor
 `import --quelle glossar`); nach jedem Seeding-Lauf muss `admin glossar-audit`
 konfliktfrei bleiben.
+Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking
+und Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 
 ### Offene Anforderungen im Überblick
 Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11, V1–V6/V8, NF1–NF3/NF5–NF7,
@@ -63,7 +68,7 @@ B1–B8, T1–T9/T11, O1–O3/O5, Q1–Q7).
 | NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | ⬜ | M4 |
 | B9 | Schnell & verfügbar im Spielbetrieb | 🟡 | M3 (nicht gemessen) |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 (§2) |
-| O4 | Feedback-/Korrekturschleife | ⬜ | M5 |
+| O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
 
 ---
 
