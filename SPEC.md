@@ -299,7 +299,10 @@ nicht überspringen.
 - **O3 — Import-Qualitätsprüfung vor Freigabe.** Neu importierter Inhalt wird
   stichprobenartig geprüft (korrekte Zahlen, Leserichtung, keine zerrissenen Statblöcke).
 - **O4 — Feedback-/Korrekturschleife.** Schlechte Treffer und falsche Auskünfte werden
-  gesammelt und nachgezogen; ein einfacher Melde-Weg ist vorzusehen. *(Offen, BACKLOG M5.)*
+  gesammelt und nachgezogen. Server-seitig erledigt: das Abfrage-Protokoll loggt jede
+  Nachschlage-Anfrage (Suchweg, Trefferzahl, Dauer), `admin suchbericht` macht daraus
+  Kuratier-Kandidaten (Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten,
+  Übersetzungs-Lücken). *(Regelmäßiges Sichten: BACKLOG M5.)*
 - **O5 — Secrets sicher halten.** Zugangsdaten (v. a. der DDB-Cobalt-Cookie) nur
   server-seitig, erneuerbar. Ohne gültigen Cookie schlägt nur der DDB-*Import* fehl, nicht
   der laufende Betrieb.
