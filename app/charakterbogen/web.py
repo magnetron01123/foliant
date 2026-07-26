@@ -19,9 +19,11 @@ import re
 import secrets
 import sqlite3
 import time
+from html import escape as _escape
 from pathlib import Path
 
 import fitz
+from config import stil
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
@@ -102,16 +104,41 @@ _MCP_START = "<!--MCP-LINK-START-->"
 _MCP_ENDE = "<!--MCP-LINK-ENDE-->"
 MCP_FEHLT = ("Der Foliant-Link ist auf diesem Server noch nicht hinterlegt — "
              "frag David nach dem Link.")
+_ANWEISUNG_START = "<!--ANWEISUNG-START-->"
+_ANWEISUNG_ENDE = "<!--ANWEISUNG-ENDE-->"
+
+
+def _schneide_heraus(seite: str, start: str, ende: str, ersatz: str = "") -> str:
+    """Markierten Abschnitt durch `ersatz` tauschen (fail-soft: fehlt eine Angabe, bleibt
+    die Seite lesbar statt ein leeres Feld zu zeigen)."""
+    vor, _, rest = seite.partition(start)
+    _, _, nach = rest.partition(ende)
+    return f"{vor}{ersatz}{nach}"
 
 
 def _bereite_index(mcp_url: str | None) -> str:
-    """Setzt den MCP-Link in die Seite ein. Ohne konfigurierten Link zeigt der Abschnitt
-    einen Hinweis statt eines leeren Feldes (fail-soft; die Erklärung bleibt lesbar)."""
+    """Setzt MCP-Link und Projektanweisung in die Seite ein.
+
+    Die Projektanweisung ist der GEMEINSAME Ort für die Runde: mehrere Spieler richten je
+    ein eigenes Claude-Projekt ein, und jeder braucht denselben aktuellen Text. Er kommt
+    deshalb zur Laufzeit aus SPEC.md §8 (config.stil.projektanweisung) statt als Kopie im
+    Template - so verteilt die Seite nie eine veraltete Fassung."""
+    seite = _INDEX
+    anweisung = stil.projektanweisung() if mcp_url else None
     if mcp_url:
-        return _INDEX.replace("{{MCP_URL}}", mcp_url)
-    vor, _, rest = _INDEX.partition(_MCP_START)
-    _, _, nach = rest.partition(_MCP_ENDE)
-    return f'{vor}<p class="mini">{MCP_FEHLT}</p>{nach}'
+        seite = seite.replace("{{MCP_URL}}", mcp_url)
+    else:
+        # Ohne hinterlegten Link ist nichts einzurichten - dann fällt auch der
+        # Anweisungs-Schritt weg, statt ins Leere zu verweisen.
+        seite = _schneide_heraus(seite, _MCP_START, _MCP_ENDE,
+                                 f'<p class="mini">{MCP_FEHLT}</p>')
+    if anweisung:
+        seite = seite.replace("{{PROJEKTANWEISUNG}}", _escape(anweisung))
+    else:
+        # Kein Block gefunden (SPEC.md fehlt im Image o. Ä.): Abschnitt ganz weglassen -
+        # eine leere Textarea würde als "es gibt keine Regeln" gelesen.
+        seite = _schneide_heraus(seite, _ANWEISUNG_START, _ANWEISUNG_ENDE)
+    return seite
 
 
 def _anmeldeseite(fehler: str | None = None) -> str:

@@ -217,6 +217,51 @@ def test_mcp_link_erscheint_nur_hinter_dem_login(tmp_path):
     assert "{{MCP_URL}}" not in r.text               # Platzhalter vollständig ersetzt
 
 
+def test_projektanweisung_steht_kopierbereit_auf_der_seite(tmp_path):
+    """Der GEMEINSAME Ort fuer die Runde: mehrere Spieler richten je ein eigenes
+    Claude-Projekt ein und brauchen denselben aktuellen Anweisungstext. Er kommt zur
+    Laufzeit aus SPEC.md par. 8 - eine Kopie im Template wuerde veralten."""
+    from config import stil
+
+    c = _app_mit_mcp(tmp_path, MCP_URL_TEST)
+    r = c.get("/")
+    assert MCP_URL_TEST not in r.text                # vor dem Login gar nichts
+    assert "Projektanweisung" not in r.text
+    c.post("/anmeldung", data={"kennwort": KENNWORT})
+    r = c.get("/")
+    assert r.status_code == 200
+    assert "{{PROJEKTANWEISUNG}}" not in r.text      # Platzhalter ersetzt
+    assert 'id="anweisung"' in r.text and 'data-kopieren="anweisung"' in r.text
+    anweisung = stil.projektanweisung()
+    assert anweisung and len(anweisung) > 2000
+    # Inhalt tatsaechlich da (und HTML-escaped: das Original enthaelt Anfuehrungszeichen):
+    assert "Du hilfst unserer D&amp;D-Runde" in r.text
+    assert "KEINE SPOILER" in r.text
+    assert "Projektanweisungen" in r.text            # Wegbeschreibung fuer die Spieler
+
+
+def test_projektanweisung_faellt_ohne_mcp_link_weg(client):
+    """Ohne hinterlegten Connector-Link ist nichts einzurichten - dann zeigt die Seite
+    auch keinen Anweisungs-Schritt (und bleibt der schmale Upload-MVP)."""
+    r = client.get("/")
+    assert r.status_code == 200
+    assert 'id="anweisung"' not in r.text
+    assert "{{PROJEKTANWEISUNG}}" not in r.text
+
+
+def test_projektanweisung_ohne_spec_block_laesst_seite_heil(tmp_path, monkeypatch):
+    """Fehlt SPEC.md (z. B. nicht im Image), verschwindet der Abschnitt - eine leere
+    Textarea wuerde als 'es gibt keine Regeln' gelesen."""
+    from config import stil
+    monkeypatch.setattr(stil, "projektanweisung", lambda: None)
+    c = _app_mit_mcp(tmp_path, MCP_URL_TEST)
+    c.post("/anmeldung", data={"kennwort": KENNWORT})
+    r = c.get("/")
+    assert r.status_code == 200
+    assert MCP_URL_TEST in r.text                    # der Link bleibt nutzbar
+    assert 'id="anweisung"' not in r.text and "{{PROJEKTANWEISUNG}}" not in r.text
+
+
 def test_mcp_ohne_url_zeigt_hinweis_statt_leerem_feld(client):
     from app.charakterbogen.web import MCP_FEHLT
     r = client.get("/")

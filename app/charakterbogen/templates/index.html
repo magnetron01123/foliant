@@ -46,7 +46,7 @@
           <span>Dein Foliant-Link (MCP-Connector)</span>
           <div class="linkzeile">
             <input id="mcp-url" type="text" readonly value="{{MCP_URL}}" aria-label="Foliant-MCP-Link">
-            <button type="button" id="kopieren" class="neben">Kopieren</button>
+            <button type="button" id="kopieren" class="neben" data-kopieren="mcp-url">Kopieren</button>
           </div>
           <p class="mini">Privat für unsere Runde — bitte nicht öffentlich teilen. Der Link
             funktioniert nur in Claude; im Browser geöffnet zeigt er nichts an.</p>
@@ -63,6 +63,33 @@
               <em>„Was macht der Zauber Dunkelheit?"</em></li>
           </ol>
         </div>
+
+        <!--ANWEISUNG-START-->
+        <div class="block">
+          <h3>Schritt 2: die Spielregeln für Claude</h3>
+          <p class="unter">Der Connector gibt Claude den Zugriff — dieser Text gibt ihm die
+            Haltung: Deutsch zuerst, Quelle und Regelversion zu jeder Auskunft, ehrliches
+            „nicht gefunden" statt Raten, und keine Abenteuer-Spoiler. Ohne ihn funktioniert
+            Foliant, mit ihm hält Claude sich deutlich strenger daran.</p>
+          <div class="feld">
+            <div class="linkzeile">
+              <span class="anweisung-titel">Projektanweisung</span>
+              <button type="button" class="neben" data-kopieren="anweisung">Kopieren</button>
+            </div>
+            <textarea id="anweisung" class="anweisung" rows="8" readonly
+              aria-label="Projektanweisung für dein Claude-Projekt">{{PROJEKTANWEISUNG}}</textarea>
+          </div>
+          <ol class="schritte">
+            <li>Text oben kopieren.</li>
+            <li>Auf <em>claude.ai</em>: <em>Projekte</em>&nbsp;→ neues Projekt anlegen
+              (z.&nbsp;B. „D&amp;D-Runde") → <em>Projektanweisungen</em>.</li>
+            <li>Alles markieren, einfügen, speichern. Fertig — ab jetzt in diesem Projekt
+              chatten.</li>
+          </ol>
+          <p class="mini">Steht hier eine ältere Fassung? Diese Seite zeigt immer den
+            aktuellen Stand vom Server — bei Änderungen einfach neu kopieren.</p>
+        </div>
+        <!--ANWEISUNG-ENDE-->
 
         <div class="block">
           <h3>Was bringt das?</h3>

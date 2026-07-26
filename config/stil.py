@@ -116,3 +116,24 @@ ERWARTUNGEN (B8):
 - Du speicherst keinen Charakter und kennst keine Hausregeln (RAW). Weise die Person
   bei Bedarf darauf hin, den Charakterbogen anderswo zu führen.
 """
+
+
+def projektanweisung() -> str | None:
+    """Der Copy-Paste-Block aus SPEC.md §8 - Kanal 2 derselben Verhaltensregeln, die
+    INSTRUCTIONS oben als Kanal 1 traegt.
+
+    EINE Extraktionsstelle fuer alle Nutzer dieses Textes (Charakterbogen-Website,
+    Eval-Harness, deploy/projektanweisung.sh): der Block wird zur Laufzeit aus SPEC.md
+    gelesen, nie kopiert - eine veraltete Kopie waere schlimmer als keine, weil sie
+    stillschweigend andere Regeln verteilt. None, wenn SPEC.md fehlt oder nicht genau
+    EINEN Block enthaelt (Aufrufer zeigen dann einen ehrlichen Hinweis)."""
+    import re
+    from pathlib import Path
+
+    spec = Path(__file__).resolve().parent.parent / "SPEC.md"
+    try:
+        text = spec.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    bloecke = re.findall(r"```\n(Du hilfst unserer D&D-Runde.*?)```", text, re.S)
+    return bloecke[0].strip() if len(bloecke) == 1 else None

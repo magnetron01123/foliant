@@ -104,6 +104,30 @@ button:disabled { opacity: .6; cursor: default; }
   color: var(--tinte);
 }
 button.neben { width: auto; padding: 10px 16px; font-size: .9rem; white-space: nowrap; }
+/* Projektanweisung: langer Text, deshalb scrollbar statt seitenlang - der Knopf sitzt
+   in der Titelzeile, damit er ohne Scrollen erreichbar bleibt. */
+.linkzeile .anweisung-titel {
+  flex: 1;
+  align-self: center;
+  font-size: .85rem;
+  font-variant: small-caps;
+  letter-spacing: .05em;
+  opacity: .85;
+}
+textarea.anweisung {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  box-sizing: border-box;
+  resize: vertical;
+  background: #fff;
+  border: 1px solid var(--linie);
+  border-radius: 3px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .75rem;
+  line-height: 1.45;
+  color: var(--tinte);
+}
 .mini { margin: 8px 0 0; font-size: .8rem; line-height: 1.4; opacity: .75; text-align: left; }
 .block { margin-top: 22px; text-align: left; }
 .block h3 {

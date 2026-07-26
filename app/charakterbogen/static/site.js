@@ -11,26 +11,32 @@
   });
 })();
 
-// MCP-Link kopieren: Clipboard-API (https) mit Fallback auf Auswahl+execCommand (http/alt).
+// Kopier-Knoepfe: 'data-kopieren="<ziel-id>"' statt fester IDs - so teilen sich
+// MCP-Link und Projektanweisung EINE Logik. Clipboard-API (https) mit Fallback auf
+// Auswahl+execCommand (http/alt).
 (function () {
-  var knopf = document.getElementById("kopieren");
-  var feld = document.getElementById("mcp-url");
-  if (!knopf || !feld) return;
+  function verdrahte(knopf) {
+    var feld = document.getElementById(knopf.getAttribute("data-kopieren"));
+    if (!feld) return;
 
-  function bestaetigt() {
-    knopf.textContent = "Kopiert ✓";
-    setTimeout(function () { knopf.textContent = "Kopieren"; }, 2000);
-  }
-  function fallback() {
-    feld.focus();
-    feld.select();
-    try { document.execCommand("copy"); bestaetigt(); } catch (e) { /* Auswahl bleibt stehen */ }
-  }
-  knopf.addEventListener("click", function () {
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(feld.value).then(bestaetigt, fallback);
-    } else {
-      fallback();
+    function bestaetigt() {
+      var vorher = knopf.textContent;
+      knopf.textContent = "Kopiert \u2713";
+      setTimeout(function () { knopf.textContent = vorher; }, 2000);
     }
-  });
+    function fallback() {
+      feld.focus();
+      feld.select();
+      try { document.execCommand("copy"); bestaetigt(); } catch (e) { /* Auswahl bleibt stehen */ }
+    }
+    knopf.addEventListener("click", function () {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(feld.value).then(bestaetigt, fallback);
+      } else {
+        fallback();
+      }
+    });
+  }
+  var knoepfe = document.querySelectorAll("[data-kopieren]");
+  for (var i = 0; i < knoepfe.length; i++) verdrahte(knoepfe[i]);
 })();

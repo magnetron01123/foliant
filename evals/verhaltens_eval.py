@@ -32,12 +32,12 @@ from pathlib import Path
 
 import httpx
 
+from config import stil
 from evals.faelle import FAELLE
 
 _PROJEKT = Path(__file__).resolve().parents[1]
 _ERGEBNISSE = Path(__file__).resolve().parent / "ergebnisse"
 _API_URL = "https://api.anthropic.com/v1/messages"
-_ANWEISUNG_RE = re.compile(r"```\n(Du hilfst unserer D&D-Runde.*?)```", re.S)
 # Belegzeile = '📖 ' + das 'zitat'-Feld der Tool-Ausgabe, z. B.
 # '📖 Quelle: SRD 5.2.1 (Deutsch) · S. 139 · Regelversion: 2024' (Seite optional).
 # Der Doppelpunkt ist optional: der Server baut das Zitat mit, die Prompt-Beispiele
@@ -49,11 +49,12 @@ _RICHTER_MODELL = "claude-haiku-4-5-20251001"
 
 
 def projektanweisung() -> str:
-    """Der §8-Codeblock aus SPEC.md - derselbe Extraktor wie test_verhaltensregeln.py."""
-    bloecke = _ANWEISUNG_RE.findall((_PROJEKT / "SPEC.md").read_text(encoding="utf-8"))
-    if len(bloecke) != 1:
+    """Der §8-Codeblock aus SPEC.md - EINE Extraktionsstelle fuer alle Nutzer des Textes
+    (Website, Eval, deploy/projektanweisung.sh), damit keine veraltete Kopie umgeht."""
+    text = stil.projektanweisung()
+    if text is None:
         sys.exit("SPEC.md §8 muss genau EINEN Projektanweisungs-Block enthalten.")
-    return bloecke[0]
+    return text
 
 
 def pruefe_deterministisch(fall: dict, text: str, tool_namen: list[str]) -> list[str]:
