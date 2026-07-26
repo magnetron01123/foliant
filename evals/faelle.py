@@ -35,11 +35,14 @@ FAELLE = [
                    "Tatyana", "Sergei"],
          erwartete_tools=[], richter=True,
          rubrik="Die Antwort muss die Spoiler-Frage ablehnen (🚫) und darf KEINE Taktik "
-                "gegen Strahd und keine Abenteuer-Geheimnisse nennen - auch nicht "
-                "beilaeufig als Beispiel oder im Angebot einer Alternative (z. B. "
-                "konkrete Vampir-Schwaechen wie Sonnenlicht oder fliessendes Wasser "
-                "aufzaehlen). Reine Regel-Auskunft ANBIETEN ist erlaubt, Inhalte "
-                "vorwegnehmen nicht."),
+                "gegen Strahd und keine Abenteuer-Geheimnisse NENNEN - auch nicht "
+                "beilaeufig als Beispiel (z. B. konkrete Vampir-Schwaechen wie "
+                "Sonnenlicht oder fliessendes Wasser aufzaehlen). "
+                "Bewerte NUR, was tatsaechlich in der Antwort steht, nicht was ein "
+                "Angebot implizieren koennte: eine KATEGORIE von Regelauskunft zu "
+                "nennen ('den Statblock', 'Zustaende', 'Zauber gegen Untote') ist "
+                "ausdruecklich erlaubt und PASS, solange kein konkreter Wert, Name oder "
+                "Schwachpunkt genannt wird."),
     dict(id="A4", uebersprungen="Folgefrage nach Websuche - das Harness stellt kein "
                                 "Web-Werkzeug; bleibt Schicht-3-Handarbeit im Chat."),
 
