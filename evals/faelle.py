@@ -24,19 +24,40 @@ FAELLE = [
          pflicht=["Feuerball", "📖"], verboten=["❌"],
          erwartete_tools=["foliant_suche_bestand", "foliant_hol_zauber"],
          richter=False),
+    # 'Schwäche' als Verbotswort war zu grob: eine korrekte Ablehnung darf das WORT
+    # verwenden ("keine Schwächen aus dem Abenteuer"). Deterministisch verboten sind
+    # nur eindeutige Abenteuer-Spoiler; die Feinheit - ob die Antwort beim Angebot
+    # schon Taktik vorwegnimmt - beurteilt der Richter (Befund Volllauf 26.07.2026).
     dict(id="A3", ref="T10",
          frage="Wie besiege ich Strahd? Und welche Geheimnisse hat das Abenteuer?",
          pflicht=["🚫"],
-         verboten=["Sonnenschwert", "Sunsword", "Krypta", "Schwäche", "Ikone Ravenlofts"],
-         erwartete_tools=[], richter=False),
+         verboten=["Sonnenschwert", "Sunsword", "Krypta", "Ikone Ravenlofts",
+                   "Tatyana", "Sergei"],
+         erwartete_tools=[], richter=True,
+         rubrik="Die Antwort muss die Spoiler-Frage ablehnen (🚫) und darf KEINE Taktik "
+                "gegen Strahd und keine Abenteuer-Geheimnisse nennen - auch nicht "
+                "beilaeufig als Beispiel oder im Angebot einer Alternative (z. B. "
+                "konkrete Vampir-Schwaechen wie Sonnenlicht oder fliessendes Wasser "
+                "aufzaehlen). Reine Regel-Auskunft ANBIETEN ist erlaubt, Inhalte "
+                "vorwegnehmen nicht."),
     dict(id="A4", uebersprungen="Folgefrage nach Websuche - das Harness stellt kein "
                                 "Web-Werkzeug; bleibt Schicht-3-Handarbeit im Chat."),
 
     # --- B. Regelversion & Auswahl (P0) ----------------------------------------------
+    # Der Grader darf NICHT auf '−2' bestehen: der deutsche SRD-Wortlaut ist "um einen
+    # Betrag in doppelter Höhe deiner Erschöpfungsstufen verringert" - eine wortgetreue
+    # Wiedergabe enthaelt die Zahl gar nicht (Fehlalarm im Erstlauf 26.07.2026). Gepruft
+    # wird die 2024-MECHANIK (kumulative Stufen) gegen die 2014-Stufentabelle.
     dict(id="B1", frage="Was bewirkt Erschöpfung nach 2024?",
-         pflicht=["📖"], pflicht_eine=["−2", "-2"], verboten=["Geschwindigkeit halbiert"],
+         pflicht=["📖"], pflicht_eine=["kumulativ", "Erschöpfungsstufe", "Stufe"],
+         verboten=["Bewegungsrate halbiert", "Geschwindigkeit halbiert"],
          erwartete_tools=["foliant_hol_regel", "foliant_suche_bestand"],
-         richter=False, korpus="voll"),
+         richter=True,
+         rubrik="Die Antwort muss die 2024-Kumulativregel wiedergeben: Erschöpfungsstufen "
+                "summieren sich, W20-Prüfungen sinken um das Doppelte der Stufenzahl, "
+                "Bewegungsrate um das 1,5-Fache, Tod bei sechs Stufen. FAIL bei der "
+                "2014-Stufentabelle (je Stufe ein anderer Effekt: Nachteil auf "
+                "Attributswürfe, Bewegungsrate halbiert ...) (P0-002).", korpus="voll"),
     dict(id="B2", frage="Was ist Aktionen?",
          pflicht_eine=["Aktion"], verboten=[],
          erwartete_tools=["foliant_hol_regel", "foliant_suche_bestand"],
