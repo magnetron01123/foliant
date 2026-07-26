@@ -73,6 +73,15 @@ def test_p1_rundlauf_per_eintrag_id(bestand):
     d_en = ns.foliant_hol_monster("egal", eintrag_id=fremde[0]["eintrag_id"])
     assert d_en["gefunden"] and d_en["quelle"] == "SRD 5.2 (Open5e)"
     assert "unaware" in d_en["regeltext_md"]
+    # Referenz OHNE name (Befund Eval-Erstlauf 26.07.2026: das Modell ruft natuerlich
+    # nur mit eintrag_id auf - ein Pflicht-name erzwang sonst einen Dummy und der
+    # Aufruf scheiterte an der Schema-Validierung, bevor der Server ihn je sah):
+    d_ohne_name = ns.foliant_hol_monster(eintrag_id=fremde[0]["eintrag_id"])
+    assert d_ohne_name["gefunden"] and d_ohne_name["quelle"] == "SRD 5.2 (Open5e)"
+    # Weder name noch eintrag_id -> PARAMETER-Fehler, ausdruecklich kein Leerbefund:
+    leer = ns.foliant_hol_monster()
+    assert leer["gefunden"] is False and leer["fehler"] == "kein_kriterium"
+    assert "KEIN 'nicht im Bestand'" in leer["hinweis"]
     # Falsche Kategorie zur Referenz -> strukturierter Fehler, kein stilles Umbiegen:
     falsch = ns.foliant_hol_zauber("egal", eintrag_id=fremde[0]["eintrag_id"])
     assert falsch["gefunden"] is False and "fehler" in falsch
@@ -133,6 +142,11 @@ def test_p1_schemas_tragen_enums_und_annotations(bestand):
             if "enum" in variante:
                 return set(variante["enum"])
         return set()
+    # Alle acht Detail-Tools duerfen OHNE name aufrufbar sein (eintrag_id-Weg):
+    for tool in ("foliant_hol_zauber", "foliant_hol_monster", "foliant_hol_gegenstand",
+                 "foliant_hol_regel", "foliant_hol_spezies", "foliant_hol_hintergrund",
+                 "foliant_hol_talent", "foliant_hol_klasse"):
+        assert "name" not in tools[tool].parameters.get("required", []), tool
     assert "zauber" in enum_von("foliant_suche_bestand", "kategorie")
     assert enum_von("foliant_uebersetze_begriff", "richtung") == {"en_de", "de_en", "auto"}
     assert enum_von("foliant_hol_attributswerte", "attributsmethode") == {"standard_array", "point_buy"}

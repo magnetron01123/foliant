@@ -620,7 +620,8 @@ def _kinder_texte(con: sqlite3.Connection, voll: dict) -> list[str]:
     return stuecke
 
 
-def _hole_detail(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
+def _hole_detail(kategorie: str, name: str | None = None,
+                 edition: str = _db.STANDARD_EDITION,
                  aggregiere_kinder: bool = False,
                  eintrag_id: int | None = None) -> dict:
     """Protokollierender Mantel um _hole_detail_impl - EIN Hook deckt alle acht
@@ -644,7 +645,8 @@ def _hole_detail(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
     return antwort
 
 
-def _hole_detail_impl(kategorie: str, name: str, edition: str = _db.STANDARD_EDITION,
+def _hole_detail_impl(kategorie: str, name: str | None = None,
+                      edition: str = _db.STANDARD_EDITION,
                       aggregiere_kinder: bool = False,
                       eintrag_id: int | None = None) -> dict:
     """Detail-Auswahl (A1): edition ist die GEWUENSCHTE Regelversion (Standard 2024).
@@ -652,7 +654,13 @@ def _hole_detail_impl(kategorie: str, name: str, edition: str = _db.STANDARD_EDI
     eine AUSDRUECKLICH angeforderte andere Edition wird nie still ersetzt - fehlt sie,
     kommt ein ehrliches 'nicht gefunden' mit den vorhandenen Fassungen.
     aggregiere_kinder=True fuehrt direkte Unterabschnitte (z. B. '<Spezies> Traits') in den
-    Regeltext zusammen, damit die Detailauskunft VOLLSTAENDIG ist (DDB-Optionen)."""
+    Regeltext zusammen, damit die Detailauskunft VOLLSTAENDIG ist (DDB-Optionen).
+    name ist OPTIONAL, sobald eintrag_id gesetzt ist (dann wird er ohnehin ignoriert)."""
+    if eintrag_id is None and not (name and name.strip()):
+        return {"gefunden": False, "fehler": "kein_kriterium",
+                "hinweis": "Bitte 'name' ODER 'eintrag_id' angeben. Das ist ein "
+                           "PARAMETER-Fehler, KEIN 'nicht im Bestand' - Aufruf "
+                           "ergaenzen, dem Nutzer keine Fehlanzeige melden (B1/B4)."}
     con = _verbinde()
     if con is None:
         return {"gefunden": False, "hinweis": HINWEIS_DB_FEHLT}
@@ -866,10 +874,11 @@ def _hole_detail_impl(kategorie: str, name: str, edition: str = _db.STANDARD_EDI
         con.close()
 
 
-def foliant_hol_zauber(name: str, edition: str = "2024",
+def foliant_hol_zauber(name: str | None = None, edition: str = "2024",
         eintrag_id: int | None = None) -> dict:
     """Vollstaendiger Zauber-Steckbrief aus dem Bestand, mit Zitat (Quelle, ggf. Seite,
-    Regelversion). Name deutsch oder englisch. edition Standard '2024'; eine andere
+    Regelversion). Name deutsch oder englisch - alternativ eintrag_id aus einem
+    Suchtreffer. edition Standard '2024'; eine andere
     Regelversion (z. B. '2014') laesst sich gezielt anfordern und wird nie still ersetzt.
     Bei Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
@@ -877,10 +886,11 @@ def foliant_hol_zauber(name: str, edition: str = "2024",
     return _hole_detail("zauber", name, edition, eintrag_id=eintrag_id)
 
 
-def foliant_hol_monster(name: str, edition: str = "2024",
+def foliant_hol_monster(name: str | None = None, edition: str = "2024",
         eintrag_id: int | None = None) -> dict:
     """Vollstaendiger Monster-Statblock aus dem Bestand, mit Zitat (Quelle, ggf. Seite,
-    Regelversion). Name deutsch oder englisch. edition Standard '2024'; eine andere
+    Regelversion). Name deutsch oder englisch - alternativ eintrag_id aus einem
+    Suchtreffer. edition Standard '2024'; eine andere
     Regelversion (z. B. '2014') laesst sich gezielt anfordern und wird nie still ersetzt.
     Bei Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
@@ -888,10 +898,11 @@ def foliant_hol_monster(name: str, edition: str = "2024",
     return _hole_detail("monster", name, edition, eintrag_id=eintrag_id)
 
 
-def foliant_hol_gegenstand(name: str, edition: str = "2024",
+def foliant_hol_gegenstand(name: str | None = None, edition: str = "2024",
         eintrag_id: int | None = None) -> dict:
     """Gegenstands-Steckbrief aus dem Bestand, mit Zitat (Quelle, ggf. Seite, Regelversion).
-    Name deutsch oder englisch. edition Standard '2024'; eine andere Regelversion
+    Name deutsch oder englisch - alternativ eintrag_id aus einem Suchtreffer.
+    edition Standard '2024'; eine andere Regelversion
     (z. B. '2014') laesst sich gezielt anfordern und wird nie still ersetzt. Bei
     Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
@@ -899,12 +910,13 @@ def foliant_hol_gegenstand(name: str, edition: str = "2024",
     return _hole_detail("gegenstand", name, edition, eintrag_id=eintrag_id)
 
 
-def foliant_hol_regel(name: str, edition: str = "2024",
+def foliant_hol_regel(name: str | None = None, edition: str = "2024",
         eintrag_id: int | None = None) -> dict:
     """Vollstaendiger Text eines allgemeinen Regelabschnitts aus dem Bestand (Zustaende,
     Bewegung, Rasten, Proben, Regelglossar-Definitionen ...), mit Zitat (Quelle, ggf.
     Seite, Regelversion) - die Suche liefert nur knappe Auszuege, dieses Tool den ganzen
-    Abschnitt (A2). Name deutsch oder englisch. edition Standard '2024'; eine andere
+    Abschnitt (A2). Name deutsch oder englisch - alternativ eintrag_id aus einem
+    Suchtreffer. edition Standard '2024'; eine andere
     Regelversion laesst sich gezielt anfordern und wird nie still ersetzt. Bei
     Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
