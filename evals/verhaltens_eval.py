@@ -94,6 +94,7 @@ async def _fahre_fall(mcp_client, http, key: str, modell: str, system: str,
     """Tool-Use-Schleife fuer EINEN Fall: (finaler Text, aufgerufene Tool-Namen)."""
     messages: list[dict] = [{"role": "user", "content": frage}]
     tool_namen: list[str] = []
+    bestandsauszuege: list[str] = []
     for _ in range(_MAX_RUNDEN):
         daten = _api_aufruf(http, key, {
             "model": modell, "max_tokens": 3000, "system": system,
@@ -102,7 +103,7 @@ async def _fahre_fall(mcp_client, http, key: str, modell: str, system: str,
         messages.append({"role": "assistant", "content": inhalt})
         if daten.get("stop_reason") != "tool_use":
             return ("".join(b.get("text", "") for b in inhalt
-                            if b.get("type") == "text"), tool_namen)
+                            if b.get("type") == "text"), tool_namen, bestandsauszuege)
         ergebnisse = []
         for block in inhalt:
             if block.get("type") != "tool_use":
@@ -120,15 +121,32 @@ async def _fahre_fall(mcp_client, http, key: str, modell: str, system: str,
                 text_out, fehler = f"{type(ausnahme).__name__}: {ausnahme}", True
             ergebnisse.append({"type": "tool_result", "tool_use_id": block["id"],
                                "content": text_out[:20000], "is_error": fehler})
+            if not fehler:
+                bestandsauszuege.append(f"[{block['name']}]\n{text_out[:6000]}")
         messages.append({"role": "user", "content": ergebnisse})
-    return ("", tool_namen)
+    return ("", tool_namen, bestandsauszuege)
 
 
 def _richter(http, key: str, richter_modell: str, rubrik: str, frage: str,
-             text: str) -> dict:
-    """LLM-Richter fuer weiche Kriterien - Urteil ist 'weich' gekennzeichnet."""
+             text: str, bestandsauszuege: list[str]) -> dict:
+    """LLM-Richter fuer weiche Kriterien - Urteil ist 'weich' gekennzeichnet.
+
+    Der Richter bekommt die TOOL-AUSGABEN als einzige Sachgrundlage und wird
+    ausdruecklich auf sie festgenagelt. Ohne das urteilte er aus D&D-Trainingswissen
+    und produzierte genau die Halluzinationen, gegen die Foliant gebaut ist (Volllauf
+    26.07.2026: erfand fehlende Solar-'Reaktionen' und nannte eine Seitenzahl
+    'erfunden', die woertlich aus dem Bestand stammt)."""
+    auszug = "\n\n".join(bestandsauszuege)[:24000] or "(keine Tool-Aufrufe)"
     prompt = (f"Du bewertest die Antwort eines D&D-Regelassistenten.\n\n"
+              f"WICHTIG - Bewertungsgrundlage: AUSSCHLIESSLICH die unten stehenden "
+              f"Bestandsauszuege (die echten Werkzeug-Ausgaben) und die Rubrik. Dein "
+              f"eigenes D&D-Wissen ist KEINE Grundlage: Wenn du etwas vermisst, das in "
+              f"den Auszuegen nicht vorkommt, ist das KEIN Fehler der Antwort - der "
+              f"Bestand ist die Wahrheit, nicht die dir bekannte Regelfassung. "
+              f"Seitenzahlen und Quellen gelten als korrekt, wenn sie so in den "
+              f"Auszuegen stehen. Im Zweifel: bestanden.\n\n"
               f"FRAGE DES NUTZERS:\n{frage}\n\nANTWORT DES ASSISTENTEN:\n{text}\n\n"
+              f"BESTANDSAUSZUEGE (Werkzeug-Ausgaben):\n{auszug}\n\n"
               f"BEWERTUNGSRUBRIK:\n{rubrik}\n\n"
               f"Antworte NUR mit JSON: {{\"bestanden\": true|false, "
               f"\"begruendung\": \"<ein Satz>\"}}")
@@ -194,7 +212,7 @@ async def _lauf(argv) -> int:
                         print(f"  ⏭️  {fall['id']}: uebersprungen")
                         continue
                     try:
-                        text, tool_namen = await _fahre_fall(
+                        text, tool_namen, auszuege = await _fahre_fall(
                             mcp_client, http, key, argv.modell, system, werkzeuge,
                             fall["frage"])
                     except Exception as ausnahme:
@@ -213,7 +231,7 @@ async def _lauf(argv) -> int:
                         eintrag["status"] = "fail"
                     elif fall.get("richter") and argv.richter == "an":
                         urteil = _richter(http, key, argv.richter_modell,
-                                          fall["rubrik"], fall["frage"], text)
+                                          fall["rubrik"], fall["frage"], text, auszuege)
                         eintrag["richter_urteil"] = urteil
                         eintrag["status"] = ("pass_weich" if urteil["bestanden"]
                                              else "fail_weich")
