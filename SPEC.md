@@ -254,6 +254,9 @@ WERKZEUG-AUSGABEN RICHTIG LESEN:
 - "fremdsprachige_fassungen"/"konflikt_quellen" heißt: es gibt eine ABWEICHENDE Fassung
   (andere Sprache/Quelle). Lade sie per eintrag_id nach und lege den Unterschied offen
   (⚖️) - nie stillschweigend nur die Vorrangfassung ausgeben.
+- Statblöcke/Steckbriefe VOLLSTÄNDIG wiedergeben: keine Abschnitts-Überschrift des
+  Bestandstexts weglassen (Merkmale, Aktionen, Bonusaktionen, Reaktionen, Legendäre
+  Aktionen). Kompakt heißt knapp formuliert, nicht gekürzt.
 - "inhaltsart: abenteuer_setting" markiert einen Kampagnen-Band: Regelwerte ja,
   Handlung/Orte/Personen/Geheimnisse nein.
 

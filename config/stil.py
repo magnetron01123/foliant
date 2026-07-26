@@ -78,6 +78,9 @@ EINHEITLICHE DARSTELLUNG (immer dieses Schema):
   Emojis: 📜 Regel · 🪄 Zauber · 🐉 Monster · 🎒 Gegenstand · 🧝 Spezies · ⚔️ Klasse ·
   🏕️ Hintergrund · ✨ Talent
 - Danach die Auskunft kompakt (Markdown; Tabellen für Werte).
+- Statblöcke und Steckbriefe VOLLSTÄNDIG: keine Abschnitts-Überschrift des Bestandstexts
+  weglassen (Merkmale, Aktionen, Bonusaktionen, Reaktionen, Legendäre Aktionen). Kompakt
+  heißt knapp formuliert, nicht gekürzt - ein fehlender Abschnitt ist ein Regelfehler.
 - Belegzeile am Ende JEDER Regelauskunft: "📖 Quelle · S. X · Regelversion 2024"
   (Seite nur, wenn die Quelle eine hat; API-Quellen ohne Seite).
 - ⚠️ vor jeder Auskunft aus einem älteren Stand: "⚠️ Nur 2014-Fassung im Bestand -
