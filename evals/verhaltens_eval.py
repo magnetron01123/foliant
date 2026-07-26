@@ -108,10 +108,18 @@ async def _fahre_fall(mcp_client, http, key: str, modell: str, system: str,
             if block.get("type") != "tool_use":
                 continue
             tool_namen.append(block["name"])
-            res = await mcp_client.call_tool(block["name"], block.get("input") or {})
-            text_out = "\n".join(getattr(c, "text", "") or "" for c in res.content)
+            try:
+                res = await mcp_client.call_tool(block["name"], block.get("input") or {})
+                text_out = "\n".join(getattr(c, "text", "") or "" for c in res.content)
+                fehler = False
+            except Exception as ausnahme:
+                # Ein fehlgeschlagener Tool-Aufruf (z. B. Schema-Verletzung) gehoert als
+                # is_error-Ergebnis ZURUECK ans Modell - genau wie es ein echter
+                # MCP-Client tut. Vorher riss die Ausnahme den ganzen Lauf ab und der
+                # Report wurde nie geschrieben (Befund Erstlauf 26.07.2026).
+                text_out, fehler = f"{type(ausnahme).__name__}: {ausnahme}", True
             ergebnisse.append({"type": "tool_result", "tool_use_id": block["id"],
-                               "content": text_out[:20000]})
+                               "content": text_out[:20000], "is_error": fehler})
         messages.append({"role": "user", "content": ergebnisse})
     return ("", tool_namen)
 
@@ -171,45 +179,68 @@ async def _lauf(argv) -> int:
             "richter": argv.richter, **_manifest_kopf()}
     ergebnisse: list[dict] = []
 
-    async with Client(mcp) as mcp_client:
-        tools = await mcp_client.list_tools()
-        werkzeuge = [{"name": t.name, "description": t.description or "",
-                      "input_schema": t.inputSchema} for t in tools]
-        with httpx.Client(timeout=180.0) as http:
-            for fall in FAELLE:
-                if nur and fall["id"] not in nur:
-                    continue
-                if fall.get("uebersprungen"):
-                    ergebnisse.append({"id": fall["id"], "status": "uebersprungen",
-                                       "begruendung": fall["uebersprungen"]})
-                    print(f"  ⏭️  {fall['id']}: uebersprungen")
-                    continue
-                text, tool_namen = await _fahre_fall(
-                    mcp_client, http, key, argv.modell, system, werkzeuge, fall["frage"])
-                gruende = pruefe_deterministisch(fall, text, tool_namen)
-                eintrag = {"id": fall["id"], "frage": fall["frage"],
-                           "tools": tool_namen, "deterministisch_gruende": gruende,
-                           "antwort": text}
-                if gruende:
-                    eintrag["status"] = "fail"
-                elif fall.get("richter") and argv.richter == "an":
-                    urteil = _richter(http, key, argv.richter_modell,
-                                      fall["rubrik"], fall["frage"], text)
-                    eintrag["richter_urteil"] = urteil
-                    eintrag["status"] = ("pass_weich" if urteil["bestanden"]
-                                         else "fail_weich")
-                elif fall.get("richter"):
-                    eintrag["status"] = "pass_ungerichtet"   # Marker ok, Richter aus
-                else:
-                    eintrag["status"] = "pass"
-                symbol = {"pass": "✅", "pass_weich": "✅(weich)", "fail": "❌",
-                          "fail_weich": "❌(weich)", "pass_ungerichtet": "✅(ohne Richter)"}
-                print(f"  {symbol[eintrag['status']]} {fall['id']}"
-                      + (f" - {gruende[0]}" if gruende else ""))
-                ergebnisse.append(eintrag)
+    try:
+        async with Client(mcp) as mcp_client:
+            tools = await mcp_client.list_tools()
+            werkzeuge = [{"name": t.name, "description": t.description or "",
+                          "input_schema": t.inputSchema} for t in tools]
+            with httpx.Client(timeout=180.0) as http:
+                for fall in FAELLE:
+                    if nur and fall["id"] not in nur:
+                        continue
+                    if fall.get("uebersprungen"):
+                        ergebnisse.append({"id": fall["id"], "status": "uebersprungen",
+                                           "begruendung": fall["uebersprungen"]})
+                        print(f"  ⏭️  {fall['id']}: uebersprungen")
+                        continue
+                    try:
+                        text, tool_namen = await _fahre_fall(
+                            mcp_client, http, key, argv.modell, system, werkzeuge,
+                            fall["frage"])
+                    except Exception as ausnahme:
+                        # Ein einzelner Fall darf den Lauf nicht kosten - er faellt
+                        # ehrlich als 'abbruch' durch, die uebrigen laufen weiter.
+                        ergebnisse.append({"id": fall["id"], "status": "abbruch",
+                                           "begruendung": f"{type(ausnahme).__name__}: "
+                                                          f"{ausnahme}"[:300]})
+                        print(f"  💥 {fall['id']}: {type(ausnahme).__name__}")
+                        continue
+                    gruende = pruefe_deterministisch(fall, text, tool_namen)
+                    eintrag = {"id": fall["id"], "frage": fall["frage"],
+                               "tools": tool_namen, "deterministisch_gruende": gruende,
+                               "antwort": text}
+                    if gruende:
+                        eintrag["status"] = "fail"
+                    elif fall.get("richter") and argv.richter == "an":
+                        urteil = _richter(http, key, argv.richter_modell,
+                                          fall["rubrik"], fall["frage"], text)
+                        eintrag["richter_urteil"] = urteil
+                        eintrag["status"] = ("pass_weich" if urteil["bestanden"]
+                                             else "fail_weich")
+                    elif fall.get("richter"):
+                        eintrag["status"] = "pass_ungerichtet"  # Marker ok, Richter aus
+                    else:
+                        eintrag["status"] = "pass"
+                    symbol = {"pass": "✅", "pass_weich": "✅(weich)", "fail": "❌",
+                              "fail_weich": "❌(weich)",
+                              "pass_ungerichtet": "✅(ohne Richter)"}
+                    print(f"  {symbol[eintrag['status']]} {fall['id']}"
+                          + (f" - {gruende[0]}" if gruende else ""))
+                    ergebnisse.append(eintrag)
+    finally:
+        # Teilergebnisse sind wertvoll: der Report entsteht AUCH nach Strg-C oder einem
+        # Fehler in der Rahmenlogik (sonst waeren die schon bezahlten Faelle verloren).
+        if ergebnisse:
+            _schreibe_report(kopf, ergebnisse)
 
+    harte_fails = [e for e in ergebnisse if e["status"] in ("fail", "abbruch")]
+    print(f"\n{len(ergebnisse)} Faelle, {len(harte_fails)} harte FAILs")
+    return 1 if harte_fails else 0
+
+
+def _schreibe_report(kopf: dict, ergebnisse: list[dict]) -> None:
     _ERGEBNISSE.mkdir(exist_ok=True)
-    stamm = f"{kopf['datum'][:10]}-{argv.modell}"
+    stamm = f"{kopf['datum'][:10]}-{kopf['modell']}"
     (_ERGEBNISSE / f"{stamm}.json").write_text(
         json.dumps({"kopf": kopf, "faelle": ergebnisse}, ensure_ascii=False, indent=2),
         encoding="utf-8")
@@ -223,11 +254,7 @@ async def _lauf(argv) -> int:
             e.get("begruendung", "")
         zeilen.append(f"| {e['id']} | {e['status']} | {anmerkung} |")
     (_ERGEBNISSE / f"{stamm}.md").write_text("\n".join(zeilen) + "\n", encoding="utf-8")
-
-    harte_fails = [e for e in ergebnisse if e["status"] == "fail"]
-    print(f"\nReport: evals/ergebnisse/{stamm}.md ({len(ergebnisse)} Faelle, "
-          f"{len(harte_fails)} harte FAILs)")
-    return 1 if harte_fails else 0
+    print(f"\nReport: evals/ergebnisse/{stamm}.md")
 
 
 def main() -> None:
