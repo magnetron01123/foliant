@@ -333,17 +333,18 @@ def foliant_liste_klassen() -> dict:
         con.close()
 
 
-def foliant_hol_spezies(name: str, edition: str = "2024",
+def foliant_hol_spezies(name: str | None = None, edition: str = "2024",
         eintrag_id: int | None = None) -> dict:
     """Vollstaendige Spezies-Beschreibung aus dem Bestand (Merkmale, Groesse, Bewegungsrate),
-    mit Zitat (Quelle, ggf. Seite, Regelversion). Name deutsch oder englisch. Spezies ist
+    mit Zitat (Quelle, ggf. Seite, Regelversion). Name deutsch oder englisch -
+    alternativ eintrag_id aus einem Suchtreffer. Spezies ist
     Schritt 3 der 2024-Erstellung (B7).
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
     Deutsch-first (Original in Klammern)."""
     return _ns._hole_detail("spezies", name, edition, aggregiere_kinder=True, eintrag_id=eintrag_id)
 
 
-def foliant_hol_hintergrund(name: str, edition: str = "2024",
+def foliant_hol_hintergrund(name: str | None = None, edition: str = "2024",
         eintrag_id: int | None = None) -> dict:
     """Vollstaendiger Hintergrund aus dem Bestand (Attributswerte, Ursprungstalent,
     Fertigkeiten, Ausruestung), mit Zitat (Quelle, ggf. Seite, Regelversion). Name deutsch
@@ -353,16 +354,17 @@ def foliant_hol_hintergrund(name: str, edition: str = "2024",
     return _ns._hole_detail("hintergrund", name, edition, eintrag_id=eintrag_id)
 
 
-def foliant_hol_talent(name: str, edition: str = "2024",
+def foliant_hol_talent(name: str | None = None, edition: str = "2024",
         eintrag_id: int | None = None) -> dict:
     """Vollstaendige Talent-Beschreibung (Feat) aus dem Bestand, mit Zitat (Quelle, ggf.
-    Seite, Regelversion). Name deutsch oder englisch.
+    Seite, Regelversion). Name deutsch oder englisch - alternativ eintrag_id aus
+    einem Suchtreffer.
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
     Deutsch-first (Original in Klammern)."""
     return _ns._hole_detail("talent", name, edition, aggregiere_kinder=True, eintrag_id=eintrag_id)
 
 
-def foliant_hol_klasse(name: str, edition: str = "2024",
+def foliant_hol_klasse(name: str | None = None, edition: str = "2024",
         eintrag_id: int | None = None) -> dict:
     """Vollstaendige Klassen- oder Unterklassen-Beschreibung aus dem Bestand, mit Zitat
     (Quelle, ggf. Seite, Regelversion). Name deutsch oder englisch ('Kaempfer', 'Champion').
