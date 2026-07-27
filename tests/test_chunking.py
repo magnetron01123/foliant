@@ -210,3 +210,44 @@ def test_fragment_reparatur_wortanfang():
     chunks = _chunks(md, split_regeln=SPLIT_REGELN["srd-de"])
     namen = [c["name"] for c in chunks]
     assert "Rettungswürfe, in denen du geübt bist" in namen, namen
+
+
+def test_2014_scans_splitten_auf_eintragsebene():
+    """Deutsche 2014-Scans (PHB/Xanathar/SCAG): pymupdf4llm vergibt Heading-Ebenen
+    relativ zur Schriftgroessen-Verteilung des GESAMTdokuments - in diesen Baenden
+    besetzen die Kapitel-Titelseiten H1-H5, der Inhalt liegt komplett auf H6. Mit dem
+    Standard-Level 3 entstanden drei Riesen-Chunks von 300-500 kB ('KAPITEL 1',
+    'KAPITEL 2'), in denen die Suche nichts findet (Import-Befund 27.07.2026)."""
+    from importer.import_markdown import SPLIT_REGELN, _chunks
+
+    md = "\n".join([
+        "# 7,", "", "## **KAPITEL 1**", "",
+        "###### **KAVALIER**", "", "Ein Kavalier ist ein Kaempfer-Archetyp.", "",
+        "###### **SAMURAI**", "", "Der Samurai kaempft mit Kampfgeist.", "",
+    ])
+    for kuerzel in ("phb-2014-de", "xgte-2014-de", "scag-2014-de"):
+        regeln = SPLIT_REGELN.get(kuerzel)
+        assert regeln, f"{kuerzel} braucht Split-Regeln"
+        chunks = _chunks(md, kategorie_standard="regel", split_regeln=regeln)
+        namen = [c["name"] for c in chunks]
+        assert "KAVALIER" in namen and "SAMURAI" in namen, (kuerzel, namen)
+    # Gegenprobe: OHNE Quell-Regeln (Standard-Level 3) verschwinden sie im Kapitel
+    ohne = [c["name"] for c in _chunks(md, kategorie_standard="regel")]
+    assert "KAVALIER" not in ohne
+
+
+def test_2014_scans_ueberspringen_endlose_anhaenge():
+    """Am Buchende versagt die Heading-Erkennung: der letzte Abschnitt sammelte alles
+    bis zum Dokumentende ein (PHB: 130 kB Leseliste + Register). Reiner Ballast."""
+    from importer.import_markdown import SKIP_NAMEN, SPLIT_REGELN, _chunks
+
+    md = "\n".join([
+        "# 7,", "", "###### **KAVALIER**", "", "Regeltext.", "",
+        "###### **ANHANG E: LEKTÜRE ZUR INSPIRATION**", "", "Leseliste " * 200, "",
+    ])
+    chunks = _chunks(md, kategorie_standard="regel",
+                     split_regeln=SPLIT_REGELN["phb-2014-de"],
+                     skip_namen=SKIP_NAMEN["phb-2014-de"])
+    namen = [c["name"] for c in chunks]
+    assert "KAVALIER" in namen
+    assert not any(n.startswith("ANHANG E") for n in namen), namen

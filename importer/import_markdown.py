@@ -46,6 +46,12 @@ SPLIT_STANDARD = 3       # ohne Quell-Regeln: Headings 1..3 eroeffnen neue Eintr
 # KINDER eines Kapitels, nicht den Kopf). Muster auf den Eintragsnamen, je Quelle.
 SKIP_NAMEN: dict[str, "re.Pattern[str]"] = {
     "srd-de": re.compile(r"^Verzeichnis der Wertekästen$"),
+    # 2014-Scans: am Buchende versagt die Heading-Erkennung, der letzte Abschnitt
+    # sammelt alles bis zum Dokumentende ein (im PHB 130 kB: Leseliste + Register).
+    # Reiner Ballast im Volltextindex - der Regelinhalt der Baende steht davor.
+    "phb-2014-de": re.compile(r"^ANHANG E\b|^INHALTSVERZEICHNIS$"),
+    "xgte-2014-de": re.compile(r"^INHALTSVERZEICHNIS$"),
+    "scag-2014-de": re.compile(r"^INHALT$"),
 }
 _MIN_BODY = 1            # leere Abschnitte (reine Kapitel-Deckblaetter) ueberspringen
 # A7-Schrumpf-Schutz: faellt ein Re-Import unter diesen Anteil des Altbestands, ist das
@@ -81,6 +87,19 @@ SPLIT_REGELN: dict[str, list[tuple[str, int, str | None]]] = {
         (r"^Talente", 6, "talent"),
         (r"", 5, "regel"),                            # Spielregeln, Werkzeugkasten, ...
     ],
+    # Deutsche 2014-Scans (PHB/Xanathar/SCAG): pymupdf4llm vergibt die Heading-Ebenen
+    # relativ zur Schriftgroessen-Verteilung des GESAMTDOKUMENTS. In diesen Scans
+    # besetzen die Kapitel-Titelseiten H1-H5, der komplette Inhalt liegt auf H6 -
+    # mit dem Standard-Level 3 entstanden drei Riesen-Chunks von je ~300-500 kB
+    # ('KAPITEL 1', 'KAPITEL 2'), in denen die Suche nichts findet (Befund 27.07.2026).
+    # Level 6 trifft die Eintragsebene: ~840-1520 Zeichen im Schnitt.
+    # Kategorie bewusst durchgehend 'regel': die Baende dienen als deutsche
+    # BEGRIFFSQUELLE (S7/S8), nicht als strukturierter Zauber-/Monsterkatalog - eine
+    # feinere Zuordnung waere an den OCR-verstuemmelten Kapitelnamen ('ANPASSUNOS-
+    # MOEGLICHKEITEN') geraten, und geraten wird hier nichts.
+    "phb-2014-de": [(r"", 6, "regel")],
+    "xgte-2014-de": [(r"", 6, "regel")],
+    "scag-2014-de": [(r"", 6, "regel")],
 }
 
 
