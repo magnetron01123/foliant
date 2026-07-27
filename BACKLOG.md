@@ -45,6 +45,14 @@ Qualitätserwartung ehrlich: gut für Fließtext, Statblöcke/Tabellen brauchen 
 
 **Entscheidungsbedarf:** Liegen die PDFs vor? Wenn nein, bleibt DDB-Englisch der Stand
 (legitimer S10-Fallback) und M1 ruht.
+
+**Stand 27.07.2026:** Die eingefügten deutschen Bücher sind die **2014er** Ausgaben
+(Spielerhandbuch © 2020, Ianathars Ratgeber © 2018, Abenteurerhandbuch Schwertküste
+© 2018) — belegt über Copyright, durchgehendes „Volk" statt „Spezies" und fehlende
+2024-Marker. Sie sind als `edition = "2014"` importiert (3064 Einträge, eigene Kürzel
+`phb-2014-de`/`xgte-2014-de`/`scag-2014-de`, niedrigste Priorität) und erfüllen M1
+**nicht** — dafür fehlt weiter das deutsche PHB **2024**. Nutzen: deutsche Begriffe
+und Altregel-Auskünfte mit ⚠️-Kennzeichnung (V4/B5).
 **Gate:** dt. Kernbegriffe/Optionen (z. B. Aasimar) kommen **deutsch** aus dem Bestand;
 die deutsche Quelle rankt vor DDB-Englisch.
 
