@@ -63,6 +63,7 @@ def cmd_import(args) -> None:
     if kuerzel == "glossar":
         from importer.import_glossar import (KERNBEGRIFFE_EN, kanonisiere_konflikte,
                                              kanonisiere_schreibvarianten,
+                                             repariere_2014_namen,
                                              repariere_srd_de_namen, seed_abkuerzungen,
                                              seed_aktionen,
                                              seed_gegenstands_bruecke_aus_bestand,
@@ -84,6 +85,8 @@ def cmd_import(args) -> None:
         ak = seed_aktionen(c)          # 2024-Aktionsnamen (srd-de-verifiziert, Homonym-gestoppt)
         b = seed_glossar_aus_bestand(c)
         bd = seed_glossar_de_aus_bestand(c)        # Rueckwaerts: dt. Namen ohne EN-Gegenstueck
+        r14 = repariere_2014_namen(c)              # zerrissene 2014-Scan-Namen (belegt)
+        bd += seed_glossar_de_aus_bestand(c)       # reparierte Namen jetzt abfragbar
         mb = seed_monster_bruecke_aus_bestand(c)   # Struktur-Abgleich dt./engl. Monster (Dedup)
         kw = seed_kernwortschatz_aus_bestand(c)    # Fertigkeiten/Groessen/Typen (nach der Monster-Bruecke!)
         km = seed_klassenmerkmale_aus_bestand(c)   # 2024-Klassenmerkmale srd-de<->ddb-br (nach Klassennamen-Seeding!)
@@ -93,7 +96,7 @@ def cmd_import(args) -> None:
         sv = kanonisiere_schreibvarianten(c)   # ß/ss- + Gross-/Klein-Schreibvarianten vereinheitlichen
         print(f"Glossar: {rn} srd-Namen repariert, {n} Kern-Zeilen, {a} Abkuerzungen, "
               f"{p} SRD-Paare, {k} Kern-Singulare, {ak} Aktionen, {b} Zeilen aus Bestandsnamen, "
-              f"{bd} Zeilen aus deutschen Namen, "
+              f"{bd} Zeilen aus deutschen Namen, {r14} Namen repariert, "
               f"{mb} Monster-Bruecken, {kw} Kernwortschatz-Paare, {km} Klassenmerkmal-Paare, "
               f"{gg} Gegenstands-Bruecken, {zb} Zauber-Bruecken, "
               f"{d} Konflikte kanonisiert, "
