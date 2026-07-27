@@ -171,7 +171,36 @@ KERN_SINGULAR_PAARE: list[tuple[str, str, str | None]] = [
     ("Bludgeoning", "Wucht", "2024"),
     ("Piercing", "Stich", "2024"),
     ("Slashing", "Hieb", "2024"),
+    # Zwei Dubletten, die der dt. SRD 2024 eindeutig entscheidet (Auszaehlung 27.07.2026 im
+    # srd-de-Fliesstext) - keine Setzung, sondern Ableitung aus der massgeblichen Quelle.
+    # Die jeweils andere Form kommt dort KEIN EINZIGES Mal vor und wird von
+    # kanonisiere_konflikte zur Suchvariante demotet (bleibt auffindbar, konkurriert nicht).
+    ("Tree Stride", "Baumwandeln", "2024"),                   # srd-de-Zaubername; 'Hölzerner Weg' 0x
+    ("Sunlight Sensitivity", "Empfindlich gegenüber Sonnenlicht", "2024"),  # 5x; 'Empfindlichkeit…' 0x
 ]
+
+# Geprüfte Homonyme (27.07.2026): EIN englischer Begriff mit ZWEI korrekten deutschen
+# Entsprechungen, je nach Kontext. Sie aufzuloesen waere ein Fehler - streicht man bei 'Hide'
+# das 'Fell', findet niemand mehr die Fellruestung; streicht man 'Verstecken', bricht die
+# Aktion weg. Ohne diese Liste stand das Konflikt-Gate dauerhaft rot, und eine Kennzahl, die
+# nie 0 wird, liest man irgendwann nicht mehr - dann faellt ein ECHTER neuer Konflikt nicht auf.
+#
+# Die erwarteten Formen stehen bewusst mit dabei: die Liste gilt nur, wenn genau sie vorliegen.
+# Taucht spaeter eine dritte Form auf, ist der Fall NICHT mehr geklaert und erscheint wieder
+# als echter Konflikt. Die Liste ist ein Beleg, kein Deckel.
+GEPRUEFTE_HOMONYME: dict[str, tuple[frozenset[str], str]] = {
+    "hide": (frozenset({"Fell", "Verstecken"}),
+             "Fell = Material/Rüstung, Verstecken = Aktion (beide srd-de 2024 belegt)"),
+    "divination": (frozenset({"Erkenntnismagie", "Weissagung"}),
+                   "Erkenntnismagie = Zauberschule (Schulen-Tabelle), Weissagung = der Zauber"),
+    "lucky": (frozenset({"Glückspilz", "Halblingsglück"}),
+              "Glückspilz = Talent, Halblingsglück = Halbling-Speziesmerkmal"),
+    "armor": (frozenset({"Rüstung", "Magische Rüstung"}),
+              "Rüstung = Ausrüstungskategorie, Magische Rüstung = Unterkategorie"),
+    "weapon mastery": (frozenset({"Waffenbeherrschung", "Waffenmeisterschaft"}),
+                       "srd-de sagt Waffenbeherrschung, das gedruckte dt. PHB 2024 "
+                       "Waffenmeisterschaft - bewusst beide (siehe KERN_SINGULAR_PAARE)"),
+}
 
 
 def seed_kern_singulare(con: sqlite3.Connection) -> int:

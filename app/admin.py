@@ -473,9 +473,9 @@ def cmd_manifest(_args) -> None:
         c.close()
 
 
-def _teile_konflikte(c: sqlite3.Connection) -> tuple[list[dict], list[dict]]:
-    """Mehrere OFFIZIELLE deutsche Formen zu einem englischen Begriff in zwei Klassen
-    trennen: (echte Konflikte, durch S8 geregelte).
+def _teile_konflikte(c: sqlite3.Connection) -> tuple[list[dict], list[dict], list[dict]]:
+    """Mehrere OFFIZIELLE deutsche Formen zu einem englischen Begriff in drei Klassen
+    trennen: (echte Konflikte, durch S8 geregelte, gepruefte Homonyme).
 
     Nicht jede Mehrdeutigkeit ist ein Risiko. Konkurrieren eine 2014- und eine
     2024-Fassung ('Pouch': Tasche/2014 aus dem Spielerhandbuch vs. Beutel/2024 aus dem
@@ -486,9 +486,17 @@ def _teile_konflikte(c: sqlite3.Connection) -> tuple[list[dict], list[dict]]:
     neue Fall korrekt aufgeloest wurde.
 
     ECHT ist ein Konflikt, wenn die Auswahl NICHT eindeutig ist - mehrere Formen mit
-    derselben neuesten Edition oder ohne belegte Edition. Das sind die Faelle, die
-    wirklich Handarbeit brauchen (Homonyme wie Hide -> Fell/Verstecken)."""
+    derselben neuesten Edition oder ohne belegte Edition.
+
+    Davon abgezogen sind die GEPRUEFTEN HOMONYME (import_glossar.GEPRUEFTE_HOMONYME): dort
+    sind beide deutschen Formen korrekt und kontextabhaengig (Hide -> Fell/Verstecken), eine
+    'Aufloesung' waere ein Datenverlust. Sie zaehlten frueher als echte Konflikte und hielten
+    das Gate dauerhaft rot - eine Kennzahl, die nie 0 wird, verliert ihren Warnwert. Der Abzug
+    gilt NUR bei exakt den hinterlegten Formen: kommt eine dritte hinzu, ist der Fall wieder
+    echt (die Liste belegt einen geprueften Stand, sie deckelt nicht)."""
     from collections import defaultdict
+
+    from importer.import_glossar import GEPRUEFTE_HOMONYME
 
     gruppen: dict[str, list[sqlite3.Row]] = defaultdict(list)
     for r in c.execute("SELECT term_en, term_de, edition_quelle FROM glossar "
@@ -497,9 +505,15 @@ def _teile_konflikte(c: sqlite3.Connection) -> tuple[list[dict], list[dict]]:
 
     echt: list[dict] = []
     geregelt: list[dict] = []
+    homonyme: list[dict] = []
     for zeilen in gruppen.values():
         formen = {z["term_de"] for z in zeilen}
         if len(formen) < 2:
+            continue
+        geprueft = GEPRUEFTE_HOMONYME.get(zeilen[0]["term_en"].lower())
+        if geprueft and formen == set(geprueft[0]):
+            homonyme.append(dict(kandidat=zeilen[0]["term_en"],
+                                 deutsche=",".join(sorted(formen)), grund=geprueft[1]))
             continue
         editionen = [int(z["edition_quelle"]) for z in zeilen
                      if str(z["edition_quelle"] or "").isdigit()]
@@ -520,7 +534,8 @@ def _teile_konflikte(c: sqlite3.Connection) -> tuple[list[dict], list[dict]]:
             echt.append(eintrag)
     echt.sort(key=lambda e: (-e["anzahl"], e["kandidat"]))
     geregelt.sort(key=lambda e: e["kandidat"])
-    return echt, geregelt
+    homonyme.sort(key=lambda e: e["kandidat"])
+    return echt, geregelt, homonyme
 
 
 def cmd_glossar_audit(args) -> None:
@@ -559,10 +574,11 @@ def cmd_glossar_audit(args) -> None:
                GROUP BY e.kategorie""")}
         # Abkuerzungs-Zeilen (quelle='abkuerzung', z. B. Armor Class->RK) sind BEABSICHTIGT,
         # kein Konflikt - ausschliessen, damit nur echte Term-Konflikte fuer die Review bleiben.
-        konflikte, editionsgeregelt = _teile_konflikte(c)
+        konflikte, editionsgeregelt, homonyme = _teile_konflikte(c)
 
         bericht = {"kategorien": [], "konflikte": konflikte,
-                   "konflikte_editionsgeregelt": editionsgeregelt}
+                   "konflikte_editionsgeregelt": editionsgeregelt,
+                   "homonyme_geprueft": homonyme}
         for kat in _db.KATEGORIEN:
             d = deckung.get(kat, {})
             eintrag = {"kategorie": kat, "de": de_je.get(kat, 0),
@@ -617,6 +633,11 @@ def cmd_glossar_audit(args) -> None:
             for k in editionsgeregelt[:5]:
                 print(f"     {k['kandidat']} -> {k['gewinner']} ({k['edition']}) "
                       f"statt {', '.join(k['unterlegen'])}")
+        if homonyme:
+            print(f"\n  ℹ️ {len(homonyme)} gepruefte(s) Homonym(e) - BEIDE Formen sind "
+                  f"richtig, eine Aufloesung waere Datenverlust:")
+            for k in homonyme:
+                print(f"     {k['kandidat']} -> {k['deutsche']}  ({k['grund']})")
     finally:
         c.close()
 
