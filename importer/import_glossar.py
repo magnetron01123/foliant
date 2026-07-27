@@ -293,6 +293,43 @@ def seed_glossar_aus_bestand(con: sqlite3.Connection) -> int:
     return seed_glossar(con, namen)
 
 
+def seed_glossar_de_aus_bestand(con: sqlite3.Connection) -> int:
+    """RUECKWAERTS-Seeding: deutsche Eintragsnamen OHNE englisches Gegenstueck bei
+    dnddeutsch abfragen.
+
+    Das Vollseeding (seed_glossar_aus_bestand) fragt mit ENGLISCHEN Namen - fuer die
+    deutschen 2014-Baende gibt es aber keine englische Ausgabe im Bestand, ihre Begriffe
+    blieben deshalb ohne Bruecke (47 Zaubernamen allein aus Xanathar). Die API loest
+    auch deutsche Begriffe auf (verifiziert 27.07.2026: Chaospfeil -> Chaos Bolt,
+    Donnerschritt -> Thunder Step, Seelenkaefig -> Soul Cage) - genau dieser Weg
+    erschliesst sie.
+
+    Abgefragt werden nur PLAUSIBLE Fachbegriffe ohne bestehendes exaktes Gegenstueck:
+    Kapitelkoepfe und Fliesstext-Fragmente wuerden nur die Drossel belasten (die API
+    antwortet dort schlicht leer - harmlos, aber gecacht kostet es trotzdem Zeit)."""
+    from app import glossar as _glossar
+
+    kandidaten = []
+    for (name,) in con.execute(
+            "SELECT DISTINCT name_de FROM eintraege WHERE sprache='de' "
+            "AND name_de IS NOT NULL ORDER BY name_de"):
+        sauber = (name or "").strip()
+        # Fachbegriffe sind kurz und wortartig; alles andere ist Kapitel-/Layout-Rest.
+        if not (2 <= len(sauber.split()) <= 4 or (sauber and len(sauber.split()) == 1)):
+            continue
+        if len(sauber) < 4 or len(sauber) > 48 or any(c.isdigit() for c in sauber):
+            continue
+        if not _name_sauber(sauber):
+            continue
+        if any(z["match"] == "exakt"
+               for z in _glossar.lookup(con, sauber, richtung="de_en")):
+            continue                       # Bruecke existiert bereits
+        kandidaten.append(sauber)
+    print(f"Rueckwaerts-Seeding: {len(kandidaten)} deutsche Begriffe ohne Gegenstueck "
+          f"(Drossel {_PAUSE_S}s; Cache macht Re-Runs offline).", file=sys.stderr)
+    return seed_glossar(con, kandidaten)
+
+
 # Kurze Fuellwoerter, die in einem sauberen Monsternamen vorkommen duerfen; alles andere
 # <=2 Zeichen ist ein PDF-Zerlege-Artefakt ('Gar l gy', 'Atterko pp', 'Har ie py').
 _NAME_WL = {"der", "die", "das", "des", "dem", "den", "im", "am", "zu", "zum", "zur",
@@ -555,6 +592,32 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
         n += 1
     for zeile in report:
         print(f"  gegenstaende: {zeile}", file=sys.stderr)
+    con.commit()
+    _glossar._GLOSSAR_CACHE.clear()
+    return n
+
+
+def seed_zauber_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
+    """Zauber-Paare ueber den Zauberkopf (Modul importer/srd_zauberbruecken) als
+    OFFIZIELLE Bruecke - editionsuebergreifend (S7: der alte offizielle Begriff gilt
+    ohne '*', S8: der neuere gewinnt). Schliesst die Luecke, die mit den deutschen
+    2014-Baenden entstand: ~290 deutsche Zaubernamen ohne Glossar-Gegenstueck.
+    Selbst-bereinigend; nur beidseitig eindeutige Abdruecke, Widersprueche zu belegten
+    Zeilen werden verworfen und gemeldet."""
+    from app import glossar as _glossar
+    from importer.srd_zauberbruecken import QUELLE, finde_zauber_paare
+
+    con.execute("DELETE FROM glossar WHERE quelle LIKE ?", (QUELLE + "%",))
+    _glossar._GLOSSAR_CACHE.clear()   # geloeschte Alt-Zeilen nicht als 'belegt' zaehlen
+    paare, report = finde_zauber_paare(con)
+    n = 0
+    for term_en, term_de, _beweis in paare:
+        # edition_quelle bewusst OFFEN (None): der Abdruck belegt die Begriffsgleichheit,
+        # nicht aus welcher Regelfassung der deutsche Name stammt - und geraten wird nichts.
+        _upsert(con, term_en, term_de, 1, QUELLE, None, None)
+        n += 1
+    for zeile in report:
+        print(f"  zauber: {zeile}", file=sys.stderr)
     con.commit()
     _glossar._GLOSSAR_CACHE.clear()
     return n

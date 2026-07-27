@@ -67,7 +67,9 @@ def cmd_import(args) -> None:
                                              seed_aktionen,
                                              seed_gegenstands_bruecke_aus_bestand,
                                              seed_glossar,
-                                             seed_glossar_aus_bestand, seed_kern_singulare,
+                                             seed_glossar_aus_bestand,
+                                             seed_glossar_de_aus_bestand,
+                                             seed_kern_singulare,
                                              seed_kernwortschatz_aus_bestand,
                                              seed_klassenmerkmale_aus_bestand,
                                              seed_monster_bruecke_aus_bestand, seed_srd_paare)
@@ -79,16 +81,20 @@ def cmd_import(args) -> None:
         k = seed_kern_singulare(c)
         ak = seed_aktionen(c)          # 2024-Aktionsnamen (srd-de-verifiziert, Homonym-gestoppt)
         b = seed_glossar_aus_bestand(c)
+        bd = seed_glossar_de_aus_bestand(c)        # Rueckwaerts: dt. Namen ohne EN-Gegenstueck
         mb = seed_monster_bruecke_aus_bestand(c)   # Struktur-Abgleich dt./engl. Monster (Dedup)
         kw = seed_kernwortschatz_aus_bestand(c)    # Fertigkeiten/Groessen/Typen (nach der Monster-Bruecke!)
         km = seed_klassenmerkmale_aus_bestand(c)   # 2024-Klassenmerkmale srd-de<->ddb-br (nach Klassennamen-Seeding!)
         gg = seed_gegenstands_bruecke_aus_bestand(c)   # Preis-Bucket-Abgleich srd-de<->Open5e (vor den Kanonisierern!)
+        zb = seed_zauber_bruecke_aus_bestand(c)        # Zauberkopf-Abgleich DE<->EN, editionsuebergreifend
         d = kanonisiere_konflikte(c)   # kuratierte Fassung schlaegt konkurrierende (Deutsch-Qualitaet)
         sv = kanonisiere_schreibvarianten(c)   # ß/ss- + Gross-/Klein-Schreibvarianten vereinheitlichen
         print(f"Glossar: {rn} srd-Namen repariert, {n} Kern-Zeilen, {a} Abkuerzungen, "
               f"{p} SRD-Paare, {k} Kern-Singulare, {ak} Aktionen, {b} Zeilen aus Bestandsnamen, "
+              f"{bd} Zeilen aus deutschen Namen, "
               f"{mb} Monster-Bruecken, {kw} Kernwortschatz-Paare, {km} Klassenmerkmal-Paare, "
-              f"{gg} Gegenstands-Bruecken, {d} Konflikte kanonisiert, "
+              f"{gg} Gegenstands-Bruecken, {zb} Zauber-Bruecken, "
+              f"{d} Konflikte kanonisiert, "
               f"{sv} Schreibvarianten demotet.")
         c.close()
         return
@@ -592,6 +598,7 @@ def cmd_glossar_paare(args) -> None:
     from app import glossar as _glossar
     from importer.import_glossar import _finde_monster_paare
     from importer.srd_begriffsbruecken import finde_gegenstands_paare, seed_paar
+    from importer.srd_zauberbruecken import finde_zauber_paare
 
     c = _con(getattr(args, "db", None))
     try:
@@ -602,6 +609,7 @@ def cmd_glossar_paare(args) -> None:
                 if z["match"] == "exakt"}
 
         gegenstaende, report = finde_gegenstands_paare(c)
+        zauber, zauber_report = finde_zauber_paare(c)
         monster = [(en, de, "statschluessel") for en, de, _k in _finde_monster_paare(c)]
         bericht = {
             "gegenstaende": [
@@ -610,13 +618,16 @@ def cmd_glossar_paare(args) -> None:
                 for en, de, stufe in gegenstaende],
             "monster": [{"term_en": en, "term_de": de, "beweis": stufe,
                          "neu": _neu(en, de)} for en, de, stufe in monster],
-            "verworfen": report,
+            "zauber": [{"term_en": en, "term_de": de, "beweis": stufe,
+                        "neu": _neu(en, de)} for en, de, stufe in zauber],
+            "verworfen": report + zauber_report,
         }
         if getattr(args, "json", False):
             print(_json.dumps(bericht, ensure_ascii=False, indent=2))
             return
         for titel, zeilen in (("Gegenstands-Paare", bericht["gegenstaende"]),
-                              ("Monster-Paare", bericht["monster"])):
+                              ("Monster-Paare", bericht["monster"]),
+                              ("Zauber-Paare (Zauberkopf-Abgleich)", bericht["zauber"])):
             neue = [z for z in zeilen if z["neu"]]
             print(f"{titel}: {len(zeilen)} belegt, davon {len(neue)} NEU")
             for z in (neue if getattr(args, "nur_neue", False) else zeilen):
