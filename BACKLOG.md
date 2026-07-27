@@ -88,19 +88,21 @@ Aus einem Kandidaten wird ein Glossar-Paar über `admin glossar-paare --vorschau
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking
 und Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 
-**Offen — braucht Davids Entscheidung (12 echte Konflikte, Stand 27.07.2026):** Homonyme, bei
-denen zwei deutsche Formen derselben Edition um einen englischen Begriff konkurrieren. Sie
-sind kein Fehler, sondern echte Mehrdeutigkeit — die Auflösung ist eine Setzung, keine
-Ableitung, deshalb entscheidet sie der Eigentümer:
-`Armor` (Magische Rüstung/Rüstung) · `Divination` (Erkenntnismagie/Weissagung) · `Drown`
-(Ertränken/Ertränker) · `Hide` (Fell/Verstecken) · `Immolation` (Einäscherung/Selbstverbrennung) ·
-`Investigator` (Detektiv/Ermittler) · `Lucky` (Glückspilz/Halblingsglück) · `Mask of the Wild`
-(Deckmantel der Wildnis/des Waldes) · `Shoggoth` (Schoggothe/Shoggothe) · `Sunlight
-Sensitivity` (Empfindlich/Empfindlichkeit gegenüber Sonnenlicht) · `Tree Stride`
-(Baumwandeln/Hölzerner Weg) · `Weapon Mastery` (Waffenbeherrschung/Waffenmeisterschaft).
-Mehrere davon sind Kontext-Homonyme, bei denen **beide** Formen richtig sind (`Hide` = Fell
-beim Material, Verstecken bei der Fertigkeit) — die saubere Lösung wäre dort nicht eine
-Auswahl, sondern eine kategorieabhängige Zuordnung.
+**Die 12 „echten Konflikte" aufgearbeitet (27.07.2026).** Am dt. SRD 2024 nachgemessen (Auszählung
+im Fließtext) zerfielen sie in drei Klassen — nur zwei waren überhaupt Dubletten:
+
+| Klasse | Fälle | Behandlung |
+|---|---|---|
+| **Vom SRD entschieden** | `Tree Stride` (Baumwandeln, Gegenform 0×) · `Sunlight Sensitivity` (Empfindlich…, Gegenform 0×) | in `KERN_SINGULAR_PAARE` aufgenommen → `kanonisiere_konflikte` demotet die Dublette zur Suchvariante. **Ableitung, keine Setzung** |
+| **Geprüfte Homonyme** | `Hide` (Fell/Verstecken) · `Divination` (Erkenntnismagie=Schule/Weissagung=Zauber) · `Lucky` (Talent/Halbling-Merkmal) · `Armor` (Ober-/Unterkategorie) · `Weapon Mastery` (srd-de/gedrucktes PHB) | **beide Formen richtig** — eine Auflösung wäre Datenverlust. Stehen in `GEPRUEFTE_HOMONYME`, das Audit weist sie getrennt aus |
+| **Randfälle ohne Bestandsbezug** | `Drown` · `Immolation` · `Investigator` · `Shoggoth` · `Mask of the Wild` | aus Abenteuer-/Drittanbieterbänden oder 2014-Merkmalen, die es 2024 nicht mehr gibt — keine Wirkung auf Auskünfte, bewusst unangetastet |
+
+**Warum das mehr ist als Kosmetik:** Das Gate stand dauerhaft auf „12", ohne je 0 werden zu
+können. Eine Kennzahl, die immer rot ist, hört man auf zu lesen — und dann fällt ein *echter*
+neuer Konflikt beim nächsten Import nicht mehr auf. `GEPRUEFTE_HOMONYME` führt die erwarteten
+Formen deshalb explizit mit: taucht eine **dritte** auf, gilt der Fall wieder als ungeprüft und
+erscheint als echter Konflikt. Die Liste ist ein Beleg, kein Deckel — abgesichert durch einen
+eigenen Test.
 
 ### M6 — Discord-Bot · *neu 26.07.2026*
 Foliant in Discord (`app/discord_bot/`): `/regel` + @Mention, Antworten öffnen Threads mit

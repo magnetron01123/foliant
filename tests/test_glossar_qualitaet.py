@@ -90,7 +90,10 @@ def test_konflikt_klassen_trennen_edition_von_echtem_risiko(con):
         [# editionsgetrennt -> geregelt (der 2024-Begriff des dt. SRD gewinnt)
          ("Pouch", "Tasche", 1, "Spielerhandbuch", "2014"),
          ("Pouch", "Beutel", 1, "SRD 5.2.1 (Strukturabgleich Gegenstaende)", "2024"),
-         # gleiche Edition -> ECHTER Konflikt (Homonym-Muster)
+         # gleiche Edition, NICHT als Homonym belegt -> ECHTER Konflikt
+         ("Shoggoth", "Schoggothe", 1, "Cthulhu Mythos", "2024"),
+         ("Shoggoth", "Shoggothe", 1, "Buch der Bestien", "2024"),
+         # gleiche Edition, ABER geprueftes Homonym -> weder echt noch geregelt
          ("Hide", "Fell", 1, "Spielerhandbuch 2024", "2024"),
          ("Hide", "Verstecken", 1, "SRD 5.2.1", "2024"),
          # ohne belegte Edition -> ECHTER Konflikt (nichts entscheidet)
@@ -103,9 +106,48 @@ def test_konflikt_klassen_trennen_edition_von_echtem_risiko(con):
          ("Armor Class", "Ruestungsklasse", 1, "SRD 5.2.1", "2024")])
     con.commit()
 
-    echt, geregelt = _teile_konflikte(con)
-    assert {e["kandidat"] for e in echt} == {"Hide", "Scout"}
+    echt, geregelt, homonyme = _teile_konflikte(con)
+    assert {e["kandidat"] for e in echt} == {"Shoggoth", "Scout"}
     assert [g["kandidat"] for g in geregelt] == ["Pouch"]
     assert geregelt[0]["gewinner"] == "Beutel" and geregelt[0]["edition"] == "2024"
+    assert [h["kandidat"] for h in homonyme] == ["Hide"]
+    assert "Fell" in homonyme[0]["grund"]          # Begruendung wird mitgeliefert
     # Und die Anzeige bestaetigt, dass 'geregelt' wirklich geregelt ist (S8):
     assert gl.term_de(con, "Pouch") == ("Beutel", True)
+
+
+def test_dritte_form_hebt_die_homonym_klaerung_auf(con):
+    """Die Homonym-Liste ist ein BELEG, kein Deckel: sie gilt nur fuer exakt die geprueften
+    Formen. Taucht eine dritte auf, ist der Fall ungeprueft und muss wieder als echter
+    Konflikt erscheinen - sonst versteckt die Liste kuenftige Fehler."""
+    from app.admin import _teile_konflikte
+
+    con.executemany(
+        "INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle) "
+        "VALUES (?,?,?,?,?)",
+        [("Hide", "Fell", 1, "Spielerhandbuch 2024", "2024"),
+         ("Hide", "Verstecken", 1, "SRD 5.2.1", "2024"),
+         ("Hide", "Haut", 1, "Irgendein Drittanbieter", "2024")])
+    con.commit()
+
+    echt, _geregelt, homonyme = _teile_konflikte(con)
+    assert [h["kandidat"] for h in homonyme] == [], "dritte Form darf nicht als geprueft gelten"
+    assert {e["kandidat"] for e in echt} == {"Hide"}
+
+
+def test_geprueftes_homonym_bleibt_von_kanonisierung_unberuehrt(con):
+    """Gegenprobe zur Aufloesung: kanonisiere_konflikte darf ein Homonym NICHT demoten -
+    beide Formen sind offiziell und muessen es bleiben."""
+    con.executemany(
+        "INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle) "
+        "VALUES (?,?,?,?,?)",
+        [("Hide", "Fell", 1, "Spielerhandbuch 2024", "2024"),
+         ("Hide", "Verstecken", 1, "SRD 5.2.1", "2024")])
+    con.commit()
+
+    from importer.import_glossar import kanonisiere_konflikte
+
+    kanonisiere_konflikte(con)
+    offizielle = {r[0] for r in con.execute(
+        "SELECT term_de FROM glossar WHERE lower(term_en)='hide' AND offiziell=1")}
+    assert offizielle == {"Fell", "Verstecken"}
