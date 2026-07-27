@@ -456,6 +456,102 @@ def repariere_srd_de_namen(con: sqlite3.Connection) -> int:
     return n
 
 
+# Typische OCR-Schaeden in den 2014-Scans, die den Namen VERGLEICHBAR machen, ohne ihn
+# zu raten: zerrissene Komposita ('SEELEN KÄFIG'), verdoppelte Woerter ('FERN SCHRITT
+# SCHRITT', 'INVESTITUR DES DES GESTEIN S' - der Scanner las eine Zeilenumbruch-Silbe
+# doppelt) und angehaengte Satzzeichen ('OTTOS UNWIDERSTEHLICHER TANZ.').
+def _namensvarianten(name: str) -> list[str]:
+    """Vergleichsformen eines moeglicherweise zerrissenen Namens - KEINE Korrektur:
+    welche Variante gilt, entscheidet erst der Beleg (Glossar oder dnddeutsch)."""
+    roh = re.sub(r"[.,;:]+$", "", (name or "").strip())
+    varianten = [roh]
+    ohne_dopplung = re.sub(r"\b(\w+)(\s+\1)+\b", r"\1", roh, flags=re.I)
+    if ohne_dopplung != roh:
+        varianten.append(ohne_dopplung)
+    for v in list(varianten):
+        # Einzelne verirrte Endbuchstaben anhaengen ('GESTEIN S' -> 'GESTEINS')
+        geklebt = re.sub(r"\b(\w{3,})\s+(\w)\b", r"\1\2", v)
+        if geklebt != v:
+            varianten.append(geklebt)
+    return varianten
+
+
+def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
+    """Zerrissene Eintragsnamen der deutschen 2014-Scans reparieren - BELEGT, nie geraten.
+
+    Zwei Belegquellen, in dieser Reihenfolge:
+      1. das Glossar selbst (3000+ kuratierte deutsche Begriffe),
+      2. dnddeutsch (die Autoritaet fuer deutsche Begriffe) - nur wenn die Antwort die
+         Variante EXAKT bestaetigt.
+    Ein Treffer muss eindeutig sein und `_name_sauber` bestehen; sonst bleibt der Name
+    unberuehrt. Damit werden Namen wie 'SEELEN KÄFIG' zu 'Seelenkäfig' - und erst dadurch
+    per Suche und Uebersetzung auffindbar (Befund 27.07.2026: 27 deutsche Zauber ohne
+    Gegenstueck, die Mehrzahl davon nur wegen des zerrissenen Namens)."""
+    from app import glossar as _glossar
+    from app import db as _db
+
+    def vergleichsform(s: str) -> str:
+        """Normalisiert UND entspacet - genau der Schaden, um den es geht: 'SEELEN KÄFIG'
+        und 'Seelenkäfig' muessen dieselbe Form ergeben, sonst findet der Abgleich nie
+        etwas (norm_begriff allein laesst Leerzeichen stehen)."""
+        return re.sub(r"[\s-]+", "", _glossar.norm_begriff(s))
+
+    referenz = {}
+    for z in _glossar._alle_zeilen(con):
+        if z["term_de"]:
+            referenz.setdefault(vergleichsform(z["term_de"]), z["term_de"])
+
+    namen = [r[0] for r in con.execute(
+        "SELECT DISTINCT e.name_de FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+        "WHERE q.kuerzel LIKE '%2014-de' AND e.name_de IS NOT NULL")]
+    offen: list[tuple[str, list[str]]] = []
+    korrekturen: dict[str, str] = {}
+    for name in namen:
+        if _name_sauber(name) and _glossar.norm_begriff(name) in {
+                _glossar.norm_begriff(w) for w in referenz.values()}:
+            continue                                   # bereits exakt die belegte Form
+        varianten = _namensvarianten(name)
+        ziel = next((referenz[vergleichsform(v)] for v in varianten
+                     if vergleichsform(v) in referenz), None)
+        if ziel and _name_sauber(ziel) and ziel != name:
+            korrekturen[name] = ziel
+        elif len(varianten) > 1 or " " in name.strip():
+            offen.append((name, varianten))
+
+    if mit_netz and offen:
+        import httpx
+        with httpx.Client(timeout=20.0, headers={"User-Agent": "Foliant (Namensreparatur)"}) as client:
+            for name, varianten in offen:
+                for variante in varianten:
+                    entspacet = re.sub(r"\s+", "", variante)
+                    if len(entspacet) < 5:
+                        continue
+                    try:
+                        daten = _hole_api(client, entspacet)
+                    except Exception:
+                        continue
+                    zeilen = dnddeutsch.zeilen_aus_antwort(daten) or []
+                    passend = {z.term_de for z in zeilen
+                               if _glossar.norm_begriff(z.term_de) == _glossar.norm_begriff(entspacet)}
+                    if len(passend) == 1:
+                        ziel = next(iter(passend))
+                        if _name_sauber(ziel):
+                            korrekturen[name] = ziel
+                            dnddeutsch.schreibe_zeilen(con, zeilen)
+                        break
+
+    n = 0
+    for falsch, richtig in korrekturen.items():
+        n += con.execute("UPDATE eintraege SET name_de = ? WHERE name_de = ?",
+                         (richtig, falsch)).rowcount
+        print(f"  name-2014: {falsch!r} -> {richtig!r}", file=sys.stderr)
+    con.commit()
+    if n:
+        _db.fts_rebuild(con)
+        _glossar._GLOSSAR_CACHE.clear()
+    return n
+
+
 def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
     """Regelbasiert & QUELLENGETRIEBEN (keine Einzelentscheidung des Admins, keine kuratierte
     Wortliste): hat EIN englischer Begriff mehrere OFFIZIELLE deutsche Formen, die dieselbe
