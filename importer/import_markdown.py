@@ -64,6 +64,15 @@ _HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 # '**_Riesische Abstammung:_** Du stammst von'). re.match ankert am Anfang; Doppelpunkte
 # mitten im Fettblock ('**Schritt 1: Klasse auswählen**') matchen NICHT.
 _LABEL_HEADING = re.compile(r"\*\*_?[^*\n]*?:_?\*\*")
+# Dasselbe Symptom OHNE Fettschrift: die 2014-Scans setzen den Zauberkopf als blanke
+# Ueberschrift ('###### Zeitaufwand: 1 Aktion'), weshalb _LABEL_HEADING nicht greift und
+# die Metazeile zum Eintragsnamen wurde (46 Faelle in phb-2014-de, 27.07.2026). Bewusst
+# eng auf die Zauberkopf-Schluesselwoerter begrenzt statt auf 'Wort:' allgemein - sonst
+# verloeren echte Ueberschriften wie 'KAPITEL 3: KLASSEN' ihren Eintragsstatus. Am
+# Bestand geprueft: kein Eintrag ausserhalb der 2014-Scans traegt so einen Namen.
+KOPF_HEADING = re.compile(
+    r"^(?:Zeitaufwand|Reichweite|Komponenten|Wirkungsdauer"
+    r"|Casting Time|Range|Components|Duration)\s*:", re.IGNORECASE)
 _SEITE = re.compile(r"<!--\s*seite:(\S+)\s*-->")
 _FRAGMENT = re.compile(
     r"\s*\*{0,2}(?:<(?:u|mark)>)+([a-zäöüß](?: [a-zäöüß])*)(?:</(?:u|mark)>)+\*{0,2}")
@@ -480,7 +489,8 @@ def _chunks(markdown: str, kategorie_standard: str = "regel",
         ist_kursiv = roh_name.startswith("_") and not roh_name.strip("_*").startswith("**")
         # Label-Pseudo-Headings ('### **Reichweite:** 9 Meter') sind Fortsetzungszeilen
         # des laufenden Eintrags -> Heading-Praefix ab, Zeile in den Body (Modul-Doku).
-        if m and not ist_kursiv and _LABEL_HEADING.match(roh_name):
+        if m and not ist_kursiv and (_LABEL_HEADING.match(roh_name)
+                                     or KOPF_HEADING.match(roh_name)):
             zeile = roh_name
             m = None
         if m and not ist_kursiv:

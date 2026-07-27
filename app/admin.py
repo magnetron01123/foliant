@@ -388,6 +388,34 @@ def cmd_check(_args) -> None:
                     "OR body_md LIKE '%&lt;%' OR body_md LIKE '%&nbsp;%'").fetchone()[0]
     print(f"Textqualitaet: {html} mit HTML-Resten, {ddb} mit ddb://-Links, "
           f"{ent} mit HTML-Entities" + ("  OK" if not (html or ddb or ent) else "  WARNUNG"))
+    # Namensqualitaet (Befund 27.07.2026): der Check sah bisher nur in die Bodys, nie auf die
+    # NAMEN - so standen 46 Eintraege namens 'Zeitaufwand: 1 Aktion' unbemerkt im Bestand
+    # (Chunking-Artefakt der 2014-Scans, siehe import_markdown.KOPF_HEADING). Gefunden wurden
+    # sie nur per Handabfrage; diese Pruefung macht daraus einen dauerhaften Waechter, der
+    # beim naechsten Buch-Import sofort anschlaegt. WARNUNG statt Fehler, weil die OCR-Risse
+    # der Scans bekannt und bewusst offen sind (BACKLOG §3) - sie duerfen das Gate nicht brechen.
+    import re as _re
+
+    from importer.import_markdown import KOPF_HEADING
+
+    _namen = [(r[0], r[1]) for r in c.execute(
+        "SELECT DISTINCT coalesce(e.name_de, e.name_en, ''), q.kuerzel "
+        "FROM eintraege e JOIN quellen q ON q.id = e.quelle_id")]
+    meta = sorted({(n, q) for n, q in _namen if KOPF_HEADING.match(n)})
+    # Einzelner Buchstabe als eigenes Wort ('D ORNENWAND', 'HEILE R') = OCR-Riss. A und I
+    # sind bewusst ausgenommen: als englische Woerter ('A BOX OF NEW TOOLS', 'AS A LEVEL 1
+    # CHARACTER') erzeugten sie 9 von 11 Fehlalarmen. Preis der Ausnahme: ein Riss, der
+    # genau auf A oder I faellt, entgeht dem Waechter - besser als eine Warnung, die man
+    # wegen Rauschens ignoriert. Die Zeichenklasse laesst A/I aus (B-H, dann J-Z).
+    risse = sorted({(n, q) for n, q in _namen
+                    if _re.search(r"(?:^|\s)[B-HJ-Zb-hj-zÄÖÜäöüß](?:\s|$)", n)})
+    print(f"Namensqualitaet: {len(meta)} Metadaten-Namen (Chunking-Artefakt), "
+          f"{len(risse)} mit Einzelbuchstaben-Fragment (OCR)"
+          + ("  OK" if not (meta or risse) else "  WARNUNG"))
+    for titel, funde in (("Chunking", meta), ("OCR", risse)):
+        if funde:
+            quellen_ = sorted({q for _, q in funde})
+            print(f"   {titel}: {[n for n, _ in funde[:3]]} ... aus {quellen_}")
     if n_e:
         beispiel = c.execute(
             "SELECT e.name_de, e.name_en, e.edition, q.titel FROM eintraege e "

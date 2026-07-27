@@ -87,6 +87,59 @@ def test_label_headings_zerreissen_keine_zauber():
     assert "Lichtstreif" in feuerball
 
 
+# Destillat der 2014-Scans: derselbe Riss wie oben, aber der Zauberkopf steht OHNE
+# Fettschrift - genau daran ging _LABEL_HEADING vorbei (Befund 27.07.2026). Der letzte
+# Abschnitt ist der Negativfall: eine ECHTE Ueberschrift, die einen Doppelpunkt enthaelt.
+_ZAUBER_2014_MD = """\
+# KAPITEL 10: ZAUBER
+
+###### FEUERBALL
+
+Hervorrufung des 3. Grades
+
+###### Zeitaufwand: 1 Aktion
+
+###### Reichweite: 45 m
+
+###### Komponenten: V, G, M (Fledermauskot)
+
+Ein heller Lichtstreif schießt auf einen Punkt.
+
+###### KAPITEL 3: KLASSEN
+
+Dieser Abschnitt ist eine echte Ueberschrift.
+"""
+
+
+def test_zauberkopf_ohne_fettschrift_wird_kein_eintragsname():
+    """Der 2014-Fall: '###### Zeitaufwand: 1 Aktion' ist eine Fortsetzungszeile. Wurde sie
+    als Eintrag genommen, verlor der Zauber seinen Namen UND seinen Text (46 Faelle im
+    phb-2014-de). Der zweite Teil sichert die enge Fassung des Musters ab: eine echte
+    Ueberschrift mit Doppelpunkt bleibt ein Eintrag."""
+    chunks = _chunks(_ZAUBER_2014_MD, split_regeln=SPLIT_REGELN["phb-2014-de"])
+    namen = [c["name"] for c in chunks]
+    assert namen == ["FEUERBALL", "KAPITEL 3: KLASSEN"], namen
+
+    feuerball = chunks[0]["body"]
+    for zeile in ("Zeitaufwand: 1 Aktion", "Reichweite: 45 m",
+                  "Komponenten: V, G, M (Fledermauskot)", "Lichtstreif"):
+        assert zeile in feuerball, f"{zeile!r} fehlt im Body"
+
+
+def test_kopf_heading_trifft_nur_zauberkopf_woerter():
+    """Negativabsicherung des Musters selbst: es darf NUR die Kopf-Schluesselwoerter
+    fassen. Ein 'Wort:'-Muster allgemein wuerde halbe Kapitel entwerten."""
+    from importer.import_markdown import KOPF_HEADING
+
+    for treffer in ("Zeitaufwand: 1 Aktion", "Reichweite: Berührung", "Range: Touch",
+                    "KOMPONENTEN: V, G", "Wirkungsdauer: unmittelbar", "Duration: 1 hour"):
+        assert KOPF_HEADING.match(treffer), treffer
+    for kein_treffer in ("KAPITEL 3: KLASSEN", "Schritt 1: Klasse auswählen",
+                         "Kämpfer-Unterklasse: Champion", "Feuerball",
+                         "Reichweitenwaffen", "Zeitaufwandsrechnung"):
+        assert not KOPF_HEADING.match(kein_treffer), kein_treffer
+
+
 def test_spezies_bleiben_ganz():
     """Elf/Goliath/Ork je EIN Eintrag; Tabellen-Kasten und Label-Risse im Body (MERGE)."""
     chunks = _chunks(_SPEZIES_MD, split_regeln=SPLIT_REGELN["srd-de"],

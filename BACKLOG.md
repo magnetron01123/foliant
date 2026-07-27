@@ -249,6 +249,12 @@ Werkzeug-Ausgaben als einzige Grundlage.
 Aus der abgeschlossenen Datenbank-QS und dem Tiefen-Audit der DDB-Druck-Bücher. Alles
 dokumentiert, nichts blockiert die Runde.
 
+Der 2014-Import hat dabei eine Lücke im QS-Netz offengelegt: `admin check` prüfte Struktur
+und **Body**-Textqualität, aber nie die **Namen** — deshalb standen 46 Einträge namens
+`Zeitaufwand: 1 Aktion` unbemerkt im Bestand, gefunden nur per Handabfrage. Seit 27.07.2026
+zählt der Check Metadaten-Namen und OCR-Risse mit, sodass der nächste Buch-Import (M1: dt.
+PHB 2024) sofort anschlägt statt erst bei einer Zufallsstichprobe.
+
 | Fund | Schwere | Warum offen gelassen |
 |---|---|---|
 | `Aasimar Traits` u. Ä. erscheinen als eigene **Such**treffer (die Detail-Auskunft ist vollständig) | niedrig | echter, suchbarer Inhalt; die Option rankt zuerst — Ausblenden verschlechterte die Suche |
@@ -256,8 +262,8 @@ dokumentiert, nichts blockiert die Runde.
 | 2014-Sub-Fragmente in DDB-Kategorien | niedrig | erreichen die strikt-2024-Listen nie; die Suche rankt echte Optionen zuerst |
 | ~30 kosmetische Inline-Kapitälchen-Reste, vereinzelte OCR-Garbles in den Druck-Büchern | niedrig | Inhalt korrekt; das Kreuz-Audit bestätigte Würfelwerte 65/65 und GP-Preise 86/87 |
 | Body-Dubletten (Kampfstile je Klasse) | keine | **kein Fehler** — legitime klassenspezifische Instanzen |
-| 46 Einträge in `phb-2014-de` tragen eine Zauberkopf-Zeile als Namen (`Zeitaufwand: 1 Aktion`, `Reichweite: 9 m`) | niedrig | Chunking-Artefakt der H6-Justage im Zauberkapitel. Inhalt bleibt über die Volltextsuche erreichbar; die Übersetzungs-Paarung ist **nachweislich** nicht betroffen (Glossar-Prüfung: 0 Zeilen mit Metadaten als Begriff — die Struktur-Schranken der Matcher haben gehalten) |
-| 51 OCR-zerrissene Überschriften in den 2014-Scans (`KIN DH EITSERIN N ERU NGEN`) | niedrig | **Kapitel-/Abschnittstitel, keine Regelbegriffe** — für sie existiert kein Wörterbuch-Beleg. `repariere_2014_namen` verlangt einen Beleg; ohne ihn wäre die Reparatur geraten (Regel 1). Die belegbaren 69 sind repariert |
+| 46 Einträge in `phb-2014-de` trugen eine Zauberkopf-Zeile als Namen (`Zeitaufwand: 1 Aktion`) | **behoben** | Ursache: `_LABEL_HEADING` erkannte nur **fett** gesetzte Label (`**Reichweite:** 9 m`); die 2014-Scans setzen den Zauberkopf als blanke H6-Überschrift. `KOPF_HEADING` schließt die Lücke — die Zeile wandert wieder in den Body des Zaubers. Wirkt nach Re-Import von `phb-2014-de`. Geprüft: ins Glossar war **nichts** davon gelangt (0 Zeilen mit Metadaten als Begriff) |
+| 51 OCR-zerrissene Überschriften in den 2014-Scans (`KIN DH EITSERIN N ERU NGEN`) | niedrig | **Kapitel-/Abschnittstitel, keine Regelbegriffe** — für sie existiert kein Wörterbuch-Beleg. `repariere_2014_namen` verlangt einen Beleg; ohne ihn wäre die Reparatur geraten (Regel 1). Die belegbaren 69 sind repariert; `admin check` zählt den Rest jetzt dauerhaft mit |
 | 24 Abschnitte des Zauberkapitels tragen `kategorie = "zauber"` (`Dauer`, `Effekte`, `Verbalkomponente (V)`) | niedrig | Der Breadcrumb (`*Kontext: Zauber > Zauber wirken*`) weist sie im Antworttext bereits als Regelabschnitt aus. Ein automatischer Korrektor über den Zauberkopf-Detektor wurde **gemessen und verworfen**: er stufte 134 statt 24 Einträge herab, hätte also echte Zauber verborgen — schlimmer als der Befund |
 
 ---

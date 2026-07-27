@@ -131,7 +131,7 @@ Nach jedem Import: **FTS `rebuild`** (macht der Importer selbst). Re-Import ist 
 | Quelle | Weg |
 |---|---|
 | **Born-digital-PDF** (dt. SRD) | `[[quelle]]`-Block in `config/foliant.toml` → `admin import --quelle <kuerzel>` |
-| **Scans MIT OCR-Textschicht** (dt. 2014-Bücher) | Triage meldet „DIGITAL“ — misst aber nur, OB Text da ist, nicht die Chunk-Struktur: `pymupdf4llm` vergibt Heading-Ebenen relativ zum Gesamtdokument, dort liegt der Inhalt komplett auf H6 → eigene `SPLIT_REGELN` mit Level 6 nötig (sonst 3 Riesen-Chunks je Buch, Befund 27.07.2026) |
+| **Scans MIT OCR-Textschicht** (dt. 2014-Bücher) | Triage meldet „DIGITAL“ — misst aber nur, OB Text da ist, nicht die Chunk-Struktur: `pymupdf4llm` vergibt Heading-Ebenen relativ zum Gesamtdokument, dort liegt der Inhalt komplett auf H6 → eigene `SPLIT_REGELN` mit Level 6 nötig (sonst 3 Riesen-Chunks je Buch, Befund 27.07.2026). **Folgefalle:** auf H6 landet dann auch der Zauberkopf; `_LABEL_HEADING` fing nur die **fette** Form (`**Reichweite:** 9 m`), die Scans setzen sie blank → `KOPF_HEADING` |
 | **Gescannte PDFs** | `admin pdf-triage` (Befund) → `admin ocr-pdf` (`--redo` bei Alt-OCR, `--voll` = Neuaufbau) → normale Pipeline |
 | **Browser-Druck-PDFs** (DDB-Ausdrucke) | reparierte Original-Schicht **oder** Voll-OCR, je nach Schaden; Konvertierung am Mac |
 | **DDB-Bücher** | kurzlebiger Exporter (Netz + Cobalt) → Artefakt → offline `admin ddb-import-all` |
