@@ -72,7 +72,9 @@ def cmd_import(args) -> None:
                                              seed_kern_singulare,
                                              seed_kernwortschatz_aus_bestand,
                                              seed_klassenmerkmale_aus_bestand,
-                                             seed_monster_bruecke_aus_bestand, seed_srd_paare)
+                                             seed_monster_bruecke_aus_bestand,
+                                             seed_srd_paare,
+                                             seed_zauber_bruecke_aus_bestand)
         c = _con(getattr(args, "db", None))
         rn = repariere_srd_de_namen(c)  # zuerst: aus der PDF zerlegte srd-de-Namen korrigieren
         n = seed_glossar(c, KERNBEGRIFFE_EN)
