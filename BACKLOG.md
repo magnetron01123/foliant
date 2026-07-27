@@ -53,6 +53,19 @@ Qualitätserwartung ehrlich: gut für Fließtext, Statblöcke/Tabellen brauchen 
 `phb-2014-de`/`xgte-2014-de`/`scag-2014-de`, niedrigste Priorität) und erfüllen M1
 **nicht** — dafür fehlt weiter das deutsche PHB **2024**. Nutzen: deutsche Begriffe
 und Altregel-Auskünfte mit ⚠️-Kennzeichnung (V4/B5).
+
+**Ertrag der 2014-Bücher (27.07.2026):** Das Glossar steht bei **3172 Zeilen** (davon 3036
+offiziell), gewachsen über belegte Struktur-Paarung statt Rateschluss: 228 Monster-Brücken,
+214 Klassenmerkmal-Paare, 98 Zauber-Brücken (Zauberkopf-Fingerabdruck), 6 Gegenstands-Brücken
+(Preisklassen). Vorgeschaltet lief die **Namensreparatur** der Scans: 69 zerrissene Namen
+wurden belegt zusammengeführt (`D ORNENWAND` → `Dornenwand`, `TREFFE RWÜRFEL` →
+`Trefferwürfel`) — erst dadurch sind sie überhaupt abfragbar, was das Rückwärts-Seeding aus
+deutschen Namen von 538 auf **1076 Zeilen** verdoppelte.
+**Zauber-Abdeckung vollständig:** Von den 369 deutschen 2024-Einträgen der Kategorie `zauber`
+tragen 345 eine Glossar-Brücke; die 24 ohne sind keine Zauber, sondern Abschnitte des
+Zauberkapitels (`Dauer`, `Effekte`, `Verbalkomponente (V)` — siehe §3). Damit ist die
+Übersetzungslücke bei den echten Zaubern geschlossen.
+
 **Gate:** dt. Kernbegriffe/Optionen (z. B. Aasimar) kommen **deutsch** aus dem Bestand;
 die deutsche Quelle rankt vor DDB-Englisch.
 
@@ -67,6 +80,20 @@ Aus einem Kandidaten wird ein Glossar-Paar über `admin glossar-paare --vorschau
 `admin glossar-audit` nicht zunehmen (editionsgetrennte Formen regelt S8 selbst).
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking
 und Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
+
+**Offen — braucht Davids Entscheidung (12 echte Konflikte, Stand 27.07.2026):** Homonyme, bei
+denen zwei deutsche Formen derselben Edition um einen englischen Begriff konkurrieren. Sie
+sind kein Fehler, sondern echte Mehrdeutigkeit — die Auflösung ist eine Setzung, keine
+Ableitung, deshalb entscheidet sie der Eigentümer:
+`Armor` (Magische Rüstung/Rüstung) · `Divination` (Erkenntnismagie/Weissagung) · `Drown`
+(Ertränken/Ertränker) · `Hide` (Fell/Verstecken) · `Immolation` (Einäscherung/Selbstverbrennung) ·
+`Investigator` (Detektiv/Ermittler) · `Lucky` (Glückspilz/Halblingsglück) · `Mask of the Wild`
+(Deckmantel der Wildnis/des Waldes) · `Shoggoth` (Schoggothe/Shoggothe) · `Sunlight
+Sensitivity` (Empfindlich/Empfindlichkeit gegenüber Sonnenlicht) · `Tree Stride`
+(Baumwandeln/Hölzerner Weg) · `Weapon Mastery` (Waffenbeherrschung/Waffenmeisterschaft).
+Mehrere davon sind Kontext-Homonyme, bei denen **beide** Formen richtig sind (`Hide` = Fell
+beim Material, Verstecken bei der Fertigkeit) — die saubere Lösung wäre dort nicht eine
+Auswahl, sondern eine kategorieabhängige Zuordnung.
 
 ### M6 — Discord-Bot · *neu 26.07.2026*
 Foliant in Discord (`app/discord_bot/`): `/regel` + @Mention, Antworten öffnen Threads mit
@@ -180,6 +207,10 @@ Bestandskorrektur nachziehen (M5).
 
 ### Lauf-Protokoll
 
+**27.07.2026 · Golden-Suite am Pi-Vollbestand · 16/16 bestanden** — Regressionsprüfung nach
+dem 2014-Import, der Namensreparatur und dem Glossar-Seeding. Konflikt-Gate unverändert bei
+12 echten Konflikten (M5), also keine Verschlechterung durch die 3172 Glossar-Zeilen.
+
 **26.07.2026 · `claude-sonnet-5` · Eval-Harness · Korpus: PI-VOLLBESTAND
 (9485 Einträge, `inhalts_hash 979c19723daf601e`)** — der maßgebliche Lauf.
 **Ergebnis: alle prüfbaren P0-Zeilen bestanden** (A1–A3, B1–B5, C1–C3), D2/D3/E2
@@ -225,6 +256,9 @@ dokumentiert, nichts blockiert die Runde.
 | 2014-Sub-Fragmente in DDB-Kategorien | niedrig | erreichen die strikt-2024-Listen nie; die Suche rankt echte Optionen zuerst |
 | ~30 kosmetische Inline-Kapitälchen-Reste, vereinzelte OCR-Garbles in den Druck-Büchern | niedrig | Inhalt korrekt; das Kreuz-Audit bestätigte Würfelwerte 65/65 und GP-Preise 86/87 |
 | Body-Dubletten (Kampfstile je Klasse) | keine | **kein Fehler** — legitime klassenspezifische Instanzen |
+| 46 Einträge in `phb-2014-de` tragen eine Zauberkopf-Zeile als Namen (`Zeitaufwand: 1 Aktion`, `Reichweite: 9 m`) | niedrig | Chunking-Artefakt der H6-Justage im Zauberkapitel. Inhalt bleibt über die Volltextsuche erreichbar; die Übersetzungs-Paarung ist **nachweislich** nicht betroffen (Glossar-Prüfung: 0 Zeilen mit Metadaten als Begriff — die Struktur-Schranken der Matcher haben gehalten) |
+| 51 OCR-zerrissene Überschriften in den 2014-Scans (`KIN DH EITSERIN N ERU NGEN`) | niedrig | **Kapitel-/Abschnittstitel, keine Regelbegriffe** — für sie existiert kein Wörterbuch-Beleg. `repariere_2014_namen` verlangt einen Beleg; ohne ihn wäre die Reparatur geraten (Regel 1). Die belegbaren 69 sind repariert |
+| 24 Abschnitte des Zauberkapitels tragen `kategorie = "zauber"` (`Dauer`, `Effekte`, `Verbalkomponente (V)`) | niedrig | Der Breadcrumb (`*Kontext: Zauber > Zauber wirken*`) weist sie im Antworttext bereits als Regelabschnitt aus. Ein automatischer Korrektor über den Zauberkopf-Detektor wurde **gemessen und verworfen**: er stufte 134 statt 24 Einträge herab, hätte also echte Zauber verborgen — schlimmer als der Befund |
 
 ---
 
