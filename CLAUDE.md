@@ -43,6 +43,9 @@ für Davids Claude-Projekt steht in `config/projektanweisung.md` (Wegweiser: `SP
   **`make test-golden-pi PI=pi@<host>`**.
 - **`rsync` aufs Pi nie mit `--delete` und nie mit `data/`** — die Mac-DB würde den vollen
   Bestand überschreiben, gitignorierte Privatmodule verschwänden.
+- **Facetten nie über einen Re-Import nachziehen**, sondern mit
+  `admin import --quelle facetten`. Ein Re-Import spielt die rohen OCR-Namen wieder ein und
+  macht die Namensreparatur der 2014-Scans zunichte.
 - **Davids Smarthome-Tunnel auf dem Pi NIE anfassen.**
 
 ## Arbeitsweise in diesem Repo

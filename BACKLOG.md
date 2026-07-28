@@ -1,11 +1,25 @@
 # Foliant — Backlog
 
-**Stand: 25.07.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 28.07.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
-**Kurz:** Der MVP-Funktionsumfang ist erfüllt. Offen sind vier Punkte, alle klein bis mittel —
-plus eine laufende Feedback-Schleife.
+**Kurz: Die Technik ist so weit. Was fehlt, ist die Runde.**
+Der fünfphasige Umbau aus dem Import-/Datenbank-Review ist vollständig umgesetzt und
+deployed (Chronik in §5), B9 ist auch unter Sessionlast belegt, und der erste Durchgang der
+Kurationsschleife lief gegen echte Nutzungsdaten.
+
+Von den verbliebenen Punkten hängen **fast alle an einer Entscheidung oder Handlung von
+David**, nicht an Code:
+
+| offen | wartet auf |
+|---|---|
+| **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — derzeit liegen Bestand *und* alle Sicherungen auf derselben SD-Karte |
+| **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
+| **M6** Discord-Bot | Token im Entwicklerportal, Erst-Test in der Guild |
+| **M2** Abnahme: A4 (Websuche), E1 (Injektion) | A4 nur im echten Chat prüfbar; E1-Fixture ist baubar |
+| **M1** dt. PHB 2024 | die PDFs |
+| **M5** Kurationsschleife | läuft — braucht aber echte Anfragen, um Signal zu liefern |
 
 ---
 
@@ -162,7 +176,7 @@ B1–B8, T1–T9/T11, O1–O3/O5, Q1–Q7).
 | V7 | Erweiterbares Versionsschema | 🟡 | `edition` ist ein Textfeld — reicht heute, feinere Granularität ohne Migration nachrüstbar |
 | NF4 | Legale Quellen; DDB nur privat | 🟡 | bewusste Entscheidung, siehe [SPEC.md](SPEC.md) §12.1 |
 | NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | ⬜ | M4 |
-| B9 | Schnell & verfügbar im Spielbetrieb | ✅ | **gemessen** am Pi-Vollbestand 28.07.2026 (§2 Lauf-Protokoll): Median 25–192 ms je Aufruf, Freitextsuche 83 ms — vorher bis 943 ms |
+| B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln 25–192 ms **und unter Sessionlast** belegt (§1/M3): p95 bei vier gleichzeitigen Spielern 191 ms, bei acht 546 ms. `make lasttest-pi` hält das als Wächter fest |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
 
@@ -389,6 +403,27 @@ Alle docken laut Datenmodell **ohne Neuaufbau** an (NF7).
 ---
 
 ## 5. Erledigt (Chronik, verdichtet)
+
+**Import-/Datenbank-Review + fünfphasiger Umbau (28.07.2026)** — drei parallele Code-Analysen
+plus eigene Messungen am Pi-Vollbestand. Kernergebnis: die *Daten* waren besser als erwartet;
+die Verluste entstanden **zwischen Daten und Modell**. Alle fünf Phasen umgesetzt, deployed
+und am Vollbestand verifiziert:
+
+1. **Tool-Ausgabe repariert** — falscher Leerbefund nach Facettenfilterung (das System meldete
+   „nichts gefunden" für Einträge, die es gibt), Spoiler-Kennzeichnung in der Trefferliste,
+   `zitat`/Deutsch-first/`eintrag_id` im Suchtreffer, Relevanzstufen statt gelöschtem bm25.
+2. **Suche beschleunigt** — 943 ms → 83 ms über drei abgeleitete Caches.
+3. **Facetten persistiert** — die Meta-Tabellen waren auf Produktion **leer** (0 von 4481);
+   ein Seeder für ALLE Quellen in EINEM Wertraum, Deckung 94/91/34 %.
+4. **Import beobachtbar gemacht** — Bilanzzeile je Import, Wachstumsschutz als Gegenstück zum
+   Schrumpfschutz, Transaktionsklammer um die Glossar-Kette.
+5. **Struktur** — Breadcrumb als Spalte `eintraege.kontext`, Fuzzy-Schwellen an einer Stelle.
+
+**Zwei Plan-Punkte wurden gemessen und verworfen** (Relationstabelle `eintrag_bezug`,
+`edition_quelle` nachziehen) — Begründung mit Zahlen in §3. **Ein Audit nach Phase 3 fand vier
+halb gelandete Punkte** der ersten beiden Phasen, darunter eine Spoiler-Lücke in den
+Kandidatenlisten des Detail-Pfads; Lehre: Plan-Punkte gegen den **Code** prüfen, nicht gegen
+die PR-Texte.
 
 **MVP-Kern (Juli 2026)** — MCP-Server (FastMCP, Streamable HTTP) mit 16 read-only Tools für
 Regelfragen, Steckbriefe, Begriffsübersetzung und Build-Prüfung. Deutsch-first, geerdet auf
