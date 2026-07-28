@@ -79,6 +79,23 @@ Zauberkapitels (`Dauer`, `Effekte`, `Verbalkomponente (V)` — siehe §3). Damit
 die deutsche Quelle rankt vor DDB-Englisch.
 
 ### M5 — Feedback & Iteration · *laufend, kein Gate*
+
+**Erster Durchgang gegen echte Nutzung (28.07.2026, 256 Anfragen/30 Tage).** Der Bericht
+zeigte `gelegenheitsangriff` **5× mehrdeutig** — eine Kernregel, die fünfmal keine Antwort
+gab. Ursache: Singular und Plural liegen im Glossar als zwei getrennte Inseln
+(`Opportunity Attack`/`Gelegenheitsangriff` aus dem Kernwortschatz,
+`Opportunity Attacks`/`Gelegenheitsangriffe` aus dem Spielerhandbuch), und der Zwei-Hop
+kommt von der einen nie zur anderen. `seed_flexionsbruecke_aus_bestand` schließt das —
+12 Brücken über 6 Begriffe, nur wo **beide** Sprachen dieselbe Flexionsrichtung zeigen,
+als `offiziell=0`-Suchvarianten. Konflikt-Gate danach unverändert (5/36/5).
+
+`gelegenheitsangriff` liefert jetzt die srd-de-Regel (S. 208) statt sechs Kandidaten.
+
+*Was der Bericht sonst zeigte:* `silvery barbs` (2×) ist **korrektes** Verhalten — der
+Zauber ist bewusst nicht geladen (Halluzinations-Köder der Abnahme). Der häufigste
+Nulltreffer `xyzzyquux` (22×) stammt aus meinen eigenen Benchmarks; die Tools loggen jeden
+Aufruf (Gotcha in [CONCEPT.md](CONCEPT.md) §12). Offen als echte Kandidaten bleiben
+`samurai`, `soul cage`, `erzwungene bewegung`.
 Der Meldeweg (O4) ist gebaut: das Abfrage-Protokoll (`data/foliant-protokoll.sqlite`,
 `[protokoll]` in der Config) loggt jede Nachschlage-Anfrage; `docker compose exec foliant
 python -m app.admin suchbericht` listet Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten und
@@ -324,6 +341,7 @@ offen — sie sitzen in Parsern, die **nicht** in die Meta-Tabellen schreiben:
 | **`edition_quelle` nachziehen** (C3, 29 % ohne Edition) — **gemessen und verworfen** | keine | Von den 12 echten Glossar-Konflikten tragen **8 auf beiden Seiten bereits eine Edition** — Nachziehen ändert dort nichts. Die übrigen 4 (`drown`, `immolation`, `investigator`, `shoggoth`) sind exakt die oben schon als „Randfälle ohne Bestandsbezug" klassifizierten; sie stammen aus Drittanbieter- und Abenteuerbänden (Kobold Press, Sandy Petersen, Ulisses), wo eine WotC-Edition zu behaupten **Raten wäre (Regel 2)**. Nutzen null, Preis 773 geratene Zeilen plus ein gestörter, mühsam kuratierter Konfliktstand |
 | `Aasimar Traits` u. Ä. erscheinen als eigene **Such**treffer (die Detail-Auskunft ist vollständig) | niedrig | echter, suchbarer Inhalt; die Option rankt zuerst — Ausblenden verschlechterte die Suche |
 | srd-de Drop-Cap-Namen (`wAffen`, `zAuber`) | niedrig | rein kosmetisch; eine Case-Heuristik an der Hauptquelle wäre risiko-unverhältnismäßig |
+| **srd-de-Kapitelköpfe sind keine Einträge** — die Frage „Talent" landet deshalb bei `frhof-en` statt bei der deutschen Hauptquelle | niedrig | Gefunden beim M5-Durchgang 28.07.2026. srd-de führt kein Eintrag namens `Talente`; das Kapitel heißt dort `Beschreibungen der Talente`, der Kapitelkopf selbst wurde nicht zum Eintrag. Deutsch-first (Q2/S10) kann bei kapitelweiten Fragen also gar nicht greifen — nicht weil die Priorität falsch wäre, sondern weil es nichts zu bevorzugen gibt. Die gelieferte Antwort ist korrekt, 2024, `regelwerk` und belegt (kein Spoiler-Band); sie kommt nur aus dem englischen Druckbuch. Eine Behebung hieße, Kapitelköpfe als Einträge zu chunken — das erzeugte laut BACKLOG-Chronik schon einmal ~109 inhaltsleere Kapitel-Header und wurde bewusst rückgängig gemacht |
 | 2014-Sub-Fragmente in DDB-Kategorien | niedrig | erreichen die strikt-2024-Listen nie; die Suche rankt echte Optionen zuerst |
 | ~30 kosmetische Inline-Kapitälchen-Reste, vereinzelte OCR-Garbles in den Druck-Büchern | niedrig | Inhalt korrekt; das Kreuz-Audit bestätigte Würfelwerte 65/65 und GP-Preise 86/87 |
 | Body-Dubletten (Kampfstile je Klasse) | keine | **kein Fehler** — legitime klassenspezifische Instanzen |
