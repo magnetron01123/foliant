@@ -702,6 +702,18 @@ Kuratiert; weitere Details in `app/bekannte_macken.py`.
 - **Ein Re-Import spielt die rohen OCR-Namen wieder ein** und macht die Namensreparatur der
   betroffenen Quelle zunichte. Facetten deshalb nie über einen Re-Import nachziehen, sondern
   mit `import --quelle facetten`.
+- **Singular und Plural sind im Glossar zwei Inseln.** Die Seeder liefern beide Formen
+  (`Opportunity Attack`/`Gelegenheitsangriff` aus dem Kernwortschatz,
+  `Opportunity Attacks`/`Gelegenheitsangriffe` aus dem Spielerhandbuch), aber der Zwei-Hop
+  kommt von der einen nie zur anderen. Führt der Bestand den Eintrag im Plural und tippt der
+  Nutzer den Singular, landet selbst eine Kernregel in der Mehrdeutigkeit.
+  `seed_flexionsbruecke_aus_bestand` schließt das — **nur** wo beide Sprachen dieselbe
+  Flexionsrichtung zeigen (einseitig wäre es Stemming), und als `offiziell=0`, damit Anzeige
+  und Konflikt-Gate unberührt bleiben.
+- **Benchmarks gegen den Live-Bestand landen im Abfrage-Protokoll.** Die Tools loggen jeden
+  Aufruf — auch synthetische. Nach einer Messreihe steht der Testbegriff als häufigster
+  Nulltreffer im `admin suchbericht` und verwässert die Kurationsliste. Entweder gegen eine
+  Kopie messen oder beim Sichten des Berichts wissen, was von einem selbst stammt.
 - **Die Import-Bilanz ist ein Trend, kein Alarm.** Jeder Import endet mit einer Zeile
   („Bilanz: 12x Abschnitt ohne Regeltext …"). Interessant ist nicht der Absolutwert —
   ein Kapitel-Kopf ohne eigenen Text ist der Normalfall —, sondern die **Veränderung**.

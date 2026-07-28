@@ -745,6 +745,74 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     return n
 
 
+FLEXION_QUELLE = "Flexions-Bruecke (Strukturabgleich)"
+
+# Typische Pluralendungen. Bewusst NUR das Anhaengen - kein Stemming, keine Umlautregeln:
+# was nicht als reine Verlaengerung erkennbar ist, wird gar nicht erst erwogen.
+_FLEXIONSENDUNGEN = ("s", "e", "en", "n", "er")
+
+
+def _ist_flexion(kurz: str, lang: str) -> bool:
+    return lang != kurz and lang.startswith(kurz) and lang[len(kurz):] in _FLEXIONSENDUNGEN
+
+
+def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
+    """Singular- und Pluralzeile desselben Begriffs zusammenschliessen (Suchbericht 28.07.2026).
+
+    Befund: Das Glossar fuehrt beide Formen, aber als zwei GETRENNTE Inseln -
+    (`Opportunity Attack`, `Gelegenheitsangriff`) aus dem Kernwortschatz und
+    (`Opportunity Attacks`, `Gelegenheitsangriffe`) aus dem Spielerhandbuch. Der Zwei-Hop
+    kommt von der einen nie zur anderen. Weil der Bestand den Eintrag im PLURAL fuehrt, der
+    Nutzer aber den Singular tippt, lief `Gelegenheitsangriff` - eine Kernregel, 5x in 30
+    Tagen gefragt - jedes Mal in die Mehrdeutigkeit statt in die Antwort.
+
+    BELEGT, nicht geraten: gepaart wird nur, wenn BEIDE Sprachen dieselbe Flexionsrichtung
+    zeigen (engl. `+s` UND deutsch `+e`). Zwei unabhaengige Sprachen, die sich einig sind,
+    sind ein Struktur-Beweis - dieselbe Beweisfuehrung wie bei den vier anderen
+    Bruecken-Seedern. Ein einseitiger Treffer waere Stemming, also Raten.
+
+    Die neuen Zeilen sind `offiziell=0` (SUCHVARIANTE): sie bruecken die Suche
+    (`lookup_exakt` fragt `offiziell` nicht ab), aber die Anzeige waehlt weiter die
+    offizielle Form (`_auswahlschluessel` sortiert offiziell zuerst) und `glossar-audit`
+    zaehlt sie nicht als Konflikt (es filtert auf `offiziell=1`). Bestehende Paare werden
+    NIE angefasst - ein Upsert wuerde ihre Offizialitaet ueberschreiben."""
+    from app import glossar as _glossar
+
+    con.execute("DELETE FROM glossar WHERE quelle = ?", (FLEXION_QUELLE,))
+    _glossar._GLOSSAR_CACHE.clear()
+    je_en: dict[str, set[str]] = {}
+    original: dict[str, str] = {}
+    for te, td in con.execute("SELECT term_en, term_de FROM glossar WHERE offiziell=1"):
+        ne, nd = _glossar.norm_begriff(te), _glossar.norm_begriff(td)
+        je_en.setdefault(ne, set()).add(nd)
+        original.setdefault(ne, te)
+        original.setdefault(nd, td)
+    vorhanden = {(_glossar.norm_begriff(a), _glossar.norm_begriff(b))
+                 for a, b in con.execute("SELECT term_en, term_de FROM glossar")}
+
+    n = 0
+    for ne_kurz in sorted(je_en):
+        for ne_lang in je_en:
+            if not _ist_flexion(ne_kurz, ne_lang):
+                continue
+            for nd_kurz in sorted(je_en[ne_kurz]):
+                for nd_lang in sorted(je_en[ne_lang]):
+                    if not _ist_flexion(nd_kurz, nd_lang):
+                        continue          # nur wenn BEIDE Sprachen flektieren
+                    # Beide Richtungen, damit die Bruecke traegt, egal welche Form im
+                    # Bestand steht und welche der Nutzer tippt.
+                    for en, de in ((ne_kurz, nd_lang), (ne_lang, nd_kurz)):
+                        if (en, de) in vorhanden:
+                            continue      # bestehende Zeile nie ueberschreiben
+                        _upsert(con, original[en], original[de], 0, FLEXION_QUELLE,
+                                None, None)
+                        vorhanden.add((en, de))
+                        n += 1
+    con.commit()
+    _glossar._GLOSSAR_CACHE.clear()
+    return n
+
+
 def seed_zauber_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     """Zauber-Paare ueber den Zauberkopf (Modul importer/srd_zauberbruecken) als
     OFFIZIELLE Bruecke - editionsuebergreifend (S7: der alte offizielle Begriff gilt
