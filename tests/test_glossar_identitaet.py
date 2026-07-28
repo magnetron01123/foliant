@@ -61,6 +61,27 @@ def test_lookup_traegt_matchtyp(bestand):
         con.close()
 
 
+def test_lookup_exakt_waehlt_genau_wie_lookup(bestand):
+    """lookup_exakt ist eine reine Beschleunigung (Index statt Voll-Scan + Fuzzy-Lauf,
+    30 ms -> 0,07 ms bei 8 Suchtreffern). Es darf sich deshalb NICHTS an der Auswahl
+    aendern - auch nicht die Reihenfolge, denn der erste Treffer ist die angezeigte
+    Fassung. Homonyme mit mehreren offiziellen Zeilen sind hier der scharfe Fall."""
+    con = adb.connect(str(adb.standard_pfad()))
+    try:
+        for richtung, begriffe in (("de_en", ("Aktionen", "Reaktionen", "Gibtsnicht")),
+                                   ("en_de", ("Reactions", "Actions", "Gibtsnicht"))):
+            for begriff in begriffe:
+                alt = [z for z in gl.lookup(con, begriff, richtung=richtung)
+                       if z["match"] == "exakt"]
+                neu = gl.lookup_exakt(con, begriff, richtung=richtung)
+                assert [(z["term_de"], z["term_en"]) for z in alt] == \
+                       [(z["term_de"], z["term_en"]) for z in neu], f"{richtung}/{begriff}"
+        # Und der Index darf keine FUZZY-Zeile durchlassen (SYN-P0-001):
+        assert gl.lookup_exakt(con, "Aktionen", richtung="de_en") == []
+    finally:
+        con.close()
+
+
 def test_uebersetzung_erfindet_keine_identitaet(bestand):
     """'Aktionen' darf NIE als 'Reaktionen (Reactions)' bestaetigt werden - hoechstens
     als ausdruecklich unbestaetigter Aehnlichkeits-Kandidat."""

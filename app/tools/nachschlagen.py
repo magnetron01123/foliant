@@ -503,8 +503,7 @@ def _anzeige_name(con: sqlite3.Connection, e: dict) -> str:
             # NUR exakte Zeilen (SYN-P0-001: eine Fuzzy-Zeile haengte sonst ein FREMDES
             # Original an, 'Aktionen (Reactions)'); ohne exakten Treffer lieber ohne
             # Klammer als 'Feuerball (Feuerball)'.
-            zeilen = [z for z in _glossar.lookup(con, e["name_de"], richtung="de_en")
-                      if z["match"] == "exakt"]
+            zeilen = _glossar.lookup_exakt(con, e["name_de"], richtung="de_en")
             name_en = zeilen[0]["term_en"] if zeilen else None
         if name_en and name_en.strip().lower() != e["name_de"].strip().lower():
             return _glossar.markiere(e["name_de"], name_en, offiziell=True)
