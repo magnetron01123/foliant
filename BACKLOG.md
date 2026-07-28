@@ -27,31 +27,26 @@ Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
 - ⬜ **Cron + Off-Site-Spiegel einrichten** — das Spiegeln ist die eigentliche Sicherung.
   Ziel/Zugang muss David festlegen.
 - ⬜ **Uptime-Monitoring** auf `/health` (z. B. UptimeRobot).
-- 🟡 **Antwortzeiten gemessen** (B9): einzeln am Pi-Vollbestand 25–192 ms, Freitextsuche
-  83 ms Median (§2). **Unter Sessionlast gemessen (28.07.2026, `make lasttest-pi`):**
+- ✅ **Antwortzeiten gemessen — auch unter Sessionlast** (B9). Einzeln am Pi-Vollbestand
+  25–192 ms (§2). Nebenläufig mit `make lasttest-pi` (28.07.2026):
 
-  | gleichzeitige Spieler | p50 | p95 | Aufrufe/s |
+  | gleichzeitige Spieler | p95 zuerst | p95 nach dem Vorfilter | Aufrufe/s |
   |---|---|---|---|
-  | 1 | 42 ms | 100 ms | 19 |
-  | 2 | 53 ms | 207 ms | 26 |
-  | 4 | 82 ms | **584 ms** | 26 |
-  | 6 | 130 ms | **1165 ms** | 21 |
-  | 8 | 195 ms | **1729 ms** | 19 |
+  | 1 | 100 ms | **91 ms** | 22 |
+  | 2 | 207 ms | **119 ms** | 35 |
+  | 4 | **584 ms** | **191 ms** | 41 |
+  | 8 | **1729 ms** | **546 ms** | 32 |
 
-  **Bis vier gleichzeitige Spieler erfüllt, darüber nicht.** Der Durchsatz bleibt ab zwei
-  Spielern bei ~26 Aufrufen/s — mehr Last bringt keinen Mehrdurchsatz, sondern nur
-  Wartezeit. Das ist Sättigung an einer Stelle, nicht Auslastung.
+  Der erste Lauf riss ab sechs Spielern die Sekunde, und der Durchsatz deckelte bei
+  ~26 Aufrufen/s — Sättigung, nicht Auslastung. **Zwei Verdächtige wurden experimentell
+  ausgeschlossen:** das Abfrage-Protokoll (mit komplett abgeschaltetem Log waren die Werte
+  bei 8 Spielern identisch, p95 1733 statt 1734 ms) und die Datenbank. Es blieb reine
+  Python-Rechenzeit am GIL.
 
-  **Was es NICHT ist** (beides experimentell ausgeschlossen): nicht das Abfrage-Protokoll
-  (mit komplett abgeschaltetem Log sind die Werte bei 8 Spielern identisch: p95 1733 statt
-  1734 ms) und nicht die Datenbank. Es ist **reine Python-Rechenzeit am GIL** — der Pi hat
-  vier Kerne, der Durchsatz skaliert aber gar nicht.
-
-  Einordnung: Der Test fährt *Dauersättigung*; echte Spieler fragen stoßweise und
-  menschlich getaktet. Für eine Runde von vier ist der Stand tragfähig.
-  **Der benannte Hebel** ist der Facetten-Filter: er zieht für jeden Eintrag der Kategorie
-  den vollen Body und parst ihn mehrfach (1627 `zauber_grad`-Aufrufe je Filteranfrage) —
-  obwohl die Werte seit Phase 3 zu 94 % in `zauber_meta` stehen. Siehe Rest-Posten in §3.
+  Der Facetten-Vorfilter (§3) hat das behoben: **p95 bei vier Spielern 584 → 191 ms**, und
+  der Durchsatz skaliert jetzt mit der Last (22 → 35 → 41), statt zu deckeln.
+  `make lasttest-pi` läuft grün und bricht bei p95 > 1000 ms ab — damit ist die Messung
+  auch ein Regressionswächter.
 
 **Gate:** Backup liegt außerhalb des Pi, Dienst übersteht Neustart, Monitoring meldet Ausfälle.
 
@@ -358,7 +353,7 @@ offen — sie sitzen in Parsern, die **nicht** in die Meta-Tabellen schreiben:
 | `facetten.monster_attribute` liest `INT` aus „Hit **Po**ints" (Label ohne Wortgrenze) | niedrig | Wird von Phase 3 **nicht** persistiert; benutzt wird die Funktion nur vom Monster-Struktur-Abgleich, wo derselbe Fehler auf beiden Seiten auftritt und sich damit heraushebt |
 | `gegenstand_meta.preis_cent` deckt nur **43 %** der Gegenstände | keine | **Kein Fehler:** Ausrüstung ohne Preisangabe im Text (magische Gegenstände, Sammelabschnitte) trägt legitim keinen Preis. `admin check` warnt deshalb nur bei einer **komplett leeren** Tabelle, nicht bei Lücken |
 | `gegenstand_meta.seltenheit` bleibt ungeschrieben | keine | Es gibt im Bestand keine belastbare Ableitung (magische Gegenstände führen sie, Ausrüstung nicht) — lieber NULL als geraten (Regel 1) |
-| Der Facetten-**Filter** (`grad`/`schule`/`hg`/`typ`) parst weiter aus `body_md`, statt die persistierten Spalten zu nutzen | **mittel** (hochgestuft 28.07.2026) | War als „bewusst offen" notiert, weil ein SQL-Filter bei ungeseedeter DB still **nichts** lieferte — die C1-Fehlerform. Die Lastmessung macht daraus den **benannten Hebel für B9**: `_struktur_filter` zieht für jeden Eintrag der Kategorie den vollen Body und parst ihn mehrfach — 1627 `zauber_grad`-Aufrufe je Filteranfrage, 41 % der Profilzeit —, obwohl die Werte seit Phase 3 zu 94 % in `zauber_meta` stehen. Der sichere Weg ist **nicht** „SQL statt Text", sondern **Meta als Vorfilter, Textprädikat als Autorität**: Zeilen ausschließen, deren Meta nachweislich einen anderen Wert trägt (dieselben Parser, also äquivalent), alle übrigen wie bisher prüfen. Damit bleibt die Selbsttragfähigkeit erhalten. Nur `hat_schadensart` braucht den vollen Text, alles andere liest Präfixe |
+| Der Facetten-Filter parste für jeden Eintrag der Kategorie den vollen Body | **behoben** (28.07.2026) | Der aus der Lastmessung benannte B9-Hebel: 1627 `zauber_grad`-Aufrufe je Filteranfrage, 41 % der Profilzeit. Gelöst **nicht** als „SQL statt Text", sondern als **Meta-Vorfilter mit dem Textprädikat als Autorität** — ausgeschlossen werden nur Zeilen, deren gespeicherter Wert nachweislich ein anderer ist (dieselben Parser, also äquivalent); Zeilen ohne Meta laufen wie bisher durch das Prädikat, damit eine ungeseedete DB nicht still nichts liefert. **3,5–6,2× je Anfrage, p95 bei vier Spielern 584 → 191 ms.** Die Äquivalenzprobe **schlug zuerst fehl** und deckte auf, dass Datenbanken noch Meta-Zeilen aus dem in Phase 3 entfernten Open5e-Schreiber tragen können (`Evocation` statt `hervorrufung`) — ein Vorfilter dagegen wirft passende Einträge still weg. Deshalb prüft `_meta_ist_kanonisch` den Wertraum an den Daten selbst (`ritual`/`rk` gab es beim alten Schreiber nicht) und schaltet den Vorfilter sonst ganz ab |
 | **Relationstabelle `eintrag_bezug`** (E1) — **gemessen und verworfen** | keine | Am Pi-Vollbestand nachgemessen: (a) der Übersetzungsbezug ergäbe 2151 Paare — genau das, was `_dedupe_und_sortiere` ohnehin je Anfrage rechnet, bei 83 ms Suchzeit und **ohne einen einzigen Leser**; (b) der Editionsbezug über Namensgleichheit (535 Fälle) funktioniert heute schon als `andere_fassungen`; (c) **der namensgebende Umbenennungsfall „Rasse" → „Spezies" existiert im Bestand nicht** — 0 Glossarzeilen mit `Rasse`/`Spezies`/`Species`. Die 21 Kandidaten für editionsabhängige Umbenennung sind Klammer-Suffixe (`Klingenteufel (Hamatula)` → `Klingenteufel`) und Singular/Plural, beides deckt `KLAMMER_SUFFIX` bzw. `kanonisiere_schreibvarianten` schon ab. Dazu: `eintrag_id` ist nicht importstabil (E3), die Tabelle bräuchte nach jedem Import einen Neuaufbau — ein neuer Fehlermodus ohne Nutzen |
 | **`edition_quelle` nachziehen** (C3, 29 % ohne Edition) — **gemessen und verworfen** | keine | Von den 12 echten Glossar-Konflikten tragen **8 auf beiden Seiten bereits eine Edition** — Nachziehen ändert dort nichts. Die übrigen 4 (`drown`, `immolation`, `investigator`, `shoggoth`) sind exakt die oben schon als „Randfälle ohne Bestandsbezug" klassifizierten; sie stammen aus Drittanbieter- und Abenteuerbänden (Kobold Press, Sandy Petersen, Ulisses), wo eine WotC-Edition zu behaupten **Raten wäre (Regel 2)**. Nutzen null, Preis 773 geratene Zeilen plus ein gestörter, mühsam kuratierter Konfliktstand |
 | `Aasimar Traits` u. Ä. erscheinen als eigene **Such**treffer (die Detail-Auskunft ist vollständig) | niedrig | echter, suchbarer Inhalt; die Option rankt zuerst — Ausblenden verschlechterte die Suche |
