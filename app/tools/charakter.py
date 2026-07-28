@@ -5,7 +5,7 @@ _hole_detail-Maschine von nachschlagen. Die Build-Pruefung (Q4) validiert NUR ge
 2024-Bestand, nennt ihre Datenbasis und weist offen aus, was sie nicht pruefen kann -
 sie ist Hilfe, keine letzte Instanz.
 
-Options-Erkennung je Quelle (Justage-Stelle fuer neue Quellen, vgl. bekannte_macken):
+Options-Erkennung je Quelle (Justage-Stelle fuer neue Quellen):
 - Kapitel-Quellen (Body beginnt mit '*Kontext: ...*', z. B. srd-de): echte Optionen stehen
   unter 'Beschreibungen der ...'-Kontexten; Grundklassen haben Kontext exakt 'Klassen',
   Unterklassen das Namensschema '<Klasse>-Unterklasse: <Name>'.
@@ -60,7 +60,8 @@ _OPTION_KONTEXT = {
 # Talent-Kategorie aus der TYPZEILE des Eintrags ('_Epische-Gabe-Talent (Voraussetzung:
 # min. 19. Stufe)_') - NICHT aus dem Kontext-Breadcrumb: die zweispaltige Talent-Seite des
 # dt. SRD kommt in falscher Spalten-Lesereihenfolge an, drei Gaben stehen dadurch unterm
-# 'Kampfstil-Talente'-Heading (bekannte_macken). Die Typzeile steht IM Eintrag und stimmt.
+# 'Kampfstil-Talente'-Heading (Spalten-Verschraenkung, s. importer/import_markdown.py).
+# Die Typzeile steht IM Eintrag und stimmt.
 _TALENT_TYPZEILE = re.compile(
     r"_(Herkunftstalent|Allgemeines Talent|Kampfstil-Talent|Epische-Gabe-Talent)"
     r"(?:\s*\(Voraussetzung:\s*([^)]+)\))?_?")

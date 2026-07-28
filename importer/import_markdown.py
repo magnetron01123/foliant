@@ -8,13 +8,13 @@ Gegenstaende/Talente/Hintergruende sind H6, Monster H3/H4, Regeln H3-H5). Eltern
 wandern als markierte Kontextzeile in den Body; Seitenmarker `<!-- seite:N -->` aus dem
 PDF-Konverter werden ausgewertet und entfernt (F7).
 
-PDF-Artefakt-Reparatur (dt. SRD, siehe bekannte_macken): Buchstaben mit Unterlaengen (g/p)
+PDF-Artefakt-Reparatur (dt. SRD): Buchstaben mit Unterlaengen (g/p)
 reissen aus Woertern und landen als eigenes `<u>g</u>`-Fragment am Zeilenende
 ('Zauber rad **<u>g</u>**' = 'Zaubergrad'). _repariere_fragmente setzt sie zurueck und
 verifiziert das Ergebnis gegen den Dokumentbestand. <mark>-Headings sind Wertekaesten
 (Statbloecke) -> kategorie 'monster'.
 
-LABEL-PSEUDO-HEADINGS (Review-Fund 10.07.2026, siehe bekannte_macken): PyMuPDF4LLM macht
+LABEL-PSEUDO-HEADINGS (Review-Fund 10.07.2026): PyMuPDF4LLM macht
 aus fettgedruckten Inline-Labels mitten im Eintrag teils Headings ('### **Kreaturentyp:**
 Humanoide', '### **Reichweite:** 9 Meter') -> zerriss Spezies (Elf/Gnom/Halbling/Mensch
 verloren ihren Eintrag) und ~110 Zauber. Erkennung: der ERSTE Fettblock des Headings endet
@@ -507,7 +507,7 @@ def _chunks(markdown: str, kategorie_standard: str = "regel",
     # u+Kombinationszeichen), Soft-Hyphens (U+00AD, reines Druck-Layout) und <br>-Tags
     # in Tabellenzellen ('**Rettungswürfe, in**<br>**denen du geübt bist**') - alles
     # bricht Namensvergleiche/FTS-Token bzw. steht als HTML-Muell im Plain-Text-Body
-    # (QS-Fund 11.07.2026). Einmal an der Wurzel normalisieren (bekannte_macken 'srd-de').
+    # (QS-Fund 11.07.2026). Einmal an der Wurzel normalisieren.
     # U+00A0 (geschuetztes Leerzeichen) ist KEIN Wortabstand fuer den Namensvergleich:
     # 'Classes\xa0Summary' != 'Classes Summary', die exakte Namenssuche geht damit ins
     # Leere (28 Faelle in ddb-basic-rules-2014-en, Befund D6). Reines Druck-Layout wie

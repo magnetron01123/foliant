@@ -1,7 +1,7 @@
 """Chunking-Regressionstests (Leitplanke: Chunking = wichtigster Qualitaetshebel).
 
 Die Faelle sind aus dem ECHTEN PyMuPDF4LLM-Markdown des dt. SRD 5.2.1 destilliert
-(Phase-2-Fund 10.07.2026, siehe bekannte_macken['srd-de']):
+(Phase-2-Fund 10.07.2026, siehe importer/import_markdown.py):
   1. Label-Pseudo-Headings ('### **Kreaturentyp:** Humanoide') zerrissen Spezies und Zauber.
   2. Tabellen-Kaesten ('Elfische Abstammungen') liegen auf der Ebene der Speziesnamen ->
      MERGE_REGELN fuehrt sie in den Spezies-Eintrag zurueck.

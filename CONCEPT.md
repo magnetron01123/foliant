@@ -603,7 +603,7 @@ läuft ohne Änderung weiter.
 | **Ein internes Schema für alle Quellen** | einheitlicher Tool-Output; Provenienz bleibt sichtbar |
 | **Edition sichtbar, nicht wegnormalisiert** | Referenz-MCP-Server normalisieren so, „dass die LLM den Unterschied nicht sieht" — für uns ein Anti-Pattern: **Datenshape** vereinheitlichen, **Provenienz** behalten |
 | **`such_*`/`hol_*` je Entitätstyp trennen** | Suche liefert knappe Treffer, Detail die volle Ausgabe — hält die Kontextlast niedrig |
-| **Quellen-Macken zentral kapseln** | `app/bekannte_macken.py` + kuratierte Reparaturpakete je Quelle, damit dieselbe Falle nicht zweimal gelöst wird |
+| **Quellen-Macken beim Code, der sie behandelt** | Die Eigenheiten einer Quelle stehen im Modul-Docstring ihres Importers, die Reparatur daneben — damit dieselbe Falle nicht zweimal gelöst wird. Ein zentrales Macken-Modul (`app/bekannte_macken.py`) gab es bis 29.07.2026; es wurde nie von Code gelesen und beschrieb Dinge ein zweites Mal, die längst am Lösungsort standen |
 | **Build-Prüfung minimal** | wenige klare Checks statt einer vollständigen Regel-Engine |
 | **DELETE-Journal** | Kompatibilität mit Bind-Mount-Volumes |
 | **Alles auf dem Pi** | Ein-Geräte-Wunsch; PyMuPDF4LLM ist ARM-tauglich |
@@ -680,7 +680,9 @@ Einschränkung, die der Code nicht selbst zeigt — kein Nacherzählen der näch
 
 ## 12. Gotchas
 
-Kuratiert; weitere Details in `app/bekannte_macken.py`.
+Kuratiert. Quellen-spezifische Eigenheiten stehen im Modul-Docstring des jeweiligen
+Importers (`importer/import_open5e.py` für die Open5e-API, `importer/import_markdown.py`
+für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de).
 
 - **pymupdf4llm OCRt textlose Seiten STILL, sobald Tesseract installiert ist** →
   `use_ocr=False` in `pdf_nach_markdown` ist Pflicht und gesetzt; OCR nur über die Vorstufe.

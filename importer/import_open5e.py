@@ -10,7 +10,26 @@ vorhandenen Bestand unangetastet; unplausibles Schrumpfen verlangt erlaube_schru
 Pagination folgt nur https-URLs des konfigurierten Hosts, erkennt Zyklen und ist hart
 gedeckelt (A10). Die Funktion COMMITTET NICHT selbst - der Aufrufer fuehrt die
 Transaktion (`with con: ...`), inkl. FTS-Rebuild in derselben Transaktion.
-Quirks -> app/bekannte_macken.py."""
+
+QUELLEN-MACKEN (10.07.2026 an der API verifiziert). Sie standen bis zum 29.07.2026 in
+app/bekannte_macken.py - einer Datei, die kein Code las; hier stehen sie neben dem Code,
+der sie behandelt:
+- ZUSTAENDE FEHLEN KOMPLETT: /v2/conditions/ liefert count=0 fuer srd-2024, und /v2/rules/
+  enthaelt keinen Conditions-Abschnitt (11 rulesets, keiner davon Zustaende). Gepackt/
+  Grappled usw. sind also NICHT im Bestand -> Foliant sagt dazu korrekt 'nicht gefunden'
+  (B2). Die Luecke schliesst erst das deutsche SRD-5.2.1-PDF (fuehrt die Zustaende als H6
+  im Regelglossar).
+- rules.document ist ein blanker String ('srd-2024'), bei allen anderen Endpunkten ein
+  Objekt {key, name, ...} -> _dok_key() behandelt beides.
+- desc ist bei backgrounds/feats/species/classes oft leer ('') - der eigentliche Inhalt
+  steckt in den benefits/traits/features-Listen [{name, desc}].
+- creatures.senses/damage_immunities sind oft null; Passive Perception steht separat in
+  passive_perception, Sichtweiten in *_sight_range-Feldern.
+- /v2/classes/ mischt Klassen UND Unterklassen (24 Records bei 12 Klassen); Unterklassen
+  tragen subclass_of != null -> der Importer stellt '*Subclass of: ...*' voran.
+- Waffen-/Ruestungsmechanik (inkl. Weapon Mastery, 2024-Kernfeature) liegt NUR in
+  /v2/weapons/ und /v2/armor/, nicht in /v2/items/ -> per Namens-Match in die
+  items-Eintraege gemergt (ein logischer Eintrag pro Gegenstand)."""
 from __future__ import annotations
 
 import sqlite3
@@ -304,7 +323,7 @@ def _hole_alle(client, endpunkt: str, dokument: str, basis: str) -> list[dict]:
             return []
         antwort.raise_for_status()
         daten = antwort.json()
-        # defensiv doppelt filtern, falls der Server-Filter sich aendert (bekannte_macken)
+        # defensiv doppelt filtern, falls der Server-Filter sich aendert (s. Modul-Doku)
         ergebnisse += [r for r in daten.get("results", []) if _dok_key(r) == dokument]
         url = daten.get("next")
         if not url:
