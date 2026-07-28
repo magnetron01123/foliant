@@ -247,7 +247,99 @@ def _facetten_vorbereiten(kategorie, grad, schule, klasse, schadensart, hg, typ)
     return praedikat, implizit, echo, None
 
 
-def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25) -> dict:
+# Welche Meta-Spalte zu welchem Filter gehoert. `klasse` fehlt bewusst: die Spalte haelt
+# die ROHE Liste ("Magier, Zauberer"), das Praedikat kanonisiert dagegen - ein
+# Gleichheitsvergleich waere falsch. `schadensart` hat gar keine Spalte.
+_META_SPALTE = {"zauber": {"grad": "grad", "schule": "schule"},
+                "monster": {"hg": "hg", "typ": "typ"}}
+
+
+# Spalten, die AUSSCHLIESSLICH facetten_seeder schreibt. Der bis Phase 3 zustaendige
+# Open5e-Sonderweg kannte sie nicht - ist eine davon irgendwo gefuellt, stammt die Tabelle
+# nachweislich vom heutigen Seeder und traegt damit den kanonischen Wertraum.
+_META_NEUZEIT = {"zauber_meta": "ritual", "monster_meta": "rk"}
+
+
+def _meta_ist_kanonisch(con, tabelle: str, spalten: set[str]) -> bool:
+    """Traegt die Meta-Tabelle den KANONISCHEN Wertraum aus app/facetten.py?
+
+    Der Vorfilter darf nur greifen, wenn er das bejahen kann. Eine Datenbank, deren
+    Meta-Zeilen noch vom alten Open5e-Sonderweg stammen, fuehrt dort `schule='Evocation'`
+    statt `'hervorrufung'` und `hg='0.25'` statt `'1/4'` - ein Vorfilter darauf wuerde
+    passende Eintraege still WEGWERFEN. Genau die Fehlerform, gegen die dieser Filter
+    abgesichert sein muss: lieber langsam richtig als schnell falsch.
+
+    Der Nachweis kommt aus den Daten selbst, ohne neuen Zustand: eine Spalte, die es zur
+    Zeit des alten Schreibers gar nicht gab. Ist sie irgendwo gefuellt, hat der heutige
+    Seeder die Tabelle geschrieben."""
+    zeuge = _META_NEUZEIT.get(tabelle)
+    if not zeuge or zeuge not in spalten:
+        return False
+    return con.execute(f"SELECT 1 FROM {tabelle} WHERE {zeuge} IS NOT NULL "
+                       f"LIMIT 1").fetchone() is not None
+
+
+def _meta_vorfilter(kategorie, grad, schule, hg, typ) -> dict[str, object]:
+    """Die Filterwerte in der Form, in der `facetten_seeder` sie in die Meta-Tabelle
+    geschrieben hat - Grundlage des Vorfilters in `_struktur_filter`.
+
+    Wird erst gerufen, wenn `_facetten_vorbereiten` die Eingaben schon als gueltig
+    abgenommen hat; die Schluessel lassen sich daher gefahrlos erneut ableiten."""
+    werte: dict[str, object] = {}
+    if kategorie == "zauber":
+        if grad is not None:
+            werte["grad"] = int(grad)
+        if schule:
+            werte["schule"] = _facetten.schule_schluessel(schule)
+    elif kategorie == "monster":
+        if hg:
+            werte["hg"] = str(hg).strip()
+        if typ:
+            werte["typ"] = _facetten.typ_schluessel(typ)
+    return {k: v for k, v in werte.items() if v is not None}
+
+
+def _vorfilter_sql(con, kategorie: str, werte: dict) -> tuple[str, str, list]:
+    """(JOIN, WHERE-Zusatz, Parameter) fuer den Meta-Vorfilter - oder dreimal leer.
+
+    Der Vorfilter ENTSCHEIDET NICHTS. Er schliesst nur Zeilen aus, deren gespeicherter
+    Wert nachweislich ein anderer ist; ueber alle uebrigen urteilt weiterhin das
+    Textpraedikat. Das ist aequivalent, weil `facetten_seeder` die Spalten mit DENSELBEN
+    Parsern fuellt, die das Praedikat benutzt - eine Zeile mit `grad = 4` kann unmoeglich
+    `zauber_grad(body) == 3` erfuellen.
+
+    `IS NULL` faengt beide Faelle ab, in denen nichts belegt ist: keine Meta-Zeile (der
+    LEFT JOIN liefert NULL) und eine Zeile, aus deren Text sich der Wert nicht ableiten
+    liess. Genau deshalb bleibt der Filter auf einer ungeseedeten Datenbank
+    selbsttragend - er faellt dann auf das Textpraedikat zurueck, statt still nichts zu
+    liefern (das war die C1-Fehlerform, die in Phase 3 gegen einen reinen SQL-Filter
+    sprach).
+
+    Fehlt die Tabelle ganz (Alt-DB), wird gar nicht vorgefiltert."""
+    tabelle = {"zauber": "zauber_meta", "monster": "monster_meta"}.get(kategorie)
+    if not tabelle or not werte:
+        return "", "", []
+    try:
+        vorhanden = {r[1] for r in con.execute(f"PRAGMA table_info({tabelle})")}
+        if not _meta_ist_kanonisch(con, tabelle, vorhanden):
+            return "", "", []
+    except sqlite3.Error:
+        return "", "", []
+    nutzbar = {k: v for k, v in werte.items()
+               if _META_SPALTE.get(kategorie, {}).get(k) in vorhanden}
+    if not nutzbar:
+        return "", "", []
+    bedingungen, params = [], []
+    for schluessel, wert in nutzbar.items():
+        spalte = _META_SPALTE[kategorie][schluessel]
+        bedingungen.append(f"(m.{spalte} IS NULL OR m.{spalte} = ?)")
+        params.append(wert)
+    return (f" LEFT JOIN {tabelle} m ON m.eintrag_id = e.id",
+            " AND " + " AND ".join(bedingungen), params)
+
+
+def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25,
+                     vorfilter=None) -> dict:
     """Reiner Struktur-Filter (kein Suchbegriff): scannt eine Kategorie und filtert per
     Praedikat aus dem Body. Deutsch-first-Dedup, knappe Treffer mit 'kurzinfo'."""
     try:
@@ -256,13 +348,15 @@ def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25) -> dict
     except ValueError as fehler:
         return {"treffer": [], "fehler": str(fehler),
                 "hinweis": "Ungueltiger PARAMETER - KEIN 'nicht im Bestand' (B1/B4)."}
+    join, zusatz, vor_params = _vorfilter_sql(con, kategorie, vorfilter or {})
     roh: list[dict] = []
     for r in con.execute(
-            """SELECT e.id, e.kategorie, e.name_de, e.name_en, e.sprache, e.edition,
-                      e.seite, e.body_md, q.kuerzel AS quelle, q.titel AS quelle_titel,
-                      q.prioritaet
-               FROM eintraege e JOIN quellen q ON q.id = e.quelle_id
-               WHERE e.kategorie = ? AND e.edition = ?""", (kategorie, edition)):
+            f"""SELECT e.id, e.kategorie, e.name_de, e.name_en, e.sprache, e.edition,
+                       e.seite, e.body_md, q.kuerzel AS quelle, q.titel AS quelle_titel,
+                       q.prioritaet
+                FROM eintraege e JOIN quellen q ON q.id = e.quelle_id{join}
+                WHERE e.kategorie = ? AND e.edition = ?{zusatz}""",
+            (kategorie, edition, *vor_params)):
         e = dict(r)
         if not praedikat(e["body_md"] or ""):
             continue
@@ -335,7 +429,9 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
                                "schadensart/hg/typ) angeben - sonst ist es weder Text- noch "
                                "Struktursuche. KEIN 'nicht im Bestand'."}
         if not hat_suchbegriff:
-            return _struktur_filter(con, kat_filter, edition, praedikat, echo)
+            return _struktur_filter(
+                con, kat_filter, edition, praedikat, echo,
+                vorfilter=_meta_vorfilter(kat_filter, grad, schule, hg, typ))
         try:
             # A1-Fix (Review 28.07.2026): Mit aktivem Struktur-Filter MEHR Kandidaten holen.
             # Vorher lief die Nachfilterung auf den bereits auf 8 gekappten Treffern - fielen
