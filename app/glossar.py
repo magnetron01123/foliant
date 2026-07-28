@@ -42,6 +42,13 @@ FUZZY_SUCHE = 86
 # liegen klar darueber.
 FUZZY_NAME = 90.0
 
+# Textabweichung zweier gleichsprachiger Fassungen (scorer: fuzz.ratio ueber den
+# normalisierten Body). Darunter gelten sie als inhaltlich verschieden und werden als
+# `konflikt_quellen` ausgewiesen. Gleiche Hoehe wie FUZZY_NAME, aber aus anderem Grund:
+# hier ist ein FALSCH-POSITIV teuer (das Modell soll nicht bei jeder Formatierungs-
+# abweichung einen Quellkonflikt melden), nicht ein Falsch-Negativ.
+FUZZY_ABWEICHUNG = 90.0
+
 _FUZZY_CUTOFF = FUZZY_GLOSSAR       # modulinterner Altname
 
 

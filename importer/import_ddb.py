@@ -187,9 +187,12 @@ def importiere_ddb_artefakt(artefakt: str | Path, buch: dict, *,
     _kopiere_db(basis, kandidat)
 
     try:
-        con = sqlite3.connect(kandidat)
-        con.row_factory = sqlite3.Row
-        con.execute("PRAGMA foreign_keys=ON;")
+        # Ueber db.connect(), NICHT roh: die Kandidatin ist eine Kopie der privaten
+        # Basis-DB und kann jede Schema-Stufe haben. Roh geoeffnet lief hier nie
+        # stelle_schema_sicher() - der erste Import nach einer Schema-Erweiterung waere
+        # an der fehlenden Spalte gescheitert (28.07.2026 an der kontext-Spalte belegt).
+        # connect() setzt row_factory und foreign_keys ohnehin mit.
+        con = _db.connect(str(kandidat))
         try:
             alt = con.execute(
                 "SELECT count(e.id) FROM quellen q LEFT JOIN eintraege e "

@@ -44,8 +44,12 @@ CREATE TABLE IF NOT EXISTS eintraege (
     -- Breadcrumb ('Zauber > Beschreibungen der Zauber') als eigenes Feld. Der Wert steht
     -- ZUSÄTZLICH weiter als '*Kontext: ...*'-Zeile im body_md — der Body bleibt bewusst
     -- unangetastet, sonst änderte sich der inhalts_hash und der gesamte Bestand bräuchte
-    -- einen Re-Import. Die Spalte macht ihn abfragbar: die Klassenmerkmal-Suche lief als
-    -- `body_md LIKE '*Kontext: Klassen > X*%'` über einen Full Scan.
+    -- einen Re-Import. Die Spalte macht den Breadcrumb abfragbar, statt ihn per
+    -- `body_md LIKE '*Kontext: Klassen > X*%'` zu suchen.
+    -- Ehrlich zur Wirkung: Der Gewinn ist KLEIN. Die beiden echten Abfragen (charakter.py)
+    -- filtern schon auf `kategorie` + `edition` vor und liefen damit nie über einen Full
+    -- Scan — gemessen 0,049 → 0,030 ms, Faktor 1,7. Der eigentliche Ertrag ist, dass der
+    -- Breadcrumb ein Feld ist statt eines in ein LIKE-Muster interpolierten Strings.
     kontext    TEXT,
     body_md    TEXT NOT NULL
 );

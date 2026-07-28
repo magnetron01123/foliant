@@ -104,11 +104,13 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
   (Breadcrumb). FK-Cascade von `quellen`.
   `kontext` trägt den Breadcrumb (`Klassen > Kämpfer`) **zusätzlich** zur `*Kontext: …*`-Zeile
   im `body_md` — der Body bleibt unangetastet, sonst änderte sich der `inhalts_hash` und der
-  gesamte Bestand bräuchte einen Re-Import. Die Spalte macht ihn abfragbar: die
-  Klassenmerkmal-Suche lief als `body_md LIKE '*Kontext: Klassen > X*%'` über einen Full Scan
-  (0,85 ms), jetzt über den Index (0,006 ms, **151×**). Bestands-DBs backfillt
+  gesamte Bestand bräuchte einen Re-Import. Bestands-DBs backfillt
   `db.stelle_schema_sicher()` einmalig aus dem Body; die Lesepfade kommen ohne die Spalte
   aus, weil der Serving-Pfad read-only ist und **nicht** migriert.
+  **Ehrlich zur Wirkung:** Der Laufzeitgewinn ist klein. Die beiden echten Abfragen
+  (`charakter.py`) filtern schon auf `kategorie` + `edition` vor und liefen nie über einen
+  Full Scan — gemessen **0,049 → 0,030 ms (Faktor 1,7)**. Der Ertrag liegt darin, dass der
+  Breadcrumb ein *Feld* ist statt eines in ein LIKE-Muster interpolierten Strings.
 - **`zauber_meta`/`monster_meta`/`gegenstand_meta`** — strukturierte Facetten, erscheinen
   additiv als `facetten` in den Detail-Tools (der `body_md` bleibt unangetastet).
   `zauber_meta`: `grad`, `schule`, `klassen`, `reichweite_m`, `komponenten`, `dauer_min`,

@@ -136,6 +136,45 @@ def test_kontext_helfer_bevorzugt_die_spalte():
     assert ch._kontext(None) == ""
 
 
+def test_ddb_import_oeffnet_die_kandidaten_db_ueber_den_migrationspunkt():
+    """Befund 28.07.2026: import_ddb oeffnete die Kandidaten-DB mit rohem sqlite3.connect,
+    also OHNE stelle_schema_sicher(). Die Kandidatin ist eine Kopie der privaten Basis-DB
+    und kann jede Schema-Stufe haben - der erste Import nach einer Schema-Erweiterung
+    waere an der fehlenden Spalte gescheitert (hier: kontext). Der Test haelt fest, dass
+    dieser Pfad ueber den EINEN Migrationspunkt geht."""
+    quelltext = (Path(__file__).resolve().parent.parent
+                 / "importer" / "import_ddb.py").read_text(encoding="utf-8")
+    kern = quelltext[quelltext.index("_kopiere_db(basis, kandidat)"):]
+    kern = kern[:kern.index("def ")] if "def " in kern else kern
+    assert "sqlite3.connect(kandidat)" not in kern, \
+        "Kandidaten-DB wieder roh geoeffnet - stelle_schema_sicher() laeuft dann nie"
+    assert "_db.connect(str(kandidat))" in kern
+
+
+def test_migration_laeuft_auf_einer_kopie_der_basis_db(tmp_path):
+    """Die Wirkung desselben Fundes, funktional: eine Kopie einer aelteren DB bekommt beim
+    Oeffnen ueber db.connect() die fehlende Spalte - genau das braucht der DDB-Import."""
+    basis = tmp_path / "basis.sqlite"
+    c = sqlite3.connect(basis)
+    c.execute("CREATE TABLE quellen (id INTEGER PRIMARY KEY, kuerzel TEXT UNIQUE)")
+    c.execute("CREATE TABLE eintraege (id INTEGER PRIMARY KEY, quelle_id INTEGER, "
+              "kategorie TEXT, name_de TEXT, name_en TEXT, sprache TEXT, edition TEXT, "
+              "seite TEXT, body_md TEXT)")
+    c.commit()
+    c.close()
+    kandidat = tmp_path / "basis.kandidat.sqlite"
+    kandidat.write_bytes(basis.read_bytes())
+
+    v = adb.connect(str(kandidat))
+    try:
+        v.execute("INSERT INTO eintraege (kategorie, name_en, sprache, edition, kontext, "
+                  "body_md) VALUES ('regel','X','en','2024','Kap > A','*Kontext: Kap > A*')")
+        v.commit()
+        assert v.execute("SELECT kontext FROM eintraege").fetchone()[0] == "Kap > A"
+    finally:
+        v.close()
+
+
 def test_chunks_liefern_den_kontext_getrennt():
     chunks = {c["name"]: c for c in _chunks(_MARKDOWN, kategorie_standard="klasse",
                                             split_regeln=[("", 3, "klasse")])}

@@ -218,6 +218,21 @@ Bestandskorrektur nachziehen (M5).
 
 ### Lauf-Protokoll
 
+**28.07.2026 · Pi-Vollbestand nach Phase 5 · deployed und nachgemessen.**
+Golden-Suite **16/16**, `admin check` OK, Bestand unverändert bei 12 503 Einträgen.
+Die neue Spalte `eintraege.kontext` wurde beim ersten Admin-Lauf migriert und aus dem Body
+backfillt: **10 825/12 503 (87 %)** — deckt sich mit den 86 % aus dem Review — bei **0**
+Abweichungen zwischen Spalte und Body-Zeile.
+Stichprobe: `foliant_hol_klasse("Kämpfer")` liefert seine drei verwandten Abschnitte (46 ms).
+*Korrektur zur ersten Fassung dieses Eintrags:* Der Laufzeitgewinn der Spalte ist **klein**
+(0,049 → 0,030 ms, Faktor 1,7), nicht die zunächst genannten 151×. Die 151× stammten aus
+einer Messung **ohne** den `kategorie`/`edition`-Vorfilter, den die echten Abfragen tragen —
+sie liefen also nie über einen Full Scan. Der Ertrag der Spalte ist Struktur, nicht Tempo.
+
+Damit ist der **Fünf-Phasen-Plan aus dem Import-/Datenbank-Review vollständig umgesetzt**.
+Zwei Plan-Punkte wurden dabei gemessen und **verworfen** (Relationstabelle `eintrag_bezug`,
+`edition_quelle` nachziehen) — Begründung mit Zahlen in §3.
+
 **28.07.2026 · Pi-Vollbestand nach Phase 3 + 4 · deployed und nachgemessen.**
 Golden-Suite **16/16**, `admin check` OK, Bestand unverändert bei 12 503 Einträgen
 (`inhalts_hash e1c9fd188a6da4de`, Backup vorher gezogen).
