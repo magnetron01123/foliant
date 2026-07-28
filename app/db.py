@@ -251,7 +251,12 @@ def _glossar_alternativen(con: sqlite3.Connection, begriff: str,
     def sammle(suchwort: str, gesehen: set[str]) -> list[str]:
         gefunden: list[str] = []
         for richtung in ("de_en", "en_de"):
-            for z in _gl.lookup(con, suchwort, richtung=richtung):
+            # nur_exakt: direkt ueber den Index statt lookup() samt Fuzzy-Lauf, dessen
+            # Ergebnis die Schleife ohnehin sofort verwirft (Messung 28.07.2026 - dieser
+            # Pfad laeuft wegen der zwei Hops rund zwoelfmal je Suchanfrage).
+            zeilen = (_gl.lookup_exakt(con, suchwort, richtung=richtung) if nur_exakt
+                      else _gl.lookup(con, suchwort, richtung=richtung))
+            for z in zeilen:
                 if nur_exakt and z["match"] != "exakt":
                     continue
                 for kandidat in (z["term_en"], z["term_de"]):
@@ -327,18 +332,32 @@ def _fuzzy_treffer(con: sqlite3.Connection, begriff: str, kategorie: str | None,
     return treffer
 
 
+_BRUECKEN_CACHE: dict[tuple, dict[str, set[str]]] = {}
+
+
 def _brueckennamen(con: sqlite3.Connection) -> dict[str, set[str]]:
     """EXAKTE Glossar-Paare als Namensbruecke der Dubletten-Erkennung (A3):
     norm(begriff) -> {norm(gegenstueck), ...}. Bewusst OHNE Fuzzy: Aehnlichkeit allein
     begruendet keine fachliche Dublette (nur belastbare, exakte Entsprechungen).
-    SYN-P2-004: liest die gecachten Glossarzeilen statt eines eigenen Voll-Scans."""
+    SYN-P2-004: liest die gecachten Glossarzeilen statt eines eigenen Voll-Scans.
+
+    Das ERGEBNIS ist ebenfalls gecacht (28.07.2026): die Zeilen waren zwar gecacht, das
+    Dict wurde aber pro Aufruf neu gebaut - zweimal je Suche (Ziel-Edition und andere),
+    jedes Mal mit zwei Normalisierungen ueber alle Glossarzeilen. Gleiche Signatur wie
+    der Zeilen-Cache, also gleiche Invalidierung."""
     from app import glossar as _gl
+    sig = _gl._db_signatur(con)
+    fertig = _BRUECKEN_CACHE.get(sig)
+    if fertig is not None:
+        return fertig
     bruecke: dict[str, set[str]] = {}
     for z in _gl._alle_zeilen(con):
         nde, nen = _gl_norm(z["term_de"]), _gl_norm(z["term_en"])
         if nde and nen and nde != nen:
             bruecke.setdefault(nde, set()).add(nen)
             bruecke.setdefault(nen, set()).add(nde)
+    _BRUECKEN_CACHE.clear()                  # nur die aktuelle Signatur halten
+    _BRUECKEN_CACHE[sig] = bruecke
     return bruecke
 
 

@@ -82,6 +82,28 @@ def test_lookup_exakt_waehlt_genau_wie_lookup(bestand):
         con.close()
 
 
+def test_caches_invalidieren_bei_glossar_aenderung(bestand):
+    """Die Beschleunigung haengt an drei abgeleiteten Caches (Exakt-Index, Namens-Index,
+    Bruecken-Dict). Ein Cache, der eine Aenderung nicht mitbekommt, liefert stille
+    Falschauskuenfte - das waere schlimmer als der eingesparte Aufwand."""
+    from app import db as adb
+
+    con = adb.connect(str(adb.standard_pfad()))
+    try:
+        assert gl.term_de(con, "Reactions") == ("Reaktionen", True)
+        assert gl.lookup_exakt(con, "Frischbegriff", richtung="en_de") == []
+        con.execute("INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle) "
+                    "VALUES ('Frischbegriff','Frischwort',1,'Test','2024')")
+        con.commit()
+        # Ohne Invalidierung wuerde der Index den neuen Begriff nie sehen:
+        assert gl.lookup_exakt(con, "Frischbegriff", richtung="en_de")[0]["term_de"] \
+            == "Frischwort"
+        assert gl.term_de(con, "Frischbegriff") == ("Frischwort", True)
+        assert "frischwort" in adb._brueckennamen(con).get("frischbegriff", set())
+    finally:
+        con.close()
+
+
 def test_uebersetzung_erfindet_keine_identitaet(bestand):
     """'Aktionen' darf NIE als 'Reaktionen (Reactions)' bestaetigt werden - hoechstens
     als ausdruecklich unbestaetigter Aehnlichkeits-Kandidat."""
