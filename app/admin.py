@@ -89,6 +89,7 @@ def cmd_import(args) -> None:
                                              seed_kernwortschatz_aus_bestand,
                                              seed_klassenmerkmale_aus_bestand,
                                              seed_monster_bruecke_aus_bestand,
+                                             seed_flexionsbruecke_aus_bestand,
                                              seed_srd_paare,
                                              seed_zauber_bruecke_aus_bestand)
         c = _con(getattr(args, "db", None))
@@ -114,13 +115,14 @@ def cmd_import(args) -> None:
             zb = seed_zauber_bruecke_aus_bestand(c)        # Zauberkopf-Abgleich DE<->EN, editionsuebergreifend
             d = kanonisiere_konflikte(c)   # kuratierte Fassung schlaegt konkurrierende (Deutsch-Qualitaet)
             sv = kanonisiere_schreibvarianten(c)   # ß/ss- + Gross-/Klein-Schreibvarianten vereinheitlichen
+            fx = seed_flexionsbruecke_aus_bestand(c)   # Singular/Plural verbinden - ZULETZT, auf dem fertigen Stand
         print(f"Glossar: {rn} srd-Namen repariert, {n} Kern-Zeilen, {a} Abkuerzungen, "
               f"{p} SRD-Paare, {k} Kern-Singulare, {ak} Aktionen, {b} Zeilen aus Bestandsnamen, "
               f"{bd} Zeilen aus deutschen Namen, {r14} Namen repariert, "
               f"{mb} Monster-Bruecken, {kw} Kernwortschatz-Paare, {km} Klassenmerkmal-Paare, "
               f"{gg} Gegenstands-Bruecken, {zb} Zauber-Bruecken, "
               f"{d} Konflikte kanonisiert, "
-              f"{sv} Schreibvarianten demotet.")
+              f"{sv} Schreibvarianten demotet, {fx} Flexions-Bruecken.")
         c.close()
         return
 
