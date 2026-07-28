@@ -101,6 +101,17 @@ def seed_facetten(con: sqlite3.Connection, quelle_id: int | None = None) -> dict
     bedingung = "WHERE e.kategorie = ?" + ("" if quelle_id is None else " AND e.quelle_id = ?")
     bilanz: dict[str, int] = {}
     for kategorie, (tabelle, felder) in _TABELLEN.items():
+        # Erst raeumen, dann schreiben: INSERT OR REPLACE ersetzt nur Zeilen, die dieser
+        # Lauf auch anfasst. Eine Alt-Zeile zu einem Eintrag, aus dem sich heute nichts
+        # mehr ableiten laesst, ueberlebte sonst - und mit ihr ein FREMDER Wertraum (der
+        # Open5e-Sonderweg schrieb 'Evocation' statt 'hervorrufung'). Der Suchpfad filtert
+        # aber gegen die Meta-Werte vor; ein Mischbestand liesse ihn still zu wenig
+        # liefern. Nach diesem Lauf gilt: was in der Tabelle steht, stammt von hier.
+        if quelle_id is None:
+            con.execute(f"DELETE FROM {tabelle}")
+        else:
+            con.execute(f"DELETE FROM {tabelle} WHERE eintrag_id IN "
+                        f"(SELECT id FROM eintraege WHERE quelle_id = ?)", (quelle_id,))
         parse = _PARSER[kategorie]
         zeilen: list[tuple] = []
         parameter = (kategorie,) if quelle_id is None else (kategorie, quelle_id)
