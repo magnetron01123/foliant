@@ -668,8 +668,9 @@ def _eintrag_namen(k: dict) -> set[str]:
 def _texte_weichen_ab(a: str, b: str) -> bool:
     """Wesentliche Textabweichung zweier Fassungen (SYN-P1-009). Normalisiert
     (Kontextzeile weg, Kleinschreibung, Whitespace kollabiert), dann rapidfuzz-ratio
-    < 90. Nur fuer GLEICHSPRACHIGE Fassungen aussagekraeftig - DE/EN-Paare weichen
-    naturgemaess ab und laufen stattdessen in 'fremdsprachige_fassungen'."""
+    unter der Schwelle. Nur fuer GLEICHSPRACHIGE Fassungen aussagekraeftig - DE/EN-Paare
+    weichen naturgemaess ab und laufen stattdessen in 'fremdsprachige_fassungen'.
+    Wert und Begruendung in app/glossar.py bei den uebrigen Fuzzy-Schwellen."""
     from rapidfuzz import fuzz
 
     def norm(t: str) -> str:
@@ -678,7 +679,7 @@ def _texte_weichen_ab(a: str, b: str) -> bool:
     na, nb = norm(a), norm(b)
     if not na or not nb:
         return False
-    return fuzz.ratio(na, nb) < 90
+    return fuzz.ratio(na, nb) < _glossar.FUZZY_ABWEICHUNG
 
 
 _KONTEXT_RE = re.compile(r"^\*Kontext: (.+?)\*")
