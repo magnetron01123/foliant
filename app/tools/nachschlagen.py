@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 import sqlite3
 import time
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from rapidfuzz import fuzz
 
@@ -888,6 +888,185 @@ def _hole_detail(kategorie: str, name: str | None = None,
     return antwort
 
 
+def _mit_kindern(con, voll: dict, aggregiere_kinder: bool) -> tuple[dict, list[str]]:
+    """(Eintrag, Kindertexte): direkte Unterabschnitte in den Regeltext zusammenfuehren,
+    damit die Detailauskunft VOLLSTAENDIG ist (DDB-Optionen). Ohne Kinder bleibt der
+    Eintrag unveraendert - kopiert wird nur, wenn wirklich etwas angehaengt wird."""
+    kinder = _kinder_texte(con, voll) if aggregiere_kinder else []
+    if kinder:
+        voll = dict(voll)
+        voll["body_md"] = voll["body_md"].rstrip() + "\n\n" + "\n\n".join(kinder)
+    return voll, kinder
+
+
+def _detail_per_id(con, kategorie: str, eintrag_id: int,
+                   aggregiere_kinder: bool) -> dict:
+    """SYN-P1-002: Direktabruf per stabiler Referenz aus einem Suchtreffer - KEINE
+    Namensaufloesung, keine Editions-/Prioritaetswahl: exakt DIESER Eintrag oder ein
+    strukturierter Fehler (nie ein stiller Quellenwechsel)."""
+    voll = _db.hole_eintrag(con, int(eintrag_id))
+    if voll is None:
+        return {"gefunden": False,
+                "fehler": f"eintrag_id {eintrag_id} existiert nicht (Referenz "
+                          f"veraltet? Neu suchen)."}
+    if voll["kategorie"] != kategorie:
+        return {"gefunden": False,
+                "fehler": f"eintrag_id {eintrag_id} ist Kategorie "
+                          f"'{voll['kategorie']}' - dieses Werkzeug liefert "
+                          f"'{kategorie}' (passendes foliant_hol_* nutzen)."}
+    voll, _kinder = _mit_kindern(con, voll, aggregiere_kinder)
+    return {"gefunden": True, **_detail(voll, con)}
+
+
+class _Auswahl(NamedTuple):
+    """Ergebnis der Kandidatenwahl - ENTWEDER ein Treffer ODER eine fertige Absage."""
+    gewaehlt: dict | None
+    unterabschnitt: str | None        # Abschnittsname, falls per Unterabschnitt gefunden
+    weitere_abschnitte: list[dict]    # gleichnamige Abschnitte DERSELBEN Quelle
+    exakt: list[dict]                 # exakte Namenstreffer (fuer Fassungen/Konflikte)
+    absage: dict | None               # fertige Antwort, wenn nichts eindeutig waehlbar ist
+
+
+def _waehle_kandidat(con, name: str, kategorie: str, edition: str,
+                     kandidaten: list[dict]) -> _Auswahl:
+    """WELCHEN Eintrag liefern wir? Die Entscheidung, getrennt vom Antwortaufbau.
+
+    Vier Wege, in dieser Reihenfolge: exakter Namenstreffer der Zieledition ->
+    Unterabschnitt eines Sammel-Eintrags -> exakter Treffer einer anderen Edition (B5) ->
+    Namensrelevanz. Bleibt es mehrdeutig, ist die Absage das Ergebnis."""
+    # Exakt zaehlt auch der per Glossar aufgeloeste Begriff ('Feuerball' <-> 'Fireball'):
+    # nach Begriffsaufloesung ist das KEIN Raten (B3/B4). NUR exakte Glossarbeziehungen
+    # (SYN-P0-001: die Fuzzy-Naehe 'Aktionen'~'Reaktionen' machte einen FREMDEN Eintrag
+    # zum Exakt-Treffer). Die prioritaets-sortierte Trefferliste stellt dabei deutsche
+    # Quellen nach vorn (S10/Q2).
+    varianten = {_glossar.norm_begriff(name)}
+    varianten |= {_glossar.norm_begriff(a)
+                  for a in _db._glossar_alternativen(con, name, nur_exakt=True)}
+    exakt = [k for k in kandidaten if _eintrag_namen(k) & varianten]
+    # S10 EXPLIZIT statt per Annahme: die FTS-Rangfolge stellt einen englischen
+    # Volltreffer ('Warrior of the Open Hand', Open5e) vor den deutschen Praefix-Titel
+    # ('Moench-Unterklasse: Krieger der Offenen Hand', srd-de) - fuer die Detailwahl
+    # zaehlt aber Deutsch-first. Stabile Sortierung: DE-Fassungen nach vorn, sonst
+    # FTS-Reihenfolge unveraendert (Befund 17.07.2026).
+    exakt.sort(key=lambda k: k.get("sprache") != "de")
+    ziel_exakt = [k for k in exakt if k["edition"] == edition]
+
+    if ziel_exakt:
+        gewaehlt, weitere = _waehle_aus_gleichnamigen(con, ziel_exakt)
+        return _Auswahl(gewaehlt, None, weitere, exakt, None)
+
+    # Der Begriff existiert in der ZIEL-Edition als Abschnitts-Ueberschrift eines
+    # Sammel-Eintrags (srd-de-Chunking) - das schlaegt den Rueckfall auf aeltere/
+    # fremdsprachige Fassungen: die aktuelle deutsche Antwort ist ja im Bestand.
+    sub = (_unterabschnitts_treffer(con, kandidaten, varianten, edition)
+           or _unterabschnitts_treffer(
+               con, _unterabschnitts_nachsuche(con, kategorie, varianten, edition),
+               varianten, edition))
+    if sub:
+        gewaehlt, unterabschnitt = sub
+        return _Auswahl(gewaehlt, unterabschnitt, [], exakt, None)
+
+    if exakt:
+        if edition == _db.STANDARD_EDITION:
+            return _Auswahl(exakt[0], None, [], exakt, None)   # nur aeltere Fassung (B5)
+        fassungen = [_knapp(k, con) for k in exakt[:6]]
+        absage = {"gefunden": False, "vorhandene_fassungen": fassungen,
+                  "hinweis": (f"Keine Fassung der Regelversion {edition} im Bestand - "
+                              f"vorhandene Fassungen siehe 'vorhandene_fassungen'; "
+                              f"nicht still ersetzen (V5).")}
+        _markiere_abenteuer(con, absage, fassungen)
+        return _Auswahl(None, None, [], exakt, absage)
+
+    if len(kandidaten) == 1 and (edition == _db.STANDARD_EDITION
+                                 or kandidaten[0]["edition"] == edition):
+        return _Auswahl(kandidaten[0], None, [], exakt, None)
+
+    # #1: reine Body-Erwaehnungen (deren Name gar nicht zur Anfrage passt, z. B.
+    # 'Schild'/'Zauberplaetze' bei der Suche nach 'Magic Missile') aus der Kandidatenliste
+    # draengen. Bleibt genau EIN starker Namenstreffer der gewuenschten Edition (auch
+    # vertippt: 'Missle'->'Missile'), ihn direkt liefern statt rueckzufragen. Sonst die
+    # BEREINIGTE Kandidatenliste zeigen.
+    relevante = [k for k in kandidaten if _name_score(k, varianten) >= _NAME_MIN]
+    rel_std = [k for k in relevante if k["edition"] == edition]
+    if len(rel_std) == 1:
+        return _Auswahl(rel_std[0], None, [], exakt, None)
+    if len(relevante) == 1:
+        return _Auswahl(relevante[0], None, [], exakt, None)
+    gezeigt = [_knapp(k, con) for k in (relevante or kandidaten)[:6]]
+    absage = {"gefunden": False, "mehrdeutig": True,
+              "kandidaten": gezeigt, "hinweis": HINWEIS_MEHRDEUTIG}
+    _markiere_abenteuer(con, absage, gezeigt)
+    return _Auswahl(None, None, [], exakt, absage)
+
+
+def _waehle_aus_gleichnamigen(con, ziel_exakt: list[dict]) -> tuple[dict, list[dict]]:
+    """Aus den exakten Treffern der Zieledition den zu liefernden waehlen.
+
+    ziel_exakt ist prioritaets-/Deutsch-first-sortiert (_dedupe_und_sortiere.rang): [0] ist
+    der kanonische Treffer der Vorrang-Quelle (deutsche Quelle vor DDB/Open5e, Q2/S10). Die
+    SYN-P0-003-Laengenwahl (KERNABSCHNITT vor Statblock-Format-Meta 'Elemente von
+    Wertekaesten' bzw. Glossar-Kurzverweis) vergleicht NUR gleichnamige Abschnitte DERSELBEN
+    Quelle - verschiedene QUELLEN sind Fassungen und werden von der Quellen-Prioritaet
+    entschieden, NIE von der Textlaenge. Sonst schlaegt ein laengerer englischer
+    DDB-Abschnitt den exakten deutschen srd-de-Treffer (Deutsch-first-Bug: engl.
+    'Reactions' ist laenger als der srd-de-Kernabschnitt 'Reaktionen')."""
+    kopf = ziel_exakt[0]
+    geschwister = [k for k in ziel_exakt if k["quelle"] == kopf["quelle"]]
+    if len(geschwister) <= 1:
+        return kopf, []
+    # Gleichnamige Abschnitte DERSELBEN Quelle sind verschiedene TEXTSTELLEN (Spielregel-
+    # Kapitel vs. Statblock-Format-Meta vs. Glossar-Kurzverweis, codex DND-002): den
+    # AUSFUEHRLICHSTEN deterministisch waehlen (Bonusaktionen 837 vs. 200, Temp-TP 1665 vs.
+    # 235); die uebrigen als nachladbare `weitere_abschnitte` ausweisen.
+    def _regeltext_laenge(v: dict) -> int:
+        # Laenge OHNE die Kontext-Breadcrumb-Zeile messen (ein langer Kontext taeuscht
+        # sonst Textumfang vor).
+        return len(_KONTEXT_RE.sub("", v.get("body_md") or "", count=1))
+
+    voll_paare = [(_db.hole_eintrag(con, k["id"]), k) for k in geschwister]
+    voll_paare = [(v, k) for v, k in voll_paare if v]
+    voll_paare.sort(key=lambda vk: _regeltext_laenge(vk[0]), reverse=True)
+    return voll_paare[0][1], [_knapp(k, con) for _v, k in voll_paare[1:]]
+
+
+def _quellabweichungen(con, voll: dict, gewaehlt: dict, exakt: list[dict],
+                       weitere_abschnitte: list[dict]) -> tuple[list[dict], list[dict]]:
+    """(konflikte, fremdsprachige) - SYN-P1-009 (codex DND-011, Vampir 'weiss'/'unaware').
+
+    Dubletten GLEICHER Edition aus anderen Quellen textlich vergleichen: weicht der Wortlaut
+    wesentlich ab, ist das ein QUELLKONFLIKT und darf nicht still von der Prioritaetsquelle
+    entschieden werden. Max. 3 Vergleiche (Kosten)."""
+    # Kandidaten fuer den Vergleich: die im Dedupe weggemergten Fassungen des gewaehlten
+    # Treffers (gleiche Edition/Kategorie per Gruppenschluessel) plus etwaige weitere exakte
+    # Kandidaten anderer Quellen. Die gleichnamigen Same-Source-Abschnitte sind bereits als
+    # `weitere_abschnitte` ausgewiesen - sie duerfen den Vergleich (der QUELLuebergreifende
+    # Dubletten meint) nicht als Scheinkonflikt fuellen.
+    abschnitt_ids = {w["eintrag_id"] for w in weitere_abschnitte}
+    vergleiche = list(gewaehlt.get("weitere_fassungen") or [])
+    vergleiche += [{"id": k["id"], "quelle_titel": k["quelle_titel"]}
+                   for k in exakt
+                   if k["edition"] == voll["edition"] and k["id"] != voll["id"]
+                   and k["id"] not in abschnitt_ids]
+    konflikte, fremdsprachige = [], []
+    gesehen_ids = {voll["id"]}
+    for wf in vergleiche[:3]:
+        if wf["id"] in gesehen_ids:
+            continue
+        gesehen_ids.add(wf["id"])
+        anderer = _db.hole_eintrag(con, wf["id"])
+        if not anderer:
+            continue
+        if anderer["sprache"] != voll["sprache"]:
+            # Uebersetzungen koennen inhaltlich abweichen (Vampir-Fall), sind aber nicht
+            # automatisch als Konflikt beweisbar -> Referenz zum Nachladen.
+            fremdsprachige.append({"eintrag_id": wf["id"], "quelle": wf["quelle_titel"],
+                                   "sprache": anderer["sprache"]})
+        elif _texte_weichen_ab(voll["body_md"], anderer["body_md"]):
+            konflikte.append({"eintrag_id": wf["id"], "quelle": wf["quelle_titel"],
+                              "hinweis": "Textfassung weicht inhaltlich ab"})
+    return konflikte, fremdsprachige
+
+
 def _hole_detail_impl(kategorie: str, name: str | None = None,
                       edition: str = _db.STANDARD_EDITION,
                       aggregiere_kinder: bool = False,
@@ -909,24 +1088,7 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
         return {"gefunden": False, "hinweis": HINWEIS_DB_FEHLT}
     try:
         if eintrag_id is not None:
-            # SYN-P1-002: Direktabruf per stabiler Referenz aus einem Suchtreffer -
-            # KEINE Namensaufloesung, keine Editions-/Prioritaetswahl: exakt DIESER
-            # Eintrag oder ein strukturierter Fehler (nie ein stiller Quellenwechsel).
-            voll = _db.hole_eintrag(con, int(eintrag_id))
-            if voll is None:
-                return {"gefunden": False,
-                        "fehler": f"eintrag_id {eintrag_id} existiert nicht (Referenz "
-                                  f"veraltet? Neu suchen)."}
-            if voll["kategorie"] != kategorie:
-                return {"gefunden": False,
-                        "fehler": f"eintrag_id {eintrag_id} ist Kategorie "
-                                  f"'{voll['kategorie']}' - dieses Werkzeug liefert "
-                                  f"'{kategorie}' (passendes foliant_hol_* nutzen)."}
-            kinder = _kinder_texte(con, voll) if aggregiere_kinder else []
-            if kinder:
-                voll = dict(voll)
-                voll["body_md"] = voll["body_md"].rstrip() + "\n\n" + "\n\n".join(kinder)
-            return {"gefunden": True, **_detail(voll, con)}
+            return _detail_per_id(con, kategorie, eintrag_id, aggregiere_kinder)
         edition = _db.normalisiere_edition(edition)      # '5.5e' -> '2024' (SYN-P2-001)
         try:
             _db._pruefe_edition(con, edition)
@@ -939,103 +1101,14 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
         if not kandidaten:
             return {"gefunden": False, "hinweis": HINWEIS_LEER}
 
-        # Exakt zaehlt auch der per Glossar aufgeloeste Begriff ('Feuerball' <-> 'Fireball'):
-        # nach Begriffsaufloesung ist das KEIN Raten (B3/B4). NUR exakte Glossarbeziehungen
-        # (SYN-P0-001: die Fuzzy-Naehe 'Aktionen'~'Reaktionen' machte einen FREMDEN Eintrag
-        # zum Exakt-Treffer). Die prioritaets-sortierte Trefferliste stellt dabei deutsche
-        # Quellen nach vorn (S10/Q2).
-        varianten = {_glossar.norm_begriff(name)}
-        varianten |= {_glossar.norm_begriff(a)
-                      for a in _db._glossar_alternativen(con, name, nur_exakt=True)}
-        exakt = [k for k in kandidaten if _eintrag_namen(k) & varianten]
-        # S10 EXPLIZIT statt per Annahme: die FTS-Rangfolge stellt einen englischen
-        # Volltreffer ('Warrior of the Open Hand', Open5e) vor den deutschen Praefix-Titel
-        # ('Moench-Unterklasse: Krieger der Offenen Hand', srd-de) - fuer die Detailwahl
-        # zaehlt aber Deutsch-first. Stabile Sortierung: DE-Fassungen nach vorn, sonst
-        # FTS-Reihenfolge unveraendert (Befund 17.07.2026).
-        exakt.sort(key=lambda k: k.get("sprache") != "de")
-        ziel_exakt = [k for k in exakt if k["edition"] == edition]
+        auswahl = _waehle_kandidat(con, name, kategorie, edition, kandidaten)
+        if auswahl.absage is not None:
+            return auswahl.absage
+        gewaehlt, unterabschnitt = auswahl.gewaehlt, auswahl.unterabschnitt
+        weitere_abschnitte, exakt = auswahl.weitere_abschnitte, auswahl.exakt
 
-        gewaehlt = None
-        weitere_abschnitte: list[dict] = []
-        unterabschnitt: str | None = None
-        if ziel_exakt:
-            # ziel_exakt ist prioritaets-/Deutsch-first-sortiert (_dedupe_und_sortiere.rang):
-            # [0] ist der kanonische Treffer der Vorrang-Quelle (deutsche Quelle vor DDB/
-            # Open5e, Q2/S10). Die SYN-P0-003-Laengenwahl (KERNABSCHNITT vor Statblock-
-            # Format-Meta 'Elemente von Wertekästen' bzw. Glossar-Kurzverweis) vergleicht
-            # NUR gleichnamige Abschnitte DERSELBEN Quelle - verschiedene QUELLEN sind
-            # Fassungen und werden von der Quellen-Prioritaet entschieden, NIE von der
-            # Textlaenge. Sonst schlaegt ein laengerer englischer DDB-Abschnitt den exakten
-            # deutschen srd-de-Treffer (Deutsch-first-Bug: engl. 'Reactions' ist laenger als
-            # der srd-de-Kernabschnitt 'Reaktionen').
-            kopf = ziel_exakt[0]
-            geschwister = [k for k in ziel_exakt if k["quelle"] == kopf["quelle"]]
-            if len(geschwister) > 1:
-                # Gleichnamige Abschnitte DERSELBEN Quelle sind verschiedene TEXTSTELLEN
-                # (Spielregel-Kapitel vs. Statblock-Format-Meta vs. Glossar-Kurzverweis,
-                # codex DND-002): den AUSFUEHRLICHSTEN (KERNABSCHNITT) deterministisch
-                # waehlen (Bonusaktionen 837 vs. 200, Temp-TP 1665 vs. 235); die uebrigen
-                # als nachladbare `weitere_abschnitte` ausweisen (per eintrag_id abrufbar).
-                def _regeltext_laenge(v: dict) -> int:
-                    # Laenge OHNE die Kontext-Breadcrumb-Zeile messen (ein langer Kontext
-                    # taeuscht sonst Textumfang vor).
-                    return len(_KONTEXT_RE.sub("", v.get("body_md") or "", count=1))
-                voll_paare = [(_db.hole_eintrag(con, k["id"]), k) for k in geschwister]
-                voll_paare = [(v, k) for v, k in voll_paare if v]
-                voll_paare.sort(key=lambda vk: _regeltext_laenge(vk[0]), reverse=True)
-                gewaehlt = voll_paare[0][1]
-                weitere_abschnitte = [_knapp(k, con) for _v, k in voll_paare[1:]]
-            else:
-                gewaehlt = kopf
-        elif (sub := (_unterabschnitts_treffer(con, kandidaten, varianten, edition)
-                      or _unterabschnitts_treffer(
-                          con, _unterabschnitts_nachsuche(con, kategorie, varianten,
-                                                          edition),
-                          varianten, edition))):
-            # Der Begriff existiert in der ZIEL-Edition als Abschnitts-Ueberschrift eines
-            # Sammel-Eintrags (srd-de-Chunking) - das schlaegt den Rueckfall auf aeltere/
-            # fremdsprachige Fassungen: die aktuelle deutsche Antwort ist ja im Bestand.
-            gewaehlt, unterabschnitt = sub
-        elif exakt:
-            if edition == _db.STANDARD_EDITION:
-                gewaehlt = exakt[0]      # nur aeltere Fassung vorhanden (B5)
-            else:
-                fassungen = [_knapp(k, con) for k in exakt[:6]]
-                antwort = {"gefunden": False, "vorhandene_fassungen": fassungen,
-                           "hinweis": (f"Keine Fassung der Regelversion {edition} im "
-                                       f"Bestand - vorhandene Fassungen siehe "
-                                       f"'vorhandene_fassungen'; nicht still ersetzen (V5).")}
-                _markiere_abenteuer(con, antwort, fassungen)
-                return antwort
-        elif len(kandidaten) == 1 and (edition == _db.STANDARD_EDITION
-                                       or kandidaten[0]["edition"] == edition):
-            gewaehlt = kandidaten[0]
-        if gewaehlt is None:
-            # #1: reine Body-Erwaehnungen (deren Name gar nicht zur Anfrage passt, z. B.
-            # 'Schild'/'Zauberplaetze' bei der Suche nach 'Magic Missile') aus der
-            # Kandidatenliste draengen. Bleibt genau EIN starker Namenstreffer der
-            # gewuenschten Edition (auch vertippt: 'Missle'->'Missile'), ihn direkt liefern
-            # statt rueckzufragen. Sonst die BEREINIGTE Kandidatenliste zeigen.
-            relevante = [k for k in kandidaten if _name_score(k, varianten) >= _NAME_MIN]
-            rel_std = [k for k in relevante if k["edition"] == edition]
-            if len(rel_std) == 1:
-                gewaehlt = rel_std[0]
-            elif len(relevante) == 1:
-                gewaehlt = relevante[0]
-            else:
-                anzeige = relevante or kandidaten
-                gezeigt = [_knapp(k, con) for k in anzeige[:6]]
-                antwort = {"gefunden": False, "mehrdeutig": True,
-                           "kandidaten": gezeigt, "hinweis": HINWEIS_MEHRDEUTIG}
-                _markiere_abenteuer(con, antwort, gezeigt)
-                return antwort
-
-        voll = _db.hole_eintrag(con, gewaehlt["id"])
-        kinder = _kinder_texte(con, voll) if aggregiere_kinder else []
-        if kinder:
-            voll = dict(voll)
-            voll["body_md"] = voll["body_md"].rstrip() + "\n\n" + "\n\n".join(kinder)
+        voll, kinder = _mit_kindern(con, _db.hole_eintrag(con, gewaehlt["id"]),
+                                    aggregiere_kinder)
         if gewaehlt.get("weitere_fassungen"):
             # hole_eintrag liefert die blanke Zeile - die vom Dedup weggemergten Fassungen
             # stehen nur am Kandidaten. _facetten_von braucht sie als Rueckfallebene (A5).
@@ -1073,40 +1146,8 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
                 f"⚠️ Dies ist die {voll['edition']}-Fassung. Es gibt AUCH eine "
                 f"{_db.STANDARD_EDITION}-Fassung im Bestand (siehe 'andere_fassungen') - "
                 f"die aktuelle Version nennen, sofern nicht bewusst die aeltere gewuenscht ist.")
-        # SYN-P1-009 (codex DND-011, Vampir 'weiss'/'unaware'): Dubletten GLEICHER
-        # Edition aus anderen Quellen textlich vergleichen - weicht der Wortlaut
-        # wesentlich ab, ist das ein QUELLKONFLIKT und darf nicht still von der
-        # Prioritaetsquelle entschieden werden. Max. 3 Vergleiche (Kosten).
-        konflikte, fremdsprachige = [], []
-        # Kandidaten fuer den Vergleich: die im Dedupe weggemergten Fassungen des
-        # gewaehlten Treffers (gleiche Edition/Kategorie per Gruppenschluessel) plus
-        # etwaige weitere exakte Kandidaten anderer Quellen.
-        # Die gleichnamigen Same-Source-Abschnitte sind bereits als `weitere_abschnitte`
-        # ausgewiesen - sie duerfen den Konflikt-/Fremdfassungs-Vergleich (der QUELL-
-        # uebergreifende Dubletten meint) nicht als Scheinkonflikt fuellen.
-        abschnitt_ids = {w["eintrag_id"] for w in weitere_abschnitte}
-        vergleiche = list(gewaehlt.get("weitere_fassungen") or [])
-        vergleiche += [{"id": k["id"], "quelle_titel": k["quelle_titel"]}
-                       for k in exakt
-                       if k["edition"] == voll["edition"] and k["id"] != voll["id"]
-                       and k["id"] not in abschnitt_ids]
-        gesehen_ids = {voll["id"]}
-        for wf in vergleiche[:3]:
-            if wf["id"] in gesehen_ids:
-                continue
-            gesehen_ids.add(wf["id"])
-            anderer = _db.hole_eintrag(con, wf["id"])
-            if not anderer:
-                continue
-            if anderer["sprache"] != voll["sprache"]:
-                # Uebersetzungen koennen inhaltlich abweichen (Vampir-Fall), sind aber
-                # nicht automatisch als Konflikt beweisbar -> Referenz zum Nachladen.
-                fremdsprachige.append({"eintrag_id": wf["id"],
-                                       "quelle": wf["quelle_titel"],
-                                       "sprache": anderer["sprache"]})
-            elif _texte_weichen_ab(voll["body_md"], anderer["body_md"]):
-                konflikte.append({"eintrag_id": wf["id"], "quelle": wf["quelle_titel"],
-                                  "hinweis": "Textfassung weicht inhaltlich ab"})
+        konflikte, fremdsprachige = _quellabweichungen(
+            con, voll, gewaehlt, exakt, weitere_abschnitte)
         if fremdsprachige:
             antwort["fremdsprachige_fassungen"] = fremdsprachige
             antwort["hinweis_fremdfassung"] = (
