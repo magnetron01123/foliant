@@ -620,16 +620,6 @@ def _anzeige_name(con: sqlite3.Connection, e: dict) -> str:
     return name_en
 
 
-_FACETTEN_TABELLEN = {
-    "zauber": ("zauber_meta", ("grad", "schule", "klassen", "reichweite_m",
-                               "komponenten", "dauer_min", "konzentration", "ritual")),
-    "monster": ("monster_meta", ("hg", "typ", "rk", "tp")),
-    "gegenstand": ("gegenstand_meta", ("preis_cent",)),
-}
-# Felder, die als Wahrheitswert gemeint sind - 0/1 in der DB, true/false nach aussen.
-_FACETTEN_BOOL = {"konzentration", "ritual"}
-
-
 def _facetten_von(con: sqlite3.Connection, e: dict) -> dict | None:
     """Strukturierte Facetten aus dem Meta-Seitenwagen: ADDITIV zum verbatim body_md,
     ersetzen den Regeltext nie. None, wenn keine Zeile/Tabelle vorhanden ist (dann fehlt
@@ -643,7 +633,7 @@ def _facetten_von(con: sqlite3.Connection, e: dict) -> dict | None:
     Facetten sonst unsichtbar - obwohl sie im Bestand stehen. Die Facetten sind
     sprachunabhaengige Strukturwerte (Grad, HG, RK/TP), deshalb ist das dieselbe Aussage
     und keine Vermischung von Regeltexten."""
-    spez = _FACETTEN_TABELLEN.get(e["kategorie"])
+    spez = _facetten.META_TABELLEN.get(e["kategorie"])
     if not spez:
         return None
     tabelle, felder = spez
@@ -662,7 +652,7 @@ def _facetten_von(con: sqlite3.Connection, e: dict) -> dict | None:
         if not row:
             continue
         vorhanden = set(row.keys())
-        werte = {f: (bool(row[f]) if f in _FACETTEN_BOOL else row[f])
+        werte = {f: (bool(row[f]) if f in _facetten.META_BOOL else row[f])
                  for f in felder if f in vorhanden and row[f] is not None}
         # Kanonische Schluessel sind DB-intern; nach aussen geht die deutsche Anzeigeform
         # (Deutsch-first, S3) - 'hervorrufung' liest sich sonst wie ein Tippfehler.

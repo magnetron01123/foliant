@@ -357,3 +357,29 @@ def monster_statschluessel(body: str | None) -> tuple:
     heissen 'unvollstaendig -> nicht fuer den Abgleich geeignet'."""
     return (monster_typ(body), monster_hg(body), monster_rk(body), monster_tp(body),
             monster_attribute(body))
+
+
+# --- Der Meta-Seitenwagen: EINE Definition fuer Schreiber und Leser ------------------
+# Welche Kategorie in welche Tabelle faellt und welche Felder dort stehen. Bis zum
+# 29.07.2026 fuehrten Schreiber (importer/facetten_seeder.py) und Leser
+# (app/tools/nachschlagen.py) je eine eigene, byte-identische Kopie - eine neue Facette
+# erschien deshalb nie in der Tool-Ausgabe, bis jemand die zweite Liste fand. Ein halb
+# gelandetes Feature ohne Fehlermeldung.
+#
+# Sie steht hier, weil beide Seiten dieses Modul ohnehin importieren (es traegt die
+# Parser) und die Schichtung dadurch erhalten bleibt: importer haengt an app, nie
+# umgekehrt. Die Spalten selbst legt db/schema.sql an - tests/test_facetten_seeder.py
+# haelt beide Seiten aneinander.
+#
+# gegenstand_meta.seltenheit fehlt bewusst: eine belastbare Seltenheits-Ableitung gibt es
+# im Bestand nicht (magische Gegenstaende fuehren sie, Ausruestung nicht) - lieber NULL
+# als geraten (Regel 1).
+META_TABELLEN: dict[str, tuple[str, tuple[str, ...]]] = {
+    "zauber": ("zauber_meta", ("grad", "schule", "klassen", "reichweite_m",
+                               "komponenten", "dauer_min", "konzentration", "ritual")),
+    "monster": ("monster_meta", ("hg", "typ", "rk", "tp")),
+    "gegenstand": ("gegenstand_meta", ("preis_cent",)),
+}
+
+# Felder, die als Wahrheitswert gemeint sind - 0/1 in der DB, true/false in der Ausgabe.
+META_BOOL = frozenset({"konzentration", "ritual"})

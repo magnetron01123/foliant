@@ -380,3 +380,33 @@ def test_check_meldet_facetten_deckung(tmp_path, monkeypatch, capsys):
     ausgabe = capsys.readouterr().out
     assert "Facetten-Deckung" in ausgabe
     assert "zauber 1/1" in ausgabe
+
+
+def test_meta_definition_deckt_sich_mit_dem_schema():
+    """Die EINE Definition (app.facetten.META_TABELLEN) und die Tabellen in db/schema.sql
+    muessen dieselben Spalten kennen.
+
+    Schreiber (facetten_seeder) und Leser (nachschlagen) teilen sich die Definition seit
+    dem 29.07.2026 - vorher fuehrte jede Seite eine eigene, byte-identische Kopie, und eine
+    neue Facette erschien nie in der Tool-Ausgabe, bis jemand die zweite Liste fand. Die
+    dritte Stelle bleibt aber das Schema: eine Spalte, die nur in der Definition steht,
+    laesst das INSERT des Seeders auflaufen; eine, die nur im Schema steht, bleibt
+    dauerhaft NULL, ohne dass es auffaellt."""
+    import re
+
+    sql = _SCHEMA.read_text(encoding="utf-8")
+    for kategorie, (tabelle, felder) in F.META_TABELLEN.items():
+        block = sql.split(f"CREATE TABLE IF NOT EXISTS {tabelle} (", 1)[1].split(");", 1)[0]
+        ohne_kommentar = "\n".join(z.split("--")[0] for z in block.splitlines())
+        # Spaltendeklaration = Name + Typ, egal ob eine je Zeile oder mehrere hintereinander.
+        spalten = {m.group(1) for m in re.finditer(
+            r"(?:^|,)\s*(\w+)\s+(?:INTEGER|TEXT|REAL|BLOB)", ohne_kommentar)}
+        fehlend = set(felder) - spalten
+        assert not fehlend, (f"{kategorie}: {sorted(fehlend)} steht in META_TABELLEN, "
+                             f"aber nicht in db/schema.sql -> der Seeder laeuft auf")
+        # seltenheit ist bewusst nicht in META_TABELLEN (keine belastbare Ableitung,
+        # BACKLOG par. 3) - alles andere waere eine unbemerkt tote Spalte.
+        ungenutzt = spalten - set(felder) - {"eintrag_id", "seltenheit"}
+        assert not ungenutzt, (f"{tabelle}: {sorted(ungenutzt)} steht im Schema, wird aber "
+                               f"von niemandem geschrieben - Spalte oder Eintrag in "
+                               f"META_TABELLEN fehlt")
