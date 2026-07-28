@@ -42,6 +42,8 @@ KLAMMER_SUFFIX = re.compile(r"\s*\([^()]{1,40}\)\s*$")
 _GLOSSAR_CACHE: dict[tuple, list[dict]] = {}
 # Exakt-Index ueber dieselben Zeilen (s. _exakt_index); gleiche Signatur, gleiche Lebensdauer.
 _INDEX_CACHE: dict[tuple, dict[tuple[str, str], list[dict]]] = {}
+# Namens-/Fuzzy-Schluessel je Spalte (s. _namen_index) - ebenfalls an die DB-Signatur gebunden.
+_NAMEN_CACHE: dict[tuple, dict[str, tuple]] = {}
 
 
 def _db_signatur(con: sqlite3.Connection) -> tuple:
@@ -71,8 +73,39 @@ def _alle_zeilen(con: sqlite3.Connection) -> list[dict]:
             "SELECT term_de, term_en, offiziell, quelle, edition_quelle, seite "
             "FROM glossar")]
         _GLOSSAR_CACHE.clear()               # nur die aktuelle Signatur halten (klein)
+        # Die abgeleiteten Caches hier mitleeren: sie sind aus GENAU diesen Zeilen gebaut.
+        # So wirkt auch ein blosses `_GLOSSAR_CACHE.clear()` (Test-Isolation) auf alle drei -
+        # sonst haetten Fixtures mit gleicher Signatur, aber anderem Inhalt einen stale Index.
+        _INDEX_CACHE.clear()
+        _NAMEN_CACHE.clear()
         _GLOSSAR_CACHE[sig] = cached
     return cached
+
+
+def _namen_index(con: sqlite3.Connection, spalte: str) -> tuple[dict, list, list]:
+    """(Rohname -> Zeilen, Rohnamen, VORNORMALISIERTE Rohnamen) je Spalte, gecacht.
+
+    Messung 28.07.2026 (Pi, cProfile): norm_begriff lief 88 000-mal PRO Suchanfrage und
+    kostete 11,4 von 13,1 s. Ursache war nicht die Menge der Daten, sondern die
+    Wiederholung - lookup() baute dieses Dict bei JEDEM Aufruf neu ueber alle
+    Glossarzeilen, und _glossar_alternativen ruft lookup() wegen der zwei Hops rund
+    zwoelfmal je Anfrage auf. Auch die Normalisierung der Suchschluessel gehoert in den
+    Cache: process.extract(processor=_norm) normalisierte sonst alle 3180 Namen erneut,
+    einmal pro Aufruf."""
+    sig = _db_signatur(con)
+    cache = _NAMEN_CACHE.get(sig)
+    if cache is None:
+        cache = {}
+        _NAMEN_CACHE.clear()                 # nur die aktuelle Signatur halten
+        _NAMEN_CACHE[sig] = cache
+    if spalte not in cache:
+        namen: dict[str, list[dict]] = {}
+        for z in _alle_zeilen(con):
+            if z[spalte]:
+                namen.setdefault(z[spalte], []).append(z)
+        schluessel = list(namen.keys())
+        cache[spalte] = (namen, schluessel, [_norm(k) for k in schluessel])
+    return cache[spalte]
 
 
 def _exakt_index(con: sqlite3.Connection) -> dict[tuple[str, str], list[dict]]:
@@ -161,21 +194,21 @@ def lookup(con: sqlite3.Connection, begriff: str, richtung: str = "en_de") -> li
     if not alle:
         return []
     n = _norm(begriff)
-    exakt = [{**z, "match": "exakt"} for z in alle if _norm(z[spalte]) == n]
+    richtung_key = "en_de" if spalte == "term_en" else "de_en"
+    exakt = [{**z, "match": "exakt"} for z in _exakt_index(con).get((richtung_key, n), [])]
     # S11: Flexions-/Schreibvarianten IMMER dazunehmen ("Gelegenheitsangriff" muss auch die
     # Plural-Zeile "Gelegenheitsangriffe" treffen, selbst wenn eine Abkuerzungszeile exakt
     # passt). Exakte Treffer bleiben vorn.
-    namen: dict[str, list[dict]] = {}
-    for z in alle:
-        if z[spalte]:
-            namen.setdefault(z[spalte], []).append(z)
+    namen, schluessel, schluessel_norm = _namen_index(con, spalte)
     # fuzz.ratio (voller Levenshtein), NICHT WRatio: dessen Substring-Komponente wuerde
     # 'Feuer' auf 'Feuerball' mappen und vage Begriffe faelschlich 'exakt' machen (B4!).
     # ratio toleriert genau das Gewollte: Flexion/kleine Varianten (Wurf<->Wuerfe ~97).
-    passend = process.extract(begriff, list(namen.keys()), scorer=fuzz.ratio,
-                              processor=_norm, score_cutoff=_FUZZY_CUTOFF, limit=5)
+    # Query UND Schluessel sind hier bereits normalisiert - fachlich dasselbe wie
+    # processor=_norm, nur ohne die Normalisierung aller Namen bei jedem Aufruf.
+    passend = process.extract(n, schluessel_norm, scorer=fuzz.ratio,
+                              score_cutoff=_FUZZY_CUTOFF, limit=5)
     fuzzy = [{**z, "match": "fuzzy", "score": round(score, 1)}
-             for name, score, _i in passend for z in namen[name]
+             for _n, score, i in passend for z in namen[schluessel[i]]
              if _norm(z[spalte]) != n]
 
     return (sorted(exakt, key=_auswahlschluessel)
