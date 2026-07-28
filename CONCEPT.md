@@ -102,8 +102,19 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
 - **`eintraege`** — Inhalts-Chunks (Rückgrat): `kategorie`, `name_de`/`name_en`, `edition`
   (**NOT NULL** → kein verwaister Inhalt), `seite` (optional), `body_md`, `kontext`
   (Breadcrumb). FK-Cascade von `quellen`.
-- **`zauber_meta`/`monster_meta`/`gegenstand_meta`** — strukturierte Filterfelder, aus Open5es
-  nativen Feldern befüllt; erscheinen additiv als `facetten` in den Detail-Tools.
+- **`zauber_meta`/`monster_meta`/`gegenstand_meta`** — strukturierte Facetten, erscheinen
+  additiv als `facetten` in den Detail-Tools (der `body_md` bleibt unangetastet).
+  `zauber_meta`: `grad`, `schule`, `klassen`, `reichweite_m`, `komponenten`, `dauer_min`,
+  `konzentration`, `ritual` · `monster_meta`: `hg`, `typ`, `rk`, `tp` ·
+  `gegenstand_meta`: `seltenheit` (noch ungeschrieben), `preis_cent`.
+  **Einziger Schreiber: `importer/facetten_seeder.py`** (seit 28.07.2026, Befund C1) — er
+  leitet aus `body_md` ab, mit genau den Parsern, die der Serving-Pfad ohnehin ruft
+  (`app/facetten.py`, `srd_zauberbruecken.kopf_felder`, `srd_begriffsbruecken.preis_cent_von`).
+  Vorher schrieb **nur** der Open5e-Import, und zwar aus den nativen API-Feldern in einen
+  zweiten Wertraum (`hg = "10.0"` statt kanonisch `"10"`, `schule = "Evocation"` statt
+  `"hervorrufung"`) — auf dem Pi waren alle drei Tabellen deshalb schlicht leer.
+  Gespeichert wird immer der **kanonische Schlüssel**; die deutsche Anzeigeform macht erst
+  die Ausgabe (`_facetten_von`). Was der Text nicht hergibt, bleibt `NULL` — nie geraten.
 - **`glossar`** — DE↔EN: `term_de` (kanonisch), `offiziell` (1 → kein `*`, 0 → `*`), `quelle`,
   `edition_quelle`. Grundlage für Begriffswahl und `*`-Kennzeichnung (S6/S9).
 - **`eintraege_fts`** — FTS5 (external-content) über `name_de, name_en, body_md`, Tokenizer
@@ -326,8 +337,15 @@ Golden-Tests laufen gegen sie und sind ebenfalls gitignored.
 ```
 python db/init_db.py data/foliant.sqlite
 python -m app.admin import --quelle srd-de              # dt. SRD (Reparaturpaket greift)
-python -m app.admin import --quelle open5e-srd-2024     # füllt auch zauber_meta/monster_meta
+python -m app.admin import --quelle open5e-srd-2024     # Open5e-API
 python -m app.admin import --quelle glossar             # inkl. Kern-Singulare
+```
+Reihenfolge: **Bestand → Facetten → Glossar.** Die Facetten laufen automatisch am Ende jedes
+Quellen-Imports mit (Voll-Lauf, idempotent, ~0,1 s je 3000 Einträge). Für eine bestehende DB
+ziehst du sie **ohne Re-Import** nach — wichtig, weil ein Re-Import die Namensreparatur der
+2014-Scans zunichte macht:
+```
+python -m app.admin import --quelle facetten
 ```
 
 ### 2. Freigeben = testen (Pflicht-Gate)
@@ -387,11 +405,11 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
 ```
 status        Bestand je Quelle/Edition/Kategorie + Glossar
 manifest      Korpus-Fingerabdruck (inhalts_hash) - nach jedem Import festhalten
-import        --quelle <kuerzel>
+import        --quelle <kuerzel> | glossar | facetten (Facetten ohne Re-Import nachziehen)
 pdf-triage    welche PDFs haben keine Textschicht?
 ocr-pdf       --datei <pfad> [--redo] [--voll]
 reindex-fts   FTS neu aufbauen
-check         Integritaet, FK, FTS-Suchbarkeit, Editionen, Textqualitaet
+check         Integritaet, FK, FTS-Suchbarkeit, Editionen, Textqualitaet, Facetten-Deckung
 glossar-audit Glossar-Stand und -Herkunft pruefen
 backup        konsistentes, verifiziertes Online-Backup mit Rotation
 ddb-pruefe | ddb-import | ddb-import-all | ddb-remove
@@ -665,6 +683,16 @@ Kuratiert; weitere Details in `app/bekannte_macken.py`.
   startet den Live-MCP durch → immer **`--no-deps`**.
 - **Die glossar-nur-DB muss existieren, BEVOR `web` startet** — sonst legt Docker ein
   Verzeichnis statt der Datei an.
+- **`srd_zauberbruecken.fingerabdruck` ist die Beweisgrundlage der 106 geseedeten
+  Zauber-Brücken — seine Regexe bleiben roh.** Sie sind nachweislich zu streng
+  (`**Komponenten:** V, G, M` läuft ins Leere, weil die zwei Sterne zwischen Label und Wert
+  stehen; `Range:?` trifft ohne Wortgrenze das `Range` in `Ranger`). Wer sie „repariert",
+  verschiebt Glossar-Paare. Für die Facetten gibt es deshalb `kopf_felder()` mit
+  auszeichnungsfreiem Kopf und wortgrenzen-festen Labeln — `tests/test_facetten_seeder.py`
+  hält fest, dass der Abdruck sich dabei nicht bewegt.
+- **Ein Re-Import spielt die rohen OCR-Namen wieder ein** und macht die Namensreparatur der
+  betroffenen Quelle zunichte. Facetten deshalb nie über einen Re-Import nachziehen, sondern
+  mit `import --quelle facetten`.
 - `bm25()` liefert negative Werte → `ORDER BY bm25(...) ASC`.
 - Nach jedem Import FTS-`rebuild` (macht der Importer/Admin selbst).
 - DB-Journal = **DELETE** (Bind-Mount) — nicht auf WAL umstellen.

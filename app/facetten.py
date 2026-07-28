@@ -112,21 +112,38 @@ for _kanon, _formen in {
         _KLASSEN_SYN[_f] = _kanon
 
 
+_KANON_KLASSEN = set(_KLASSEN_SYN.values())      # die zwoelf Klassen, kanonisch
+
+
 def _klasse_kanon(begriff: str) -> str:
     return _KLASSEN_SYN.get(_n(begriff), _n(begriff))
 
 
 def zauber_klassen(body: str | None) -> list[str]:
     """Klassenliste aus dem Kopf: srd-de aus der Klammer ('(Magier, Zauberer)'),
-    Open5e aus dem Feld ('**Classes:** Warlock')."""
+    Open5e aus dem Feld ('**Classes:** Warlock').
+
+    Das BESCHRIFTETE Feld hat Vorrang vor der Klammer. Umgekehrt (bis 28.07.2026) gewann
+    bei Open5e die erste Klammer im Kopf - und das ist dort die Materialkomponente:
+    'Alarm' lieferte ['a bell and silver wire'] statt ['Ranger', 'Wizard'], womit der
+    klasse-Filter fuer den gesamten englischen Bestand ins Leere lief. srd-de aendert sich
+    nicht: dort gibt es kein 'Classes:'-Feld, die Klammer greift weiter."""
     if not body:
         return []
     kopf = body[:200]
-    m = _KLASSEN_PARENS.search(kopf) or _KLASSEN_FELD.search(kopf)
+    feld = _KLASSEN_FELD.search(kopf)
+    m = feld or _KLASSEN_PARENS.search(kopf)
     if not m:
         return []
     roh = re.split(r"[,/&]| und ", m.group(1))
-    return [t.strip() for t in roh if t.strip()]
+    namen = [t.strip() for t in roh if t.strip()]
+    # Die Klammer ist eine POSITIONS-Vermutung, kein beschriftetes Feld - sie darf nur
+    # gelten, wenn wenigstens ein Eintrag eine der zwoelf Klassen ist. Sonst geben wir
+    # dem Modell Beliebiges als Klassenliste aus: '(Ritual)' aus den dt. 2014-Koepfen
+    # ergab ['Ritual'], die Materialkomponente '(ein Stueck Fell)' ihren Wortlaut.
+    if not feld and not any(_klasse_kanon(n) in _KANON_KLASSEN for n in namen):
+        return []
+    return namen
 
 
 def klasse_passt(klassen: list[str], eingabe: str) -> bool:

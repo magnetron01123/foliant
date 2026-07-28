@@ -56,10 +56,25 @@ def cmd_status(_args) -> None:
 def cmd_import(args) -> None:
     """Importer nach Quellen-Kuerzel waehlen. Wege:
       glossar            -> dnddeutsch-Seeding (Kernbegriffe + Abkuerzungen)
+      facetten           -> Facetten aus dem vorhandenen Bestand nachziehen (kein Import)
       open5e-*           -> Open5e-API (Dokumente aus config [open5e].dokumente)
       <kuerzel aus toml> -> PDF-/Markdown-Quelle laut [[quelle]]-Registereintrag
-    Nach jedem Import wird die FTS neu aufgebaut (Leitplanke)."""
+    Nach jedem Import wird die FTS neu aufgebaut (Leitplanke) und der Facetten-Seeder
+    gefahren - Reihenfolge insgesamt: Bestand, dann Facetten, dann Glossar."""
+    from importer.facetten_seeder import seed_facetten
+
     kuerzel = args.quelle
+    if kuerzel == "facetten":
+        # Nachruest-Weg fuer Bestands-DBs: Facetten OHNE Re-Import nachziehen. Wichtig,
+        # weil ein Re-Import die Namensreparatur der 2014-Scans zunichte machen wuerde
+        # (BACKLOG §1/M1) - der Bestand darf dafuer nicht angefasst werden muessen.
+        c = _con(getattr(args, "db", None))
+        with c:
+            bilanz = seed_facetten(c)
+        print("Facetten: " + ", ".join(f"{n} {k}" for k, n in bilanz.items()))
+        c.close()
+        return
+
     if kuerzel == "glossar":
         from importer.import_glossar import (KERNBEGRIFFE_EN, kanonisiere_konflikte,
                                              kanonisiere_schreibvarianten,
@@ -105,6 +120,7 @@ def cmd_import(args) -> None:
         return
 
     c = _con(getattr(args, "db", None))
+    facetten: dict[str, int] = {}
     try:
         force = bool(getattr(args, "force", False))
         if kuerzel.startswith("open5e"):
@@ -114,6 +130,7 @@ def cmd_import(args) -> None:
             # jeder Fehler rollt komplett zurueck, der alte Bestand bleibt.
             with c:
                 n = import_open5e(c, dokumente, erlaube_schrumpfen=force)
+                facetten = seed_facetten(c)
         else:
             eintrag = next((q for q in _db.lade_konfig().get("quelle", [])
                             if q.get("kuerzel") == kuerzel), None)
@@ -160,7 +177,14 @@ def cmd_import(args) -> None:
                 n = importiere_markdown(c, kuerzel, markdown, edition=eintrag["edition"],
                                         kategorie=eintrag.get("kategorie", "regel"),
                                         erlaube_schrumpfen=force)
-        print(f"Import '{kuerzel}': {n} Eintraege, FTS neu aufgebaut.")
+                facetten = seed_facetten(c)
+        # Bewusst der VOLL-Lauf statt nur der importierten Quelle: er ist idempotent und
+        # billig (0,1 s auf 3000 Eintraegen) und zieht beilaeufig Quellen mit, die ueber
+        # einen anderen Weg hereingekommen sind - sonst bliebe wieder unbemerkt eine
+        # Tabelle leer (genau Befund C1). Innerhalb der Import-Transaktion, damit ein
+        # Fehlschlag keinen halben Facettenstand hinterlaesst.
+        print(f"Import '{kuerzel}': {n} Eintraege, FTS neu aufgebaut, "
+              + ", ".join(f"{z} {k}-Facetten" for k, z in facetten.items()) + ".")
     finally:
         c.close()
 
@@ -416,6 +440,21 @@ def cmd_check(_args) -> None:
         if funde:
             quellen_ = sorted({q for _, q in funde})
             print(f"   {titel}: {[n for n, _ in funde[:3]]} ... aus {quellen_}")
+    # Facetten-Deckung (Befund C1, 28.07.2026): Die Meta-Tabellen waren auf dem Pi LEER,
+    # lokal gefuellt - und niemand merkte es, weil kein Check hinsah. WARNUNG statt Fehler:
+    # eine vollstaendige Deckung ist gar nicht erreichbar (Ausruestung ohne Preisangabe
+    # traegt legitim keine Facette), und eine Kennzahl, die nie gruen wird, hoert man auf
+    # zu lesen (dieselbe Ueberlegung wie beim Glossar-Konflikt-Gate). Der Waechter zielt
+    # auf die AUSFAELLE: eine Tabelle, die komplett leer ist, obwohl es Eintraege gibt.
+    from importer.facetten_seeder import deckung
+
+    zeilen = deckung(c)
+    print("Facetten-Deckung: " + ", ".join(
+        f"{kat} {mit}/{ges}" + (f" ({100 * mit // ges} %)" if ges else "")
+        for kat, mit, ges in zeilen)
+        + ("  OK" if all(mit or not ges for _, mit, ges in zeilen)
+           else "  WARNUNG - Tabelle leer trotz Eintraegen: "
+                f"`python -m app.admin import --quelle facetten` nachziehen"))
     if n_e:
         beispiel = c.execute(
             "SELECT e.name_de, e.name_en, e.edition, q.titel FROM eintraege e "
@@ -847,7 +886,9 @@ def main(argv=None) -> None:
     sub.add_parser("manifest", help="Korpus-Fingerabdruck (Quellen + Inhalts-Hash) als JSON"
                    ).set_defaults(func=cmd_manifest)
     pi = sub.add_parser("import", help="Quelle importieren")
-    pi.add_argument("--quelle", required=True, help="kuerzel aus config, z. B. srd-de")
+    pi.add_argument("--quelle", required=True,
+                    help="kuerzel aus config, z. B. srd-de; 'glossar' = dnddeutsch-Seeding, "
+                         "'facetten' = Facetten aus dem Bestand nachziehen (ohne Re-Import)")
     pi.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad); z. B. die private DB "
                                  "fuer ein Glossar-Reseeding nach einem DDB-Import")
     pi.add_argument("--force", action="store_true",

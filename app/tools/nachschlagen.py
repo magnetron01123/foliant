@@ -515,24 +515,59 @@ def _anzeige_name(con: sqlite3.Connection, e: dict) -> str:
     return name_en
 
 
+_FACETTEN_TABELLEN = {
+    "zauber": ("zauber_meta", ("grad", "schule", "klassen", "reichweite_m",
+                               "komponenten", "dauer_min", "konzentration", "ritual")),
+    "monster": ("monster_meta", ("hg", "typ", "rk", "tp")),
+    "gegenstand": ("gegenstand_meta", ("preis_cent",)),
+}
+# Felder, die als Wahrheitswert gemeint sind - 0/1 in der DB, true/false nach aussen.
+_FACETTEN_BOOL = {"konzentration", "ritual"}
+
+
 def _facetten_von(con: sqlite3.Connection, e: dict) -> dict | None:
-    """Strukturierte Filter-Facetten aus dem zauber_meta/monster_meta-Seitenwagen (heute nur
-    aus Open5e befuellt): ADDITIV zum verbatim body_md, ersetzen den Regeltext nie. Zauber ->
-    grad/schule/klassen, Monster -> hg/typ. None, wenn keine Zeile/Tabelle vorhanden ist
-    (dann fehlt das Feld schlicht - kein Raten)."""
-    spez = {"zauber": ("zauber_meta", ("grad", "schule", "klassen")),
-            "monster": ("monster_meta", ("hg", "typ"))}.get(e["kategorie"])
+    """Strukturierte Facetten aus dem Meta-Seitenwagen: ADDITIV zum verbatim body_md,
+    ersetzen den Regeltext nie. None, wenn keine Zeile/Tabelle vorhanden ist (dann fehlt
+    das Feld schlicht - kein Raten). `0` ist ein WERT, kein Fehlen: 'Grad 0' (Zaubertrick),
+    'dauer_min 0' (unmittelbar) und 'ritual 0' bleiben erhalten.
+
+    Faellt zum Dedup-Gewinner nichts, werden die weggemergten Fassungen befragt (A5,
+    Review 28.07.2026): Der Dedup laesst die deutsche Quelle gewinnen, und die gelieferte
+    ID ist damit fast immer eine srd-de-ID. Kann der Seeder aus DEREN Text nichts ableiten
+    (OCR-Riss, Kurzabschnitt), aus der englischen Schwesterfassung aber schon, waeren die
+    Facetten sonst unsichtbar - obwohl sie im Bestand stehen. Die Facetten sind
+    sprachunabhaengige Strukturwerte (Grad, HG, RK/TP), deshalb ist das dieselbe Aussage
+    und keine Vermischung von Regeltexten."""
+    spez = _FACETTEN_TABELLEN.get(e["kategorie"])
     if not spez:
         return None
     tabelle, felder = spez
-    try:
-        row = con.execute(f"SELECT {', '.join(felder)} FROM {tabelle} WHERE eintrag_id = ?",
-                          (e["id"],)).fetchone()
-    except sqlite3.OperationalError:
-        return None                                   # Alt-DB ohne Facetten-Tabelle
-    if not row:
-        return None
-    return {f: row[f] for f in felder if row[f] is not None} or None
+    ids = [e["id"]] + [f["id"] for f in (e.get("weitere_fassungen") or []) if f.get("id")]
+    for eid in ids:
+        try:
+            # Bewusst SELECT *: der SERVING-Pfad ist read-only und migriert NICHT (das tut
+            # stelle_schema_sicher nur auf dem Schreibpfad). Eine Bestands-DB, auf der noch
+            # kein Import lief, kennt die neuen Spalten nicht - eine feste Spaltenliste
+            # wuerde dort die Abfrage sprengen und ALLE Facetten verschlucken, auch die
+            # laengst vorhandenen. So fehlen bloss die neuen Felder.
+            row = con.execute(f"SELECT * FROM {tabelle} WHERE eintrag_id = ?",
+                              (eid,)).fetchone()
+        except sqlite3.OperationalError:
+            return None                               # Alt-DB ohne die Facetten-Tabelle
+        if not row:
+            continue
+        vorhanden = set(row.keys())
+        werte = {f: (bool(row[f]) if f in _FACETTEN_BOOL else row[f])
+                 for f in felder if f in vorhanden and row[f] is not None}
+        # Kanonische Schluessel sind DB-intern; nach aussen geht die deutsche Anzeigeform
+        # (Deutsch-first, S3) - 'hervorrufung' liest sich sonst wie ein Tippfehler.
+        for feld, anzeige in (("schule", _facetten.schule_anzeige),
+                              ("typ", _facetten.typ_anzeige)):
+            if werte.get(feld):
+                werte[feld] = anzeige(werte[feld]) or werte[feld]
+        if werte:
+            return werte
+    return None
 
 
 def _detail(e: dict, con: sqlite3.Connection) -> dict:
@@ -891,6 +926,11 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
         if kinder:
             voll = dict(voll)
             voll["body_md"] = voll["body_md"].rstrip() + "\n\n" + "\n\n".join(kinder)
+        if gewaehlt.get("weitere_fassungen"):
+            # hole_eintrag liefert die blanke Zeile - die vom Dedup weggemergten Fassungen
+            # stehen nur am Kandidaten. _facetten_von braucht sie als Rueckfallebene (A5).
+            voll = dict(voll)
+            voll["weitere_fassungen"] = gewaehlt["weitere_fassungen"]
         antwort = {"gefunden": True, **_detail(voll, con)}
         if unterabschnitt:
             antwort["hinweis_unterabschnitt"] = (

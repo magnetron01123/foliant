@@ -82,10 +82,10 @@ def _grad_schule(kopf: str, deutsch: bool) -> tuple[int, str] | None:
     return (0, m.group(1).lower()) if m else None
 
 
-def _reichweite(kopf: str, deutsch: bool) -> str | int | None:
+def _reichweite(kopf: str, deutsch: bool, muster: re.Pattern | None = None) -> str | int | None:
     """Meter (int), 'beruehrung', 'selbst' oder None. Fuss -> Meter nach der
     D&D-Konvention 5 ft = 1,5 m; gerundet, damit 150 ft und 45 m denselben Wert geben."""
-    m = (_DE_REICHWEITE if deutsch else _EN_REICHWEITE).search(kopf)
+    m = (muster or (_DE_REICHWEITE if deutsch else _EN_REICHWEITE)).search(kopf)
     if not m:
         return None
     text = m.group(1).lower()
@@ -110,9 +110,9 @@ def _reichweite(kopf: str, deutsch: bool) -> str | int | None:
     return None
 
 
-def _komponenten(kopf: str, deutsch: bool) -> str | None:
+def _komponenten(kopf: str, deutsch: bool, muster: re.Pattern | None = None) -> str | None:
     """'VSM' sortiert; deutsches G(este) ist das englische S(omatic)."""
-    m = (_DE_KOMPONENTEN if deutsch else _EN_KOMPONENTEN).search(kopf)
+    m = (muster or (_DE_KOMPONENTEN if deutsch else _EN_KOMPONENTEN)).search(kopf)
     if not m:
         return None
     zeichen = set(re.findall(r"[VGSM]", m.group(1).upper()))
@@ -121,10 +121,10 @@ def _komponenten(kopf: str, deutsch: bool) -> str | None:
     return "".join(sorted(zeichen)) or None
 
 
-def _dauer(kopf: str, deutsch: bool) -> tuple[bool, int] | None:
+def _dauer(kopf: str, deutsch: bool, muster: re.Pattern | None = None) -> tuple[bool, int] | None:
     """(Konzentration?, Minuten). 'unmittelbar'/'Instantaneous' -> 0,
     'bis zur Aufloesung'/'until dispelled' -> -1 (Sonderwert, nie eine Minutenzahl)."""
-    m = (_DE_DAUER if deutsch else _EN_DAUER).search(kopf)
+    m = (muster or (_DE_DAUER if deutsch else _EN_DAUER)).search(kopf)
     if not m:
         return None
     text = m.group(1).lower()
@@ -179,7 +179,12 @@ def _wuerfel(body: str | None) -> tuple:
 def fingerabdruck(body: str | None, deutsch: bool) -> tuple | None:
     """Der vollstaendige Zauber-Fingerabdruck oder None (= kein Zauberkopf erkennbar).
     Ein Feld None macht den Abdruck NICHT ungueltig - fehlende Felder sind selbst ein
-    Merkmal; gepaart wird ohnehin nur bei beidseitiger Eindeutigkeit."""
+    Merkmal; gepaart wird ohnehin nur bei beidseitiger Eindeutigkeit.
+
+    ACHTUNG: bewusst auf dem ROHEN Kopf (mit Markdown-Auszeichnung). Der Abdruck ist die
+    Beweisgrundlage der 106 geseedeten Zauber-Bruecken; ihn nachtraeglich treffsicherer
+    zu machen wuerde die bestehenden Glossar-Paare verschieben. Wer nur die Felder will,
+    nimmt kopf_felder() - das ist die Facetten-Senke und beruehrt die Bruecken nicht."""
     kopf = _kopf(body)
     grad_schule = _grad_schule(kopf, deutsch)
     if grad_schule is None:
@@ -187,6 +192,78 @@ def fingerabdruck(body: str | None, deutsch: bool) -> tuple | None:
     ritual = bool(re.search(r"\(ritual\)", kopf, re.I))
     return (*grad_schule, _reichweite(kopf, deutsch), _komponenten(kopf, deutsch),
             _dauer(kopf, deutsch), _zeitaufwand(kopf, deutsch), ritual, _wuerfel(body))
+
+
+# Markdown-Auszeichnung im Zauberkopf. Gemessen 28.07.2026: '**Komponenten:** V, G, M'
+# laesst _KOMPONENTEN ins Leere laufen, weil zwischen 'Komponenten:' und dem 'V' die zwei
+# Sterne stehen und \s* sie nicht frisst - Komponenten-Trefferquote 0 % in srd-de UND
+# open5e (100 % dagegen in den Druck-Buechern, die den Kopf blank setzen). Fuer die
+# Facetten wird die Auszeichnung deshalb vorher entfernt; fingerabdruck() bleibt bewusst
+# auf dem rohen Kopf (s. o.).
+_AUSZEICHNUNG = re.compile(r"[*_]+")
+
+# Ritual-Marker. fingerabdruck() sucht nur '(Ritual)' - die Form der deutschen 2014-Buecher
+# ('Nekromantie des 3. Grades (Ritual)'). Gemessen 28.07.2026 trifft sie im heutigen Bestand
+# KEINEN einzigen Zauber; die 2024-Quellen schreiben es anders: Open5e '**Ritual:** yes'
+# (29 Zauber), srd-de im Zeitaufwand-Feld ('**Zeitaufwand:** 1 Minute oder Ritual', 29).
+# Alle drei Formen sind Ablesen, kein Raten.
+_RITUAL = re.compile(r"\(\s*ritual\s*\)"              # dt. 2014-Buecher
+                     r"|\britual\b:?\s*(?:yes|ja)"    # Open5e 2024
+                     r"|\b(?:oder|or)\s+ritual\b",    # srd-de 2024 / Druck-Buecher
+                     re.I)
+
+# Label MIT Wortgrenze - nur fuer den Facetten-Pfad. Gemessen 28.07.2026: 'Range:?' trifft
+# ohne Grenze das 'Range' in 'Ranger' und liest dann die Klassenliste als Reichweite
+# ('**Classes:** Ranger, Wizard' -> Reichweite None statt 9 m). Der Fehler steckt auch in
+# fingerabdruck(); dort bleibt er BEWUSST stehen: der Abdruck ist die Beweisgrundlage der
+# geseedeten Zauber-Bruecken, und ihn zu veraendern verschoebe Glossar-Paare - eine
+# Aenderung, die in eine Glossar-Aenderung gehoert, wo ihr Delta gemessen wird, nicht in
+# eine Persistierung. Am Mac-Subset waere sie folgenlos (0 von 3084 Abdruecken aendern
+# sich), aber das Subset ist kein Beleg fuer den Pi-Vollbestand.
+def _wortfest(rx: re.Pattern) -> re.Pattern:
+    """Label-Regex mit Wortgrenze auf BEIDEN Seiten des Labels. Nur vorne genuegt nicht:
+    '\\bRange:?' trifft das 'Range' in 'Ranger' weiterhin, weil der Doppelpunkt optional
+    ist. Die Label-Muster haben alle die Form '<Label>:?\\s*(...)' - dort wird die Grenze
+    eingesetzt. Passt ein Muster nicht in dieses Schema, ist das ein Programmierfehler und
+    soll laut auffallen, statt still auf die kaputte Fassung zurueckzufallen."""
+    if ":?" not in rx.pattern:
+        raise ValueError(f"Label-Muster ohne ':?' - Schema geaendert? {rx.pattern!r}")
+    return re.compile(r"\b" + rx.pattern.replace(":?", r"\b:?", 1), rx.flags)
+
+
+_GRENZE = {rx: _wortfest(rx) for rx in
+           (_DE_REICHWEITE, _EN_REICHWEITE, _DE_KOMPONENTEN, _EN_KOMPONENTEN,
+            _DE_DAUER, _EN_DAUER)}
+
+# Anzeigereihenfolge der Komponenten: V, S, M ist die Konvention im Regelwerk. _komponenten
+# sortiert alphabetisch ('MSV') - fuer den Abdruck egal (beide Seiten sortieren gleich),
+# als ausgegebene Facette aber schlicht falsch gelesen.
+_KOMPONENTEN_ORDNUNG = "VSM"
+
+
+def kopf_felder(body: str | None, deutsch: bool) -> dict:
+    """Die Zauberkopf-Felder EINZELN und benannt, fuer den Facetten-Seeder. Dieselben
+    Parser wie fingerabdruck(), aber auf einem von Markdown-Auszeichnung befreiten Kopf
+    und mit wortgrenzen-festen Labeln (s. o.). Fehlt ein Feld im Text, bleibt es None -
+    es wird nichts geraten (Regel 1).
+
+    'ritual' kommt hier IMMER als 0/1 zurueck (0 = kein Marker im Kopf gefunden). Ob 0
+    ehrlich ist, entscheidet der Aufrufer: nur bei einem erkannten Zauberkopf heisst
+    'kein Marker' auch 'kein Ritual' - sonst ist es unbekannt (facetten_seeder setzt
+    dort None)."""
+    kopf = _AUSZEICHNUNG.sub(" ", _kopf(body))
+    grenze = lambda de, en: _GRENZE[de if deutsch else en]   # noqa: E731
+    dauer = _dauer(kopf, deutsch, grenze(_DE_DAUER, _EN_DAUER))
+    reichweite = _reichweite(kopf, deutsch, grenze(_DE_REICHWEITE, _EN_REICHWEITE))
+    komponenten = _komponenten(kopf, deutsch, grenze(_DE_KOMPONENTEN, _EN_KOMPONENTEN))
+    return {
+        "reichweite_m": None if reichweite is None else str(reichweite),
+        "komponenten": (None if komponenten is None else
+                        "".join(z for z in _KOMPONENTEN_ORDNUNG if z in komponenten)),
+        "dauer_min": None if dauer is None else dauer[1],
+        "konzentration": None if dauer is None else int(dauer[0]),
+        "ritual": int(bool(_RITUAL.search(kopf))),
+    }
 
 
 def _belegte_gegenstuecke(con: sqlite3.Connection, term: str,

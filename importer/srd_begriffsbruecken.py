@@ -63,6 +63,17 @@ def _preis_en(name: str | None, body: str | None) -> int | None:
     return _preis_cent(m.group(1), m.group(2), deutsch=False) if m else None
 
 
+def preis_cent_von(name: str | None, body: str | None, deutsch: bool) -> int | None:
+    """Preis eines Gegenstands in GM-Cent - die oeffentliche Fassung fuer den Facetten-
+    Seeder. Erst die Schreibweise der eigenen Sprache, dann die andere: deutsche Quellen
+    fuehren gelegentlich englische Preisnotation (und umgekehrt), und eine Zahl aus der
+    falschen Konvention waere schlimmer als keine (Punkt ist im Deutschen der TAUSENDER-
+    Trenner). Kein Treffer -> None."""
+    reihenfolge = (_preis_de(name), _preis_en(name, body)) if deutsch else \
+                  (_preis_en(name, body), _preis_de(name))
+    return next((p for p in reihenfolge if p is not None), None)
+
+
 def _grob_de(body: str | None) -> str:
     """Grobkategorie aus der srd-de-Kontextzeile. Segment-EXAKT vergleichen - ein
     Substring-Test wuerde jede 'Ausruestung > ...'-Zeile als 'ruestung' einordnen."""

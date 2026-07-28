@@ -265,8 +265,20 @@ und **Body**-Textqualität, aber nie die **Namen** — deshalb standen 46 Eintr�
 zählt der Check Metadaten-Namen und OCR-Risse mit, sodass der nächste Buch-Import (M1: dt.
 PHB 2024) sofort anschlägt statt erst bei einer Zufallsstichprobe.
 
+Die Facetten-Persistierung (Phase 3, 28.07.2026) hat beim Messen fünf weitere Posten belegt.
+Zwei davon **hat sie behoben**, weil sie sonst falsche Werte festgeschrieben hätte: der
+`klasse`-Filter las bei Open5e die Materialkomponente statt der Klassenliste
+(`Alarm` → `['a bell and silver wire']`, 159 Zauber, Anteil belegbarer Klassenlisten 77 % →
+100 %), und `Range:?` traf ohne Wortgrenze das `Range` in `Ranger`. Die folgenden bleiben
+offen — sie sitzen in Parsern, die **nicht** in die Meta-Tabellen schreiben:
+
 | Fund | Schwere | Warum offen gelassen |
 |---|---|---|
+| `fingerabdruck` erkennt **Komponenten nie** (`**Komponenten:** V, G, M` — die zwei Sterne stehen zwischen Label und Wert) und liest `Range` aus `Ranger` | niedrig | Der Abdruck ist die **Beweisgrundlage der 106 Zauber-Brücken**. Ihn treffsicherer zu machen verschiebt Glossar-Paare — das gehört in eine Glossar-Änderung, wo das Delta gemessen wird, nicht in eine Persistierung. Am Mac-Subset wäre die Korrektur folgenlos (0 von 3084 Abdrücken ändern sich), aber das Subset belegt den Pi-Vollbestand nicht. Die Facetten umgehen den Defekt über `kopf_felder()` |
+| `facetten.monster_attribute` liest `INT` aus „Hit **Po**ints" (Label ohne Wortgrenze) | niedrig | Wird von Phase 3 **nicht** persistiert; benutzt wird die Funktion nur vom Monster-Struktur-Abgleich, wo derselbe Fehler auf beiden Seiten auftritt und sich damit heraushebt |
+| `gegenstand_meta.preis_cent` deckt nur **43 %** der Gegenstände | keine | **Kein Fehler:** Ausrüstung ohne Preisangabe im Text (magische Gegenstände, Sammelabschnitte) trägt legitim keinen Preis. `admin check` warnt deshalb nur bei einer **komplett leeren** Tabelle, nicht bei Lücken |
+| `gegenstand_meta.seltenheit` bleibt ungeschrieben | keine | Es gibt im Bestand keine belastbare Ableitung (magische Gegenstände führen sie, Ausrüstung nicht) — lieber NULL als geraten (Regel 1) |
+| Der Facetten-**Filter** (`grad`/`schule`/`hg`/`typ`) parst weiter aus `body_md`, statt die jetzt persistierten Spalten per SQL zu filtern | niedrig | Bewusst: ein SQL-Filter lieferte bei ungeseedeter DB still **nichts** — genau die C1-Fehlerform. Die Textableitung ist selbsttragend. Sinnvoller Folgeschritt, sobald `admin check` die Deckung über mehrere Deploys hinweg grün ausweist |
 | `Aasimar Traits` u. Ä. erscheinen als eigene **Such**treffer (die Detail-Auskunft ist vollständig) | niedrig | echter, suchbarer Inhalt; die Option rankt zuerst — Ausblenden verschlechterte die Suche |
 | srd-de Drop-Cap-Namen (`wAffen`, `zAuber`) | niedrig | rein kosmetisch; eine Case-Heuristik an der Hauptquelle wäre risiko-unverhältnismäßig |
 | 2014-Sub-Fragmente in DDB-Kategorien | niedrig | erreichen die strikt-2024-Listen nie; die Suche rankt echte Optionen zuerst |
