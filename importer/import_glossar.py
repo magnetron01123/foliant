@@ -900,20 +900,58 @@ def kanonisiere_konflikte(con: sqlite3.Connection) -> int:
     return demotet
 
 
-if __name__ == "__main__":
-    from app import db as _db
-    pfad = _db.standard_pfad()
-    if not pfad.exists():
-        sys.exit(f"DB fehlt: {pfad} -> erst `python db/init_db.py` ausfuehren.")
-    con = _db.connect(str(pfad))
-    try:
-        n = seed_glossar(con, KERNBEGRIFFE_EN)
-        a = seed_abkuerzungen(con)
-        p = seed_srd_paare(con)
-        k = seed_kern_singulare(con)
-        b = seed_glossar_aus_bestand(con)
-        d = kanonisiere_konflikte(con)
-        print(f"Fertig: {n} Kern-Zeilen, {a} Abkuerzungen, {p} SRD-Paare, {k} Kern-Singulare, "
-              f"{b} Zeilen aus Bestandsnamen, {d} Konflikte kanonisiert.")
-    finally:
-        con.close()
+# Die kanonische Glossar-Kette. Die REIHENFOLGE ist Fachwissen, kein Implementierungs-
+# detail: mehrere Schritte setzen das Ergebnis frueherer voraus (der Kernwortschatz braucht
+# die Monster-Bruecke, die Klassenmerkmale die Klassennamen, die Kanonisierer den fertigen
+# Rohstand). Sie stand bis zum 29.07.2026 in `app/admin.py` - also im BEDIEN-Werkzeug statt
+# in der Fachschicht. Folge: ein zweiter Einstiegspunkt in DIESEM Modul fuhr nur sechs der
+# Schritte, ohne Transaktion und ohne die Namensreparaturen, und schrieb damit still ein
+# unvollstaendiges Glossar - das entscheidet ueber '*'-Kennzeichnung (S5/S6), Suchbruecken
+# (B3) und das Deutsch-first-Ranking. Deshalb: EINE Kette, hier, und `admin import
+# --quelle glossar` als einziger Aufrufer (CONCEPT.md par. 8).
+def seed_glossar_kernbegriffe(con: sqlite3.Connection) -> int:
+    """Die kuratierten KERNBEGRIFFE_EN seeden - der Kettenschritt zu seed_glossar(),
+    damit alle Schritte der Kette dieselbe Signatur (con) -> int haben."""
+    return seed_glossar(con, KERNBEGRIFFE_EN)
+
+
+_KETTE = [
+    # (Funktion, Bilanz-Beschriftung) - siehe seed_alles()
+    (repariere_srd_de_namen, "srd-Namen repariert"),   # zuerst: aus der PDF zerlegte srd-de-Namen
+    (seed_glossar_kernbegriffe, "Kern-Zeilen"),
+    (seed_abkuerzungen, "Abkuerzungen"),
+    (seed_srd_paare, "SRD-Paare"),
+    (seed_kern_singulare, "Kern-Singulare"),
+    (seed_aktionen, "Aktionen"),                       # 2024-Aktionsnamen, Homonym-gestoppt
+    (seed_glossar_aus_bestand, "Zeilen aus Bestandsnamen"),
+    (seed_glossar_de_aus_bestand, "Zeilen aus deutschen Namen"),
+    (repariere_2014_namen, "Namen repariert"),         # zerrissene 2014-Scan-Namen (belegt)
+    # Zweiter Lauf NACH der Reparatur: die eben zusammengefuegten Namen ('D ORNENWAND' ->
+    # 'Dornenwand') sind erst jetzt abfragbar. Gleiche Beschriftung -> die Bilanz addiert.
+    (seed_glossar_de_aus_bestand, "Zeilen aus deutschen Namen"),
+    (seed_monster_bruecke_aus_bestand, "Monster-Bruecken"),
+    (seed_kernwortschatz_aus_bestand, "Kernwortschatz-Paare"),   # NACH der Monster-Bruecke
+    (seed_klassenmerkmale_aus_bestand, "Klassenmerkmal-Paare"),  # NACH dem Klassennamen-Seeding
+    (seed_gegenstands_bruecke_aus_bestand, "Gegenstands-Bruecken"),  # VOR den Kanonisierern
+    (seed_zauber_bruecke_aus_bestand, "Zauber-Bruecken"),
+    (kanonisiere_konflikte, "Konflikte kanonisiert"),  # kuratierte Fassung schlaegt konkurrierende
+    (kanonisiere_schreibvarianten, "Schreibvarianten demotet"),
+    (seed_flexionsbruecke_aus_bestand, "Flexions-Bruecken"),     # ZULETZT, auf dem fertigen Stand
+]
+
+
+def seed_alles(con: sqlite3.Connection) -> dict[str, int]:
+    """Die VOLLSTAENDIGE Glossar-Kette in der einen richtigen Reihenfolge (_KETTE).
+
+    Committet NICHT selbst: der AUFRUFER fuehrt die Transaktion (`with con:
+    seed_alles(con)`). Die Schritte committeten frueher jeder fuer sich - ein Abbruch
+    mittendrin (real am 27.07.2026: NameError nach Minuten Laufzeit) hinterliess einen
+    Teilzustand, bei dem die spaeteren Kanonisierer nie liefen. Jetzt landet die Kette ganz
+    oder gar nicht, wie im PDF-Zweig (Befund D2).
+
+    Rueckgabe: {Beschriftung: Anzahl} in Kettenreihenfolge - fertig fuer die Bilanzzeile.
+    Zwei Schritte teilen sich eine Beschriftung (s. _KETTE); deren Zahlen werden addiert."""
+    bilanz: dict[str, int] = {}
+    for schritt, beschriftung in _KETTE:
+        bilanz[beschriftung] = bilanz.get(beschriftung, 0) + schritt(con)
+    return bilanz

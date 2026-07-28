@@ -1,12 +1,35 @@
-"""Die Glossar-Import-Kette in cmd_import ruft ein Dutzend Seeder auf, deren Importe
-INNERHALB der Funktion stehen - ein fehlender Name faellt deshalb erst zur Laufzeit auf,
-nach Minuten echter Arbeit (real passiert 27.07.2026: der Zauber-Seeder war eingereiht,
-aber nicht importiert; der Lauf brach nach dem Gegenstands-Abgleich mit NameError ab).
-Kein anderer Test beruehrt diesen Pfad - dieser schon, rein statisch."""
+"""Die Glossar-Kette hat GENAU EINEN Weg: `importer.import_glossar.seed_alles`, gerufen
+von `admin import --quelle glossar`.
+
+Vorgeschichte in zwei Stufen. Erst stand die Kette in `cmd_import` mit Importen INNERHALB
+der Funktion - ein fehlender Name fiel dann erst nach Minuten echter Arbeit auf (real am
+27.07.2026: der Zauber-Seeder war eingereiht, aber nicht importiert). Danach zeigte die
+Konsolidierung den teureren Fehler: `importer/import_glossar.py` trug einen ZWEITEN
+Einstiegspunkt, der nur sechs der Schritte fuhr - ohne Transaktion, ohne die
+Namensreparaturen. Der schrieb kein kaputtes, sondern ein still UNVOLLSTAENDIGES Glossar,
+und das Glossar entscheidet ueber '*'-Kennzeichnung (S5/S6), Suchbruecken (B3) und das
+Deutsch-first-Ranking.
+
+Beide Fehlerformen haben denselben Kern: ein Seeder existiert, laeuft aber nicht mit.
+Genau darauf zielen die Tests hier - rein statisch, ohne DB."""
 import ast
+import inspect
 import pathlib
 
-_ADMIN = pathlib.Path(__file__).resolve().parents[1] / "app" / "admin.py"
+import importer.import_glossar as ig
+
+_WURZEL = pathlib.Path(__file__).resolve().parents[1]
+_ADMIN = _WURZEL / "app" / "admin.py"
+
+# Praefixe der Schritte, die fachlich in die Kette gehoeren.
+_SCHRITT_PRAEFIXE = ("seed_", "kanonisiere_", "repariere_")
+
+# Bewusst NICHT in der Kette:
+#   seed_alles   - IST die Kette, kein Schritt darin.
+#   seed_glossar - nimmt eine Begriffsliste statt nur `con`; der Kettenschritt ist der
+#                  Wrapper seed_glossar_kernbegriffe (ruft sie mit KERNBEGRIFFE_EN).
+# Waechst diese Liste, ist das eine bewusste Entscheidung, kein Versehen.
+_NICHT_IN_KETTE = {"seed_alles", "seed_glossar"}
 
 
 def _funktion(baum, name):
@@ -14,31 +37,53 @@ def _funktion(baum, name):
                 if isinstance(k, ast.FunctionDef) and k.name == name)
 
 
-def test_cmd_import_ruft_nur_importierte_seeder():
+def test_kette_enthaelt_jeden_seeder_des_moduls():
+    """Der Kern-Waechter: wer einen Seeder ergaenzt, aber nicht einreiht, faellt hier auf -
+    nicht erst daran, dass ein Begriff auf Produktion ein '*' traegt, das er nicht haben
+    sollte."""
+    in_kette = {schritt.__name__ for schritt, _ in ig._KETTE}
+    definiert = {name for name, obj in vars(ig).items()
+                 if inspect.isfunction(obj) and obj.__module__ == ig.__name__
+                 and name.startswith(_SCHRITT_PRAEFIXE)}
+    fehlend = definiert - in_kette - _NICHT_IN_KETTE
+    assert not fehlend, (
+        f"in importer/import_glossar.py definiert, aber nicht in _KETTE: {sorted(fehlend)} "
+        f"- entweder einreihen oder in _NICHT_IN_KETTE begruenden")
+
+
+def test_jeder_kettenschritt_nimmt_nur_die_verbindung():
+    """seed_alles ruft jeden Schritt als schritt(con). Ein Schritt mit weiteren
+    PFLICHT-Parametern wuerde erst zur Laufzeit auffallen."""
+    for schritt, beschriftung in ig._KETTE:
+        pflicht = [p for p in inspect.signature(schritt).parameters.values()
+                   if p.default is inspect.Parameter.empty
+                   and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+        assert len(pflicht) == 1, f"{schritt.__name__}: erwartet genau (con), hat {pflicht}"
+        assert beschriftung, f"{schritt.__name__}: Bilanz-Beschriftung fehlt"
+
+
+def test_admin_ruft_die_kette_statt_einzelner_seeder():
+    """Die Reihenfolge ist Fachwissen und gehoert der Fachschicht. Ruft die CLI wieder
+    einzelne Seeder, gibt es zwei Orte, an denen sie steht - und damit zwei, die driften."""
     baum = ast.parse(_ADMIN.read_text(encoding="utf-8"))
     fn = _funktion(baum, "cmd_import")
-
-    importiert = {alias.asname or alias.name
-                  for knoten in ast.walk(fn) if isinstance(knoten, ast.ImportFrom)
-                  for alias in knoten.names}
-    lokal = {z.id for k in ast.walk(fn) if isinstance(k, ast.Assign)
-             for z in ast.walk(k.targets[0]) if isinstance(z, ast.Name)}
-
     aufgerufen = {k.func.id for k in ast.walk(fn)
-                  if isinstance(k, ast.Call) and isinstance(k.func, ast.Name)
-                  and (k.func.id.startswith(("seed_", "kanonisiere_", "repariere_")))}
-    fehlend = aufgerufen - importiert - lokal
-    assert not fehlend, f"in cmd_import aufgerufen, aber nicht importiert: {sorted(fehlend)}"
-    assert "seed_zauber_bruecke_aus_bestand" in aufgerufen, "Zauber-Seeder nicht eingereiht"
+                  if isinstance(k, ast.Call) and isinstance(k.func, ast.Name)}
+    assert "seed_alles" in aufgerufen, "cmd_import faehrt die Glossar-Kette nicht mehr"
+    einzeln = {n for n in aufgerufen if n.startswith(_SCHRITT_PRAEFIXE)} - {"seed_alles",
+                                                                           "seed_facetten"}
+    assert not einzeln, (f"cmd_import ruft Seeder direkt: {sorted(einzeln)} - die Kette "
+                         f"gehoert nach importer.import_glossar._KETTE")
 
 
-def test_alle_importierten_seeder_existieren_wirklich():
-    """Zweite Haelfte: der Name steht im Import - gibt es die Funktion auch?"""
-    import importer.import_glossar as ig
-
-    baum = ast.parse(_ADMIN.read_text(encoding="utf-8"))
-    fn = _funktion(baum, "cmd_import")
-    for knoten in ast.walk(fn):
-        if isinstance(knoten, ast.ImportFrom) and knoten.module == "importer.import_glossar":
-            for alias in knoten.names:
-                assert hasattr(ig, alias.name), f"importer.import_glossar.{alias.name} fehlt"
+def test_kein_zweiter_einstiegspunkt_in_den_importern():
+    """Ein `if __name__ == '__main__'` in einem Importer ist ein zweiter Prozessweg neben
+    `app.admin` - und zwar einer, den keine der vier Doku-Dateien kennt. Genau so entstand
+    der unvollstaendige Glossar-Lauf. Ausnahme ist ddb_exporter: der ist ausdruecklich ein
+    eigener, kurzlebiger Prozess OHNE DB-Zugriff (CONCEPT.md par. 10, ADR)."""
+    treffer = [p.relative_to(_WURZEL).as_posix()
+               for p in (_WURZEL / "importer").rglob("*.py")
+               if "ddb_exporter" not in p.parts
+               and '__name__ == "__main__"' in p.read_text(encoding="utf-8")]
+    assert not treffer, (f"zweiter Einstiegspunkt neben app.admin: {treffer} - Importe "
+                         f"laufen ueber `python -m app.admin import`")

@@ -414,16 +414,3 @@ def import_open5e(con: sqlite3.Connection, dokumente: list[str] | None = None,
     return gesamt
 
 
-if __name__ == "__main__":
-    from app import db as _db
-    pfad = _db.standard_pfad()
-    if not pfad.exists():
-        sys.exit(f"DB fehlt: {pfad} -> erst `python db/init_db.py` ausfuehren.")
-    con = _db.connect(str(pfad))
-    try:
-        dokumente = (_db.lade_konfig().get("open5e", {}) or {}).get("dokumente") or ["srd-2024"]
-        with con:  # A7: eine Transaktion fuer Ersetzen + FTS-Rebuild
-            n = import_open5e(con, dokumente)
-        print(f"Fertig: {n} Eintraege, FTS neu aufgebaut.")
-    finally:
-        con.close()
