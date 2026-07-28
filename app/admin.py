@@ -92,23 +92,28 @@ def cmd_import(args) -> None:
                                              seed_srd_paare,
                                              seed_zauber_bruecke_aus_bestand)
         c = _con(getattr(args, "db", None))
-        rn = repariere_srd_de_namen(c)  # zuerst: aus der PDF zerlegte srd-de-Namen korrigieren
-        n = seed_glossar(c, KERNBEGRIFFE_EN)
-        a = seed_abkuerzungen(c)
-        p = seed_srd_paare(c)
-        k = seed_kern_singulare(c)
-        ak = seed_aktionen(c)          # 2024-Aktionsnamen (srd-de-verifiziert, Homonym-gestoppt)
-        b = seed_glossar_aus_bestand(c)
-        bd = seed_glossar_de_aus_bestand(c)        # Rueckwaerts: dt. Namen ohne EN-Gegenstueck
-        r14 = repariere_2014_namen(c)              # zerrissene 2014-Scan-Namen (belegt)
-        bd += seed_glossar_de_aus_bestand(c)       # reparierte Namen jetzt abfragbar
-        mb = seed_monster_bruecke_aus_bestand(c)   # Struktur-Abgleich dt./engl. Monster (Dedup)
-        kw = seed_kernwortschatz_aus_bestand(c)    # Fertigkeiten/Groessen/Typen (nach der Monster-Bruecke!)
-        km = seed_klassenmerkmale_aus_bestand(c)   # 2024-Klassenmerkmale srd-de<->ddb-br (nach Klassennamen-Seeding!)
-        gg = seed_gegenstands_bruecke_aus_bestand(c)   # Preis-Bucket-Abgleich srd-de<->Open5e (vor den Kanonisierern!)
-        zb = seed_zauber_bruecke_aus_bestand(c)        # Zauberkopf-Abgleich DE<->EN, editionsuebergreifend
-        d = kanonisiere_konflikte(c)   # kuratierte Fassung schlaegt konkurrierende (Deutsch-Qualitaet)
-        sv = kanonisiere_schreibvarianten(c)   # ß/ss- + Gross-/Klein-Schreibvarianten vereinheitlichen
+        # D2: EINE Transaktion um die ganze Kette. Die 17 Seeder committeten bisher jeder
+        # fuer sich - ein Abbruch mittendrin (real am 27.07.2026: NameError nach Minuten
+        # Laufzeit) hinterliess einen Teilzustand, bei dem die spaeteren Kanonisierer nie
+        # liefen. Jetzt landet die Kette ganz oder gar nicht, wie im PDF-Zweig.
+        with c:
+            rn = repariere_srd_de_namen(c)  # zuerst: aus der PDF zerlegte srd-de-Namen korrigieren
+            n = seed_glossar(c, KERNBEGRIFFE_EN)
+            a = seed_abkuerzungen(c)
+            p = seed_srd_paare(c)
+            k = seed_kern_singulare(c)
+            ak = seed_aktionen(c)          # 2024-Aktionsnamen (srd-de-verifiziert, Homonym-gestoppt)
+            b = seed_glossar_aus_bestand(c)
+            bd = seed_glossar_de_aus_bestand(c)        # Rueckwaerts: dt. Namen ohne EN-Gegenstueck
+            r14 = repariere_2014_namen(c)              # zerrissene 2014-Scan-Namen (belegt)
+            bd += seed_glossar_de_aus_bestand(c)       # reparierte Namen jetzt abfragbar
+            mb = seed_monster_bruecke_aus_bestand(c)   # Struktur-Abgleich dt./engl. Monster (Dedup)
+            kw = seed_kernwortschatz_aus_bestand(c)    # Fertigkeiten/Groessen/Typen (nach der Monster-Bruecke!)
+            km = seed_klassenmerkmale_aus_bestand(c)   # 2024-Klassenmerkmale srd-de<->ddb-br (nach Klassennamen-Seeding!)
+            gg = seed_gegenstands_bruecke_aus_bestand(c)   # Preis-Bucket-Abgleich srd-de<->Open5e (vor den Kanonisierern!)
+            zb = seed_zauber_bruecke_aus_bestand(c)        # Zauberkopf-Abgleich DE<->EN, editionsuebergreifend
+            d = kanonisiere_konflikte(c)   # kuratierte Fassung schlaegt konkurrierende (Deutsch-Qualitaet)
+            sv = kanonisiere_schreibvarianten(c)   # ß/ss- + Gross-/Klein-Schreibvarianten vereinheitlichen
         print(f"Glossar: {rn} srd-Namen repariert, {n} Kern-Zeilen, {a} Abkuerzungen, "
               f"{p} SRD-Paare, {k} Kern-Singulare, {ak} Aktionen, {b} Zeilen aus Bestandsnamen, "
               f"{bd} Zeilen aus deutschen Namen, {r14} Namen repariert, "
@@ -185,6 +190,15 @@ def cmd_import(args) -> None:
         # Fehlschlag keinen halben Facettenstand hinterlaesst.
         print(f"Import '{kuerzel}': {n} Eintraege, FTS neu aufgebaut, "
               + ", ".join(f"{z} {k}-Facetten" for k, z in facetten.items()) + ".")
+        # D1: was der Import verworfen oder nicht repariert hat - EINE Zeile. Interessant
+        # ist weniger der Absolutwert als die Veraenderung zum letzten Lauf; eine
+        # wirkungslose Reparatur (verschobener PDF-Anker) faellt so sofort auf.
+        from importer.import_markdown import letzte_bilanz
+        bilanz = letzte_bilanz()
+        print("  " + bilanz.zeile())
+        if bilanz.auffaellig:
+            print("  ^ Reparaturen ohne Anker heissen: die Quelle hat sich verschoben. "
+                  "Stichprobe fahren, bevor der Bestand freigegeben wird.")
     finally:
         c.close()
 

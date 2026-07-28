@@ -693,6 +693,14 @@ Kuratiert; weitere Details in `app/bekannte_macken.py`.
 - **Ein Re-Import spielt die rohen OCR-Namen wieder ein** und macht die Namensreparatur der
   betroffenen Quelle zunichte. Facetten deshalb nie über einen Re-Import nachziehen, sondern
   mit `import --quelle facetten`.
+- **Die Import-Bilanz ist ein Trend, kein Alarm.** Jeder Import endet mit einer Zeile
+  („Bilanz: 12x Abschnitt ohne Regeltext …"). Interessant ist nicht der Absolutwert —
+  ein Kapitel-Kopf ohne eigenen Text ist der Normalfall —, sondern die **Veränderung**.
+  Wirklich auffällig ist nur `WIRKUNGSLOS`: eine kuratierte Reparatur hat ihren Anker
+  nicht gefunden, d. h. ein Quell-Update hat sie lautlos abgeschaltet.
+- **Beide Umfangs-Richtungen sind geschützt** (`importer/schwellen.py`): zu wenig ist
+  Datenverlust, **zu viel ist ein Zerlegungsfehler** (falsches Split-Level → aus einem
+  Buch werden Fragmente). Beide brechen ab, der Bestand bleibt; `--force` hebt beide auf.
 - `bm25()` liefert negative Werte → `ORDER BY bm25(...) ASC`.
 - Nach jedem Import FTS-`rebuild` (macht der Importer/Admin selbst).
 - DB-Journal = **DELETE** (Bind-Mount) — nicht auf WAL umstellen.
