@@ -24,6 +24,7 @@ import re
 import sqlite3
 from typing import Literal
 
+from app import db as _db
 from app import glossar as _glossar
 from app.tools import nachschlagen as _ns
 
@@ -31,7 +32,6 @@ STANDARD_ARRAY = [15, 14, 13, 12, 10, 8]
 POINT_BUY_KOSTEN = {8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}
 POINT_BUY_BUDGET = 27
 
-_KONTEXT = re.compile(r"^\*Kontext: (.+?)\*")
 _SUBCLASS = re.compile(r"^\*Subclass of:\s*(.+?)\*", re.MULTILINE)
 _UNTERKLASSE_DE = re.compile(r"^(.+)-Unterklasse:\s*(.+)$")
 _HG_ATTRIBUTE = re.compile(r"\*\*Attributswerte:\*\*\s*([^\n*]+)")
@@ -122,13 +122,13 @@ def _kontext_bedingung(con, breadcrumb: str, praefix: str = "") -> tuple[str, li
 
 def _kontext(e: dict | str | None) -> str:
     """Breadcrumb eines Eintrags. Nimmt den Eintrag (dann gilt die Spalte) oder - fuer
-    Aufrufer, die nur den Text haben - den blanken Body."""
+    Aufrufer, die nur den Text haben - den blanken Body. Liefert '' statt None: die
+    Aufrufer teilen das Ergebnis direkt an ' > ' auf."""
     if isinstance(e, dict):
         if e.get("kontext"):
             return e["kontext"]
         e = e.get("body_md")
-    m = _KONTEXT.match(e or "")
-    return m.group(1) if m else ""
+    return _db.kontext_aus_body(e) or ""
 
 
 _EDITION = "2024"   # Charakterlisten und Build-Pruefung sind STRIKT 2024 (A4/Q4)

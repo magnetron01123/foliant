@@ -29,6 +29,7 @@ from __future__ import annotations
 import re
 import sqlite3
 
+from app import db as _db
 from app import glossar
 
 QUELLE = "SRD 5.2.1 (Strukturabgleich Gegenstaende)"
@@ -37,7 +38,6 @@ _PREIS_DE = re.compile(r"\((\d+(?:[.,]\d+)?)\s*(GM|SM|KM)\)")
 _PREIS_EN_NAME = re.compile(r"\((\d+(?:\.\d+)?)\s*(GP|SP|CP)\)", re.I)
 _PREIS_EN_BODY = re.compile(r"\*\*Cost:\*\*\s*(\d+(?:\.\d+)?)\s*(gp|sp|cp)", re.I)
 _KATEGORIE_EN = re.compile(r"\*\*Category:\*\*\s*([^·\n]+)")
-_KONTEXT = re.compile(r"^\*Kontext:\s*(.+?)\*\s*$", re.M)
 _SUFFIX = re.compile(r"\s*\([^)]*\)\s*$")
 
 # Muenzkurse relativ zur Goldmuenze - identisch in beiden Fassungen (SRD-Preisliste).
@@ -77,8 +77,8 @@ def preis_cent_von(name: str | None, body: str | None, deutsch: bool) -> int | N
 def _grob_de(body: str | None) -> str:
     """Grobkategorie aus der srd-de-Kontextzeile. Segment-EXAKT vergleichen - ein
     Substring-Test wuerde jede 'Ausruestung > ...'-Zeile als 'ruestung' einordnen."""
-    m = _KONTEXT.search(body or "")
-    segmente = {s.strip().lower() for s in (m.group(1) if m else "").split(">")}
+    breadcrumb = _db.kontext_im_abschnitt(body) or ""
+    segmente = {s.strip().lower() for s in breadcrumb.split(">")}
     if segmente & {"werkzeug", "handwerkszeug"}:
         return "werkzeug"
     if "waffen" in segmente:

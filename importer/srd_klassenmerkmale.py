@@ -24,11 +24,11 @@ from __future__ import annotations
 import re
 import sqlite3
 
+from app import db as _db
 from app import glossar
 
 QUELLE = "SRD 5.2.1 (Strukturabgleich Klassen)"
 
-_KONTEXT = re.compile(r"^\*Kontext:\s*(.+?)\*\s*$", re.M)
 _DE_STUFE = re.compile(r"^#+\s*\**\s*(\d+)\.\s*Stufe:\s*(.+?)\s*\**\s*$", re.M)
 _DE_SUB = re.compile(r"\*\*_([^_\n]{2,60}?):_\*\*")
 _EN_LEVEL = re.compile(r"^Level\s+(\d+):\s*(.+?)\s*$")
@@ -41,10 +41,10 @@ _STOPP_EN = {"subclass feature"}
 def _kontext_teil(body: str, index: int) -> str | None:
     """Teil der Kontextzeile: index -1 = letzter ('Klassen > Moench' -> 'Moench'),
     index 0 = erster ('Monk > Monk Features' -> 'Monk')."""
-    m = _KONTEXT.search(body or "")
-    if not m:
+    breadcrumb = _db.kontext_im_abschnitt(body)
+    if breadcrumb is None:
         return None
-    teile = [t.strip() for t in m.group(1).split(">") if t.strip()]
+    teile = [t.strip() for t in breadcrumb.split(">") if t.strip()]
     try:
         return teile[index]
     except IndexError:

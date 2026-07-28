@@ -760,20 +760,12 @@ def _texte_weichen_ab(a: str, b: str) -> bool:
     from rapidfuzz import fuzz
 
     def norm(t: str) -> str:
-        t = _KONTEXT_RE.sub("", t or "", count=1)
+        t = _db.KONTEXT_ZEILE.sub("", t or "", count=1)
         return " ".join(t.lower().split())
     na, nb = norm(a), norm(b)
     if not na or not nb:
         return False
     return fuzz.ratio(na, nb) < _glossar.FUZZY_ABWEICHUNG
-
-
-_KONTEXT_RE = re.compile(r"^\*Kontext: (.+?)\*")
-
-
-def _kontext_von(body: str | None) -> str:
-    m = _KONTEXT_RE.match(body or "")
-    return m.group(1) if m else ""
 
 
 # Abschnitts-Ueberschriften IN einem Eintrag: Markdown-Header (optional mit srd-de-
@@ -837,7 +829,7 @@ def _kinder_texte(con: sqlite3.Connection, voll: dict) -> list[str]:
     '<Eltern-Kontext> > <Eltern-Name>'. So bleibt es auf DIREKTE Kinder begrenzt (kein
     Einsaugen ganzer Kapitelbaeume) und quellen-/editionsrein. Rueckgabe: formatierte
     Abschnitte (Unterabschnitts-Name als Zwischenueberschrift, Kontextzeile entfernt)."""
-    eltern_kontext = _kontext_von(voll.get("body_md"))
+    eltern_kontext = _db.kontext_aus_body(voll.get("body_md"))
     namen = {n for n in (voll.get("name_en"), voll.get("name_de")) if n}
     ziele = {f"{eltern_kontext} > {n}" if eltern_kontext else n for n in namen}
     stuecke: list[str] = []
@@ -846,9 +838,9 @@ def _kinder_texte(con: sqlite3.Connection, voll: dict) -> list[str]:
             "JOIN quellen q ON q.id = e.quelle_id WHERE e.kategorie = ? AND e.edition = ? "
             "AND q.kuerzel = ? AND e.id != ? ORDER BY e.id",
             (voll["kategorie"], voll["edition"], voll["quelle"], voll["id"])):
-        if _kontext_von(r["body_md"]) in ziele:
+        if _db.kontext_aus_body(r["body_md"]) in ziele:
             kname = (r["name_de"] or r["name_en"] or "").strip()
-            koerper = _KONTEXT_RE.sub("", r["body_md"], count=1).strip()
+            koerper = _db.KONTEXT_ZEILE.sub("", r["body_md"], count=1).strip()
             stuecke.append(f"### {kname}\n\n{koerper}" if kname else koerper)
     return stuecke
 
@@ -1011,7 +1003,7 @@ def _waehle_aus_gleichnamigen(con, ziel_exakt: list[dict]) -> tuple[dict, list[d
     def _regeltext_laenge(v: dict) -> int:
         # Laenge OHNE die Kontext-Breadcrumb-Zeile messen (ein langer Kontext taeuscht
         # sonst Textumfang vor).
-        return len(_KONTEXT_RE.sub("", v.get("body_md") or "", count=1))
+        return len(_db.KONTEXT_ZEILE.sub("", v.get("body_md") or "", count=1))
 
     voll_paare = [(_db.hole_eintrag(con, k["id"]), k) for k in geschwister]
     voll_paare = [(v, k) for v, k in voll_paare if v]
