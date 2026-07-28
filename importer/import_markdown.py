@@ -40,6 +40,8 @@ import re
 import sqlite3
 import unicodedata
 
+from importer import schwellen as _schwellen
+
 SPLIT_STANDARD = 3       # ohne Quell-Regeln: Headings 1..3 eroeffnen neue Eintraege
 # Kapitel-Koepfe, die selbst NIE ein Eintrag sind (claude DND-010: das 22-kB-Inhalts-
 # verzeichnis stand als 'regel' im Bestand - die Kontext-Skip-Regel erfasst nur die
@@ -54,10 +56,59 @@ SKIP_NAMEN: dict[str, "re.Pattern[str]"] = {
     "scag-2014-de": re.compile(r"^INHALT$"),
 }
 _MIN_BODY = 1            # leere Abschnitte (reine Kapitel-Deckblaetter) ueberspringen
-# A7-Schrumpf-Schutz: faellt ein Re-Import unter diesen Anteil des Altbestands, ist das
-# fast immer ein Parse-/Quellfehler -> Abbruch statt Datenverlust (erlaube_schrumpfen
-# bzw. --force setzt das bewusst ausser Kraft).
-SCHRUMPF_SCHWELLE = 0.5
+# Die Plausibilitaets-Schwellen liegen seit Phase 4 gesammelt in importer/schwellen.py
+# (Befund D3). Der Name bleibt hier als Re-Export, weil import_open5e ihn von hier holt.
+SCHRUMPF_SCHWELLE = _schwellen.SCHRUMPF_SCHWELLE
+
+
+class Importbilanz:
+    """Was ein Import STILL verwirft oder nicht repariert - gezaehlt statt verschwiegen.
+
+    Befund D1: An mindestens 14 Stellen wurde Inhalt verworfen oder eine Reparatur
+    uebersprungen, ohne Zaehler und ohne Meldung. Genau dieses Muster erzeugte die 46
+    Eintraege namens 'Zeitaufwand: 1 Aktion', die erst Wochen spaeter per Handabfrage
+    auffielen. Verwerfungs-Reports gab es nur bei den vier Bruecken-Modulen - deren Form
+    ist hier das Vorbild: EINE Bilanzzeile am Ende, Details nur, wenn es etwas zu sagen
+    gibt.
+
+    Der eigentliche Zweck sind nicht die Zahlen an sich, sondern ihre VERAENDERUNG: ein
+    PDF-Update, das einen Reparatur-Anker verschiebt, macht die Reparatur lautlos wirkungs-
+    los. In der Bilanz steht sie dann als 'nicht gegriffen'."""
+
+    def __init__(self) -> None:
+        self.verworfen: dict[str, int] = {}
+        self.wirkungslos: list[str] = []
+
+    def verwirf(self, grund: str, anzahl: int = 1) -> None:
+        if anzahl:
+            self.verworfen[grund] = self.verworfen.get(grund, 0) + anzahl
+
+    def greift_nicht(self, was: str) -> None:
+        """Eine kuratierte Reparatur hat ihren Anker nicht gefunden - sie ist damit
+        wirkungslos, ohne dass irgendwo ein Fehler entstuende."""
+        self.wirkungslos.append(was)
+
+    @property
+    def auffaellig(self) -> bool:
+        return bool(self.wirkungslos)
+
+    def zeile(self) -> str:
+        teile = [f"{n}x {grund}" for grund, n in sorted(self.verworfen.items())]
+        text = "Bilanz: " + (", ".join(teile) if teile else "nichts verworfen")
+        if self.wirkungslos:
+            # Bewusst die vollstaendige Liste, nicht nur die Zahl: welche Reparatur
+            # ausgefallen ist, entscheidet, ob es harmlos ist oder das Buch zerreisst.
+            text += (f" | {len(self.wirkungslos)} Reparatur(en) ohne Anker - WIRKUNGSLOS: "
+                     + ", ".join(self.wirkungslos))
+        return text
+
+
+_BILANZ = Importbilanz()
+
+
+def letzte_bilanz() -> Importbilanz:
+    """Die Bilanz des zuletzt gelaufenen Imports (Tests/Aufrufer)."""
+    return _BILANZ
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 # Label-Pseudo-Heading: erster Fettblock endet mit ':' ('**Kreaturentyp:** Humanoide',
@@ -123,22 +174,29 @@ def _verschiebe(md: str, start_re: str, ende_re: str, ziel_re: str,
     Blockanfang gesucht (exklusive); ziel_naechstes_re verschiebt hinter die Zielstelle
     ("ans Ende des Eintrags X" = vor dessen naechstes Heading). DEFENSIV: fehlt ein
     Anker, bleibt der Text unveraendert - lieber unrepariert als falsch zerschnitten."""
+    def ohne_wirkung(anker: str) -> str:
+        # D1: Fehlt ein Anker, passiert die Reparatur lautlos NICHT. Ein PDF-Update
+        # deaktiviert damit stillschweigend einen kuratierten Fix - genau deshalb wird
+        # es gezaehlt statt verschwiegen.
+        _BILANZ.greift_nicht(f"_verschiebe({anker[:40]})")
+        return md
+
     m_start = re.search(start_re, md)
     if not m_start:
-        return md
+        return ohne_wirkung(start_re)
     m_ende = re.search(ende_re, md[m_start.end():])
     if not m_ende:
-        return md
+        return ohne_wirkung(ende_re)
     ende = m_start.end() + m_ende.start()
     block, rest = md[m_start.start():ende], md[:m_start.start()] + md[ende:]
     m_ziel = re.search(ziel_re, rest)
     if not m_ziel:
-        return md
+        return ohne_wirkung(ziel_re)
     einfuege = m_ziel.start()
     if ziel_naechstes_re:
         m_next = re.search(ziel_naechstes_re, rest[m_ziel.end():])
         if not m_next:
-            return md
+            return ohne_wirkung(ziel_naechstes_re)
         einfuege = m_ziel.end() + m_next.start()
     return rest[:einfuege] + block.strip() + "\n\n" + rest[einfuege:].lstrip("\n")
 
@@ -450,7 +508,11 @@ def _chunks(markdown: str, kategorie_standard: str = "regel",
     # in Tabellenzellen ('**Rettungswürfe, in**<br>**denen du geübt bist**') - alles
     # bricht Namensvergleiche/FTS-Token bzw. steht als HTML-Muell im Plain-Text-Body
     # (QS-Fund 11.07.2026). Einmal an der Wurzel normalisieren (bekannte_macken 'srd-de').
-    markdown = unicodedata.normalize("NFC", markdown).replace("­", "")
+    # U+00A0 (geschuetztes Leerzeichen) ist KEIN Wortabstand fuer den Namensvergleich:
+    # 'Classes\xa0Summary' != 'Classes Summary', die exakte Namenssuche geht damit ins
+    # Leere (28 Faelle in ddb-basic-rules-2014-en, Befund D6). Reines Druck-Layout wie
+    # der Soft-Hyphen daneben - an derselben Wurzel normalisieren.
+    markdown = unicodedata.normalize("NFC", markdown).replace("­", "").replace("\u00a0", " ")
     markdown = re.sub(r"<br\s*/?>", " ", markdown, flags=re.IGNORECASE)
     # pymupdf4llm markiert in Bildern erkannten Text mit Kommentar-Klammern - der TEXT
     # bleibt (kann Inhalt sein), nur die Marker verschwinden (HTML-Muell im Plain-Body).
@@ -469,7 +531,11 @@ def _chunks(markdown: str, kategorie_standard: str = "regel",
         # Kursive Pseudo-Headings im Body ('###### _Wundersamer Gegenstand,_') sind
         # Typzeilen, keine Ueberschriften -> Heading-Praefix entfernen, Kursiv behalten.
         body = re.sub(r"^#{4,6}\s+(_[^\n]+)$", r"\1", body, flags=re.MULTILINE)
-        if aktuell["kategorie"] is not None and len(body) >= _MIN_BODY:
+        if aktuell["kategorie"] is None:
+            _BILANZ.verwirf("Abschnitt ohne Kategorie (Kapitel-Kopf/Verzeichnis)")
+        elif len(body) < _MIN_BODY:
+            _BILANZ.verwirf("Abschnitt ohne Regeltext (leerer Body)")
+        else:
             fertig.append({"name": aktuell["name"], "body": body,
                            "kontext": " > ".join(aktuell["pfad"]),
                            "seite": aktuell["seite"], "kategorie": aktuell["kategorie"]})
@@ -515,7 +581,11 @@ def _chunks(markdown: str, kategorie_standard: str = "regel",
                 continue
         if aktuell is not None:
             aktuell["zeilen"].append(zeile)
-        # Text VOR dem ersten Heading (Deckblatt/Praeambel) wird bewusst verworfen.
+        elif zeile.strip():
+            # Text VOR dem ersten Heading (Deckblatt/Praeambel) wird bewusst verworfen -
+            # aber gezaehlt: schlaegt die Heading-Erkennung einer Quelle fehl, landet hier
+            # plotzlich das halbe Buch, und genau das blieb bisher unsichtbar (D1).
+            _BILANZ.verwirf("Zeile vor dem ersten Heading (Deckblatt/Praeambel)")
     abschliessen()
     # Merge NACH dem Chunken, Kontextzeile erst danach - sonst stuende sie mitten im
     # zusammengefuehrten Body.
@@ -548,6 +618,8 @@ def importiere_markdown(con: sqlite3.Connection, quelle_kuerzel: str, markdown: 
     (`with con: ...`). Gibt die Zahl importierter Einträge zurück."""
     if not edition:
         raise ValueError("edition ist Pflicht (V1/Q3) - kein Import ohne Regelversion")
+    global _BILANZ
+    _BILANZ = Importbilanz()               # je Import eine frische Bilanz
     quelle = con.execute("SELECT id, sprache FROM quellen WHERE kuerzel = ?",
                          (quelle_kuerzel,)).fetchone()
     if quelle is None:
@@ -575,11 +647,8 @@ def importiere_markdown(con: sqlite3.Connection, quelle_kuerzel: str, markdown: 
                          f"(A7). Quelle/Konvertierung pruefen.")
     alt = con.execute("SELECT count(*) FROM eintraege WHERE quelle_id = ?",
                       (quelle_id,)).fetchone()[0]
-    if not erlaube_schrumpfen and alt and len(chunks) < alt * SCHRUMPF_SCHWELLE:
-        raise ValueError(
-            f"Quelle '{quelle_kuerzel}': Schrumpf-Schutz (A7) - nur {len(chunks)} neue "
-            f"gegenueber {alt} bestehenden Eintraegen (< {int(SCHRUMPF_SCHWELLE * 100)} %). "
-            f"Wenn beabsichtigt: erlaube_schrumpfen=True bzw. --force.")
+    # Beide Richtungen (D3): zu wenig ist Datenverlust, zu viel ist ein Zerlegungsfehler.
+    _schwellen.pruefe_umfang(quelle_kuerzel, len(chunks), alt, erlaubt=erlaube_schrumpfen)
 
     _ersetze_bestand(con, quelle_id, [
         (quelle_id, c["kategorie"],

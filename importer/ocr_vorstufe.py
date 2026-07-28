@@ -31,11 +31,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+from importer import schwellen as _schwellen
+
 # Seiten mit weniger Zeichen zaehlen als "ohne nutzbaren Text" (nur Seitenzahl/Wasserzeichen).
 MIN_ZEICHEN = 100
 # Ab diesem Anteil textloser Seiten gilt das PDF als Scan (Triage-Befund + Import-Guardrail).
 # Zierseiten/Karten liegen erfahrungsgemaess deutlich darunter (dt. SRD: <10 %).
-SCAN_SCHWELLE = 0.4
+# Wert in importer/schwellen.py - EINE Stelle fuer alle Import-Schwellen (Befund D3).
+SCAN_SCHWELLE = _schwellen.SCAN_SCHWELLE
 # Ausgabeverzeichnis der OCR-PDFs: data/ ist (anders als quellen/, read-only) im Container
 # beschreibbar und persistent gemountet.
 OCR_VERZEICHNIS = "data/ocr"

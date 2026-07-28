@@ -17,7 +17,7 @@ import sqlite3
 import sys
 import time
 
-from importer.import_markdown import SCHRUMPF_SCHWELLE
+from importer import schwellen as _schwellen
 
 API_BASE = "https://api.open5e.com/v2/"   # Default; [open5e].api_base gewinnt (A8)
 _PAUSE_S = 0.3           # hoefliche Drossel zwischen Requests (freies Community-Projekt)
@@ -398,11 +398,7 @@ def import_open5e(con: sqlite3.Connection, dokumente: list[str] | None = None,
             "SELECT count(e.id) FROM quellen q LEFT JOIN eintraege e ON e.quelle_id = q.id "
             "WHERE q.kuerzel = ?", (kuerzel,)).fetchone()
         alt = alt_zeile[0] if alt_zeile else 0
-        if not erlaube_schrumpfen and alt and len(chunks) < alt * SCHRUMPF_SCHWELLE:
-            raise ValueError(
-                f"{dokument}: Schrumpf-Schutz (A7) - nur {len(chunks)} neue gegenueber "
-                f"{alt} bestehenden Eintraegen (< {int(SCHRUMPF_SCHWELLE * 100)} %). "
-                f"Wenn beabsichtigt: erlaube_schrumpfen=True bzw. --force.")
+        _schwellen.pruefe_umfang(dokument, len(chunks), alt, erlaubt=erlaube_schrumpfen)
         quelle_id = _quelle_upsert(con, kuerzel, titel, edition, _PRIORITAET_BASIS + i,
                                    _LIZENZEN.get(dokument, "siehe Open5e-Dokument"))
         con.execute("DELETE FROM eintraege WHERE quelle_id = ?", (quelle_id,))  # idempotent

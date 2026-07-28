@@ -268,6 +268,22 @@ def _edition_aus_buch(buch: str | None) -> str | None:
     return dnddeutsch.edition_aus_buch(buch)
 
 
+# Ein Glossar-Begriff ist ein NAME, kein Satz. Beide Grenzen am Bestand gemessen
+# (28.07.2026, 2682 Zeilen): laengster echter Begriff 53 Zeichen, p99,9 = 51; die
+# laengsten legitimen Namen haben 6 Woerter ("Mask of the Wild" hat 4). Die Grenzen
+# liegen bewusst darueber - sie sollen das Chunking-Artefakt fangen, nicht kuratierte
+# Begriffe. Ein Satz reisst BEIDE (Befund C3: eine Schatzbeschreibung mit 12 Woertern).
+_MAX_BEGRIFF_ZEICHEN = 60
+_MAX_BEGRIFF_WOERTER = 8
+
+
+def ist_begriff(term: str) -> bool:
+    """Sieht `term` wie ein Fachbegriff aus - oder wie ein Stueck Fliesstext?"""
+    term = (term or "").strip()
+    return bool(term) and len(term) <= _MAX_BEGRIFF_ZEICHEN \
+        and len(term.split()) <= _MAX_BEGRIFF_WOERTER
+
+
 def _upsert(con: sqlite3.Connection, term_en: str, term_de: str, offiziell: int,
             quelle: str | None, edition_quelle: str | None, seite: str | None) -> None:
     con.execute(
@@ -712,6 +728,13 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
                   for z in _glossar.lookup(con, v_en, richtung="en_de")
                   if z["match"] == "exakt"}
         if _glossar.norm_begriff(v_de) in belegt:
+            continue
+        if not ist_begriff(v_en) or not ist_begriff(v_de):
+            # C3: Im Bestand standen zwei SCHATZBESCHREIBUNGEN als Begriff ("Ceremonial
+            # electrum dagger with a black pearl ..."). Ein Glossar-Begriff ist ein NAME,
+            # kein Satz - was der Preis-Bucket hier hereinreicht, ist dann ein
+            # Chunking-Artefakt und keine Uebersetzung.
+            report.append(f"verworfen (kein Begriff, sondern Beschreibung): {v_en[:60]!r}")
             continue
         _upsert(con, v_en, v_de, 1, QUELLE, "2024", None)
         n += 1

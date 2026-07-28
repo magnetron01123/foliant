@@ -23,10 +23,12 @@ import re
 import sqlite3
 from pathlib import Path
 
+from importer import schwellen as _schwellen
 from importer.ddb_artefakt import pruefe_artefakt
 from importer.import_markdown import _chunks
 
-MIN_REIMPORT_RATIO = 0.70   # Vorschlag §13: DDB-Re-Importe duerfen nicht still schrumpfen
+# DDB-Re-Importe duerfen nicht still schrumpfen; Schwelle in importer/schwellen.py
+MIN_REIMPORT_RATIO = _schwellen.DDB_SCHRUMPF_SCHWELLE
 _DDB_PRIORITAET = 40        # unter deutschen Buchquellen (10-30), ueber Open5e (60)
 
 # Generische Kapitel-/Abschnittstitel aus dem DDB-RenderedHTML (TOC-Landeseiten), die als
@@ -200,12 +202,9 @@ def importiere_ddb_artefakt(artefakt: str | Path, buch: dict, *,
                             for e in eintraege if e["body_md"].strip()
                             for sub in _zerlege_eintrag(e)
                             if sub["body_md"].strip() and not _ist_kapitel_header(sub["name"])]
-            if not erlaube_schrumpfen and alt and \
-                    len(zeilen_daten) < alt * MIN_REIMPORT_RATIO:
-                raise ValueError(
-                    f"{buch['kuerzel']}: Schrumpf-Schutz - nur {len(zeilen_daten)} neue "
-                    f"gegenueber {alt} bestehenden Eintraegen "
-                    f"(< {int(MIN_REIMPORT_RATIO * 100)} %). Wenn beabsichtigt: --force.")
+            _schwellen.pruefe_umfang(buch["kuerzel"], len(zeilen_daten), alt,
+                                     erlaubt=erlaube_schrumpfen,
+                                     min_anteil=MIN_REIMPORT_RATIO)
             # SYN-P0-007: Bestands-DBs (Kandidat = Kopie der Basis) kennen die neue
             # Spalte noch nicht - defensiv nachziehen statt Migrationstooling.
             try:
