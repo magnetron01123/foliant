@@ -12,7 +12,7 @@ import pytest
 from app import admin
 from app import db as adb
 from app.tools import nachschlagen as ns
-from importer import import_open5e as o5e
+from importer import facetten_seeder as seeder
 
 _SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 
@@ -29,8 +29,10 @@ def _baue_db(tmp_path, name="foliant.sqlite"):
                 "seite,body_md) VALUES (?, 'zauber', NULL,'Fireball','en','2024',NULL,?)",
                 (qid, "**Level:** 3, **School:** Evocation\n\nA bright streak flashes ..."))
     zid = con.execute("SELECT id FROM eintraege WHERE name_en='Fireball'").fetchone()[0]
+    # Wertraum wie der Seeder ihn schreibt: kanonischer Schul-Schluessel, nicht die
+    # englische Anzeigeform - die Ausgabe uebersetzt ihn nach 'Hervorrufung' (Deutsch-first).
     con.execute("INSERT INTO zauber_meta (eintrag_id,grad,schule,klassen) "
-                "VALUES (?,3,'Evocation','Wizard, Sorcerer')", (zid,))
+                "VALUES (?,3,'hervorrufung','Wizard, Sorcerer')", (zid,))
     con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,"
                 "seite,body_md) VALUES (?, 'monster', NULL,'Goblin','en','2024',NULL,?)",
                 (qid, "**CR** 1/4\n\nSmall humanoid ..."))
@@ -93,22 +95,13 @@ def test_schema_ensure_ist_no_op_ohne_quellen(tmp_path):
 
 
 # --------------------------------------------------------------------------- #3 (Import)
+# Der frühere Open5e-Sonderweg (_facetten/_schreibe_facetten aus den nativen API-Feldern)
+# ist am 28.07.2026 entfallen: er schrieb in einen ZWEITEN Wertraum ('10.0' statt '10',
+# 'Evocation' statt 'hervorrufung'). Die Facetten schreibt jetzt für ALLE Quellen
+# importer/facetten_seeder.py — Tests dafür in tests/test_facetten_seeder.py.
 
-def test_open5e_facetten_extraktion():
-    """_facetten liest NUR native Felder; fehlende bleiben None (kein Raten)."""
-    z = o5e._facetten("spells", {"level": 3, "school": {"name": "Evocation"},
-                                 "classes": [{"name": "Wizard"}, {"name": "Sorcerer"}]})
-    assert z == {"tabelle": "zauber_meta", "werte": (3, "Evocation", "Wizard, Sorcerer")}
-    z0 = o5e._facetten("spells", {"level": 0, "school": {"name": "Conjuration"}, "classes": []})
-    assert z0["werte"] == (0, "Conjuration", None)       # Zaubertrick: grad 0 bleibt int, klassen None
-    assert o5e._facetten("spells", {})["werte"] == (None, None, None)
-    m = o5e._facetten("creatures", {"challenge_rating": 0.25, "type": {"name": "Fiend"}})
-    assert m == {"tabelle": "monster_meta", "werte": ("0.25", "Fiend")}
-    assert o5e._facetten("items", {}) is None            # nur Zauber/Monster tragen Facetten
-
-
-def test_open5e_schreibe_facetten_und_cascade(tmp_path):
-    """Verknuepfung (kategorie,name_en)->eintrag_id + FK-CASCADE beim Re-Import."""
+def test_facetten_cascade_beim_reimport(tmp_path):
+    """FK ON DELETE CASCADE: der Re-Import-DELETE räumt die Meta-Zeilen mit weg."""
     pfad = tmp_path / "wiring.sqlite"
     con0 = sqlite3.connect(pfad)
     con0.executescript(_SCHEMA.read_text(encoding="utf-8"))
@@ -121,22 +114,13 @@ def test_open5e_schreibe_facetten_und_cascade(tmp_path):
         qid = con.execute("SELECT id FROM quellen").fetchone()[0]
         con.executemany(
             "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,"
-            "seite,body_md) VALUES (?,?,NULL,?, 'en','2024',NULL,'body')",
-            [(qid, "zauber", "Fireball"), (qid, "monster", "Goblin")])
-        chunks = {
-            ("zauber", "fireball"): {"name": "Fireball", "kategorie": "zauber", "body": "b",
-                                     "meta": o5e._facetten("spells", {
-                                         "level": 3, "school": {"name": "Evocation"},
-                                         "classes": [{"name": "Wizard"}]})},
-            ("monster", "goblin"): {"name": "Goblin", "kategorie": "monster", "body": "b",
-                                    "meta": o5e._facetten("creatures", {
-                                        "challenge_rating": 0.25, "type": {"name": "Humanoid"}})},
-        }
-        assert o5e._schreibe_facetten(con, qid, chunks) == (1, 1)
-        assert tuple(con.execute("SELECT grad,schule,klassen FROM zauber_meta").fetchone()) \
-            == (3, "Evocation", "Wizard")
-        assert tuple(con.execute("SELECT hg,typ FROM monster_meta").fetchone()) \
-            == ("0.25", "Humanoid")
+            "seite,body_md) VALUES (?,?,NULL,?, 'en','2024',NULL,?)",
+            [(qid, "zauber", "Fireball", "**Level:** 3 · **School:** Evocation"),
+             (qid, "monster", "Goblin", "**CR** 1/4 Small humanoid **AC** 15 **HP** 7")])
+        with con:
+            assert seeder.seed_facetten(con, qid)["zauber"] == 1
+        assert con.execute("SELECT count(*) FROM zauber_meta").fetchone()[0] == 1
+        assert con.execute("SELECT count(*) FROM monster_meta").fetchone()[0] == 1
         con.execute("DELETE FROM eintraege WHERE quelle_id=?", (qid,))   # Re-Import-Simulation
         con.commit()
         assert con.execute("SELECT count(*) FROM zauber_meta").fetchone()[0] == 0
@@ -152,7 +136,7 @@ def test_facetten_im_zauber_detail(tmp_path, monkeypatch):
     monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
     d = ns.foliant_hol_zauber("Fireball")
     assert d["gefunden"] is True
-    assert d["facetten"] == {"grad": 3, "schule": "Evocation", "klassen": "Wizard, Sorcerer"}
+    assert d["facetten"] == {"grad": 3, "schule": "Hervorrufung", "klassen": "Wizard, Sorcerer"}
     assert "**Level:** 3" in d["regeltext_md"]           # Facetten ERGAENZEN, ersetzen body_md nie
 
 

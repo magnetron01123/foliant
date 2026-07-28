@@ -86,6 +86,29 @@ MAX_QUERY_ZEICHEN = 200
 MAX_LIMIT = 50
 
 
+# Die in Phase 3 (Facetten persistieren) ergaenzten Meta-Spalten - hier EINMAL definiert,
+# damit schema.sql (neue DBs) und die ALTER-Nachruestung (Bestands-DBs) nicht auseinander
+# laufen koennen. Reine ADD COLUMN: additiv, NF7-konform, kein Datenverlust.
+FACETTEN_SPALTEN: dict[str, dict[str, str]] = {
+    "zauber_meta": {"reichweite_m": "TEXT", "komponenten": "TEXT",
+                    "dauer_min": "INTEGER", "konzentration": "INTEGER", "ritual": "INTEGER"},
+    "monster_meta": {"rk": "INTEGER", "tp": "INTEGER"},
+    "gegenstand_meta": {"preis_cent": "INTEGER"},
+}
+
+
+def _ergaenze_spalten(con: sqlite3.Connection, tabelle: str, neue: dict[str, str]) -> None:
+    """Fehlende Spalten nachruesten. Existiert die Tabelle noch nicht (DB aelter als die
+    Facetten-Tabellen), passiert bewusst nichts - dann legt sie das Schema an."""
+    if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                       (tabelle,)).fetchone():
+        return
+    vorhanden = {r[1] for r in con.execute(f"PRAGMA table_info({tabelle})")}
+    for spalte, typ in neue.items():
+        if spalte not in vorhanden:
+            con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")
+
+
 def stelle_schema_sicher(con: sqlite3.Connection) -> None:
     """Idempotenter Schema-Sicherstellungs-Schritt fuer den READ-WRITE-Pfad (Import/Admin):
     zieht die inhaltsart-Spalte defensiv nach (Bestands-DBs vor der v2-Migration kennen sie
@@ -104,6 +127,8 @@ def stelle_schema_sicher(con: sqlite3.Connection) -> None:
         if "inhaltsart" not in spalten:
             con.execute("ALTER TABLE quellen ADD COLUMN inhaltsart TEXT NOT NULL "
                         "DEFAULT 'regelwerk'")
+        for tabelle, neue in FACETTEN_SPALTEN.items():
+            _ergaenze_spalten(con, tabelle, neue)
         if con.execute("PRAGMA user_version").fetchone()[0] < 2:
             con.execute("PRAGMA user_version = 2")     # nur anheben, nie eine hoehere Version senken
         con.commit()

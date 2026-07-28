@@ -45,15 +45,29 @@ CREATE TABLE IF NOT EXISTS eintraege (
 );
 CREATE INDEX IF NOT EXISTS idx_eintraege_kat_ed ON eintraege(kategorie, edition);
 
+-- Facetten-Seitenwagen: strukturierte Werte, die ABLEITBAR im body_md stehen. Befuellt
+-- ausschliesslich von importer/facetten_seeder.py (EINE Senke, EIN Wertraum) - vorher
+-- schrieb nur der Open5e-Import, und zwar in einem ZWEITEN Wertraum ('10.0' statt '10',
+-- 'Evocation' statt 'hervorrufung'). Werte sind die kanonischen Schluessel aus
+-- app/facetten.py, damit Filter und Anzeige nie auseinanderlaufen. Alt-DBs ruestet
+-- db.stelle_schema_sicher() per ALTER TABLE nach (wie bei quellen.inhaltsart).
 CREATE TABLE IF NOT EXISTS zauber_meta (
     eintrag_id INTEGER PRIMARY KEY REFERENCES eintraege(id) ON DELETE CASCADE,
-    grad INTEGER, schule TEXT, klassen TEXT);
+    grad INTEGER, schule TEXT, klassen TEXT,
+    reichweite_m  TEXT,     -- Meter als Zahl-String ODER 'beruehrung'/'selbst'/'sicht'
+    komponenten   TEXT,     -- 'VSM' sortiert; dt. G(este) ist engl. S(omatic)
+    dauer_min     INTEGER,  -- Minuten; 0 = unmittelbar, -1 = bis aufgeloest, -2 = Sonderfall
+    konzentration INTEGER,  -- 0/1; NULL = im Text nicht erkennbar (kein Raten)
+    ritual        INTEGER); -- 0/1; NULL = im Text nicht erkennbar
 CREATE TABLE IF NOT EXISTS monster_meta (
     eintrag_id INTEGER PRIMARY KEY REFERENCES eintraege(id) ON DELETE CASCADE,
-    hg TEXT, typ TEXT);
+    hg TEXT, typ TEXT,
+    rk INTEGER,             -- Ruestungsklasse
+    tp INTEGER);            -- Trefferpunkte
 CREATE TABLE IF NOT EXISTS gegenstand_meta (
     eintrag_id INTEGER PRIMARY KEY REFERENCES eintraege(id) ON DELETE CASCADE,
-    seltenheit TEXT);
+    seltenheit TEXT,
+    preis_cent INTEGER);    -- Preis in GM-Cent (int) - vermeidet Float-Vergleiche
 
 -- Glossar DE<->EN: S3-Leiter, S9-Herkunft, S11-Konsistenz, *-Logik
 CREATE TABLE IF NOT EXISTS glossar (
