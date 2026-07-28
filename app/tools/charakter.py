@@ -21,6 +21,7 @@ Bestandseintraegen geparst - nicht aus Allgemeinwissen (B1)."""
 from __future__ import annotations
 
 import re
+import sqlite3
 from typing import Literal
 
 from app import glossar as _glossar
@@ -100,8 +101,33 @@ def _norm(text: str | None) -> str:
     return (text or "").strip().lower()
 
 
-def _kontext(body: str | None) -> str:
-    m = _KONTEXT.match(body or "")
+def _kontext_bedingung(con, breadcrumb: str, praefix: str = "") -> tuple[str, list]:
+    """SQL-Bedingung + Parameter, um Eintraege mit genau diesem Breadcrumb zu finden.
+
+    Nutzt die Spalte `kontext`, wo es sie gibt, und faellt sonst auf die alte LIKE-Suche
+    im body_md zurueck. Beides ist noetig: der SERVING-Pfad ist read-only und migriert
+    NICHT, eine Bestands-DB kann die Spalte also noch gar nicht haben (dann wuerde
+    `kontext = ?` die Abfrage sprengen); und selbst mit Spalte kann sie fuer einzelne
+    Zeilen NULL sein, solange die Quelle nicht neu importiert wurde."""
+    like = f"*Kontext: {breadcrumb}*%"
+    try:
+        hat_spalte = "kontext" in {r[1] for r in con.execute("PRAGMA table_info(eintraege)")}
+    except sqlite3.Error:
+        hat_spalte = False
+    if not hat_spalte:
+        return f"{praefix}body_md LIKE ?", [like]
+    return (f"({praefix}kontext = ? OR ({praefix}kontext IS NULL "
+            f"AND {praefix}body_md LIKE ?))"), [breadcrumb, like]
+
+
+def _kontext(e: dict | str | None) -> str:
+    """Breadcrumb eines Eintrags. Nimmt den Eintrag (dann gilt die Spalte) oder - fuer
+    Aufrufer, die nur den Text haben - den blanken Body."""
+    if isinstance(e, dict):
+        if e.get("kontext"):
+            return e["kontext"]
+        e = e.get("body_md")
+    m = _KONTEXT.match(e or "")
     return m.group(1) if m else ""
 
 
@@ -124,7 +150,7 @@ def _ist_option(e: dict, kategorie: str) -> bool:
     LETZTE Kontext-Segment: steht der Eintrag DIREKT unter einem Kapitel-/Gruppen-Header,
     ist er eine Option; nistet er unter einem konkreten Optionsnamen ('... > Aasimar'),
     ist er ein Unterabschnitt (Merkmale/Abstammung) und keine eigene Option."""
-    kontext = _kontext(e["body_md"])
+    kontext = _kontext(e)
     if not kontext:
         return True                       # Katalog-Quelle (Open5e): 1 Eintrag = 1 Option
     muster = _OPTION_KONTEXT.get(kategorie)
@@ -208,7 +234,7 @@ def _liste(kategorie: str, schluessel: str, schritt_hinweis: str) -> dict:
                     extra["voraussetzung"] = (m.group(2) or "").strip() or None
                 else:                                    # DDB-Feat: aus der Kontext-Feat-Gruppe
                     gruppe = next((_DDB_TALENT_GRUPPE[seg.title()] for e in g["eintraege"]
-                                   if (seg := _kontext(e["body_md"]).split(" > ")[-1].strip())
+                                   if (seg := _kontext(e).split(" > ")[-1].strip())
                                    .title() in _DDB_TALENT_GRUPPE), None)
                     if gruppe:
                         extra["kategorie"] = gruppe
@@ -284,7 +310,7 @@ def foliant_liste_klassen() -> dict:
         alle = _eintraege(con, "klasse")
         klassen_eintraege, unterklassen_eintraege = [], []
         for e in alle:
-            kontext = _kontext(e["body_md"])
+            kontext = _kontext(e)
             if kontext:
                 if kontext == "Klassen":
                     klassen_eintraege.append(e)
@@ -302,7 +328,7 @@ def foliant_liste_klassen() -> dict:
         for ug in _gruppiere(con, unterklassen_eintraege):
             referenzen: set[str] = set()
             for e in ug["eintraege"]:
-                kontext = _kontext(e["body_md"])
+                kontext = _kontext(e)
                 if kontext.startswith("Klassen > "):
                     referenzen.add(_norm(kontext.split(" > ", 1)[1]))
                 m = _SUBCLASS.search(e["body_md"] or "")
@@ -380,10 +406,11 @@ def foliant_hol_klasse(name: str | None = None, edition: str = "2024",
     if con is None:
         return d
     try:
+        bedingung, params = _kontext_bedingung(con, f"Klassen > {d['name_de']}")
         verwandte = [r[0] for r in con.execute(
             "SELECT name_de FROM eintraege WHERE kategorie='klasse' AND name_de IS NOT NULL "
-            "AND edition = ? AND body_md LIKE ? ORDER BY id",
-            (d["edition"], f"*Kontext: Klassen > {d['name_de']}*%",))]
+            f"AND edition = ? AND {bedingung} ORDER BY id",
+            [d["edition"], *params])]
         if verwandte:
             d["verwandte_abschnitte"] = verwandte
             d["hinweis_abschnitte"] = ("Stufentabelle und Merkmale stehen in den verwandten "
@@ -630,11 +657,12 @@ def _klassenmerkmale_body(name_de: str) -> str | None:
     if con is None:
         return None
     try:
+        bedingung, params = _kontext_bedingung(con, f"Klassen > {name_de}", praefix="e.")
         rows = con.execute(
             "SELECT e.body_md FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
-            "WHERE e.kategorie='klasse' AND e.edition=? AND e.body_md LIKE ? "
+            f"WHERE e.kategorie='klasse' AND e.edition=? AND {bedingung} "
             "ORDER BY q.prioritaet, e.id",
-            (_EDITION, f"*Kontext: Klassen > {name_de}*%")).fetchall()
+            [_EDITION, *params]).fetchall()
         for (body,) in rows:
             if _stufentabelle(body):
                 return body

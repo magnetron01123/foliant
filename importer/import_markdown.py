@@ -591,9 +591,11 @@ def _chunks(markdown: str, kategorie_standard: str = "regel",
     # zusammengefuehrten Body.
     fertig = _merge_fragmente(fertig, merge_regeln)
     for c in fertig:
-        kontext = c.pop("kontext")
-        if kontext:
-            c["body"] = f"*Kontext: {kontext}*\n\n{c['body']}"
+        # Der Breadcrumb geht BEIDE Wege: als Zeile in den Body (unveraendert - der
+        # inhalts_hash und alle Bestands-DBs haengen daran) UND als eigenes Feld, damit
+        # er abfragbar wird, statt per LIKE ueber den Body gesucht zu werden.
+        if c["kontext"]:
+            c["body"] = f"*Kontext: {c['kontext']}*\n\n{c['body']}"
     return fertig
 
 
@@ -603,7 +605,7 @@ def _ersetze_bestand(con: sqlite3.Connection, quelle_id: int, zeilen: list[tuple
     con.execute("DELETE FROM eintraege WHERE quelle_id = ?", (quelle_id,))  # idempotent
     con.executemany(
         "INSERT INTO eintraege (quelle_id, kategorie, name_de, name_en, sprache, edition, "
-        "seite, body_md) VALUES (?,?,?,?,?,?,?,?)", zeilen)
+        "seite, kontext, body_md) VALUES (?,?,?,?,?,?,?,?,?)", zeilen)
 
 
 def importiere_markdown(con: sqlite3.Connection, quelle_kuerzel: str, markdown: str,
@@ -654,7 +656,7 @@ def importiere_markdown(con: sqlite3.Connection, quelle_kuerzel: str, markdown: 
         (quelle_id, c["kategorie"],
          c["name"] if sprache == "de" else None,
          c["name"] if sprache != "de" else None,
-         sprache, edition, c["seite"], c["body"]) for c in chunks])
+         sprache, edition, c["seite"], c["kontext"] or None, c["body"]) for c in chunks])
     # FTS-Rebuild als Teil DERSELBEN Transaktion (Leitplanke + A7: Eintraege und Index
     # landen zusammen oder rollen zusammen zurueck).
     con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
