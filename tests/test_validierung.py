@@ -94,3 +94,33 @@ def test_p2_glossar_cache_invalidiert_nach_aenderung(bestand):
         assert zeilen and zeilen[0]["term_en"] == "Fireball"         # Cache invalidiert
     finally:
         con.close()
+
+
+def test_kategorien_stehen_ueberall_gleich():
+    """Die acht Kategorien sind ein geschlossener Vertrag und stehen an DREI Orten:
+    db.KATEGORIEN (Laufzeit-Validierung), das Literal in nachschlagen (daraus erzeugt
+    FastMCP das Enum-Schema fuer den Client) und der CHECK in db/schema.sql.
+
+    Driftet einer, entsteht genau die Fehlerklasse aus SYN-P0-006, nur eine Ebene tiefer:
+    entweder gibt es Inhalte, die kein Tool abfragen kann, oder ein Tool bietet eine
+    Kategorie an, die der Schema-CHECK beim Import ablehnt. Beides faellt sonst erst
+    am Bestand auf. Das Literal muss literal bleiben - aus einem Tupel gebaut erzeugte
+    FastMCP kein Enum -, also prueft der Test die Gleichheit, statt sie zu erzwingen."""
+    import re
+    import typing
+
+    literal = set(typing.get_args(ns.Kategorie))
+    assert literal == set(adb.KATEGORIEN), (
+        f"nachschlagen.Kategorie vs. db.KATEGORIEN: "
+        f"nur im Literal {sorted(literal - set(adb.KATEGORIEN))}, "
+        f"nur in db {sorted(set(adb.KATEGORIEN) - literal)}")
+
+    sql = _SCHEMA.read_text(encoding="utf-8")
+    block = re.search(r"kategorie\s+TEXT NOT NULL CHECK \(kategorie IN\s*\((.*?)\)\)",
+                      sql, re.S)
+    assert block, "CHECK-Constraint fuer kategorie in db/schema.sql nicht gefunden"
+    im_schema = set(re.findall(r"'([^']+)'", block.group(1)))
+    assert im_schema == set(adb.KATEGORIEN), (
+        f"db/schema.sql vs. db.KATEGORIEN: "
+        f"nur im Schema {sorted(im_schema - set(adb.KATEGORIEN))}, "
+        f"nur in db {sorted(set(adb.KATEGORIEN) - im_schema)}")

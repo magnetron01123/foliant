@@ -11,7 +11,7 @@ Alle drei sind gebaut:
   3. Grounding-Hinweise IN den Tool-AUSGABEN - der zuverlaessigste Kanal (SPEC.md par. 7):
      eine leere Suche liefert explizit {"treffer": [], "hinweis": "Nichts im Bestand -
      ehrlich sagen, nicht aus Allgemeinwissen antworten."} (nachschlagen.HINWEIS_*)
-Dass dieselben tragenden Regeln in allen Kanaelen stehen, prueft
+Dass dieselben tragenden Regeln in allen DREI Kanaelen stehen, prueft
 tests/test_verhaltensregeln.py.
 """
 from __future__ import annotations

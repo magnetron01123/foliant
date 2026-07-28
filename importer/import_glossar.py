@@ -593,7 +593,7 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
     con.commit()
     if n:
         _db.fts_rebuild(con)
-        _glossar._GLOSSAR_CACHE.clear()
+        _glossar.leere_cache()
     return n
 
 
@@ -677,7 +677,7 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
     con.execute("DELETE FROM glossar WHERE quelle LIKE ?", (QUELLE + "%",))
     # Cache leeren, sonst saehe der Ausschluss-Abgleich die soeben GELOESCHTEN eigenen
     # Alt-Zeilen noch als 'belegt' (und ein Re-Lauf wuerde alte Fehlpaare fortschreiben).
-    _glossar._GLOSSAR_CACHE.clear()
+    _glossar.leere_cache()
     paare, report = finde_paare(con)
     # Spezies-/Talent-Sub-Features ('Fey Ancestry') sind KEINE Eintragsnamen - das
     # Vollseeding hat sie nie bei dnddeutsch angefragt. Hier gezielt nachholen (Cache
@@ -685,7 +685,7 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
     subnamen = sorted({s for kat in ("spezies", "talent") for s in en_subnamen(con, kat)})
     if subnamen:
         seed_glossar(con, subnamen)
-        _glossar._GLOSSAR_CACHE.clear()
+        _glossar.leere_cache()
     for kategorie in ("spezies", "talent"):
         p2, r2 = finde_container_sub_paare(con, kategorie)
         paare += [p for p in p2 if p not in paare]
@@ -698,7 +698,7 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
     for zeile in report:
         print(f"  klassenmerkmale: {zeile}", file=sys.stderr)
     con.commit()
-    _glossar._GLOSSAR_CACHE.clear()   # Folge-Seeder sollen die neuen Paare sehen
+    _glossar.leere_cache()   # Folge-Seeder sollen die neuen Paare sehen
     return n
 
 
@@ -712,7 +712,7 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     from importer.srd_begriffsbruecken import (QUELLE, finde_gegenstands_paare,
                                                seed_paar)
     con.execute("DELETE FROM glossar WHERE quelle LIKE ?", (QUELLE + "%",))
-    _glossar._GLOSSAR_CACHE.clear()   # geloeschte Alt-Zeilen duerfen nicht als 'belegt' zaehlen
+    _glossar.leere_cache()   # geloeschte Alt-Zeilen duerfen nicht als 'belegt' zaehlen
     paare, report = finde_gegenstands_paare(con)
     n = 0
     gesehen: set[tuple[str, str]] = set()
@@ -741,7 +741,7 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     for zeile in report:
         print(f"  gegenstaende: {zeile}", file=sys.stderr)
     con.commit()
-    _glossar._GLOSSAR_CACHE.clear()
+    _glossar.leere_cache()
     return n
 
 
@@ -779,7 +779,7 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
     from app import glossar as _glossar
 
     con.execute("DELETE FROM glossar WHERE quelle = ?", (FLEXION_QUELLE,))
-    _glossar._GLOSSAR_CACHE.clear()
+    _glossar.leere_cache()
     je_en: dict[str, set[str]] = {}
     original: dict[str, str] = {}
     for te, td in con.execute("SELECT term_en, term_de FROM glossar WHERE offiziell=1"):
@@ -809,7 +809,7 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
                         vorhanden.add((en, de))
                         n += 1
     con.commit()
-    _glossar._GLOSSAR_CACHE.clear()
+    _glossar.leere_cache()
     return n
 
 
@@ -824,7 +824,7 @@ def seed_zauber_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     from importer.srd_zauberbruecken import QUELLE, finde_zauber_paare
 
     con.execute("DELETE FROM glossar WHERE quelle LIKE ?", (QUELLE + "%",))
-    _glossar._GLOSSAR_CACHE.clear()   # geloeschte Alt-Zeilen nicht als 'belegt' zaehlen
+    _glossar.leere_cache()   # geloeschte Alt-Zeilen nicht als 'belegt' zaehlen
     paare, report = finde_zauber_paare(con)
     n = 0
     for term_en, term_de, _beweis in paare:
@@ -835,7 +835,7 @@ def seed_zauber_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     for zeile in report:
         print(f"  zauber: {zeile}", file=sys.stderr)
     con.commit()
-    _glossar._GLOSSAR_CACHE.clear()
+    _glossar.leere_cache()
     return n
 
 

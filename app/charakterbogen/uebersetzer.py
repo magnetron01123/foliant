@@ -185,7 +185,7 @@ class DnddeutschNachschlager:
         try:                               # Best-Effort: Glossar dauerhaft verbessern
             dnddeutsch.schreibe_zeilen(con, zeilen)
             con.commit()
-            glossar._GLOSSAR_CACHE.clear()
+            glossar.leere_cache()
         except sqlite3.Error:
             pass                           # read-only (Web-Container) -> Direktergebnis reicht
         return glossar.markiere(best.term_de, begriff, bool(best.offiziell))

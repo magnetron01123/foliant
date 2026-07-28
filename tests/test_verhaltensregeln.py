@@ -1,13 +1,20 @@
-"""Die Verhaltensregeln laufen ueber drei Kanaele (SPEC.md §7). Zwei davon sind
-Freitext und driften deshalb lautlos auseinander: die Server-Instruktion in
-`config/stil.py` und die Copy-Paste-Projektanweisung in `config/projektanweisung.md`.
-CLAUDE.md
-verlangt seit jeher, beide synchron zu halten - bisher war das eine Bitte an den
+"""Die Verhaltensregeln laufen ueber drei Kanaele (SPEC.md §7). Alle drei sind Freitext
+und driften deshalb lautlos auseinander:
+
+  1. die Server-Instruktion in `config/stil.py`
+  2. die Copy-Paste-Projektanweisung in `config/projektanweisung.md`
+  3. die Grounding-Hinweise IN den Tool-Ausgaben (nachschlagen/charakter)
+
+CLAUDE.md verlangt seit jeher, sie synchron zu halten - bisher war das eine Bitte an den
 Menschen, hier wird es geprueft.
 
-Der Test prueft NICHT auf Wortgleichheit (die Kanaele haben unterschiedliche
-Adressaten und duerfen anders formulieren), sondern darauf, dass jede tragende
-Regel in beiden vorkommt. Faellt eine raus, faellt der Test.
+Der Test prueft NICHT auf Wortgleichheit (die Kanaele haben unterschiedliche Adressaten
+und duerfen anders formulieren), sondern darauf, dass jede tragende Regel vorkommt.
+
+Kanal 3 kam am 29.07.2026 dazu. Er war der einzige ungeschuetzte - ausgerechnet der, den
+SPEC.md §7 als den ZUVERLAESSIGSTEN bezeichnet, weil seine Hinweise bei jeder Antwort im
+Kontext stehen. HINWEIS_LEER haette sein ❌ verlieren koennen, ohne dass irgendetwas
+anschlaegt.
 """
 from __future__ import annotations
 
@@ -15,6 +22,8 @@ import pathlib
 
 import pytest
 
+from app.tools import charakter as ch
+from app.tools import nachschlagen as ns
 from config import stil
 from config.stil import INSTRUCTIONS
 
@@ -106,3 +115,36 @@ def test_discord_zusatz_ist_nur_darstellung():
     assert "keine neuen Verhaltensregeln" in zusatz
     for verboten in ("OBERSTE REGEL", "PRIORITÄTSLEITER", "Trainingswissen"):
         assert verboten not in zusatz, f"Verhaltensregel im Darstellungs-Zusatz: {verboten}"
+
+
+# Kanal 3: welcher Hinweis welche Zusage tragen muss. Die Fragmente sind bewusst kurz -
+# geprueft wird, dass die AUSSAGE dasteht, nicht ihr Wortlaut.
+_GROUNDING_HINWEISE = [
+    ("Leerbefund ist ehrlich", ns.HINWEIS_LEER, ["❌", "Allgemeinwissen", "B1"]),
+    ("Altstand wird gekennzeichnet", ns.HINWEIS_ALT, ["⚠️", "2024", "B5"]),
+    ("Mehrdeutigkeit wird nicht geraten", ns.HINWEIS_MEHRDEUTIG, ["NICHT raten", "B4",
+                                                                 "eintrag_id"]),
+    ("leerer Bestand ist kein Regelmangel", ns.HINWEIS_DB_FEHLT, ["ehrlich", "B1"]),
+    ("Stern wird erlaeutert", ns._HINWEIS_STERN, ["*", "S5"]),
+    ("2024-Baureihenfolge", ch._HINWEIS_REIHENFOLGE, ["Klasse", "Hintergrund", "Spezies",
+                                                      "SPRACHEN"]),
+    ("nur Optionen aus dem Bestand", ch._HINWEIS_BESTAND, ["B1", "B2"]),
+]
+
+
+@pytest.mark.parametrize("name,hinweis,fragmente", _GROUNDING_HINWEISE,
+                         ids=[n for n, _, _ in _GROUNDING_HINWEISE])
+def test_grounding_hinweis_traegt_seine_zusage(name, hinweis, fragmente):
+    """Kanal 3 ist laut SPEC.md §7 der zuverlaessigste - und war der einzige ohne Waechter."""
+    for frag in fragmente:
+        assert frag in hinweis, f"{name}: '{frag}' fehlt im Hinweistext"
+
+
+def test_leerbefund_hinweis_deckt_sich_mit_der_web_regel():
+    """HINWEIS_LEER ist der Ort, an dem das Modell die Websuche-Regel im Moment des
+    Nulltreffers liest - also genau dann, wenn die Versuchung zum Auffuellen entsteht.
+    Er muss dieselbe Kennzeichnung verlangen wie die beiden Prompt-Kanaele."""
+    assert "🌐" in ns.HINWEIS_LEER
+    assert "🚫" in ns.HINWEIS_LEER              # Spoiler-Regel gilt auch im Web
+    for kanal in (INSTRUCTIONS, stil.projektanweisung()):
+        assert "🌐" in kanal

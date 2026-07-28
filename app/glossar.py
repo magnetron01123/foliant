@@ -82,6 +82,25 @@ _INDEX_CACHE: dict[tuple, dict[tuple[str, str], list[dict]]] = {}
 _NAMEN_CACHE: dict[tuple, dict[str, tuple]] = {}
 
 
+def leere_cache() -> None:
+    """Alle drei Glossar-Caches verwerfen - nach einem SCHREIBZUGRIFF auf die Tabelle.
+
+    Der Normalfall braucht das nicht: die Signatur (_db_signatur) enthaelt mtime und
+    Zeilenzahl und faellt nach einem Import von selbst. INNERHALB einer offenen
+    Schreibtransaktion greift das aber nicht zuverlaessig - die Datei-mtime steht noch,
+    und ein Seeder, der nur bestehende Zeilen AENDERT, laesst auch die Zeilenzahl gleich.
+    Genau dort ruft die Glossar-Kette diese Funktion (importer/import_glossar.py): ein
+    Folge-Seeder muss sehen, was sein Vorgaenger geschrieben hat.
+
+    Die Zusage steht hier, weil sie nur hier einloesbar ist: _INDEX_CACHE und _NAMEN_CACHE
+    sind aus den Zeilen ABGELEITET und muessen mitfallen. Bis zum 29.07.2026 leerte
+    import_glossar an zehn Stellen `_GLOSSAR_CACHE` direkt - das funktionierte, aber nur
+    ueber den Umweg, dass _alle_zeilen die beiden anderen beim Neuaufbau mitleert."""
+    _GLOSSAR_CACHE.clear()
+    _INDEX_CACHE.clear()
+    _NAMEN_CACHE.clear()
+
+
 def _db_signatur(con: sqlite3.Connection) -> tuple:
     try:
         pfad = next((r[2] for r in con.execute("PRAGMA database_list") if r[1] == "main"),

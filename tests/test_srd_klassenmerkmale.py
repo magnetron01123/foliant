@@ -105,11 +105,11 @@ def test_mehrere_merkmale_je_stufe_keine_kreuzpaarung():
     # Belegtes Paar (wie real via 'Prinzen der Apokalypse'):
     con.execute("INSERT INTO glossar (term_en, term_de, offiziell) "
                 "VALUES ('Stunning Strike', 'Betäubender Schlag', 1)")
-    g._GLOSSAR_CACHE.clear()
+    g.leere_cache()
     try:
         paare, report = finde_paare(con)
     finally:
-        g._GLOSSAR_CACHE.clear()
+        g.leere_cache()
     assert ("Stunning Strike", "Betäubender Schlag") in paare
     assert ("Extra Attack", "Zusätzlicher Angriff") in paare       # Ausschlussprinzip
     assert not any(en == "Extra Attack" and de == "Betäubender Schlag" for en, de in paare)
@@ -129,11 +129,11 @@ def test_mehrdeutige_stufe_ohne_beleg_wird_verworfen():
     for name_en in ("Level 2: One", "Level 2: Two", "Level 2: Three"):
         con.execute("INSERT INTO eintraege (quelle_id, kategorie, name_en, body_md) "
                     "VALUES (2, 'klasse', ?, ?)", (name_en, _EN_STUN))
-    g._GLOSSAR_CACHE.clear()
+    g.leere_cache()
     try:
         paare, report = finde_paare(con)
     finally:
-        g._GLOSSAR_CACHE.clear()
+        g.leere_cache()
     assert paare == []
     assert any("nicht eindeutig" in z for z in report)
 
@@ -152,11 +152,11 @@ def test_klassenbruecke_prueft_existenz_der_en_klasse():
                 "VALUES (1, 'klasse', 'Klassenmerkmale des Magiers', ?)", (de_body,))
     con.execute("INSERT INTO eintraege (quelle_id, kategorie, name_en, body_md) VALUES "
                 "(2, 'klasse', 'Level 1: Spellbook', '*Kontext: Wizard > Wizard Features*\n\nText.')")
-    g._GLOSSAR_CACHE.clear()
+    g.leere_cache()
     try:
         paare, report = finde_paare(con)
     finally:
-        g._GLOSSAR_CACHE.clear()
+        g.leere_cache()
     assert ("Spellbook", "Zauberbuch") in paare
 
 
@@ -183,11 +183,11 @@ def test_belegtes_subfeature_identifiziert_eltern_merkmal():
     con.execute("INSERT INTO glossar (term_en, term_de, offiziell) VALUES "
                 "('Flurry of Blows', 'Schlaghagel', 1), "
                 "('Unarmored Movement', 'Ungerüstete Bewegung', 1)")
-    g._GLOSSAR_CACHE.clear()
+    g.leere_cache()
     try:
         paare, report = finde_paare(con)
     finally:
-        g._GLOSSAR_CACHE.clear()
+        g.leere_cache()
     assert ("Monk’s Focus", "Mönchsfokus") in paare
     assert ("Unarmored Movement", "Ungerüstete Bewegung") in paare
     assert ("Uncanny Metabolism", "Unglaublicher Stoffwechsel") in paare   # Ausschluss
@@ -212,11 +212,11 @@ def test_teilfixierung_bleibt_bei_unaufloesbarem_rest():
         con.execute("INSERT INTO eintraege (quelle_id, kategorie, name_en, body_md) VALUES "
                     "(2, 'klasse', ?, '*Kontext: Barbarian > Barbarian Features*\n\nText.')",
                     (name_en,))
-    g._GLOSSAR_CACHE.clear()
+    g.leere_cache()
     try:
         paare, report = finde_paare(con)
     finally:
-        g._GLOSSAR_CACHE.clear()
+        g.leere_cache()
     assert ("Barbarian Subclass", "Barbaren-Unterklasse") in paare
     assert len(paare) == 1                                   # Alpha/Beta nicht geraten
     assert any("nicht eindeutig" in z for z in report)
@@ -251,14 +251,14 @@ def test_ohne_klassenbruecke_wird_klasse_verworfen():
     con = _db()
     con.execute("DELETE FROM glossar")
     from app import glossar as g
-    g._GLOSSAR_CACHE.clear()
+    g.leere_cache()
     try:
         _fuelle(con, [("Level 5: Stunning Strike", _EN_STUN)])
         paare, report = finde_paare(con)
         assert paare == []
         assert any("keine EN-Klasse" in z for z in report)
     finally:
-        g._GLOSSAR_CACHE.clear()
+        g.leere_cache()
 
 
 def test_spezies_subfeatures_ohne_reihenfolge_annahme():
@@ -291,11 +291,11 @@ def test_spezies_subfeatures_ohne_reihenfolge_annahme():
     con.execute("INSERT INTO eintraege (quelle_id, kategorie, name_en, body_md) VALUES "
                 "(2, 'spezies', 'Elf', ?), (2, 'spezies', 'Elf Traits', ?), "
                 "(2, 'spezies', 'Dwarf', ?)", (elf_en_intro, elf_en_traits, zwerg_en))
-    g._GLOSSAR_CACHE.clear()
+    g.leere_cache()
     try:
         paare, report = finde_container_sub_paare(con, "spezies")
     finally:
-        g._GLOSSAR_CACHE.clear()
+        g.leere_cache()
     assert ("Fey Ancestry", "Feenblut") in paare
     assert ("Elven Lineage", "Elfische Abstammung") in paare       # Ausschlussprinzip
     assert ("Darkvision", "Dunkelsicht") in paare
