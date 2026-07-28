@@ -404,6 +404,42 @@ Alle docken laut Datenmodell **ohne Neuaufbau** an (NF7).
 
 ## 5. Erledigt (Chronik, verdichtet)
 
+**Strukturelle Konsolidierung (29.07.2026)** — kein Feature, keine Verhaltensänderung:
+Doppelungen entfernt, die durch das phasenweise Wachstum entstanden waren. Der
+`inhalts_hash` blieb dabei unverändert (`01e5e49d6786d2df` am Mac-Subset) — es wurde keine
+Bestandszeile angefasst.
+
+- **Ein Importweg je Quelle.** `importer/import_glossar.py` und `importer/import_open5e.py`
+  trugen je einen zweiten `__main__`-Einstieg, den keine Doku kannte. Der Glossar-Weg fuhr
+  **6 von 18** Schritten, ohne Transaktion und ohne die Namensreparaturen — er schrieb also
+  kein kaputtes, sondern ein still **unvollständiges** Glossar, und das entscheidet über
+  `*`-Kennzeichnung, Suchbrücken und Deutsch-first-Ranking. Die Kette liegt jetzt als
+  `import_glossar._KETTE` + `seed_alles()` in der Fachschicht; `admin.py` ruft sie.
+  Äquivalenz gemessen: alte und neue Reihenfolge liefern gegen frische Kopien derselben DB
+  eine identische Glossartabelle (2573 Zeilen, Hash `f95870d099063a7a`).
+- **Eine Facetten-Definition.** Schreiber (`facetten_seeder`) und Leser (`nachschlagen`)
+  führten byte-identische Kopien der Tabellen-/Spalten-Zuordnung — eine neue Facette wäre
+  nie in der Tool-Ausgabe erschienen. Jetzt `app.facetten.META_TABELLEN`, gegen
+  `db/schema.sql` getestet.
+- **Ein Breadcrumb.** Die Kontext-Regex stand in **fünf** Modulen, während `db.py` behauptete,
+  es gebe sie nur einmal. Jetzt zwei benannte Formen in `db.py` — die strengere der
+  Brücken-Seeder bleibt bewusst getrennt (ihre Ausgabe ist die Beweisgrundlage geseedeter
+  Glossar-Paare; die Gleichheit beider Formen ist nur am Subset belegt, nicht am Vollbestand).
+- **`app/bekannte_macken.py` entfallen** (123 Zeilen, nie importiert, `TODO: fuellen` seit dem
+  MVP). Geprüft, was wirklich nur dort stand: allein die Open5e-Eigenheiten — die stehen jetzt
+  im Docstring von `import_open5e.py`. Der Rest war bereits am Lösungsort dokumentiert.
+- **Veraltete Begründungen richtiggestellt** (u. a. `app/facetten.py`: „die Meta-Tabellen sind
+  LEER" — das war Befund C1 und ist seit Phase 3 behoben). Die Entscheidungen blieben, nur
+  ihr „warum" stimmte nicht mehr.
+- **Drei Driftstellen geschlossen:** `glossar.leere_cache()` statt 35 Fremdzugriffe auf einen
+  privaten Cache; ein Wächter für die Kategorien-Whitelist (`db.KATEGORIEN` ↔ `Literal` ↔
+  `schema.sql`); ein Wächter für **Kanal 3** der Verhaltensregeln — laut §7 der zuverlässigste
+  und bis dahin der einzige ungeschützte.
+
+Bewusst **nicht** angefasst: die zwei Prompt-Kanäle (verschiedene Adressaten, SPEC §7),
+`fingerabdruck` neben `kopf_felder` (CONCEPT §12), die Größe von `nachschlagen.py`, die
+absichtlich schwächeren `_norm`-Kopien, `config/foliant.toml` als maschinenlokale Datei.
+
 **Import-/Datenbank-Review + fünfphasiger Umbau (28.07.2026)** — drei parallele Code-Analysen
 plus eigene Messungen am Pi-Vollbestand. Kernergebnis: die *Daten* waren besser als erwartet;
 die Verluste entstanden **zwischen Daten und Modell**. Alle fünf Phasen umgesetzt, deployed

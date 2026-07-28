@@ -329,10 +329,14 @@ def seed_glossar_aus_bestand(con: sqlite3.Connection) -> int:
     # Abschnittsnamen sind echte Fachbegriffe, die dnddeutsch kennt (frueher ausgeschlossen,
     # obwohl der groesste englischsprachige Anteil des bedienten Korpus regel ist). Nicht-
     # Begriffe (lange Kapiteltitel) liefern schlicht keinen Treffer - harmlos, gecacht.
+    # Die Kategorien-Whitelist kommt aus db.KATEGORIEN (die EINE Liste, SYN-P0-006) - hier
+    # stand sie bis zum 29.07.2026 als vierte Kopie ausgeschrieben im SQL.
+    from app.db import KATEGORIEN
+
     namen = [r[0] for r in con.execute(
-        "SELECT DISTINCT name_en FROM eintraege WHERE name_en IS NOT NULL "
-        "AND kategorie IN ('regel','zauber','monster','gegenstand','spezies','klasse',"
-        "'hintergrund','talent') ORDER BY name_en")]
+        f"SELECT DISTINCT name_en FROM eintraege WHERE name_en IS NOT NULL "
+        f"AND kategorie IN ({','.join('?' * len(KATEGORIEN))}) ORDER BY name_en",
+        KATEGORIEN)]
     print(f"Vollseeding: {len(namen)} Bestandsnamen (Drossel {_PAUSE_S}s; Cache macht "
           f"Re-Runs offline).", file=sys.stderr)
     return seed_glossar(con, namen)
