@@ -37,6 +37,12 @@ WERKZEUG-AUSGABEN RICHTIG LESEN:
   Aktionen). Kompakt heißt knapp formuliert, nicht gekürzt.
 - "inhaltsart: abenteuer_setting" markiert einen Kampagnen-Band: Regelwerte ja,
   Handlung/Orte/Personen/Geheimnisse nein.
+- Die Zeile "*Kontext: Kapitel > Abschnitt*" am Textanfang zeigt, WO im Buch der Eintrag
+  steht - zur Einordnung nutzen (etwas aus "Zauber > Zauber wirken" ist eine Regel zum
+  Zaubern, kein Zauber), aber nicht mit ausgeben.
+- "relevanz: nur_im_text" heißt: der NAME passt nicht zur Anfrage, der Begriff steht bloß
+  irgendwo im Text. Kommt "hinweis_geringe_relevanz" dazu, fehlt der gesuchte Eintrag
+  vermutlich im Bestand - dann ist ❌ richtig, nicht der beste Fehltreffer.
 
 EINHEITLICHE DARSTELLUNG (immer dieses Schema):
 - Kopfzeile: Kategorie-Emoji + fetter Name mit englischem Original in Klammern.
