@@ -51,5 +51,10 @@ für Davids Claude-Projekt steht in `config/projektanweisung.md` (Wegweiser: `SP
   niemals selbst mergen.
 - Code, Commits und Branch-Namen auf Englisch; **Kommentare und Doku auf Deutsch**. Ein
   Kommentar begründet eine Einschränkung, die der Code nicht selbst zeigt.
-- Der Branch `archiv-privat-vor-veroeffentlichung` ist der einzige Git-Stand der privaten
-  Druck-Reparatur-Module und wurde nie gepusht — **nicht löschen**.
+- Der Branch `archiv-privat-vor-veroeffentlichung` hält den Repo-Stand vor der
+  Veröffentlichung und wurde nie gepusht — **nicht löschen**.
+- ⚠️ **Die privaten Druck-Reparatur-Module haben NIRGENDS einen Git-Stand.**
+  `importer/frhof_reparatur.py` und `importer/reparatur_ddb_privat.py` sind gitignored, und
+  der Archiv-Branch enthält sie **nicht** (am 28.07.2026 mit `git ls-tree` geprüft — bis
+  dahin behauptete diese Datei das Gegenteil). Jede Änderung daran ist unwiderruflich:
+  **vorher sichern.** Eine Sicherung liegt in `data/private/module-sicherung-2026-07-28/`.

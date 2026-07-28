@@ -27,7 +27,9 @@ Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
 - ⬜ **Cron + Off-Site-Spiegel einrichten** — das Spiegeln ist die eigentliche Sicherung.
   Ziel/Zugang muss David festlegen.
 - ⬜ **Uptime-Monitoring** auf `/health` (z. B. UptimeRobot).
-- ⬜ **Antwortzeiten unter Sessionlast messen** (B9 ist bisher nicht formal belegt).
+- ✅ **Antwortzeiten gemessen** (B9): am Pi-Vollbestand 25–192 ms je Aufruf, Freitextsuche
+  83 ms Median — Protokoll in §2. Offen bleibt allein die Messung unter *paralleler*
+  Sessionlast; die Einzelaufruf-Zeiten liegen um den Faktor 10 unter dem Zielwert.
 
 **Gate:** Backup liegt außerhalb des Pi, Dienst übersteht Neustart, Monitoring meldet Ausfälle.
 
@@ -126,7 +128,7 @@ B1–B8, T1–T9/T11, O1–O3/O5, Q1–Q7).
 | V7 | Erweiterbares Versionsschema | 🟡 | `edition` ist ein Textfeld — reicht heute, feinere Granularität ohne Migration nachrüstbar |
 | NF4 | Legale Quellen; DDB nur privat | 🟡 | bewusste Entscheidung, siehe [SPEC.md](SPEC.md) §12.1 |
 | NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | ⬜ | M4 |
-| B9 | Schnell & verfügbar im Spielbetrieb | 🟡 | M3 (nicht gemessen) |
+| B9 | Schnell & verfügbar im Spielbetrieb | ✅ | **gemessen** am Pi-Vollbestand 28.07.2026 (§2 Lauf-Protokoll): Median 25–192 ms je Aufruf, Freitextsuche 83 ms — vorher bis 943 ms |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
 
@@ -215,6 +217,30 @@ Nebenfund behoben: zwei DDB-Kapitel-Header standen als Pseudo-Klassen in der Lis
 Bestandskorrektur nachziehen (M5).
 
 ### Lauf-Protokoll
+
+**28.07.2026 · Pi-Vollbestand nach Phase 3 + 4 · deployed und nachgemessen.**
+Golden-Suite **16/16**, `admin check` OK, Bestand unverändert bei 12 503 Einträgen
+(`inhalts_hash e1c9fd188a6da4de`, Backup vorher gezogen).
+
+*Befund C1 auf Produktion bestätigt und behoben:* Die Meta-Tabellen waren tatsächlich
+**leer — 0 von 4481** passenden Einträgen. Nach `import --quelle facetten` (ohne Re-Import,
+also ohne die 2014-Namensreparatur anzutasten):
+
+| Kategorie | vorher | nachher |
+|---|---|---|
+| zauber | 0/1905 | **1799/1905 (94 %)** |
+| monster | 0/1084 | **989/1084 (91 %)** |
+| gegenstand | 0/1492 | **510/1492 (34 %)** |
+
+*Antwortzeiten (Median aus 5 Läufen, schließt B9):* Suche „Gelegenheitsangriff" **83 ms**,
+Detail „Feuerball" **34 ms**, Suche „Feuerball" **50 ms**, Übersetzung **25 ms**,
+Nulltreffer **192 ms**, Facettenfilter **99 ms**. Unverändert gegenüber dem Stand nach
+Phase 2 — Facetten und Import-Bilanz kosten keine Laufzeit.
+
+*Stichprobe am Vollbestand:* `Feuerball` → Grad 3, Hervorrufung, 45 m, VSM, unmittelbar ·
+`Alarm` → Grad 1, Bannzauber, 9 m, 480 min, **Ritual** · `Vampirbrut` → HG 5, Untoter,
+RK 16, TP 90 (deckt sich mit dem B5-Abnahmekriterium). Die Spoiler-Kennzeichnung der
+Kandidatenlisten greift ebenfalls: `hol_regel("Forge")` markiert 4 von 6 Treffern.
 
 **27.07.2026 · Golden-Suite am Pi-Vollbestand · 16/16 bestanden, zweimal** — einmal nach
 2014-Import + Namensreparatur + Glossar-Seeding, ein zweites Mal nach dem `KOPF_HEADING`-Fix
