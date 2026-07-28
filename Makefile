@@ -9,7 +9,7 @@
 # gruen. Nach jedem Deploy / srd-de-Re-Import daher zusaetzlich `make test-golden-pi` gegen
 # den VOLLEN Bestand fahren (CONCEPT.md §8).
 
-.PHONY: test test-haupt test-ddb test-daten test-golden-pi
+.PHONY: test test-haupt test-ddb test-daten test-golden-pi lasttest-pi
 
 test: test-haupt test-ddb test-daten
 	@echo "OK: alle Test-Stufen bestanden."
@@ -39,6 +39,12 @@ test-daten:
 PI ?= pi@raspberrypi.local
 test-golden-pi:
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T -w /app foliant python -m pytest -q tests/test_golden_bestand.py'
+
+# B9 unter Sessionlast: Antwortzeiten bei mehreren gleichzeitigen Spielern, gegen den
+# VOLLEN Pi-Korpus. Rein lesend, gefahrlos neben dem Live-Betrieb. Exitcode != 0, wenn
+# p95 die Grenze reisst - der Lauf ist damit auch als Regressionswaechter brauchbar.
+lasttest-pi:
+	ssh $(PI) 'cd ~/foliant && docker compose exec -T -w /app foliant python -m evals.lasttest'
 
 # Schicht-3-Verhaltens-Evals gegen den VOLLEN Pi-Korpus (BACKLOG.md par. 2). Kostet echte
 # API-Tokens (~15 Faelle x 3-5 Runden). Der Key wird NUR fuer den Einmal-Exec injiziert -

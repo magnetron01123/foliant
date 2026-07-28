@@ -17,6 +17,7 @@ Dubletten gleicher Version/Kategorie loest quellen.prioritaet auf (Q2, kleiner =
 """
 from __future__ import annotations
 
+import copy
 import re
 import sqlite3
 import tomllib
@@ -72,11 +73,30 @@ def standard_pfad() -> Path:
     return projekt_pfad(pfad)
 
 
+_KONFIG_CACHE: tuple[tuple, dict] | None = None
+
+
 def lade_konfig() -> dict:
-    """config/foliant.toml als dict; {} wenn (noch) keine angelegt ist."""
-    if _KONFIG.exists():
-        return tomllib.loads(_KONFIG.read_text(encoding="utf-8"))
-    return {}
+    """config/foliant.toml als dict; {} wenn (noch) keine angelegt ist.
+
+    Gecacht an (mtime, Groesse) der Datei. Ohne das las JEDER Tool-Aufruf die TOML
+    mehrfach frisch vom Datentraeger und parste sie neu - `protokolliere` allein ruft
+    zwei Konfig-Leser, `standard_pfad` einen weiteren. Unter Sessionlast am Pi gemessen
+    (28.07.2026): rund 10 ms je Aufruf, ueber 20 % der Antwortzeit, und weil Parsen
+    reine Python-Arbeit ist, serialisiert es die Threads am GIL zusaetzlich.
+
+    Die mtime-Bindung ist dieselbe Invalidierung wie beim Glossar-Cache: eine geaenderte
+    Konfiguration wird beim naechsten Aufruf gelesen, ein Neustart ist nicht noetig.
+    Die Kopie schuetzt den Cache vor Aufrufern, die am Ergebnis herumschreiben."""
+    global _KONFIG_CACHE
+    try:
+        stat = _KONFIG.stat()
+    except OSError:
+        return {}
+    signatur = (stat.st_mtime_ns, stat.st_size)
+    if _KONFIG_CACHE is None or _KONFIG_CACHE[0] != signatur:
+        _KONFIG_CACHE = (signatur, tomllib.loads(_KONFIG.read_text(encoding="utf-8")))
+    return copy.deepcopy(_KONFIG_CACHE[1])
 
 # Kappt die Roh-Treffermenge vor der Python-Nachverarbeitung (Dedupe/Boost).
 _ROH_FAKTOR = 5

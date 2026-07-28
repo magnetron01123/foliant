@@ -210,3 +210,40 @@ def test_backup_verwirft_bei_fehlender_db(tmp_path, monkeypatch):
     monkeypatch.setattr(adb, "standard_pfad", lambda: tmp_path / "gibtsnicht.sqlite")
     with pytest.raises(SystemExit):
         admin.cmd_backup(types.SimpleNamespace(ziel=str(tmp_path / "bkp"), behalten=14))
+
+
+# ------------------------------------------------- Konfig-Cache (Lastmessung 28.07.2026)
+
+def test_konfig_wird_gecacht_und_bei_aenderung_neu_gelesen(tmp_path, monkeypatch):
+    """lade_konfig() las die TOML bei JEDEM Tool-Aufruf frisch vom Datentraeger und parste
+    sie neu - `protokolliere` allein ruft zwei Konfig-Leser, `standard_pfad` einen weiteren.
+    Der Cache haengt an (mtime, Groesse): eine geaenderte Datei wird beim naechsten Aufruf
+    gelesen, ein Neustart ist nicht noetig."""
+    datei = tmp_path / "foliant.toml"
+    datei.write_text('[db]\npfad = "a.sqlite"\n', encoding="utf-8")
+    monkeypatch.setattr(adb, "_KONFIG", datei)
+    monkeypatch.setattr(adb, "_KONFIG_CACHE", None)
+
+    assert adb.lade_konfig()["db"]["pfad"] == "a.sqlite"
+    datei.write_text('[db]\npfad = "b.sqlite"\n', encoding="utf-8")
+    import os
+    os.utime(datei, (0, 0))                      # mtime erzwingen (gleiche Sekunde moeglich)
+    assert adb.lade_konfig()["db"]["pfad"] == "b.sqlite", "Cache verschlaeft die Aenderung"
+
+
+def test_konfig_cache_ueberlebt_mutation_durch_aufrufer(tmp_path, monkeypatch):
+    """Ein Aufrufer, der am Ergebnis herumschreibt, darf den Cache nicht vergiften."""
+    datei = tmp_path / "foliant.toml"
+    datei.write_text('[protokoll]\naktiv = true\n', encoding="utf-8")
+    monkeypatch.setattr(adb, "_KONFIG", datei)
+    monkeypatch.setattr(adb, "_KONFIG_CACHE", None)
+
+    erste = adb.lade_konfig()
+    erste["protokoll"]["aktiv"] = False
+    assert adb.lade_konfig()["protokoll"]["aktiv"] is True
+
+
+def test_fehlende_konfig_ist_kein_fehler(tmp_path, monkeypatch):
+    monkeypatch.setattr(adb, "_KONFIG", tmp_path / "gibtsnicht.toml")
+    monkeypatch.setattr(adb, "_KONFIG_CACHE", None)
+    assert adb.lade_konfig() == {}
