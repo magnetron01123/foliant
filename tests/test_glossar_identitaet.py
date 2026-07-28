@@ -104,6 +104,26 @@ def test_caches_invalidieren_bei_glossar_aenderung(bestand):
         con.close()
 
 
+def test_editionen_cache_sieht_eine_neue_edition(bestand):
+    """Vierter abgeleiteter Cache (Audit 28.07.2026): _editionen war ein DISTINCT-Scan je
+    Suchanfrage. Auch er muss eine Bestandsaenderung mitbekommen - sonst lehnt die
+    Editions-Validierung eine gerade importierte Regelversion als unbekannt ab."""
+    from app import db as adb
+
+    con = adb.connect(str(adb.standard_pfad()))
+    try:
+        vorher = adb._editionen(con)
+        assert "2014" not in vorher
+        assert adb._editionen(con) is adb._editionen(con)      # zweiter Aufruf aus dem Cache
+        con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,"
+                    "edition,seite,body_md) SELECT quelle_id,kategorie,name_de,name_en,"
+                    "sprache,'2014',seite,body_md FROM eintraege LIMIT 1")
+        con.commit()
+        assert "2014" in adb._editionen(con), "Cache verschlaeft die neue Edition"
+    finally:
+        con.close()
+
+
 def test_uebersetzung_erfindet_keine_identitaet(bestand):
     """'Aktionen' darf NIE als 'Reaktionen (Reactions)' bestaetigt werden - hoechstens
     als ausdruecklich unbestaetigter Aehnlichkeits-Kandidat."""

@@ -116,7 +116,11 @@ def _markiere_abenteuer(con: sqlite3.Connection, antwort: dict, *listen: list[di
             if k.get("quelle_kuerzel") in kuerzel:
                 k["inhaltsart"] = "abenteuer_setting"
                 betroffen += 1
-    if betroffen:
+    # Die Kennzeichnung am EINZELNEN Treffer wird immer gesetzt; der Sammelhinweis nur,
+    # wenn nicht schon ein spezifischerer dasteht. Im Detail-Pfad hat _detail bereits
+    # gesagt "DIESER Eintrag stammt aus einem Abenteuerband" - das ist die praezisere
+    # Aussage und darf nicht von der Zaehlung ueberschrieben werden.
+    if betroffen and "hinweis_inhaltsart" not in antwort:
         antwort["hinweis_inhaltsart"] = (
             f"🚫 {betroffen} Treffer stammen aus einem ABENTEUER-/SETTING-Band (Feld "
             f"inhaltsart): Handlung, Geheimnisse und Ortsdetails NIE wiedergeben "
@@ -383,13 +387,19 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
             # einschraenken (UND-Semantik), bevor der Leer-Hinweis entscheidet.
             _nachfiltern_facetten(con, antwort, praedikat)
             antwort["gefiltert_nach"] = echo
+            # anzahl_gesamt meint ab hier: passende Treffer im geprueften Bereich, nicht
+            # Volltext-Treffer vor dem Filter. VOR dem Kappen zaehlen - bis zum Audit
+            # 28.07.2026 stand die Zaehlung dahinter, war damit per Konstruktion gleich
+            # der Anzeigemenge und der hinweis_gekuerzt unten konnte nie feuern: 25
+            # passende Zauber, 8 gezeigt, kein Signal (A5, dieselbe Ehrlichkeitsklasse
+            # wie A1 - nur in der Richtung 'zu wenig gezeigt').
+            passend = len(antwort["treffer"])
             # Erst JETZT auf die Anzeigemenge kappen - vorher lief die Filterung auf einer
-            # schon gekappten Liste (A1). anzahl_gesamt meint ab hier: passende Treffer im
-            # geprueften Bereich, nicht Volltext-Treffer vor dem Filter.
+            # schon gekappten Liste (A1).
             for schluessel in ("treffer", "aeltere_staende", "andere_fassungen"):
                 if antwort.get(schluessel):
                     antwort[schluessel] = antwort[schluessel][:8]
-            ergebnis = {**ergebnis, "anzahl_gesamt": len(antwort["treffer"])}
+            ergebnis = {**ergebnis, "anzahl_gesamt": passend}
         if antwort["treffer"] and ergebnis["anzahl_gesamt"] > len(antwort["treffer"]):
             # Ohne dieses Signal kappt der Volltext-Pfad still - stil.py/SPEC par. 8
             # versprechen dem Modell aber 'hinweis_gekuerzt' generell (bisher setzte es
@@ -879,7 +889,7 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
                 voll_paare = [(v, k) for v, k in voll_paare if v]
                 voll_paare.sort(key=lambda vk: _regeltext_laenge(vk[0]), reverse=True)
                 gewaehlt = voll_paare[0][1]
-                weitere_abschnitte = [_knapp(k) for _v, k in voll_paare[1:]]
+                weitere_abschnitte = [_knapp(k, con) for _v, k in voll_paare[1:]]
             else:
                 gewaehlt = kopf
         elif (sub := (_unterabschnitts_treffer(con, kandidaten, varianten, edition)
@@ -895,11 +905,13 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
             if edition == _db.STANDARD_EDITION:
                 gewaehlt = exakt[0]      # nur aeltere Fassung vorhanden (B5)
             else:
-                return {"gefunden": False,
-                        "vorhandene_fassungen": [_knapp(k) for k in exakt[:6]],
-                        "hinweis": (f"Keine Fassung der Regelversion {edition} im "
-                                    f"Bestand - vorhandene Fassungen siehe "
-                                    f"'vorhandene_fassungen'; nicht still ersetzen (V5).")}
+                fassungen = [_knapp(k, con) for k in exakt[:6]]
+                antwort = {"gefunden": False, "vorhandene_fassungen": fassungen,
+                           "hinweis": (f"Keine Fassung der Regelversion {edition} im "
+                                       f"Bestand - vorhandene Fassungen siehe "
+                                       f"'vorhandene_fassungen'; nicht still ersetzen (V5).")}
+                _markiere_abenteuer(con, antwort, fassungen)
+                return antwort
         elif len(kandidaten) == 1 and (edition == _db.STANDARD_EDITION
                                        or kandidaten[0]["edition"] == edition):
             gewaehlt = kandidaten[0]
@@ -917,9 +929,11 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
                 gewaehlt = relevante[0]
             else:
                 anzeige = relevante or kandidaten
-                return {"gefunden": False, "mehrdeutig": True,
-                        "kandidaten": [_knapp(k) for k in anzeige[:6]],
-                        "hinweis": HINWEIS_MEHRDEUTIG}
+                gezeigt = [_knapp(k, con) for k in anzeige[:6]]
+                antwort = {"gefunden": False, "mehrdeutig": True,
+                           "kandidaten": gezeigt, "hinweis": HINWEIS_MEHRDEUTIG}
+                _markiere_abenteuer(con, antwort, gezeigt)
+                return antwort
 
         voll = _db.hole_eintrag(con, gewaehlt["id"])
         kinder = _kinder_texte(con, voll) if aggregiere_kinder else []
@@ -953,7 +967,7 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
         # Q1/T6: existiert zusaetzlich eine andere Fassung, nur als markierten Zusatz nennen.
         andere = [k for k in exakt if k["edition"] != voll["edition"]]
         if andere:
-            antwort["andere_fassungen"] = [_knapp(k) for k in andere]
+            antwort["andere_fassungen"] = [_knapp(k, con) for k in andere]
         # #5: Der pauschale hinweis_alter_stand ('keine 2024-Fassung im Bestand') ist FALSCH,
         # wenn eine Standard-Fassung tatsaechlich vorliegt (Nutzer hat ausdruecklich die
         # aeltere Edition angefragt). Dann korrekt formulieren statt in die Irre zu fuehren.
@@ -1011,6 +1025,12 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
                 "(z. B. Uebersetzungs-/Errata-Unterschied). Beide Aussagen nennen und "
                 "die Abweichung offenlegen - nicht still die Prioritaetsquelle als "
                 "einzige Wahrheit ausgeben; im Zweifel entscheidet die SL/Errata-Policy.")
+        # A2-Nachzug (Audit 28.07.2026): Die Nebenlisten des Detail-Pfads trugen die
+        # Abenteuer-Kennzeichnung NICHT - nur die Trefferliste der Suche und der
+        # gelieferte Eintrag selbst. `weitere_abschnitte`/`andere_fassungen` fuehren aber
+        # ebenfalls einen `auszug` aus dem Bestand mit, also denselben Spoiler-Weg.
+        _markiere_abenteuer(con, antwort, antwort.get("weitere_abschnitte") or [],
+                            antwort.get("andere_fassungen") or [])
         return antwort
     finally:
         con.close()
