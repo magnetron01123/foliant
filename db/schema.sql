@@ -44,6 +44,15 @@ CREATE TABLE IF NOT EXISTS eintraege (
     body_md    TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_eintraege_kat_ed ON eintraege(kategorie, edition);
+-- Die realen Zugriffe jenseits von (kategorie, edition), alle mit EXPLAIN QUERY PLAN
+-- belegt (28.07.2026, Mac-Subset 3084 Eintraege): vorher SCAN, nachher SEARCH USING
+-- COVERING INDEX. quelle_id ist der Re-Import-Pfad (DELETE ... WHERE quelle_id, 36x),
+-- die Namensspalten der Exakt-Zugriff der Bruecken-/Struktur-Seeder (je ~128x).
+-- Bestands-DBs ruestet db.stelle_schema_sicher() nach.
+CREATE INDEX IF NOT EXISTS idx_eintraege_quelle ON eintraege(quelle_id);
+CREATE INDEX IF NOT EXISTS idx_eintraege_sprache_kat ON eintraege(sprache, kategorie);
+CREATE INDEX IF NOT EXISTS idx_eintraege_name_de ON eintraege(name_de);
+CREATE INDEX IF NOT EXISTS idx_eintraege_name_en ON eintraege(name_en);
 
 -- Facetten-Seitenwagen: strukturierte Werte, die ABLEITBAR im body_md stehen. Befuellt
 -- ausschliesslich von importer/facetten_seeder.py (EINE Senke, EIN Wertraum) - vorher
@@ -83,6 +92,10 @@ CREATE INDEX IF NOT EXISTS idx_glossar_en ON glossar(term_en);
 CREATE INDEX IF NOT EXISTS idx_glossar_de ON glossar(term_de);
 
 -- FTS5 über die Chunks (external content); remove_diacritics hilft bei Umlaut-Varianten.
+-- KEIN prefix='2 3': am 28.07.2026 gemessen und VERWORFEN. Die Präfixsuchen der Tools
+-- ('zauber*', 'feuer*', 'drach*') laufen ohne den Index bei 0,015–0,20 ms; MIT ihm wurden
+-- drei von vier LANGSAMER (Faktor 0,53–1,02), und die Datei wuchs um 65 % (7,9 → 13,1 MB).
+-- Ein Index, der bremst und Platz kostet, ist kein Index.
 CREATE VIRTUAL TABLE IF NOT EXISTS eintraege_fts USING fts5(
     name_de, name_en, body_md,
     content='eintraege', content_rowid='id',

@@ -96,6 +96,16 @@ FACETTEN_SPALTEN: dict[str, dict[str, str]] = {
     "gegenstand_meta": {"preis_cent": "INTEGER"},
 }
 
+# Indizes auf eintraege ausser dem Initial-Index (kategorie, edition) - hier EINMAL neben
+# schema.sql gefuehrt, damit Bestands-DBs sie ueber denselben Migrationspunkt bekommen.
+# Jeder ist mit EXPLAIN QUERY PLAN belegt (SCAN -> SEARCH), Begruendung in schema.sql.
+NUTZINDIZES: dict[str, str] = {
+    "idx_eintraege_quelle": "quelle_id",
+    "idx_eintraege_sprache_kat": "sprache, kategorie",
+    "idx_eintraege_name_de": "name_de",
+    "idx_eintraege_name_en": "name_en",
+}
+
 
 def _ergaenze_spalten(con: sqlite3.Connection, tabelle: str, neue: dict[str, str]) -> None:
     """Fehlende Spalten nachruesten. Existiert die Tabelle noch nicht (DB aelter als die
@@ -129,6 +139,12 @@ def stelle_schema_sicher(con: sqlite3.Connection) -> None:
                         "DEFAULT 'regelwerk'")
         for tabelle, neue in FACETTEN_SPALTEN.items():
             _ergaenze_spalten(con, tabelle, neue)
+        # Nur wenn die Tabelle da ist: sonst wirft CREATE INDEX, der Sammel-except unten
+        # schluckt es - und die user_version bliebe still auf ihrem alten Stand stehen.
+        if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND "
+                       "name='eintraege'").fetchone():
+            for name, spalten in NUTZINDIZES.items():
+                con.execute(f"CREATE INDEX IF NOT EXISTS {name} ON eintraege({spalten})")
         if con.execute("PRAGMA user_version").fetchone()[0] < 2:
             con.execute("PRAGMA user_version = 2")     # nur anheben, nie eine hoehere Version senken
         con.commit()
@@ -183,10 +199,25 @@ WHERE eintraege_fts MATCH :match
 """
 
 
+_EDITIONEN_CACHE: dict[tuple, set[str]] = {}
+
+
 def _editionen(con: sqlite3.Connection) -> set[str]:
     """Im Bestand vorhandene Regelversionen - die 'klar definierte Menge' fuer die
-    Editions-Validierung (A1); waechst mit neuen Quellen ohne Migration (V7)."""
-    return {r[0] for r in con.execute("SELECT DISTINCT edition FROM eintraege")}
+    Editions-Validierung (A1); waechst mit neuen Quellen ohne Migration (V7).
+
+    Gecacht (Audit 28.07.2026): ein DISTINCT-Scan ueber ALLE Eintraege, gefahren einmal
+    je Suchanfrage - fuer eine Menge, die sich nur beim Import aendert. Gleiche Signatur
+    wie der Glossar-Cache, also gleiche Invalidierung: sie enthaelt die mtime der
+    Datei und faellt damit nach jedem Schreibzugriff."""
+    from app import glossar as _gl
+    sig = _gl._db_signatur(con)
+    fertig = _EDITIONEN_CACHE.get(sig)
+    if fertig is None:
+        fertig = {r[0] for r in con.execute("SELECT DISTINCT edition FROM eintraege")}
+        _EDITIONEN_CACHE.clear()             # nur die aktuelle Signatur halten
+        _EDITIONEN_CACHE[sig] = fertig
+    return fertig
 
 
 def _pruefe_edition(con: sqlite3.Connection, edition: str | None) -> None:

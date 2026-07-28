@@ -84,6 +84,32 @@ def test_schema_ensure_senkt_hoehere_version_nicht(tmp_path):
         c.close()
 
 
+def test_schema_ensure_ruestet_die_nutzindizes_nach(tmp_path):
+    """Audit 28.07.2026: die Indizes aus dem Initial-Commit deckten die realen Zugriffe
+    nicht - quelle_id (Re-Import-DELETE) und die Namensspalten liefen als Full Scan.
+    schema.sql legt sie fuer neue DBs an, dieser Punkt fuer die bestehenden."""
+    pfad = tmp_path / "ohne-indizes.sqlite"
+    con = sqlite3.connect(pfad)
+    con.execute("CREATE TABLE quellen (id INTEGER PRIMARY KEY, kuerzel TEXT UNIQUE)")
+    con.execute("CREATE TABLE eintraege (id INTEGER PRIMARY KEY, quelle_id INTEGER, "
+                "kategorie TEXT, name_de TEXT, name_en TEXT, sprache TEXT, edition TEXT, "
+                "seite TEXT, body_md TEXT)")
+    con.commit()
+    con.close()
+    c = adb.connect(str(pfad))
+    try:
+        vorhanden = {r[0] for r in c.execute(
+            "SELECT name FROM sqlite_master WHERE type='index'")}
+        assert set(adb.NUTZINDIZES) <= vorhanden, f"fehlend: {set(adb.NUTZINDIZES) - vorhanden}"
+        # Und sie werden auch BENUTZT - sonst waeren sie nur Ballast.
+        plan = " ".join(r[-1] for r in c.execute(
+            "EXPLAIN QUERY PLAN SELECT id FROM eintraege WHERE quelle_id = 1"))
+        assert "idx_eintraege_quelle" in plan, plan
+    finally:
+        c.close()
+    adb.connect(str(pfad)).close()                    # idempotent
+
+
 def test_schema_ensure_ist_no_op_ohne_quellen(tmp_path):
     """Uninitialisierte DB (keine quellen-Tabelle) -> kein Crash, nichts angelegt."""
     c = adb.connect(str(tmp_path / "leer.sqlite"))
