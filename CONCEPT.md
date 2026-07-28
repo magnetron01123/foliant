@@ -375,8 +375,10 @@ python -m app.admin manifest > korpus-manifest.json
 Volle URL inkl. Geheimpfad: `https://<host>/<FOLIANT_PFAD_TOKEN>/mcp` — kein OAuth.
 Verhaltensschicht: Claude-Projekt mit `config/projektanweisung.md` einrichten —
 die Spieler finden sie kopierbereit auf der Charakterbogen-Website („Foliant im Claude-Chat“).
-Die Seite rendert sie zur Laufzeit aus SPEC.md (`config.stil.projektanweisung`), verteilt also
-nie eine veraltete Fassung; nach Prompt-Änderungen `docker compose up -d --build --no-deps web`.
+Die Seite liest sie zur Laufzeit aus `config/projektanweisung.md` (über
+`config.stil.projektanweisung`, dieselbe Lesestelle wie Eval, Kopier-Skript und Kanal-Sync-Test)
+und verteilt so nie eine veraltete Fassung; nach Prompt-Änderungen genügt
+`docker compose restart web` — die Datei ist read-only gemountet.
 
 ### 5. Abnahme fahren
 Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12 + P0-Prüfung).

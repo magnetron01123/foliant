@@ -129,9 +129,15 @@ def _markiere_abenteuer(con: sqlite3.Connection, antwort: dict, *listen: list[di
 
 def _reichere_facetten_an(con: sqlite3.Connection, *treffer_listen: list[dict]) -> None:
     """#2: knappe Zauber-/Monster-Treffer um eine kompakte Facette ('Grad 3' bzw. 'HG 1')
-    anreichern - genau das Feld, nach dem ein Spieler triagiert. Aus dem Body geparst
-    (zauber_meta/monster_meta sind auf dem Bestand leer, s. app/facetten.py). EINE
-    Batch-Abfrage der Textkoepfe fuer alle gezeigten Treffer (BP #1: kein Body im Output)."""
+    anreichern - genau das Feld, nach dem ein Spieler triagiert. EINE Batch-Abfrage der
+    Textkoepfe fuer alle gezeigten Treffer (BP #1: kein Body im Output).
+
+    Bewusst aus dem Body geparst und NICHT aus zauber_meta/monster_meta: der Text ist die
+    Autoritaet, die Meta-Tabelle ist daraus abgeleitet (app/facetten.py). Ein Umweg ueber
+    die Tabelle brauchte hier zusaetzlich einen Rueckfall fuer Eintraege ohne Meta-Zeile -
+    mehr Code fuer denselben Wert. Bei hoechstens ~20 gezeigten Treffern und einem
+    900-Zeichen-Kopf je Treffer ist die Ersparnis ohnehin nicht messbar; der Vorfilter, wo
+    es wirklich zaehlte (1627 Aufrufe je Filteranfrage), sitzt in _vorfilter_sql."""
     ids = {k["eintrag_id"] for liste in treffer_listen for k in liste
            if k.get("kategorie") in ("zauber", "monster")}
     if not ids:

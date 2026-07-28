@@ -19,7 +19,10 @@ def test_faelle_decken_die_backlog_checkliste():
             assert f.get("rubrik"), f["id"]   # Richter braucht eine Rubrik
 
 
-def test_projektanweisung_extraktor_findet_den_spec_block():
+def test_eval_liest_die_projektanweisungs_datei():
+    """Der Eval misst gegen genau den Text, den die Runde ins Claude-Projekt kopiert -
+    config/projektanweisung.md. (Bis Rev. 9 stand er als Codeblock in SPEC.md; der alte
+    Testname sprach noch vom 'SPEC-Block'.)"""
     text = projektanweisung()
     assert text.startswith("Du hilfst unserer D&D-Runde")
     assert "🚫" in text and "❌" in text      # tragende Marker sind drin
