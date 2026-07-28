@@ -40,6 +40,8 @@ KLAMMER_SUFFIX = re.compile(r"\s*\([^()]{1,40}\)\s*$")
 # je (DB-Datei, mtime, Zeilenzahl): unveraenderte DB -> ein Scan, danach RAM. Der
 # Schluessel invalidiert automatisch nach jedem Import (mtime + count aendern sich).
 _GLOSSAR_CACHE: dict[tuple, list[dict]] = {}
+# Exakt-Index ueber dieselben Zeilen (s. _exakt_index); gleiche Signatur, gleiche Lebensdauer.
+_INDEX_CACHE: dict[tuple, dict[tuple[str, str], list[dict]]] = {}
 
 
 def _db_signatur(con: sqlite3.Connection) -> tuple:
@@ -71,6 +73,41 @@ def _alle_zeilen(con: sqlite3.Connection) -> list[dict]:
         _GLOSSAR_CACHE.clear()               # nur die aktuelle Signatur halten (klein)
         _GLOSSAR_CACHE[sig] = cached
     return cached
+
+
+def _exakt_index(con: sqlite3.Connection) -> dict[tuple[str, str], list[dict]]:
+    """Index (richtung, normalisierter Begriff) -> Zeilen, bestpassende zuerst; prozessweit
+    gecacht mit derselben Signatur wie _alle_zeilen.
+
+    Messung 28.07.2026: lookup() baut PRO AUFRUF ein Namens-Dict ueber alle Glossarzeilen
+    und faehrt zusaetzlich einen rapidfuzz-Lauf. Alle Anzeige- und Uebersetzungspfade
+    verwerfen die Fuzzy-Zeilen aber ohnehin (SYN-P0-001) - fuer sie war beides umsonst und
+    kostete bei 8 Suchtreffern rund 30 ms. Sortierung identisch zu lookup(), damit
+    lookup_exakt() dieselbe Zeile waehlt."""
+    sig = _db_signatur(con)
+    idx = _INDEX_CACHE.get(sig)
+    if idx is None:
+        idx = {}
+        for z in _alle_zeilen(con):
+            for richtung, spalte in (("en_de", "term_en"), ("de_en", "term_de")):
+                n = _norm(z[spalte])
+                if n:
+                    idx.setdefault((richtung, n), []).append(z)
+        for zeilen in idx.values():
+            zeilen.sort(key=_auswahlschluessel)
+        _INDEX_CACHE.clear()                 # nur die aktuelle Signatur halten
+        _INDEX_CACHE[sig] = idx
+    return idx
+
+
+def lookup_exakt(con: sqlite3.Connection, begriff: str, richtung: str = "en_de") -> list[dict]:
+    """Nur die EXAKTEN Glossarzeilen zum Begriff - O(1) statt Voll-Scan plus Fuzzy-Lauf.
+    Fachlich identisch zu `[z for z in lookup(...) if z['match'] == 'exakt']`, nur ohne
+    den Aufwand fuer Zeilen, die der Aufrufer sowieso wegwirft."""
+    n = _norm(begriff)
+    if not n:
+        return []
+    return [{**z, "match": "exakt"} for z in _exakt_index(con).get((richtung, n), [])]
 
 
 def exakte_entsprechungen(con: sqlite3.Connection, begriff: str) -> set[str]:
@@ -151,15 +188,14 @@ def term_de(con: sqlite3.Connection, term_en: str) -> tuple[str, bool]:
     Entsprechung; der Aufrufer nutzt dann eine markierte deutsche Wiedergabe (S3 Stufe 4).
     Fuzzy-Zeilen zaehlen hier NIE (SYN-P0-001: sonst wird ein aehnlicher FREMDER Begriff
     zur 'offiziellen' Uebersetzung - Aktionen -> Reaktionen)."""
-    zeilen = [z for z in lookup(con, term_en, richtung="en_de") if z["match"] == "exakt"]
+    zeilen = lookup_exakt(con, term_en, richtung="en_de")
     if not zeilen:
         # Klammer-Suffix abziehen (SYN-P0-002 kanonisch): Eintragsnamen wie
         # "Alchemist's Supplies (50 GP)" tragen den Zusatz, die Bruecke fuehrt nur die
         # suffixfreie Form. Weiterhin NUR exakte Zeilen - kein Fuzzy-Schlupfloch.
         ohne = KLAMMER_SUFFIX.sub("", term_en).strip()
         if ohne and ohne != term_en:
-            zeilen = [z for z in lookup(con, ohne, richtung="en_de")
-                      if z["match"] == "exakt"]
+            zeilen = lookup_exakt(con, ohne, richtung="en_de")
     if not zeilen:
         return (term_en, False)
     beste = zeilen[0]

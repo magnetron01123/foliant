@@ -60,21 +60,67 @@ def _zitat(e: dict) -> str:
     return " · ".join(teile)
 
 
-def _knapp(t: dict) -> dict:
+def _knapp(t: dict, con: sqlite3.Connection | None = None) -> dict:
     """Knapper Suchtreffer (BP #1): Name, Auszug, Quelle, ggf. Seite, Version.
     eintrag_id/quelle_kuerzel (SYN-P1-002): stabile Referenz - ein ausgewaehlter
     Treffer laesst sich per foliant_hol_*(eintrag_id=...) EXAKT nachladen, statt ueber
-    den Namen erneut zu raten (der Rundlauf wechselte sonst still die Quelle)."""
+    den Namen erneut zu raten (der Rundlauf wechselte sonst still die Quelle).
+
+    Review 28.07.2026 - der Suchtreffer trug drei Dinge nicht, die die Verhaltensregeln
+    voraussetzen:
+    - `zitat`: stil.py verlangt, es WOERTLICH auszugeben. Es gab das Feld aber nur im
+      Detail; wer aus einem Auszug antwortete, musste die Belegzeile selbst bauen -
+      genau das, was der Prompt verbietet.
+    - `anzeige_name`: Deutsch-first lief nur im Detail. 63 % der Eintraege tragen nur
+      einen englischen Namen -> die Trefferliste war fuer den Grossteil des Bestands
+      englisch, obwohl Deutsch-first Kernregel ist. Braucht `con` fuer das Glossar.
+    """
     k = {"eintrag_id": t["id"], "name_de": t["name_de"], "name_en": t["name_en"],
          "kategorie": t["kategorie"], "edition": t["edition"],
          "quelle": t["quelle_titel"], "quelle_kuerzel": t["quelle"],
-         "auszug": t["auszug"]}
+         "zitat": _zitat(t), "auszug": t["auszug"]}
+    if con is not None:
+        k["anzeige_name"] = _anzeige_name(con, t)
     if t.get("seite"):
         k["seite"] = t["seite"]
     if t.get("weitere_quellen"):
         # A3: fachliche Dublette kanonisch dedupliziert - Provenienz bleibt sichtbar.
         k["weitere_quellen"] = t["weitere_quellen"]
     return k
+
+
+def _abenteuer_kuerzel(con: sqlite3.Connection) -> set[str]:
+    """Kuerzel aller Abenteuer-/Setting-Quellen - EIN Query ueber eine ~15-zeilige Tabelle.
+
+    Review 28.07.2026 (Spoiler-Schutz, oberste Regel): `hinweis_inhaltsart` sass nur im
+    Detail-Abruf. Die Trefferliste liefert aber bereits Volltext-Auszuege - ein Modell
+    konnte also aus einem Abenteuerband zitieren, ohne die Kennzeichnung je gesehen zu
+    haben (belegt: Suche 'Beholder' lieferte 'Zombie March' aus Ravenloft, unmarkiert).
+    Defensiv gegen Bestands-DBs ohne die Spalte (vor der v2-Migration importiert)."""
+    try:
+        return {r[0] for r in con.execute(
+            "SELECT kuerzel FROM quellen WHERE inhaltsart = 'abenteuer_setting'")}
+    except sqlite3.OperationalError:
+        return set()
+
+
+def _markiere_abenteuer(con: sqlite3.Connection, antwort: dict, *listen: list[dict]) -> None:
+    """Treffer aus Abenteuer-/Setting-Baenden kennzeichnen und einen Sammelhinweis setzen -
+    dieselbe Aussage wie HINWEIS_INHALTSART im Detail, nur schon in der Trefferliste."""
+    kuerzel = _abenteuer_kuerzel(con)
+    if not kuerzel:
+        return
+    betroffen = 0
+    for liste in listen:
+        for k in liste:
+            if k.get("quelle_kuerzel") in kuerzel:
+                k["inhaltsart"] = "abenteuer_setting"
+                betroffen += 1
+    if betroffen:
+        antwort["hinweis_inhaltsart"] = (
+            f"🚫 {betroffen} Treffer stammen aus einem ABENTEUER-/SETTING-Band (Feld "
+            f"inhaltsart): Handlung, Geheimnisse und Ortsdetails NIE wiedergeben "
+            f"(Spoiler-Schutz, oberste Regel); reine Regel-/Wertangaben sind ok.")
 
 
 def _reichere_facetten_an(con: sqlite3.Connection, *treffer_listen: list[dict]) -> None:
@@ -228,7 +274,7 @@ def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25) -> dict
         deduped.sort(key=lambda t: (t.get("name_de") or t.get("name_en") or "").lower())
     treffer = []
     for t in deduped[: min(max(int(limit), 1), 50)]:
-        k = _knapp(t)
+        k = _knapp(t, con)
         info = (_facetten.zauber_kurz(t.get("body_md") or "") if kategorie == "zauber"
                 else _facetten.hg_kurz(t.get("body_md") or ""))
         if info:
@@ -236,6 +282,9 @@ def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25) -> dict
         treffer.append(k)
     antwort = {"treffer": treffer, "anzahl_gesamt": len(deduped),
                "gefiltert_nach": {**echo, "kategorie": kategorie, "edition": edition}}
+    # Spoiler-Kennzeichnung auch im reinen Struktur-Pfad (A2) - hier gibt es keinen
+    # Suchbegriff, also auch keine Namensrelevanz zu bewerten.
+    _markiere_abenteuer(con, antwort, treffer)
     if not treffer:
         antwort["hinweis"] = ("Kein Eintrag im Bestand passt auf ALLE Filter - ehrlicher "
                               "Nulltreffer (nicht raten, nichts aus Allgemeinwissen ergaenzen); "
@@ -285,8 +334,15 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
         if not hat_suchbegriff:
             return _struktur_filter(con, kat_filter, edition, praedikat, echo)
         try:
+            # A1-Fix (Review 28.07.2026): Mit aktivem Struktur-Filter MEHR Kandidaten holen.
+            # Vorher lief die Nachfilterung auf den bereits auf 8 gekappten Treffern - fielen
+            # dabei alle weg, meldete der Code HINWEIS_LEER ('Nichts im Bestand gefunden'),
+            # obwohl nur der Top-8-Ausschnitt geprueft war. Das System behauptete dem Modell
+            # damit ausgerechnet bei der Anti-Halluzinations-Regel etwas Falsches.
+            such_limit = _db.MAX_LIMIT if praedikat is not None else 8
             ergebnis = _db.fts_suche(con, suchbegriff, kategorie=(kat_filter or kategorie),
-                                     edition=edition, quelle=quelle_kuerzel)
+                                     edition=edition, quelle=quelle_kuerzel,
+                                     limit=such_limit)
         except ValueError as fehler_v:
             # SYN-P0-006: Parameterfehler (Edition/Kategorie/Quelle) sind KEIN leerer
             # Befund - vor dem Fix bekam das Modell hier den B1-Leerhinweis und meldete
@@ -295,7 +351,7 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
                     "hinweis": "Ungueltiger PARAMETER - das ist KEIN 'nicht im Bestand'. "
                                "Aufruf mit einem gueltigen Wert (siehe fehler) "
                                "wiederholen; dem Nutzer keine Fehlanzeige melden (B1/B4)."}
-        antwort: dict = {"treffer": [_knapp(t) for t in ergebnis["treffer"]],
+        antwort: dict = {"treffer": [_knapp(t, con) for t in ergebnis["treffer"]],
                          # Privat fuer den Protokoll-Hook (Wrapper poppt den Schluessel):
                          # der rohe Suchweg 'direkt|glossar:<begriff>|fuzzy|-'.
                          "_suchweg": ergebnis["suchweg"]}
@@ -309,31 +365,41 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
                        and int(t["edition"]) < int(edition)]
             neuere = [t for t in andere if t not in aeltere]
             if aeltere:
-                antwort["aeltere_staende"] = [_knapp(t) for t in aeltere]
+                antwort["aeltere_staende"] = [_knapp(t, con) for t in aeltere]
             if neuere:
-                antwort["andere_fassungen"] = [_knapp(t) for t in neuere]
+                antwort["andere_fassungen"] = [_knapp(t, con) for t in neuere]
         elif andere:
             # Explizit andere Edition angefragt: neutral benennen - die uebrigen
             # Fassungen (z. B. 2024) sind nicht 'aelter' (A1).
-            antwort["andere_fassungen"] = [_knapp(t) for t in andere]
+            antwort["andere_fassungen"] = [_knapp(t, con) for t in andere]
         if ergebnis["suchweg"].startswith("glossar:"):
             antwort["hinweis_suchweg"] = (f"Treffer ueber das Glossar gefunden "
                                           f"({suchbegriff} -> {ergebnis['suchweg'][8:]}).")
         elif ergebnis["suchweg"] == "fuzzy":
             antwort["hinweis_suchweg"] = "Aehnliche Schreibweise angenommen (Tippfehler-Toleranz)."
+        geprueft = ergebnis["anzahl_gesamt"]
         if praedikat is not None:
             # Suchbegriff UND Struktur-Filter: die Volltext-Treffer zusaetzlich strukturell
             # einschraenken (UND-Semantik), bevor der Leer-Hinweis entscheidet.
             _nachfiltern_facetten(con, antwort, praedikat)
             antwort["gefiltert_nach"] = echo
+            # Erst JETZT auf die Anzeigemenge kappen - vorher lief die Filterung auf einer
+            # schon gekappten Liste (A1). anzahl_gesamt meint ab hier: passende Treffer im
+            # geprueften Bereich, nicht Volltext-Treffer vor dem Filter.
+            for schluessel in ("treffer", "aeltere_staende", "andere_fassungen"):
+                if antwort.get(schluessel):
+                    antwort[schluessel] = antwort[schluessel][:8]
+            ergebnis = {**ergebnis, "anzahl_gesamt": len(antwort["treffer"])}
         if antwort["treffer"] and ergebnis["anzahl_gesamt"] > len(antwort["treffer"]):
             # Ohne dieses Signal kappt der Volltext-Pfad still - stil.py/SPEC par. 8
             # versprechen dem Modell aber 'hinweis_gekuerzt' generell (bisher setzte es
-            # nur der Struktur-Filter-Pfad).
+            # nur der Struktur-Filter-Pfad). 'mindestens': die Zahl ist eine Untergrenze,
+            # weil fts_suche schon vor dem Zaehlen auf das Roh-Limit kappt (A5).
             antwort["anzahl_gesamt"] = ergebnis["anzahl_gesamt"]
             antwort["hinweis_gekuerzt"] = (
-                f"{ergebnis['anzahl_gesamt']} Treffer, {len(antwort['treffer'])} gezeigt "
-                f"- Suche ggf. mit kategorie oder Struktur-Filtern praezisieren.")
+                f"mindestens {ergebnis['anzahl_gesamt']} Treffer, "
+                f"{len(antwort['treffer'])} gezeigt - Suche ggf. mit kategorie oder "
+                f"Struktur-Filtern praezisieren.")
         if not antwort["treffer"]:
             if antwort.get("aeltere_staende"):
                 antwort["hinweis"] = HINWEIS_ALT
@@ -341,11 +407,42 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
                 antwort["hinweis"] = (f"In Regelversion {edition} nichts im Bestand; "
                                       f"es gibt aber Fassungen anderer Versionen (siehe "
                                       f"'andere_fassungen') - klar unterscheiden (V5).")
+            elif praedikat is not None and geprueft:
+                # KEIN HINWEIS_LEER: der Suchbegriff HAT getroffen, nur der Struktur-Filter
+                # passte auf keinen davon. 'Nichts im Bestand' waere hier schlicht falsch.
+                antwort["hinweis"] = (
+                    f"Der Suchbegriff traf {geprueft} Eintraege, aber keiner davon erfuellt "
+                    f"die gesetzten Filter ({', '.join(f'{k}={v}' for k, v in echo.items())}). "
+                    f"Das ist KEIN 'nicht im Bestand' - Filter lockern oder ohne Filter "
+                    f"suchen, bevor du dem Nutzer eine Fehlanzeige meldest (B1/B4).")
             else:
                 antwort["hinweis"] = HINWEIS_LEER
-        _reichere_facetten_an(con, antwort["treffer"],
-                              antwort.get("aeltere_staende", []),
-                              antwort.get("andere_fassungen", []))
+        listen = [antwort["treffer"], antwort.get("aeltere_staende", []),
+                  antwort.get("andere_fassungen", [])]
+        # A4 (Review 28.07.2026): Relevanz sichtbar machen. db.py loescht den bm25-Score vor
+        # der Rueckgabe - das Modell bekam eine blosse Reihenfolge ohne Qualitaetsmass und
+        # konnte einen zufaelligen Body-Treffer nicht von einem Namenstreffer unterscheiden.
+        # Belegt: 'Beholder' lieferte 8 Treffer, obwohl der Bestand keinen Beholder enthaelt
+        # (nicht SRD-lizenziert). Statt bm25 zu interpretieren (im Fuzzy-Pfad steht dort ein
+        # ganz anderer Wert) nutzen wir die vorhandene NAMENS-Relevanz - sie trennt genau
+        # diese beiden Faelle und ist dieselbe Schwelle wie bei der Detail-Auswahl.
+        varianten = {_glossar.norm_begriff(suchbegriff)}
+        varianten |= {_glossar.norm_begriff(a)
+                      for a in _db._glossar_alternativen(con, suchbegriff, nur_exakt=True)}
+        namenstreffer = 0
+        for liste in listen:
+            for k in liste:
+                treffer_am_namen = _name_score(k, varianten) >= _NAME_MIN
+                k["relevanz"] = "name" if treffer_am_namen else "nur_im_text"
+                namenstreffer += int(treffer_am_namen)
+        if antwort["treffer"] and not namenstreffer:
+            antwort["hinweis_geringe_relevanz"] = (
+                "Kein Treffer passt dem NAMEN nach zur Anfrage - alle erwaehnen den Begriff "
+                "nur im Fliesstext. Das ist oft das Zeichen, dass der gesuchte Eintrag NICHT "
+                "im Bestand ist (z. B. nicht SRD-lizenziert). Treffer kritisch pruefen und "
+                "im Zweifel ehrlich 'nicht gefunden' sagen, statt Unpassendes auszugeben (B1).")
+        _markiere_abenteuer(con, antwort, *listen)
+        _reichere_facetten_an(con, *listen)
         return antwort
     finally:
         con.close()
@@ -406,8 +503,7 @@ def _anzeige_name(con: sqlite3.Connection, e: dict) -> str:
             # NUR exakte Zeilen (SYN-P0-001: eine Fuzzy-Zeile haengte sonst ein FREMDES
             # Original an, 'Aktionen (Reactions)'); ohne exakten Treffer lieber ohne
             # Klammer als 'Feuerball (Feuerball)'.
-            zeilen = [z for z in _glossar.lookup(con, e["name_de"], richtung="de_en")
-                      if z["match"] == "exakt"]
+            zeilen = _glossar.lookup_exakt(con, e["name_de"], richtung="de_en")
             name_en = zeilen[0]["term_en"] if zeilen else None
         if name_en and name_en.strip().lower() != e["name_de"].strip().lower():
             return _glossar.markiere(e["name_de"], name_en, offiziell=True)
@@ -440,9 +536,15 @@ def _facetten_von(con: sqlite3.Connection, e: dict) -> dict | None:
 
 
 def _detail(e: dict, con: sqlite3.Connection) -> dict:
-    d = {"anzeige_name": _anzeige_name(con, e),
+    # eintrag_id/quelle_kuerzel (A7, Review 28.07.2026): Der Rundlauf war einseitig -
+    # Suche->Detail ging, Detail->weiter nicht. Ohne eintrag_id konnte das Modell den
+    # gerade gelieferten Eintrag nicht erneut referenzieren (etwa gegen die IDs in
+    # konflikt_quellen), ohne quelle_kuerzel nicht 'in dieser Quelle weitersuchen' -
+    # foliant_suche_bestand verlangt dort das KUERZEL, nicht den Titel.
+    d = {"eintrag_id": e["id"], "anzeige_name": _anzeige_name(con, e),
          "name_de": e["name_de"], "name_en": e["name_en"], "kategorie": e["kategorie"],
          "edition": e["edition"], "sprache": e["sprache"], "quelle": e["quelle_titel"],
+         "quelle_kuerzel": e.get("quelle"),
          "seite": e.get("seite"), "zitat": _zitat(e), "regeltext_md": e["body_md"],
          "hinweis_sprache_begriffe": _HINWEIS_STERN}
     if e.get("lizenz"):
