@@ -605,7 +605,7 @@ läuft ohne Änderung weiter.
 | **Ein internes Schema für alle Quellen** | einheitlicher Tool-Output; Provenienz bleibt sichtbar |
 | **Edition sichtbar, nicht wegnormalisiert** | Referenz-MCP-Server normalisieren so, „dass die LLM den Unterschied nicht sieht" — für uns ein Anti-Pattern: **Datenshape** vereinheitlichen, **Provenienz** behalten |
 | **`such_*`/`hol_*` je Entitätstyp trennen** | Suche liefert knappe Treffer, Detail die volle Ausgabe — hält die Kontextlast niedrig |
-| **Quellen-Macken beim Code, der sie behandelt** | Die Eigenheiten einer Quelle stehen im Modul-Docstring ihres Importers, die Reparatur daneben — damit dieselbe Falle nicht zweimal gelöst wird. Ein zentrales Macken-Modul (`app/bekannte_macken.py`) gab es bis 29.07.2026; es wurde nie von Code gelesen und beschrieb Dinge ein zweites Mal, die längst am Lösungsort standen |
+| **Quellen-Macken beim Code, der sie behandelt** | Die Eigenheiten einer Quelle stehen im Modul-Docstring ihres Importers, die Reparatur daneben — damit dieselbe Falle nicht zweimal gelöst wird. Ein *zentrales* Macken-Modul gab es; es wurde von keinem Codepfad gelesen und beschrieb ein zweites Mal, was längst am Lösungsort stand (Chronik: [BACKLOG.md](BACKLOG.md) §5) |
 | **Build-Prüfung minimal** | wenige klare Checks statt einer vollständigen Regel-Engine |
 | **DELETE-Journal** | Kompatibilität mit Bind-Mount-Volumes |
 | **Alles auf dem Pi** | Ein-Geräte-Wunsch; PyMuPDF4LLM ist ARM-tauglich |
