@@ -13,7 +13,36 @@ import unicodedata
 
 from rapidfuzz import fuzz, process
 
-_FUZZY_CUTOFF = 88.0
+# --- Die Fuzzy-Schwellen, an EINER Stelle mit Begruendung je Wert (Befund E5) ----------
+# Vorher lagen sie in drei Modulen (glossar 88, db.py 86, nachschlagen 90), gewachsen statt
+# abgestimmt - niemand konnte sagen, warum sie sich unterscheiden. Sie stehen jetzt hier,
+# weil dieses Modul ohnehin die kanonische Namensvergleichs-Logik traegt (norm_begriff,
+# KLAMMER_SUFFIX); db.py und nachschlagen.py importieren von hier.
+#
+# Die WERTE sind bewusst unveraendert uebernommen: Sie sind an echten Faellen justiert, und
+# jede Verschiebung bewegt das Suchverhalten am gesamten Bestand. Die Aufgabe war, sie
+# erklaerbar zu machen - nicht, sie zu vereinheitlichen. Dass sie auseinanderliegen, ist
+# richtig: sie messen mit verschiedenen Scorern verschieden teure Fehler.
+
+# Glossar-Aufloesung eines Begriffs (scorer: fuzz.ratio ueber normalisierte Begriffe).
+# Der teuerste Fehlertyp im Projekt: ein Fuzzy-Treffer wird zur "offiziellen Uebersetzung".
+# 88 laesst 'Aktionen'~'Reaktionen' (88.9) noch durch - deshalb ist der Treffer hier
+# ausdruecklich ein VORSCHLAG (match='fuzzy'), nie eine Identitaet (SYN-P0-001).
+FUZZY_GLOSSAR = 88.0
+
+# Fuzzy-Fallback der Bestandssuche (scorer: fuzz.WRatio ueber Eintragsnamen). Am
+# niedrigsten, weil hier nur die KANDIDATENMENGE erweitert wird: ein zu grosszuegiger
+# Treffer kostet einen Listenplatz, kein falsches Faktum. WRatio ist zudem milder als
+# ratio, ein direkter Zahlenvergleich mit den anderen beiden waere Unsinn.
+FUZZY_SUCHE = 86
+
+# Namensrelevanz eines Kandidaten (scorer: fuzz.ratio). Am hoechsten, weil das Ergebnis
+# dem Modell als "der NAME passt zur Anfrage" verkauft wird: 'Aktionen'~'Reaktionen'
+# (88.9) darf NIE als Namenstreffer zaehlen, kleine Tippfehler ('Missle'~'Missile', ~96)
+# liegen klar darueber.
+FUZZY_NAME = 90.0
+
+_FUZZY_CUTOFF = FUZZY_GLOSSAR       # modulinterner Altname
 
 
 def norm_begriff(text: str | None) -> str:

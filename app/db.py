@@ -25,6 +25,7 @@ from pathlib import Path
 from rapidfuzz import fuzz, process
 
 from app.glossar import KLAMMER_SUFFIX as _KLAMMER_SUFFIX
+from app.glossar import FUZZY_SUCHE as _FUZZY_SUCHE
 from app.glossar import norm_begriff as _gl_norm
 
 STANDARD_EDITION = "2024"
@@ -104,7 +105,20 @@ NUTZINDIZES: dict[str, str] = {
     "idx_eintraege_sprache_kat": "sprache, kategorie",
     "idx_eintraege_name_de": "name_de",
     "idx_eintraege_name_en": "name_en",
+    "idx_eintraege_kontext": "kontext",
 }
+
+# Der Breadcrumb steht als erste Zeile im body_md ('*Kontext: Zauber > Zaubertricks*').
+# EINE Definition fuer Importer, Migration und Lesepfade - vorher stand dasselbe Muster
+# in vier Modulen (Befund E4/C4).
+KONTEXT_ZEILE = re.compile(r"^\*Kontext:\s*(.+?)\*")
+
+
+def kontext_aus_body(body: str | None) -> str | None:
+    """Breadcrumb aus dem body_md lesen. Rueckfallebene fuer Bestands-DBs, deren
+    kontext-Spalte noch nicht gefuellt ist - der SERVING-Pfad migriert nicht."""
+    m = KONTEXT_ZEILE.match(body or "")
+    return m.group(1).strip() if m else None
 
 
 def _ergaenze_spalten(con: sqlite3.Connection, tabelle: str, neue: dict[str, str]) -> None:
@@ -117,6 +131,24 @@ def _ergaenze_spalten(con: sqlite3.Connection, tabelle: str, neue: dict[str, str
     for spalte, typ in neue.items():
         if spalte not in vorhanden:
             con.execute(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ}")
+
+
+def _ruest_kontext_nach(con: sqlite3.Connection) -> None:
+    """eintraege.kontext anlegen und EINMALIG aus dem body_md befuellen.
+
+    Der Backfill haengt bewusst am ALTER: die Spalte entsteht genau einmal, also laeuft
+    auch das UPDATE genau einmal - ein Voll-Scan bei jedem connect() waere der falsche
+    Preis fuer einen Wert, der sich nur beim Import aendert."""
+    if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND "
+                       "name='eintraege'").fetchone():
+        return
+    if "kontext" in {r[1] for r in con.execute("PRAGMA table_info(eintraege)")}:
+        return
+    con.execute("ALTER TABLE eintraege ADD COLUMN kontext TEXT")
+    gefuellt = [(kontext_aus_body(body), eid)
+                for eid, body in con.execute("SELECT id, body_md FROM eintraege")]
+    con.executemany("UPDATE eintraege SET kontext = ? WHERE id = ?",
+                    [(k, i) for k, i in gefuellt if k])
 
 
 def stelle_schema_sicher(con: sqlite3.Connection) -> None:
@@ -139,6 +171,7 @@ def stelle_schema_sicher(con: sqlite3.Connection) -> None:
                         "DEFAULT 'regelwerk'")
         for tabelle, neue in FACETTEN_SPALTEN.items():
             _ergaenze_spalten(con, tabelle, neue)
+        _ruest_kontext_nach(con)
         # Nur wenn die Tabelle da ist: sonst wirft CREATE INDEX, der Sammel-except unten
         # schluckt es - und die user_version bliebe still auf ihrem alten Stand stehen.
         if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND "
@@ -361,7 +394,8 @@ def _fuzzy_treffer(con: sqlite3.Connection, begriff: str, kategorie: str | None,
     if not namen:
         return []
     passend = process.extract(begriff, sorted(namen.keys()),
-                              scorer=fuzz.WRatio, score_cutoff=86, limit=roh_limit)
+                              scorer=fuzz.WRatio, score_cutoff=_FUZZY_SUCHE,
+                              limit=roh_limit)
     passend.sort(key=lambda t: (-t[1], t[0]))          # Score DESC, Name als Tiebreak
     score_je_id: dict[int, float] = {}
     ids: list[int] = []

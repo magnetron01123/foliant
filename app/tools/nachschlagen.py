@@ -155,10 +155,9 @@ def _reichere_facetten_an(con: sqlite3.Connection, *treffer_listen: list[dict]) 
                 k["kurzinfo"] = info
 
 
-# Fuzzy-Schwelle fuer die Namensrelevanz eines Kandidaten (#1). BEWUSST >= 90: die
-# Fuzzy-Naehe 'Aktionen'~'Reaktionen' (88.9, SYN-P0-001) darf NIE als Namenstreffer
-# zaehlen; kleine Tippfehler ('Missle'~'Missile' ~96) liegen klar darueber.
-_NAME_MIN = 90.0
+# Namensrelevanz eines Kandidaten (#1). Wert und Begruendung in app/glossar.py, wo alle
+# vier Fuzzy-Schwellen des Projekts zusammen stehen (Befund E5).
+_NAME_MIN = _glossar.FUZZY_NAME
 
 
 def _name_score(k: dict, ziele: set[str]) -> float:

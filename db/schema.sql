@@ -41,8 +41,15 @@ CREATE TABLE IF NOT EXISTS eintraege (
     sprache    TEXT NOT NULL CHECK (sprache IN ('de','en')),
     edition    TEXT NOT NULL CHECK (length(edition) > 0),  -- Default-Filter: '2024'
     seite      TEXT,                        -- Seitenangabe (F7)
+    -- Breadcrumb ('Zauber > Beschreibungen der Zauber') als eigenes Feld. Der Wert steht
+    -- ZUSÄTZLICH weiter als '*Kontext: ...*'-Zeile im body_md — der Body bleibt bewusst
+    -- unangetastet, sonst änderte sich der inhalts_hash und der gesamte Bestand bräuchte
+    -- einen Re-Import. Die Spalte macht ihn abfragbar: die Klassenmerkmal-Suche lief als
+    -- `body_md LIKE '*Kontext: Klassen > X*%'` über einen Full Scan.
+    kontext    TEXT,
     body_md    TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_eintraege_kontext ON eintraege(kontext);
 CREATE INDEX IF NOT EXISTS idx_eintraege_kat_ed ON eintraege(kategorie, edition);
 -- Die realen Zugriffe jenseits von (kategorie, edition), alle mit EXPLAIN QUERY PLAN
 -- belegt (28.07.2026, Mac-Subset 3084 Eintraege): vorher SCAN, nachher SEARCH USING
