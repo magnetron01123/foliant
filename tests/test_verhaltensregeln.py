@@ -50,6 +50,12 @@ _TRAGENDE_REGELN = [
     # Vampir-Fassung als 'fremdsprachige_fassungen' aus, aber KEIN Kanal sagte dem
     # Modell, was es damit tun soll - es gab still nur die deutsche Fassung aus.
     ("abweichende Fassung offenlegen", "fremdsprachige_fassungen"),
+    # A8 (Audit 28.07.2026): Der Breadcrumb stand in beiden Kanaelen, war aber als
+    # einzige der tragenden Regeln UNGESCHUETZT - er konnte aus einem Kanal
+    # verschwinden, ohne dass etwas anschlaegt. BACKLOG §3 stuetzt eine bewusste
+    # Nicht-Behebung (24 fehlkategorisierte Zauberabschnitte) ausdruecklich darauf,
+    # dass der Breadcrumb sie ausweist - dann muss die Erwartung auch verankert sein.
+    ("Breadcrumb erklaert", "*Kontext:"),
 ]
 
 

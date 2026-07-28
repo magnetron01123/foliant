@@ -129,3 +129,41 @@ def test_detail_traegt_eintrag_id_und_quelle_kuerzel(bestand):
     assert d["quelle_kuerzel"] == "srd-de"
     # Die ID muss den Eintrag auch wirklich wieder aufloesen:
     assert ns.foliant_hol_zauber(eintrag_id=d["eintrag_id"])["name_de"] == "Pruefflamme 12"
+
+
+# --------------------------------------------------- Nachzug aus dem Audit 28.07.2026
+# Drei Luecken, die beim Nachpruefen der Phase 1 auffielen: A2 und A6 wirkten NUR im
+# Suchpfad, A5 im Facetten-Pfad gar nicht.
+
+def test_kandidatenliste_des_detailpfads_ist_markiert_und_deutsch(bestand):
+    """A2/A6 — der schwerste der drei. Bei Mehrdeutigkeit liefert foliant_hol_* eine
+    `kandidaten`-Liste MIT Auszug aus dem Bestand; die trug weder die Abenteuer-
+    Kennzeichnung noch den Deutsch-first-Namen. Gemessen am echten Bestand kamen so
+    Auszuege aus Abenteuerbaenden voellig unmarkiert beim Modell an - genau der
+    Fehlermodus, den A2 beseitigen sollte, nur eine Tuer weiter."""
+    d = ns.foliant_hol_regel("Domaene")
+    kandidaten = d.get("kandidaten") or d.get("vorhandene_fassungen") or []
+    assert kandidaten, f"kein mehrdeutiger Fall erzeugt: {d.get('gefunden')}"
+    aus_abenteuer = [k for k in kandidaten if k.get("inhaltsart") == "abenteuer_setting"]
+    assert aus_abenteuer, "Abenteuer-Kandidat nicht markiert"
+    assert "Spoiler" in (d.get("hinweis_inhaltsart") or "")
+    assert all(k.get("anzeige_name") for k in kandidaten), "Deutsch-first fehlt"
+
+
+def test_detail_hinweis_wird_nicht_von_der_zaehlung_ueberschrieben(bestand):
+    """Der Sammelhinweis ('N Treffer stammen aus...') darf den spezifischeren Hinweis des
+    gelieferten Eintrags ('DIESER Eintrag stammt aus...') nicht verdraengen."""
+    d = ns.foliant_hol_regel("Domain Secrets")
+    assert d["gefunden"] is True
+    assert d.get("inhaltsart") == "abenteuer_setting"
+    assert "Dieser Eintrag" in d["hinweis_inhaltsart"]
+
+
+def test_facettenpfad_meldet_die_gekuerzte_menge(bestand):
+    """A5 — 11 der 12 Pruefflammen sind 1. Grades, gezeigt werden 8. Die Zaehlung stand
+    HINTER dem Kappen, war damit per Konstruktion gleich der Anzeigemenge, und der
+    hinweis_gekuerzt konnte nie feuern: die Liste kuerzte still."""
+    r = ns.foliant_suche_bestand("Pruefflamme", grad=1)
+    assert len(r["treffer"]) == 8
+    assert r["anzahl_gesamt"] == 11
+    assert "mindestens 11" in r["hinweis_gekuerzt"]
