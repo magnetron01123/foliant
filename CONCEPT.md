@@ -360,7 +360,7 @@ python -m app.admin import --quelle facetten
 ### 2. Freigeben = testen (Pflicht-Gate)
 ```
 make test                            # pytest (beide venvs) + admin check + smoke + Golden-Suite
-make test-golden-pi PI=pi@<host>     # Golden-Suite gegen den VOLLEN Korpus — Pflicht!
+make test-golden-pi                  # Golden-Suite gegen den VOLLEN Korpus — Pflicht!
 python -m app.admin manifest > korpus-manifest.json
 ```
 `make test` grün **plus** Manifest festgehalten = der Bestand ist freigabefähig.
@@ -448,13 +448,23 @@ Einmal aus- und wieder einloggen. Test: `docker run --rm hello-world`.
 
 ### Code aufs Pi
 ```sh
-rsync -a --exclude '.git' --exclude '.venv*' --exclude 'data' --exclude 'quellen' \
-      --exclude 'config/foliant.toml' --exclude '.env' --exclude '.claude' \
-      ./ pi@<pi-host>:~/foliant/
-docker compose up -d --build foliant      # ZWINGEND - siehe Gotchas
+make deploy-pi
 ```
+Das ist der **eine** Weg: rsync → `docker compose up -d --build foliant` → Golden-Suite am
+Vollbestand. Alle drei Schritte hängen zusammen, weil das Weglassen jedes einzelnen schon
+schiefgegangen ist (Rebuild vergessen → alter Code meldet „Erfolg"; Golden vergessen →
+korpusabhängige Regression bleibt unentdeckt).
+
+**Das SSH-Ziel steht einmalig als `PI=` in der `.env`** (gitignored; Vorlage in
+`.env.example`) — nicht in dieser Doku: das Repository ist öffentlich und die
+betreiberspezifischen Angaben sind bewusst anonymisiert. Einmalig übersteuern geht weiter
+mit `make deploy-pi PI=pi@<host>`; fehlt beides, brechen alle Pi-Ziele mit einem Hinweis ab,
+statt auf einen Platzhalter zu laufen.
+
 > **Nie `--delete`, nie `data/` mitschicken.** Die Mac-DB ist nur ein Subset und würde den
-> vollen Pi-Bestand überschreiben; gitignorierte Privatmodule würden verschwinden.
+> vollen Pi-Bestand überschreiben; gitignorierte Privatmodule würden verschwinden. Genau
+> deshalb stehen die Ausschlüsse im `Makefile` und nicht als Warnung neben einer
+> Kommandozeile zum Abtippen.
 
 ### Discord-Bot einrichten (einmalig)
 
@@ -652,7 +662,7 @@ längeren englischen DDB-Eintrag statt des srd-de-Kernabschnitts) war am Subset 
 schlug erst am vollen Korpus zu. Darum nach **jedem Deploy** und **jedem srd-de-Re-Import**
 zusätzlich:
 ```
-make test-golden-pi PI=pi@<host>
+make test-golden-pi
 ```
 
 **T2/T10/T12 sind Verhaltenstests** und in pytest nicht beweisbar → Checkliste in
@@ -668,7 +678,7 @@ Format-Grader; weiche Kriterien (C3, D1 …) optional per LLM-Richter, im Report
 mit den §2-Pflichtfeldern Datum/Modell/`inhalts_hash`; am Subset markiert er
 `korpus: lokal (Subset?)` — beweiskräftig ist der Pi-Lauf:
 ```
-ANTHROPIC_API_KEY=sk-… make eval-verhalten-pi PI=pi@<host>
+ANTHROPIC_API_KEY=sk-… make eval-verhalten-pi
 ```
 A4 (Websuche) und E1 (Injektions-Fixture) kann das Harness nicht prüfen — sie bleiben
 ehrlich `uebersprungen` und damit Handarbeit im echten Chat.
