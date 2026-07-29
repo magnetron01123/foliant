@@ -70,6 +70,16 @@ _norm = norm_begriff
 # gemischtem Bestand der Altstand-Fallback ('Erschöpfung' -> 2014-'Exhaustion').
 KLAMMER_SUFFIX = re.compile(r"\s*\([^()]{1,40}\)\s*$")
 
+# Herkunfts-Label der 2024-Aktionszeilen (glossar.quelle). Es steht hier statt beim Seeder,
+# weil es SCHREIBER und LESER verbindet: `importer/import_glossar.seed_aktionen` setzt es,
+# der Charakterbogen-Uebersetzer holt genau diese Zeilen wieder heraus. Deren EN-Lemmata
+# (Attack, Magic, Hide ...) sind Alltagswoerter und deshalb in _HOMONYM_STOP - der
+# Inline-Annotator findet sie also NIE, der Bogen braucht sie aber (C4: amtliche Begriffe
+# schlagen Modelluebersetzungen). Bis zum 29.07.2026 stand der String im Uebersetzer als
+# Literal: haette der Seeder sein Label geaendert, waeren die 2024-Aktionsnamen dort still
+# ausgefallen - ohne Fehler, nur mit schlechterem Deutsch auf dem gedruckten Bogen.
+QUELLE_AKTIONEN = "SRD 5.2.1 (Aktionen)"
+
 # SYN-P2-004 (codex TECH-013): jeder Glossarpfad (lookup, exakte_entsprechungen,
 # _brueckennamen) las bisher die KOMPLETTE Tabelle pro Aufruf - eine Suche loest 5-8
 # Voll-Scans aus, die mit dem Vollseeding (~1.400 Zeilen) linear teurer werden. Cache

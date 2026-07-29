@@ -20,6 +20,15 @@ import httpx
 
 API_URL = "https://api.anthropic.com/v1/messages"
 
+# Das Modell, das Bot UND Eval fahren, wenn ANTHROPIC_MODEL nicht gesetzt ist. Es steht
+# hier, weil die GLEICHHEIT der beiden eine Zusage ist: BACKLOG §1/M6 begruendet das
+# Bot-Verhalten mit dem gemessenen Eval-Stand ("gleiche Schleife wie der Eval"). Driftet
+# einer der beiden Defaults, misst der Eval still etwas anderes, als der Bot tut - und
+# der Report behauptet weiter, er beschreibe den Bot.
+# Der Charakterbogen-Uebersetzer hat bewusst KEINEN Default: dort kostet jede Konvertierung
+# Geld, also soll ein fehlendes ANTHROPIC_MODEL auffallen statt still etwas zu waehlen.
+STANDARD_MODELL = "claude-sonnet-5"
+
 # Kappungen aus dem Eval-Erstlauf: tool_result begrenzt den Kontext je Runde,
 # der Auszug haelt die Richter-/Anzeige-Grundlage kompakt.
 _MAX_TOOL_RESULT_ZEICHEN = 20_000

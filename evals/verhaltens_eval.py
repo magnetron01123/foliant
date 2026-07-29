@@ -44,7 +44,6 @@ _ERGEBNISSE = Path(__file__).resolve().parent / "ergebnisse"
 # standen frueher ohne - der Volllauf 26.07.2026 lief genau in diese Luecke.
 BELEG_RE = re.compile(r"📖 .+Regelversion:? \d{4}")
 _MAX_RUNDEN = 8
-_STANDARD_MODELL = "claude-sonnet-5"
 _RICHTER_MODELL = "claude-haiku-4-5-20251001"
 
 
@@ -237,7 +236,7 @@ def _schreibe_report(kopf: dict, ergebnisse: list[dict]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--modell", default=os.environ.get("ANTHROPIC_MODEL")
-                        or _STANDARD_MODELL)
+                        or llm.STANDARD_MODELL)
     parser.add_argument("--nur", help="nur diese Fall-IDs, z. B. A1,B3")
     parser.add_argument("--richter", choices=("an", "aus"), default="an",
                         help="LLM-Richter fuer weiche Kriterien (kostet extra Tokens)")

@@ -25,6 +25,7 @@ import time
 from pathlib import Path
 
 from app import dnddeutsch
+from app import glossar as _glossar
 
 API_URL = dnddeutsch.API_URL                     # Default; [glossar].api_url gewinnt
 _PAUSE_S = dnddeutsch.PAUSE_S
@@ -216,7 +217,7 @@ def seed_kern_singulare(con: sqlite3.Connection) -> int:
 # ("<Name> (Aktion)"-Eintraege). Kuratiert, aber beim Seeden BESTANDSVERIFIZIERT: eine Zeile
 # wird nur geschrieben, wenn der srd-de-Eintrag existiert (nichts raten, Datenprinzip).
 # "Magie wirken" ist die Tabellen-/Anzeigeform der srd-de (Eintrag "Magie (Aktion)").
-QUELLE_AKTIONEN = "SRD 5.2.1 (Aktionen)"
+QUELLE_AKTIONEN = _glossar.QUELLE_AKTIONEN    # Definition dort: Schreiber UND Leser teilen sie
 AKTIONS_PAARE: list[tuple[str, str, str]] = [
     ("Attack", "Angriff", "Angriff (Aktion)"),
     ("Dash", "Spurt", "Spurt (Aktion)"),
@@ -356,7 +357,6 @@ def seed_glossar_de_aus_bestand(con: sqlite3.Connection) -> int:
     Abgefragt werden nur PLAUSIBLE Fachbegriffe ohne bestehendes exaktes Gegenstueck:
     Kapitelkoepfe und Fliesstext-Fragmente wuerden nur die Drossel belasten (die API
     antwortet dort schlicht leer - harmlos, aber gecacht kostet es trotzdem Zeit)."""
-    from app import glossar as _glossar
 
     kandidaten = []
     for (name,) in con.execute(
@@ -410,7 +410,6 @@ def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]
     englischen Namen zeigt (sonst nicht raten, B4). Korrupte deutsche Namen (PDF) werden
     ausgeschlossen. Liefert (term_en, term_de, schluessel)."""
     from app import facetten as _f
-    from app.glossar import norm_begriff as _norm
 
     de_by_key: dict[tuple, set[str]] = {}
     en_by_key: dict[tuple, set[str]] = {}
@@ -439,7 +438,7 @@ def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]
         if len(de_namen) != 1 or len(en_namen) != 1:
             return None                          # nicht eindeutig -> nicht raten
         de_name, en_name = next(iter(de_namen)), next(iter(en_namen))
-        if _norm(de_name) == _norm(en_name):     # gleicher Name -> keine Bruecke noetig
+        if _glossar.norm_begriff(de_name) == _glossar.norm_begriff(en_name):     # gleicher Name -> keine Bruecke noetig
             return None
         if not _name_sauber(de_name):            # korrupter dt. Name -> NIE seeden
             return None
@@ -536,7 +535,6 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
     unberuehrt. Damit werden Namen wie 'SEELEN KÄFIG' zu 'Seelenkäfig' - und erst dadurch
     per Suche und Uebersetzung auffindbar (Befund 27.07.2026: 27 deutsche Zauber ohne
     Gegenstueck, die Mehrzahl davon nur wegen des zerrissenen Namens)."""
-    from app import glossar as _glossar
     from app import db as _db
 
     def vergleichsform(s: str) -> str:
@@ -615,7 +613,6 @@ def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
     import unicodedata
     from collections import defaultdict
 
-    from app.glossar import _auswahlschluessel
 
     def fold(s):
         return "".join(c for c in unicodedata.normalize("NFKD", s.lower().replace("ß", "ss"))
@@ -625,7 +622,7 @@ def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
         # Quellenprioritaet zuerst (kanonische Regel OHNE ihren alphabetischen End-Anker),
         # dann ß>ss als deterministischer Orthografie-Tiebreak, zuletzt alphabetisch. So
         # entscheidet die QUELLE - nicht der Admin und keine Grammatik-Vermutung.
-        return (_auswahlschluessel(z)[:-1], 0 if "ß" in (z["term_de"] or "") else 1,
+        return (_glossar._auswahlschluessel(z)[:-1], 0 if "ß" in (z["term_de"] or "") else 1,
                 z["term_de"] or "")
 
     grp: dict[str, list] = defaultdict(list)
@@ -672,7 +669,6 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
     werden beide belegt. Braucht die Klassennamen-Bruecke im Glossar -> NACH dem
     dnddeutsch-Seeding laufen. Auf einer DB ohne ddb-br-2024-en (Mac-Subset) findet der
     Abgleich schlicht nichts - harmlos, der Pi-Lauf traegt die Paare."""
-    from app import glossar as _glossar
     from importer.srd_klassenmerkmale import (QUELLE, apostroph_varianten, en_subnamen,
                                               finde_container_sub_paare, finde_paare)
     # LIKE-Praefix: kanonisiere_konflikte haengt an demotete Zeilen ein '(demotet: ...)'
@@ -712,7 +708,6 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     Audit-Luecke (Open5e-Preissuffixe liessen das dnddeutsch-Seeding leerlaufen).
     Selbst-bereinigend; belegt vollen Namen UND suffixfreie Kurzform. Auf einer DB ohne
     open5e-srd-2024 findet der Abgleich schlicht nichts - harmlos (Subset-Muster)."""
-    from app import glossar as _glossar
     from importer.srd_begriffsbruecken import (QUELLE, finde_gegenstands_paare,
                                                seed_paar)
     con.execute("DELETE FROM glossar WHERE quelle LIKE ?", (QUELLE + "%",))
@@ -780,7 +775,6 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
     offizielle Form (`_auswahlschluessel` sortiert offiziell zuerst) und `glossar-audit`
     zaehlt sie nicht als Konflikt (es filtert auf `offiziell=1`). Bestehende Paare werden
     NIE angefasst - ein Upsert wuerde ihre Offizialitaet ueberschreiben."""
-    from app import glossar as _glossar
 
     con.execute("DELETE FROM glossar WHERE quelle = ?", (FLEXION_QUELLE,))
     _glossar.leere_cache()
@@ -824,7 +818,6 @@ def seed_zauber_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     2014-Baenden entstand: ~290 deutsche Zaubernamen ohne Glossar-Gegenstueck.
     Selbst-bereinigend; nur beidseitig eindeutige Abdruecke, Widersprueche zu belegten
     Zeilen werden verworfen und gemeldet."""
-    from app import glossar as _glossar
     from importer.srd_zauberbruecken import QUELLE, finde_zauber_paare
 
     con.execute("DELETE FROM glossar WHERE quelle LIKE ?", (QUELLE + "%",))
