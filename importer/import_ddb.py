@@ -12,7 +12,7 @@ VERLUSTSICHER (A7-Prinzipien) und PRIVAT (B2):
   Kopie, die erst nach allen Pruefungen atomar (os.replace) als
   data/private/foliant-private.sqlite aktiviert wird.
 - Vor der Aktivierung wird die bisherige private DB als Backup gesichert.
-- Null Eintraege, Hash-/Metadatenfehler oder ein Rueckgang unter min_reimport_ratio
+- Null Eintraege, Hash-/Metadatenfehler oder ein Rueckgang unter MIN_REIMPORT_RATIO
   (Standard 0.70) brechen ab - Bestand und FTS bleiben unveraendert.
 - Der oeffentliche Bestand bleibt byteweise unveraendert (Tests erzwingen das)."""
 from __future__ import annotations

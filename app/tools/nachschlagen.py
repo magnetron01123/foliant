@@ -129,9 +129,15 @@ def _markiere_abenteuer(con: sqlite3.Connection, antwort: dict, *listen: list[di
 
 def _reichere_facetten_an(con: sqlite3.Connection, *treffer_listen: list[dict]) -> None:
     """#2: knappe Zauber-/Monster-Treffer um eine kompakte Facette ('Grad 3' bzw. 'HG 1')
-    anreichern - genau das Feld, nach dem ein Spieler triagiert. Aus dem Body geparst
-    (zauber_meta/monster_meta sind auf dem Bestand leer, s. app/facetten.py). EINE
-    Batch-Abfrage der Textkoepfe fuer alle gezeigten Treffer (BP #1: kein Body im Output)."""
+    anreichern - genau das Feld, nach dem ein Spieler triagiert. EINE Batch-Abfrage der
+    Textkoepfe fuer alle gezeigten Treffer (BP #1: kein Body im Output).
+
+    Bewusst aus dem Body geparst und NICHT aus zauber_meta/monster_meta: der Text ist die
+    Autoritaet, die Meta-Tabelle ist daraus abgeleitet (app/facetten.py). Ein Umweg ueber
+    die Tabelle brauchte hier zusaetzlich einen Rueckfall fuer Eintraege ohne Meta-Zeile -
+    mehr Code fuer denselben Wert. Bei hoechstens ~20 gezeigten Treffern und einem
+    900-Zeichen-Kopf je Treffer ist die Ersparnis ohnehin nicht messbar; der Vorfilter, wo
+    es wirklich zaehlte (1627 Aufrufe je Filteranfrage), sitzt in _vorfilter_sql."""
     ids = {k["eintrag_id"] for liste in treffer_listen for k in liste
            if k.get("kategorie") in ("zauber", "monster")}
     if not ids:
@@ -620,16 +626,6 @@ def _anzeige_name(con: sqlite3.Connection, e: dict) -> str:
     return name_en
 
 
-_FACETTEN_TABELLEN = {
-    "zauber": ("zauber_meta", ("grad", "schule", "klassen", "reichweite_m",
-                               "komponenten", "dauer_min", "konzentration", "ritual")),
-    "monster": ("monster_meta", ("hg", "typ", "rk", "tp")),
-    "gegenstand": ("gegenstand_meta", ("preis_cent",)),
-}
-# Felder, die als Wahrheitswert gemeint sind - 0/1 in der DB, true/false nach aussen.
-_FACETTEN_BOOL = {"konzentration", "ritual"}
-
-
 def _facetten_von(con: sqlite3.Connection, e: dict) -> dict | None:
     """Strukturierte Facetten aus dem Meta-Seitenwagen: ADDITIV zum verbatim body_md,
     ersetzen den Regeltext nie. None, wenn keine Zeile/Tabelle vorhanden ist (dann fehlt
@@ -643,7 +639,7 @@ def _facetten_von(con: sqlite3.Connection, e: dict) -> dict | None:
     Facetten sonst unsichtbar - obwohl sie im Bestand stehen. Die Facetten sind
     sprachunabhaengige Strukturwerte (Grad, HG, RK/TP), deshalb ist das dieselbe Aussage
     und keine Vermischung von Regeltexten."""
-    spez = _FACETTEN_TABELLEN.get(e["kategorie"])
+    spez = _facetten.META_TABELLEN.get(e["kategorie"])
     if not spez:
         return None
     tabelle, felder = spez
@@ -662,7 +658,7 @@ def _facetten_von(con: sqlite3.Connection, e: dict) -> dict | None:
         if not row:
             continue
         vorhanden = set(row.keys())
-        werte = {f: (bool(row[f]) if f in _FACETTEN_BOOL else row[f])
+        werte = {f: (bool(row[f]) if f in _facetten.META_BOOL else row[f])
                  for f in felder if f in vorhanden and row[f] is not None}
         # Kanonische Schluessel sind DB-intern; nach aussen geht die deutsche Anzeigeform
         # (Deutsch-first, S3) - 'hervorrufung' liest sich sonst wie ein Tippfehler.
@@ -770,20 +766,12 @@ def _texte_weichen_ab(a: str, b: str) -> bool:
     from rapidfuzz import fuzz
 
     def norm(t: str) -> str:
-        t = _KONTEXT_RE.sub("", t or "", count=1)
+        t = _db.KONTEXT_ZEILE.sub("", t or "", count=1)
         return " ".join(t.lower().split())
     na, nb = norm(a), norm(b)
     if not na or not nb:
         return False
     return fuzz.ratio(na, nb) < _glossar.FUZZY_ABWEICHUNG
-
-
-_KONTEXT_RE = re.compile(r"^\*Kontext: (.+?)\*")
-
-
-def _kontext_von(body: str | None) -> str:
-    m = _KONTEXT_RE.match(body or "")
-    return m.group(1) if m else ""
 
 
 # Abschnitts-Ueberschriften IN einem Eintrag: Markdown-Header (optional mit srd-de-
@@ -847,7 +835,7 @@ def _kinder_texte(con: sqlite3.Connection, voll: dict) -> list[str]:
     '<Eltern-Kontext> > <Eltern-Name>'. So bleibt es auf DIREKTE Kinder begrenzt (kein
     Einsaugen ganzer Kapitelbaeume) und quellen-/editionsrein. Rueckgabe: formatierte
     Abschnitte (Unterabschnitts-Name als Zwischenueberschrift, Kontextzeile entfernt)."""
-    eltern_kontext = _kontext_von(voll.get("body_md"))
+    eltern_kontext = _db.kontext_aus_body(voll.get("body_md"))
     namen = {n for n in (voll.get("name_en"), voll.get("name_de")) if n}
     ziele = {f"{eltern_kontext} > {n}" if eltern_kontext else n for n in namen}
     stuecke: list[str] = []
@@ -856,9 +844,9 @@ def _kinder_texte(con: sqlite3.Connection, voll: dict) -> list[str]:
             "JOIN quellen q ON q.id = e.quelle_id WHERE e.kategorie = ? AND e.edition = ? "
             "AND q.kuerzel = ? AND e.id != ? ORDER BY e.id",
             (voll["kategorie"], voll["edition"], voll["quelle"], voll["id"])):
-        if _kontext_von(r["body_md"]) in ziele:
+        if _db.kontext_aus_body(r["body_md"]) in ziele:
             kname = (r["name_de"] or r["name_en"] or "").strip()
-            koerper = _KONTEXT_RE.sub("", r["body_md"], count=1).strip()
+            koerper = _db.KONTEXT_ZEILE.sub("", r["body_md"], count=1).strip()
             stuecke.append(f"### {kname}\n\n{koerper}" if kname else koerper)
     return stuecke
 
@@ -1021,7 +1009,7 @@ def _waehle_aus_gleichnamigen(con, ziel_exakt: list[dict]) -> tuple[dict, list[d
     def _regeltext_laenge(v: dict) -> int:
         # Laenge OHNE die Kontext-Breadcrumb-Zeile messen (ein langer Kontext taeuscht
         # sonst Textumfang vor).
-        return len(_KONTEXT_RE.sub("", v.get("body_md") or "", count=1))
+        return len(_db.KONTEXT_ZEILE.sub("", v.get("body_md") or "", count=1))
 
     voll_paare = [(_db.hole_eintrag(con, k["id"]), k) for k in geschwister]
     voll_paare = [(v, k) for v, k in voll_paare if v]

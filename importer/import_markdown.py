@@ -8,13 +8,13 @@ Gegenstaende/Talente/Hintergruende sind H6, Monster H3/H4, Regeln H3-H5). Eltern
 wandern als markierte Kontextzeile in den Body; Seitenmarker `<!-- seite:N -->` aus dem
 PDF-Konverter werden ausgewertet und entfernt (F7).
 
-PDF-Artefakt-Reparatur (dt. SRD, siehe bekannte_macken): Buchstaben mit Unterlaengen (g/p)
+PDF-Artefakt-Reparatur (dt. SRD): Buchstaben mit Unterlaengen (g/p)
 reissen aus Woertern und landen als eigenes `<u>g</u>`-Fragment am Zeilenende
 ('Zauber rad **<u>g</u>**' = 'Zaubergrad'). _repariere_fragmente setzt sie zurueck und
 verifiziert das Ergebnis gegen den Dokumentbestand. <mark>-Headings sind Wertekaesten
 (Statbloecke) -> kategorie 'monster'.
 
-LABEL-PSEUDO-HEADINGS (Review-Fund 10.07.2026, siehe bekannte_macken): PyMuPDF4LLM macht
+LABEL-PSEUDO-HEADINGS (Review-Fund 10.07.2026): PyMuPDF4LLM macht
 aus fettgedruckten Inline-Labels mitten im Eintrag teils Headings ('### **Kreaturentyp:**
 Humanoide', '### **Reichweite:** 9 Meter') -> zerriss Spezies (Elf/Gnom/Halbling/Mensch
 verloren ihren Eintrag) und ~110 Zauber. Erkennung: der ERSTE Fettblock des Headings endet
@@ -30,7 +30,7 @@ vorherigen Eintrag des Kapitels angehaengt.
 
 RE-IMPORT IDEMPOTENT UND VERLUSTSICHER (A7): Das Markdown wird VOLLSTAENDIG geparst,
 BEVOR irgendetwas geloescht wird. Null Chunks oder ein unplausibler Schrumpf (unter
-SCHRUMPF_SCHWELLE des Altbestands, ohne erlaube_schrumpfen) brechen ab - der alte
+schwellen.SCHRUMPF_SCHWELLE des Altbestands, ohne erlaube_schrumpfen) brechen ab - der alte
 Bestand bleibt unangetastet. Die Funktion committet NICHT selbst: der AUFRUFER fuehrt
 die Transaktion (z. B. `with con: importiere_markdown(...)`), damit Loeschen, Einfuegen
 und FTS-Rebuild atomar zusammen landen oder zusammen zurueckrollen."""
@@ -57,8 +57,10 @@ SKIP_NAMEN: dict[str, "re.Pattern[str]"] = {
 }
 _MIN_BODY = 1            # leere Abschnitte (reine Kapitel-Deckblaetter) ueberspringen
 # Die Plausibilitaets-Schwellen liegen seit Phase 4 gesammelt in importer/schwellen.py
-# (Befund D3). Der Name bleibt hier als Re-Export, weil import_open5e ihn von hier holt.
-SCHRUMPF_SCHWELLE = _schwellen.SCHRUMPF_SCHWELLE
+# (Befund D3); dieses Modul prueft ueber _schwellen.pruefe_umfang. Ein Re-Export
+# SCHRUMPF_SCHWELLE stand hier bis zum 29.07.2026 mit der Begruendung, import_open5e hole
+# ihn von hier - das stimmte nicht mehr (der nimmt schwellen direkt), und kein Codepfad
+# las ihn. Wer den Wert braucht, nimmt importer/schwellen.py.
 
 
 class Importbilanz:
@@ -507,7 +509,7 @@ def _chunks(markdown: str, kategorie_standard: str = "regel",
     # u+Kombinationszeichen), Soft-Hyphens (U+00AD, reines Druck-Layout) und <br>-Tags
     # in Tabellenzellen ('**Rettungswürfe, in**<br>**denen du geübt bist**') - alles
     # bricht Namensvergleiche/FTS-Token bzw. steht als HTML-Muell im Plain-Text-Body
-    # (QS-Fund 11.07.2026). Einmal an der Wurzel normalisieren (bekannte_macken 'srd-de').
+    # (QS-Fund 11.07.2026). Einmal an der Wurzel normalisieren.
     # U+00A0 (geschuetztes Leerzeichen) ist KEIN Wortabstand fuer den Namensvergleich:
     # 'Classes\xa0Summary' != 'Classes Summary', die exakte Namenssuche geht damit ins
     # Leere (28 Faelle in ddb-basic-rules-2014-en, Befund D6). Reines Druck-Layout wie
@@ -615,7 +617,7 @@ def importiere_markdown(con: sqlite3.Connection, quelle_kuerzel: str, markdown: 
     """Chunkt Markdown und schreibt Einträge mit Quelle/Seite/Version. edition Pflicht.
     split_regeln: explizit oder automatisch aus SPLIT_REGELN[quelle_kuerzel].
     A7: parst vollstaendig VOR dem Loeschen; 0 Chunks oder unplausibles Schrumpfen
-    (< SCHRUMPF_SCHWELLE des Altbestands ohne erlaube_schrumpfen) -> ValueError, der
+    (< schwellen.SCHRUMPF_SCHWELLE des Altbestands ohne erlaube_schrumpfen) -> ValueError, der
     alte Bestand bleibt. COMMITTET NICHT - der Aufrufer fuehrt die Transaktion
     (`with con: ...`). Gibt die Zahl importierter Einträge zurück."""
     if not edition:

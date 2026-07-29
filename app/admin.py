@@ -76,53 +76,15 @@ def cmd_import(args) -> None:
         return
 
     if kuerzel == "glossar":
-        from importer.import_glossar import (KERNBEGRIFFE_EN, kanonisiere_konflikte,
-                                             kanonisiere_schreibvarianten,
-                                             repariere_2014_namen,
-                                             repariere_srd_de_namen, seed_abkuerzungen,
-                                             seed_aktionen,
-                                             seed_gegenstands_bruecke_aus_bestand,
-                                             seed_glossar,
-                                             seed_glossar_aus_bestand,
-                                             seed_glossar_de_aus_bestand,
-                                             seed_kern_singulare,
-                                             seed_kernwortschatz_aus_bestand,
-                                             seed_klassenmerkmale_aus_bestand,
-                                             seed_monster_bruecke_aus_bestand,
-                                             seed_flexionsbruecke_aus_bestand,
-                                             seed_srd_paare,
-                                             seed_zauber_bruecke_aus_bestand)
+        # Die Kette samt ihrer Reihenfolge gehoert der Fachschicht (importer.import_glossar
+        # ._KETTE) - sie ist Fachwissen, kein Bedien-Detail. D2: EINE Transaktion darum,
+        # damit sie ganz oder gar nicht landet.
+        from importer.import_glossar import seed_alles
+
         c = _con(getattr(args, "db", None))
-        # D2: EINE Transaktion um die ganze Kette. Die 17 Seeder committeten bisher jeder
-        # fuer sich - ein Abbruch mittendrin (real am 27.07.2026: NameError nach Minuten
-        # Laufzeit) hinterliess einen Teilzustand, bei dem die spaeteren Kanonisierer nie
-        # liefen. Jetzt landet die Kette ganz oder gar nicht, wie im PDF-Zweig.
         with c:
-            rn = repariere_srd_de_namen(c)  # zuerst: aus der PDF zerlegte srd-de-Namen korrigieren
-            n = seed_glossar(c, KERNBEGRIFFE_EN)
-            a = seed_abkuerzungen(c)
-            p = seed_srd_paare(c)
-            k = seed_kern_singulare(c)
-            ak = seed_aktionen(c)          # 2024-Aktionsnamen (srd-de-verifiziert, Homonym-gestoppt)
-            b = seed_glossar_aus_bestand(c)
-            bd = seed_glossar_de_aus_bestand(c)        # Rueckwaerts: dt. Namen ohne EN-Gegenstueck
-            r14 = repariere_2014_namen(c)              # zerrissene 2014-Scan-Namen (belegt)
-            bd += seed_glossar_de_aus_bestand(c)       # reparierte Namen jetzt abfragbar
-            mb = seed_monster_bruecke_aus_bestand(c)   # Struktur-Abgleich dt./engl. Monster (Dedup)
-            kw = seed_kernwortschatz_aus_bestand(c)    # Fertigkeiten/Groessen/Typen (nach der Monster-Bruecke!)
-            km = seed_klassenmerkmale_aus_bestand(c)   # 2024-Klassenmerkmale srd-de<->ddb-br (nach Klassennamen-Seeding!)
-            gg = seed_gegenstands_bruecke_aus_bestand(c)   # Preis-Bucket-Abgleich srd-de<->Open5e (vor den Kanonisierern!)
-            zb = seed_zauber_bruecke_aus_bestand(c)        # Zauberkopf-Abgleich DE<->EN, editionsuebergreifend
-            d = kanonisiere_konflikte(c)   # kuratierte Fassung schlaegt konkurrierende (Deutsch-Qualitaet)
-            sv = kanonisiere_schreibvarianten(c)   # ß/ss- + Gross-/Klein-Schreibvarianten vereinheitlichen
-            fx = seed_flexionsbruecke_aus_bestand(c)   # Singular/Plural verbinden - ZULETZT, auf dem fertigen Stand
-        print(f"Glossar: {rn} srd-Namen repariert, {n} Kern-Zeilen, {a} Abkuerzungen, "
-              f"{p} SRD-Paare, {k} Kern-Singulare, {ak} Aktionen, {b} Zeilen aus Bestandsnamen, "
-              f"{bd} Zeilen aus deutschen Namen, {r14} Namen repariert, "
-              f"{mb} Monster-Bruecken, {kw} Kernwortschatz-Paare, {km} Klassenmerkmal-Paare, "
-              f"{gg} Gegenstands-Bruecken, {zb} Zauber-Bruecken, "
-              f"{d} Konflikte kanonisiert, "
-              f"{sv} Schreibvarianten demotet, {fx} Flexions-Bruecken.")
+            bilanz = seed_alles(c)
+        print("Glossar: " + ", ".join(f"{n} {was}" for was, n in bilanz.items()) + ".")
         c.close()
         return
 
@@ -967,7 +929,7 @@ def main(argv=None) -> None:
     pd.add_argument("--dry-run", action="store_true",
                     help="alles pruefen, nichts aktivieren")
     pd.add_argument("--force", action="store_true",
-                    help="Schrumpf-Schutz (min_reimport_ratio) bewusst uebergehen")
+                    help="Schrumpf-Schutz (importer/schwellen.py) bewusst uebergehen")
     pd.set_defaults(func=cmd_ddb_import)
     pa = sub.add_parser("ddb-import-all",
                         help="ALLE vorhandenen DDB-Artefakte in die PRIVATE DB importieren")

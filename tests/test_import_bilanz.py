@@ -58,12 +58,17 @@ def test_force_setzt_beide_richtungen_ausser_kraft():
 
 
 def test_schwellen_haben_genau_eine_quelle():
-    """D3: vorher lagen drei Schwellen in drei Modulen. Die alten Namen bleiben als
-    Re-Export bestehen, muessen aber denselben Wert liefern."""
+    """D3: vorher lagen drei Schwellen in drei Modulen. Wo ein Modul den alten Namen noch
+    fuehrt, muss er derselbe Wert sein - und zwar NUR dort, wo ihn auch jemand benutzt.
+
+    import_markdown trug den Namen bis zum 29.07.2026 als Re-Export mit der Begruendung,
+    import_open5e hole ihn von dort; das stimmte nicht mehr, und kein Codepfad las ihn.
+    Ein Test, der so etwas festnagelt, konserviert einen Umweg."""
     from importer import import_ddb, import_markdown, ocr_vorstufe
-    assert import_markdown.SCHRUMPF_SCHWELLE is schwellen.SCHRUMPF_SCHWELLE
     assert import_ddb.MIN_REIMPORT_RATIO is schwellen.DDB_SCHRUMPF_SCHWELLE
     assert ocr_vorstufe.SCAN_SCHWELLE is schwellen.SCAN_SCHWELLE
+    assert not hasattr(import_markdown, "SCHRUMPF_SCHWELLE"), (
+        "toter Re-Export ist zurueck - der Wert steht in importer/schwellen.py")
 
 
 # ------------------------------------------------------------------------ D1 Bilanz

@@ -91,14 +91,15 @@ def _glossar_vorgaben(con: sqlite3.Connection, texte: list[str],
     (a) `glossar.begriffe_im_text` - der bewährte Inline-Scanner des MCP-Servers - findet
         Glossar-Lemmata in den englischen Texten (Wortgrenzen, Homonym-Stoppliste aktiv);
     (b) die 2024-Aktionsnamen (Attack/Magic/... sind bewusst Homonym-gestoppt) kommen
-        direkt aus ihren Glossar-Zeilen (Quelle 'SRD 5.2.1 (Aktionen)', srd-de-verifiziert)."""
+        direkt aus ihren Glossar-Zeilen, erkennbar am Herkunfts-Label
+        `glossar.QUELLE_AKTIONEN` (srd-de-verifiziert; der Seeder setzt DASSELBE)."""
     from app import glossar
     gesamt = "\n".join(texte)
     for z in glossar.begriffe_im_text(con, gesamt, max_treffer=80):
         vorgaben.setdefault(z["term_en"], z["term_de"])
     try:
         zeilen = con.execute("SELECT term_en, term_de FROM glossar WHERE quelle = ?",
-                             ("SRD 5.2.1 (Aktionen)",)).fetchall()
+                             (glossar.QUELLE_AKTIONEN,)).fetchall()
     except sqlite3.OperationalError:       # Test-Minimalschema ohne quelle-Spalte
         zeilen = []
     for z in zeilen:
@@ -185,7 +186,7 @@ class DnddeutschNachschlager:
         try:                               # Best-Effort: Glossar dauerhaft verbessern
             dnddeutsch.schreibe_zeilen(con, zeilen)
             con.commit()
-            glossar._GLOSSAR_CACHE.clear()
+            glossar.leere_cache()
         except sqlite3.Error:
             pass                           # read-only (Web-Container) -> Direktergebnis reicht
         return glossar.markiere(best.term_de, begriff, bool(best.offiziell))

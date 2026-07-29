@@ -202,8 +202,14 @@ def test_seeder_nur_eine_quelle(tmp_path):
 # ------------------------------------------------------------------------ Migration
 
 def test_alt_db_bekommt_die_neuen_spalten(tmp_path):
-    """Bestands-DB mit den DREI alten Spalten -> connect() ruestet additiv nach (NF7),
-    vorhandene Daten bleiben. Dasselbe Muster wie bei quellen.inhaltsart."""
+    """Bestands-DB im Ur-Zuschnitt -> connect() ruestet additiv nach (NF7), vorhandene
+    Daten bleiben. Dasselbe Muster wie bei quellen.inhaltsart.
+
+    Geprueft wird gegen META_TABELLEN, nicht gegen eine abgeschriebene Spaltenliste: die
+    Nachruestung (db.FACETTEN_SPALTEN) ist die dritte Stelle, an der Facetten-Spalten
+    stehen, und die einzige, die man beim Ergaenzen einer Facette vergessen KANN, ohne
+    dass am Mac etwas auffaellt - eine frische DB bekommt die Spalte ja aus schema.sql.
+    Erst auf dem Pi liefe dann das INSERT des Seeders auf."""
     pfad = tmp_path / "alt.sqlite"
     con = sqlite3.connect(pfad)
     con.execute("CREATE TABLE quellen (id INTEGER PRIMARY KEY, kuerzel TEXT UNIQUE NOT NULL)")
@@ -211,16 +217,18 @@ def test_alt_db_bekommt_die_neuen_spalten(tmp_path):
     con.execute("CREATE TABLE zauber_meta (eintrag_id INTEGER PRIMARY KEY, grad INTEGER, "
                 "schule TEXT, klassen TEXT)")
     con.execute("CREATE TABLE monster_meta (eintrag_id INTEGER PRIMARY KEY, hg TEXT, typ TEXT)")
+    con.execute("CREATE TABLE gegenstand_meta (eintrag_id INTEGER PRIMARY KEY, seltenheit TEXT)")
     con.execute("INSERT INTO zauber_meta VALUES (7, 3, 'hervorrufung', 'Magier')")
     con.commit()
     con.close()
 
     c = adb.connect(str(pfad))
     try:
-        spalten = {r[1] for r in c.execute("PRAGMA table_info(zauber_meta)")}
-        assert {"reichweite_m", "komponenten", "dauer_min", "konzentration",
-                "ritual"} <= spalten
-        assert {"rk", "tp"} <= {r[1] for r in c.execute("PRAGMA table_info(monster_meta)")}
+        for _kategorie, (tabelle, felder) in F.META_TABELLEN.items():
+            spalten = {r[1] for r in c.execute(f"PRAGMA table_info({tabelle})")}
+            fehlend = set(felder) - spalten
+            assert not fehlend, (f"{tabelle}: {sorted(fehlend)} nach der Migration nicht da "
+                                 f"- fehlt der Eintrag in db.FACETTEN_SPALTEN?")
         assert tuple(c.execute("SELECT grad, schule, klassen FROM zauber_meta").fetchone()) \
             == (3, "hervorrufung", "Magier")          # Altdaten unangetastet
     finally:
@@ -380,3 +388,33 @@ def test_check_meldet_facetten_deckung(tmp_path, monkeypatch, capsys):
     ausgabe = capsys.readouterr().out
     assert "Facetten-Deckung" in ausgabe
     assert "zauber 1/1" in ausgabe
+
+
+def test_meta_definition_deckt_sich_mit_dem_schema():
+    """Die EINE Definition (app.facetten.META_TABELLEN) und die Tabellen in db/schema.sql
+    muessen dieselben Spalten kennen.
+
+    Schreiber (facetten_seeder) und Leser (nachschlagen) teilen sich die Definition seit
+    dem 29.07.2026 - vorher fuehrte jede Seite eine eigene, byte-identische Kopie, und eine
+    neue Facette erschien nie in der Tool-Ausgabe, bis jemand die zweite Liste fand. Die
+    dritte Stelle bleibt aber das Schema: eine Spalte, die nur in der Definition steht,
+    laesst das INSERT des Seeders auflaufen; eine, die nur im Schema steht, bleibt
+    dauerhaft NULL, ohne dass es auffaellt."""
+    import re
+
+    sql = _SCHEMA.read_text(encoding="utf-8")
+    for kategorie, (tabelle, felder) in F.META_TABELLEN.items():
+        block = sql.split(f"CREATE TABLE IF NOT EXISTS {tabelle} (", 1)[1].split(");", 1)[0]
+        ohne_kommentar = "\n".join(z.split("--")[0] for z in block.splitlines())
+        # Spaltendeklaration = Name + Typ, egal ob eine je Zeile oder mehrere hintereinander.
+        spalten = {m.group(1) for m in re.finditer(
+            r"(?:^|,)\s*(\w+)\s+(?:INTEGER|TEXT|REAL|BLOB)", ohne_kommentar)}
+        fehlend = set(felder) - spalten
+        assert not fehlend, (f"{kategorie}: {sorted(fehlend)} steht in META_TABELLEN, "
+                             f"aber nicht in db/schema.sql -> der Seeder laeuft auf")
+        # seltenheit ist bewusst nicht in META_TABELLEN (keine belastbare Ableitung,
+        # BACKLOG par. 3) - alles andere waere eine unbemerkt tote Spalte.
+        ungenutzt = spalten - set(felder) - {"eintrag_id", "seltenheit"}
+        assert not ungenutzt, (f"{tabelle}: {sorted(ungenutzt)} steht im Schema, wird aber "
+                               f"von niemandem geschrieben - Spalte oder Eintrag in "
+                               f"META_TABELLEN fehlt")

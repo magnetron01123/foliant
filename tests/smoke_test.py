@@ -222,7 +222,7 @@ def smoke_srd_paare() -> int:
     con = sqlite3.connect(f"file:{adb.standard_pfad()}?mode=ro", uri=True)
     try:
         # Kanonisch normalisiert vergleichen (norm_begriff): der Bestand kann NFD-Namen
-        # tragen (bekannte_macken); Unterklassen zaehlen auch als Namens-SUFFIX
+        # tragen (s. importer/import_open5e.py); Unterklassen zaehlen auch als Namens-SUFFIX
         # ('Barbaren-Unterklasse: Pfad des Berserkers').
         namen_en = {norm_begriff(r[0]) for r in con.execute(
             "SELECT DISTINCT name_en FROM eintraege WHERE name_en IS NOT NULL")}

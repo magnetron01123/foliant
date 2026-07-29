@@ -14,6 +14,11 @@ schreibt deren Ergebnis fuer ALLE Quellen weg.
     srd_zauberbruecken.kopf_felder reichweite, komponenten, dauer, konzentration, ritual
     srd_begriffsbruecken           preis_cent
 
+WELCHE Spalten wohin gehoeren, steht in `app.facetten.META_TABELLEN` - dieselbe Definition,
+aus der der LESER (app/tools/nachschlagen.py) die Facetten holt. Bis zum 29.07.2026 fuehrte
+jede Seite ihre eigene, byte-identische Kopie; eine neue Facette erschien deshalb nie in der
+Tool-Ausgabe, bis jemand die zweite Liste fand.
+
 Zwei Entscheidungen, beide gemessen (28.07.2026 am Mac-Subset, 3084 Eintraege):
 
 1. EIN Wertraum. Der alte Open5e-Pfad schrieb aus den nativen API-Feldern und damit in einen
@@ -39,16 +44,6 @@ import sqlite3
 from app import facetten as _f
 from importer import srd_begriffsbruecken as _gb
 from importer import srd_zauberbruecken as _zb
-
-# Welche Kategorie in welche Tabelle faellt. gegenstand_meta.seltenheit bleibt vorerst
-# ungeschrieben: eine belastbare Seltenheits-Ableitung gibt es im Bestand noch nicht
-# (magische Gegenstaende fuehren sie, Ausruestung nicht) - lieber NULL als geraten.
-_TABELLEN = {
-    "zauber": ("zauber_meta", ("grad", "schule", "klassen", "reichweite_m",
-                               "komponenten", "dauer_min", "konzentration", "ritual")),
-    "monster": ("monster_meta", ("hg", "typ", "rk", "tp")),
-    "gegenstand": ("gegenstand_meta", ("preis_cent",)),
-}
 
 
 def _zauber_werte(body: str | None, name: str | None, deutsch: bool) -> dict:
@@ -100,7 +95,7 @@ def seed_facetten(con: sqlite3.Connection, quelle_id: int | None = None) -> dict
     nichts ableiten laesst, bekommt bewusst gar keine Zeile statt einer leeren)."""
     bedingung = "WHERE e.kategorie = ?" + ("" if quelle_id is None else " AND e.quelle_id = ?")
     bilanz: dict[str, int] = {}
-    for kategorie, (tabelle, felder) in _TABELLEN.items():
+    for kategorie, (tabelle, felder) in _f.META_TABELLEN.items():
         # Erst raeumen, dann schreiben: INSERT OR REPLACE ersetzt nur Zeilen, die dieser
         # Lauf auch anfasst. Eine Alt-Zeile zu einem Eintrag, aus dem sich heute nichts
         # mehr ableiten laesst, ueberlebte sonst - und mit ihr ein FREMDER Wertraum (der
@@ -134,7 +129,7 @@ def deckung(con: sqlite3.Connection) -> list[tuple[str, int, int]]:
     """[(kategorie, mit_facette, gesamt), ...] - Grundlage der Deckungs-Zeile in
     `admin check`. Ohne sie bliebe ein Dev/Prod-Drift wie C1 wieder unbemerkt."""
     ergebnis = []
-    for kategorie, (tabelle, _felder) in _TABELLEN.items():
+    for kategorie, (tabelle, _felder) in _f.META_TABELLEN.items():
         gesamt = con.execute("SELECT count(*) FROM eintraege WHERE kategorie = ?",
                              (kategorie,)).fetchone()[0]
         try:

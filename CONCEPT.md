@@ -375,8 +375,10 @@ python -m app.admin manifest > korpus-manifest.json
 Volle URL inkl. Geheimpfad: `https://<host>/<FOLIANT_PFAD_TOKEN>/mcp` — kein OAuth.
 Verhaltensschicht: Claude-Projekt mit `config/projektanweisung.md` einrichten —
 die Spieler finden sie kopierbereit auf der Charakterbogen-Website („Foliant im Claude-Chat“).
-Die Seite rendert sie zur Laufzeit aus SPEC.md (`config.stil.projektanweisung`), verteilt also
-nie eine veraltete Fassung; nach Prompt-Änderungen `docker compose up -d --build --no-deps web`.
+Die Seite liest sie zur Laufzeit aus `config/projektanweisung.md` (über
+`config.stil.projektanweisung`, dieselbe Lesestelle wie Eval, Kopier-Skript und Kanal-Sync-Test)
+und verteilt so nie eine veraltete Fassung; nach Prompt-Änderungen genügt
+`docker compose restart web` — die Datei ist read-only gemountet.
 
 ### 5. Abnahme fahren
 Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12 + P0-Prüfung).
@@ -603,7 +605,7 @@ läuft ohne Änderung weiter.
 | **Ein internes Schema für alle Quellen** | einheitlicher Tool-Output; Provenienz bleibt sichtbar |
 | **Edition sichtbar, nicht wegnormalisiert** | Referenz-MCP-Server normalisieren so, „dass die LLM den Unterschied nicht sieht" — für uns ein Anti-Pattern: **Datenshape** vereinheitlichen, **Provenienz** behalten |
 | **`such_*`/`hol_*` je Entitätstyp trennen** | Suche liefert knappe Treffer, Detail die volle Ausgabe — hält die Kontextlast niedrig |
-| **Quellen-Macken zentral kapseln** | `app/bekannte_macken.py` + kuratierte Reparaturpakete je Quelle, damit dieselbe Falle nicht zweimal gelöst wird |
+| **Quellen-Macken beim Code, der sie behandelt** | Die Eigenheiten einer Quelle stehen im Modul-Docstring ihres Importers, die Reparatur daneben — damit dieselbe Falle nicht zweimal gelöst wird. Ein *zentrales* Macken-Modul gab es; es wurde von keinem Codepfad gelesen und beschrieb ein zweites Mal, was längst am Lösungsort stand (Chronik: [BACKLOG.md](BACKLOG.md) §5) |
 | **Build-Prüfung minimal** | wenige klare Checks statt einer vollständigen Regel-Engine |
 | **DELETE-Journal** | Kompatibilität mit Bind-Mount-Volumes |
 | **Alles auf dem Pi** | Ein-Geräte-Wunsch; PyMuPDF4LLM ist ARM-tauglich |
@@ -680,7 +682,9 @@ Einschränkung, die der Code nicht selbst zeigt — kein Nacherzählen der näch
 
 ## 12. Gotchas
 
-Kuratiert; weitere Details in `app/bekannte_macken.py`.
+Kuratiert. Quellen-spezifische Eigenheiten stehen im Modul-Docstring des jeweiligen
+Importers (`importer/import_open5e.py` für die Open5e-API, `importer/import_markdown.py`
+für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de).
 
 - **pymupdf4llm OCRt textlose Seiten STILL, sobald Tesseract installiert ist** →
   `use_ocr=False` in `pdf_nach_markdown` ist Pflicht und gesetzt; OCR nur über die Vorstufe.

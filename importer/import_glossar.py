@@ -25,6 +25,7 @@ import time
 from pathlib import Path
 
 from app import dnddeutsch
+from app import glossar as _glossar
 
 API_URL = dnddeutsch.API_URL                     # Default; [glossar].api_url gewinnt
 _PAUSE_S = dnddeutsch.PAUSE_S
@@ -216,7 +217,7 @@ def seed_kern_singulare(con: sqlite3.Connection) -> int:
 # ("<Name> (Aktion)"-Eintraege). Kuratiert, aber beim Seeden BESTANDSVERIFIZIERT: eine Zeile
 # wird nur geschrieben, wenn der srd-de-Eintrag existiert (nichts raten, Datenprinzip).
 # "Magie wirken" ist die Tabellen-/Anzeigeform der srd-de (Eintrag "Magie (Aktion)").
-QUELLE_AKTIONEN = "SRD 5.2.1 (Aktionen)"
+QUELLE_AKTIONEN = _glossar.QUELLE_AKTIONEN    # Definition dort: Schreiber UND Leser teilen sie
 AKTIONS_PAARE: list[tuple[str, str, str]] = [
     ("Attack", "Angriff", "Angriff (Aktion)"),
     ("Dash", "Spurt", "Spurt (Aktion)"),
@@ -329,10 +330,14 @@ def seed_glossar_aus_bestand(con: sqlite3.Connection) -> int:
     # Abschnittsnamen sind echte Fachbegriffe, die dnddeutsch kennt (frueher ausgeschlossen,
     # obwohl der groesste englischsprachige Anteil des bedienten Korpus regel ist). Nicht-
     # Begriffe (lange Kapiteltitel) liefern schlicht keinen Treffer - harmlos, gecacht.
+    # Die Kategorien-Whitelist kommt aus db.KATEGORIEN (die EINE Liste, SYN-P0-006) - hier
+    # stand sie bis zum 29.07.2026 als vierte Kopie ausgeschrieben im SQL.
+    from app.db import KATEGORIEN
+
     namen = [r[0] for r in con.execute(
-        "SELECT DISTINCT name_en FROM eintraege WHERE name_en IS NOT NULL "
-        "AND kategorie IN ('regel','zauber','monster','gegenstand','spezies','klasse',"
-        "'hintergrund','talent') ORDER BY name_en")]
+        f"SELECT DISTINCT name_en FROM eintraege WHERE name_en IS NOT NULL "
+        f"AND kategorie IN ({','.join('?' * len(KATEGORIEN))}) ORDER BY name_en",
+        KATEGORIEN)]
     print(f"Vollseeding: {len(namen)} Bestandsnamen (Drossel {_PAUSE_S}s; Cache macht "
           f"Re-Runs offline).", file=sys.stderr)
     return seed_glossar(con, namen)
@@ -352,7 +357,6 @@ def seed_glossar_de_aus_bestand(con: sqlite3.Connection) -> int:
     Abgefragt werden nur PLAUSIBLE Fachbegriffe ohne bestehendes exaktes Gegenstueck:
     Kapitelkoepfe und Fliesstext-Fragmente wuerden nur die Drossel belasten (die API
     antwortet dort schlicht leer - harmlos, aber gecacht kostet es trotzdem Zeit)."""
-    from app import glossar as _glossar
 
     kandidaten = []
     for (name,) in con.execute(
@@ -406,7 +410,6 @@ def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]
     englischen Namen zeigt (sonst nicht raten, B4). Korrupte deutsche Namen (PDF) werden
     ausgeschlossen. Liefert (term_en, term_de, schluessel)."""
     from app import facetten as _f
-    from app.glossar import norm_begriff as _norm
 
     de_by_key: dict[tuple, set[str]] = {}
     en_by_key: dict[tuple, set[str]] = {}
@@ -435,7 +438,7 @@ def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]
         if len(de_namen) != 1 or len(en_namen) != 1:
             return None                          # nicht eindeutig -> nicht raten
         de_name, en_name = next(iter(de_namen)), next(iter(en_namen))
-        if _norm(de_name) == _norm(en_name):     # gleicher Name -> keine Bruecke noetig
+        if _glossar.norm_begriff(de_name) == _glossar.norm_begriff(en_name):     # gleicher Name -> keine Bruecke noetig
             return None
         if not _name_sauber(de_name):            # korrupter dt. Name -> NIE seeden
             return None
@@ -532,7 +535,6 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
     unberuehrt. Damit werden Namen wie 'SEELEN KÄFIG' zu 'Seelenkäfig' - und erst dadurch
     per Suche und Uebersetzung auffindbar (Befund 27.07.2026: 27 deutsche Zauber ohne
     Gegenstueck, die Mehrzahl davon nur wegen des zerrissenen Namens)."""
-    from app import glossar as _glossar
     from app import db as _db
 
     def vergleichsform(s: str) -> str:
@@ -593,7 +595,7 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
     con.commit()
     if n:
         _db.fts_rebuild(con)
-        _glossar._GLOSSAR_CACHE.clear()
+        _glossar.leere_cache()
     return n
 
 
@@ -611,7 +613,6 @@ def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
     import unicodedata
     from collections import defaultdict
 
-    from app.glossar import _auswahlschluessel
 
     def fold(s):
         return "".join(c for c in unicodedata.normalize("NFKD", s.lower().replace("ß", "ss"))
@@ -621,7 +622,7 @@ def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
         # Quellenprioritaet zuerst (kanonische Regel OHNE ihren alphabetischen End-Anker),
         # dann ß>ss als deterministischer Orthografie-Tiebreak, zuletzt alphabetisch. So
         # entscheidet die QUELLE - nicht der Admin und keine Grammatik-Vermutung.
-        return (_auswahlschluessel(z)[:-1], 0 if "ß" in (z["term_de"] or "") else 1,
+        return (_glossar._auswahlschluessel(z)[:-1], 0 if "ß" in (z["term_de"] or "") else 1,
                 z["term_de"] or "")
 
     grp: dict[str, list] = defaultdict(list)
@@ -668,7 +669,6 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
     werden beide belegt. Braucht die Klassennamen-Bruecke im Glossar -> NACH dem
     dnddeutsch-Seeding laufen. Auf einer DB ohne ddb-br-2024-en (Mac-Subset) findet der
     Abgleich schlicht nichts - harmlos, der Pi-Lauf traegt die Paare."""
-    from app import glossar as _glossar
     from importer.srd_klassenmerkmale import (QUELLE, apostroph_varianten, en_subnamen,
                                               finde_container_sub_paare, finde_paare)
     # LIKE-Praefix: kanonisiere_konflikte haengt an demotete Zeilen ein '(demotet: ...)'
@@ -677,7 +677,7 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
     con.execute("DELETE FROM glossar WHERE quelle LIKE ?", (QUELLE + "%",))
     # Cache leeren, sonst saehe der Ausschluss-Abgleich die soeben GELOESCHTEN eigenen
     # Alt-Zeilen noch als 'belegt' (und ein Re-Lauf wuerde alte Fehlpaare fortschreiben).
-    _glossar._GLOSSAR_CACHE.clear()
+    _glossar.leere_cache()
     paare, report = finde_paare(con)
     # Spezies-/Talent-Sub-Features ('Fey Ancestry') sind KEINE Eintragsnamen - das
     # Vollseeding hat sie nie bei dnddeutsch angefragt. Hier gezielt nachholen (Cache
@@ -685,7 +685,7 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
     subnamen = sorted({s for kat in ("spezies", "talent") for s in en_subnamen(con, kat)})
     if subnamen:
         seed_glossar(con, subnamen)
-        _glossar._GLOSSAR_CACHE.clear()
+        _glossar.leere_cache()
     for kategorie in ("spezies", "talent"):
         p2, r2 = finde_container_sub_paare(con, kategorie)
         paare += [p for p in p2 if p not in paare]
@@ -698,7 +698,7 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
     for zeile in report:
         print(f"  klassenmerkmale: {zeile}", file=sys.stderr)
     con.commit()
-    _glossar._GLOSSAR_CACHE.clear()   # Folge-Seeder sollen die neuen Paare sehen
+    _glossar.leere_cache()   # Folge-Seeder sollen die neuen Paare sehen
     return n
 
 
@@ -708,11 +708,10 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     Audit-Luecke (Open5e-Preissuffixe liessen das dnddeutsch-Seeding leerlaufen).
     Selbst-bereinigend; belegt vollen Namen UND suffixfreie Kurzform. Auf einer DB ohne
     open5e-srd-2024 findet der Abgleich schlicht nichts - harmlos (Subset-Muster)."""
-    from app import glossar as _glossar
     from importer.srd_begriffsbruecken import (QUELLE, finde_gegenstands_paare,
                                                seed_paar)
     con.execute("DELETE FROM glossar WHERE quelle LIKE ?", (QUELLE + "%",))
-    _glossar._GLOSSAR_CACHE.clear()   # geloeschte Alt-Zeilen duerfen nicht als 'belegt' zaehlen
+    _glossar.leere_cache()   # geloeschte Alt-Zeilen duerfen nicht als 'belegt' zaehlen
     paare, report = finde_gegenstands_paare(con)
     n = 0
     gesehen: set[tuple[str, str]] = set()
@@ -741,7 +740,7 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     for zeile in report:
         print(f"  gegenstaende: {zeile}", file=sys.stderr)
     con.commit()
-    _glossar._GLOSSAR_CACHE.clear()
+    _glossar.leere_cache()
     return n
 
 
@@ -776,10 +775,9 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
     offizielle Form (`_auswahlschluessel` sortiert offiziell zuerst) und `glossar-audit`
     zaehlt sie nicht als Konflikt (es filtert auf `offiziell=1`). Bestehende Paare werden
     NIE angefasst - ein Upsert wuerde ihre Offizialitaet ueberschreiben."""
-    from app import glossar as _glossar
 
     con.execute("DELETE FROM glossar WHERE quelle = ?", (FLEXION_QUELLE,))
-    _glossar._GLOSSAR_CACHE.clear()
+    _glossar.leere_cache()
     je_en: dict[str, set[str]] = {}
     original: dict[str, str] = {}
     for te, td in con.execute("SELECT term_en, term_de FROM glossar WHERE offiziell=1"):
@@ -809,7 +807,7 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
                         vorhanden.add((en, de))
                         n += 1
     con.commit()
-    _glossar._GLOSSAR_CACHE.clear()
+    _glossar.leere_cache()
     return n
 
 
@@ -820,11 +818,10 @@ def seed_zauber_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     2014-Baenden entstand: ~290 deutsche Zaubernamen ohne Glossar-Gegenstueck.
     Selbst-bereinigend; nur beidseitig eindeutige Abdruecke, Widersprueche zu belegten
     Zeilen werden verworfen und gemeldet."""
-    from app import glossar as _glossar
     from importer.srd_zauberbruecken import QUELLE, finde_zauber_paare
 
     con.execute("DELETE FROM glossar WHERE quelle LIKE ?", (QUELLE + "%",))
-    _glossar._GLOSSAR_CACHE.clear()   # geloeschte Alt-Zeilen nicht als 'belegt' zaehlen
+    _glossar.leere_cache()   # geloeschte Alt-Zeilen nicht als 'belegt' zaehlen
     paare, report = finde_zauber_paare(con)
     n = 0
     for term_en, term_de, _beweis in paare:
@@ -835,7 +832,7 @@ def seed_zauber_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     for zeile in report:
         print(f"  zauber: {zeile}", file=sys.stderr)
     con.commit()
-    _glossar._GLOSSAR_CACHE.clear()
+    _glossar.leere_cache()
     return n
 
 
@@ -900,20 +897,58 @@ def kanonisiere_konflikte(con: sqlite3.Connection) -> int:
     return demotet
 
 
-if __name__ == "__main__":
-    from app import db as _db
-    pfad = _db.standard_pfad()
-    if not pfad.exists():
-        sys.exit(f"DB fehlt: {pfad} -> erst `python db/init_db.py` ausfuehren.")
-    con = _db.connect(str(pfad))
-    try:
-        n = seed_glossar(con, KERNBEGRIFFE_EN)
-        a = seed_abkuerzungen(con)
-        p = seed_srd_paare(con)
-        k = seed_kern_singulare(con)
-        b = seed_glossar_aus_bestand(con)
-        d = kanonisiere_konflikte(con)
-        print(f"Fertig: {n} Kern-Zeilen, {a} Abkuerzungen, {p} SRD-Paare, {k} Kern-Singulare, "
-              f"{b} Zeilen aus Bestandsnamen, {d} Konflikte kanonisiert.")
-    finally:
-        con.close()
+# Die kanonische Glossar-Kette. Die REIHENFOLGE ist Fachwissen, kein Implementierungs-
+# detail: mehrere Schritte setzen das Ergebnis frueherer voraus (der Kernwortschatz braucht
+# die Monster-Bruecke, die Klassenmerkmale die Klassennamen, die Kanonisierer den fertigen
+# Rohstand). Sie stand bis zum 29.07.2026 in `app/admin.py` - also im BEDIEN-Werkzeug statt
+# in der Fachschicht. Folge: ein zweiter Einstiegspunkt in DIESEM Modul fuhr nur sechs der
+# Schritte, ohne Transaktion und ohne die Namensreparaturen, und schrieb damit still ein
+# unvollstaendiges Glossar - das entscheidet ueber '*'-Kennzeichnung (S5/S6), Suchbruecken
+# (B3) und das Deutsch-first-Ranking. Deshalb: EINE Kette, hier, und `admin import
+# --quelle glossar` als einziger Aufrufer (CONCEPT.md par. 8).
+def seed_glossar_kernbegriffe(con: sqlite3.Connection) -> int:
+    """Die kuratierten KERNBEGRIFFE_EN seeden - der Kettenschritt zu seed_glossar(),
+    damit alle Schritte der Kette dieselbe Signatur (con) -> int haben."""
+    return seed_glossar(con, KERNBEGRIFFE_EN)
+
+
+_KETTE = [
+    # (Funktion, Bilanz-Beschriftung) - siehe seed_alles()
+    (repariere_srd_de_namen, "srd-Namen repariert"),   # zuerst: aus der PDF zerlegte srd-de-Namen
+    (seed_glossar_kernbegriffe, "Kern-Zeilen"),
+    (seed_abkuerzungen, "Abkuerzungen"),
+    (seed_srd_paare, "SRD-Paare"),
+    (seed_kern_singulare, "Kern-Singulare"),
+    (seed_aktionen, "Aktionen"),                       # 2024-Aktionsnamen, Homonym-gestoppt
+    (seed_glossar_aus_bestand, "Zeilen aus Bestandsnamen"),
+    (seed_glossar_de_aus_bestand, "Zeilen aus deutschen Namen"),
+    (repariere_2014_namen, "Namen repariert"),         # zerrissene 2014-Scan-Namen (belegt)
+    # Zweiter Lauf NACH der Reparatur: die eben zusammengefuegten Namen ('D ORNENWAND' ->
+    # 'Dornenwand') sind erst jetzt abfragbar. Gleiche Beschriftung -> die Bilanz addiert.
+    (seed_glossar_de_aus_bestand, "Zeilen aus deutschen Namen"),
+    (seed_monster_bruecke_aus_bestand, "Monster-Bruecken"),
+    (seed_kernwortschatz_aus_bestand, "Kernwortschatz-Paare"),   # NACH der Monster-Bruecke
+    (seed_klassenmerkmale_aus_bestand, "Klassenmerkmal-Paare"),  # NACH dem Klassennamen-Seeding
+    (seed_gegenstands_bruecke_aus_bestand, "Gegenstands-Bruecken"),  # VOR den Kanonisierern
+    (seed_zauber_bruecke_aus_bestand, "Zauber-Bruecken"),
+    (kanonisiere_konflikte, "Konflikte kanonisiert"),  # kuratierte Fassung schlaegt konkurrierende
+    (kanonisiere_schreibvarianten, "Schreibvarianten demotet"),
+    (seed_flexionsbruecke_aus_bestand, "Flexions-Bruecken"),     # ZULETZT, auf dem fertigen Stand
+]
+
+
+def seed_alles(con: sqlite3.Connection) -> dict[str, int]:
+    """Die VOLLSTAENDIGE Glossar-Kette in der einen richtigen Reihenfolge (_KETTE).
+
+    Committet NICHT selbst: der AUFRUFER fuehrt die Transaktion (`with con:
+    seed_alles(con)`). Die Schritte committeten frueher jeder fuer sich - ein Abbruch
+    mittendrin (real am 27.07.2026: NameError nach Minuten Laufzeit) hinterliess einen
+    Teilzustand, bei dem die spaeteren Kanonisierer nie liefen. Jetzt landet die Kette ganz
+    oder gar nicht, wie im PDF-Zweig (Befund D2).
+
+    Rueckgabe: {Beschriftung: Anzahl} in Kettenreihenfolge - fertig fuer die Bilanzzeile.
+    Zwei Schritte teilen sich eine Beschriftung (s. _KETTE); deren Zahlen werden addiert."""
+    bilanz: dict[str, int] = {}
+    for schritt, beschriftung in _KETTE:
+        bilanz[beschriftung] = bilanz.get(beschriftung, 0) + schritt(con)
+    return bilanz

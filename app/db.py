@@ -129,15 +129,36 @@ NUTZINDIZES: dict[str, str] = {
 }
 
 # Der Breadcrumb steht als erste Zeile im body_md ('*Kontext: Zauber > Zaubertricks*').
-# EINE Definition fuer Importer, Migration und Lesepfade - vorher stand dasselbe Muster
-# in vier Modulen (Befund E4/C4).
+# Hier stehen BEIDE Formen, in denen das Projekt ihn liest - vorher hatte jedes der fuenf
+# betroffenen Module seine eigene Kopie, waehrend dieser Kommentar behauptete, es gebe nur
+# eine (Befund E4/C4, erst am 29.07.2026 wirklich eingeloest).
+#
+# Warum ZWEI und nicht eine: die Formen unterscheiden sich in der Endverankerung, und der
+# Unterschied traegt Gewicht.
+#   KONTEXT_ZEILE       - ohne '$': greift auch, wenn der Eintrag auf DERSELBEN Zeile
+#                         weitergeht ('*Kontext: Zauber > ...* _Hervorrufungszauber ...').
+#                         Das ist der Lesepfad (Tools, Migration).
+#   KONTEXT_EIGENE_ZEILE - mit '$' und re.M: verlangt, dass der Breadcrumb eine EIGENE,
+#                         vollstaendige Zeile ist. Das ist die Form der Bruecken-Seeder,
+#                         deren Ausgabe die Beweisgrundlage geseedeter Glossar-Paare ist.
+# Am Mac-Subset (3084 Eintraege) liefern beide identische Ergebnisse - aber das Subset
+# belegt den Pi-Vollbestand nicht (Korpus-Luecke, CONCEPT.md par. 11), und eine Lockerung
+# der Seeder-Form verschoebe im Zweifel Glossar-Paare. Deshalb bleiben sie getrennt.
 KONTEXT_ZEILE = re.compile(r"^\*Kontext:\s*(.+?)\*")
+KONTEXT_EIGENE_ZEILE = re.compile(r"^\*Kontext:\s*(.+?)\*\s*$", re.M)
 
 
 def kontext_aus_body(body: str | None) -> str | None:
-    """Breadcrumb aus dem body_md lesen. Rueckfallebene fuer Bestands-DBs, deren
+    """Breadcrumb am ANFANG des body_md. Rueckfallebene fuer Bestands-DBs, deren
     kontext-Spalte noch nicht gefuellt ist - der SERVING-Pfad migriert nicht."""
     m = KONTEXT_ZEILE.match(body or "")
+    return m.group(1).strip() if m else None
+
+
+def kontext_im_abschnitt(text: str | None) -> str | None:
+    """Breadcrumb als EIGENE Zeile irgendwo im Text - die strengere Form fuer die
+    Bruecken-Seeder (s. Kommentar oben). None, wenn keine solche Zeile existiert."""
+    m = KONTEXT_EIGENE_ZEILE.search(text or "")
     return m.group(1).strip() if m else None
 
 

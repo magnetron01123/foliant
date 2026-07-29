@@ -1,11 +1,20 @@
 """Facetten-Ableitung aus dem verbatim body_md (Zauber-Grad/Schule/Klassen, Monster-HG).
 
-Warum aus dem Text und nicht aus zauber_meta/monster_meta: die Meta-Tabellen sind auf dem
-bedienten Bestand LEER (nur der Open5e-Import befuellt sie, und der DE-gewinnende Dedup
-zeigt sie nicht). Die Werte stehen aber zuverlaessig im Kopf des Regeltexts -
+DER TEXT IST DIE AUTORITAET. Die Werte stehen zuverlaessig im Kopf des Regeltexts -
 "_Hervorrufungszauber 3. Grades (Magier, Zauberer)_", "_Zaubertrick der Hervorrufung
 (Hexenmeister)_", "**HG** 1". Das ist REINE Ableitung aus vorhandenem Text (kein Raten):
 ohne erkennbares Muster -> None/leere Liste (B1). Deutsch-first, mit englischem Fallback.
+
+Verhaeltnis zu den Meta-Tabellen: zauber_meta/monster_meta/gegenstand_meta sind aus GENAU
+diesen Funktionen abgeleitet (importer/facetten_seeder.py ruft sie), nicht umgekehrt. Ein
+gespeicherter Wert kann dem Text deshalb nie widersprechen - er ist eine Vorberechnung,
+kein zweiter Wahrheitsanspruch. Wo Tempo zaehlt, filtert der Meta-Vorfilter damit vor
+(app/tools/nachschlagen.py), und das Textpraedikat behaelt trotzdem das letzte Wort.
+(Bis Phase 3 stand hier, die Tabellen seien auf dem bedienten Bestand leer - das war der
+Befund C1 und ist seit dem 28.07.2026 behoben: Deckung 94/91/34 %.)
+
+Die Zuordnung Kategorie -> Tabelle/Spalten steht unten in META_TABELLEN - EINE Definition
+fuer Schreiber (facetten_seeder) und Leser (nachschlagen).
 """
 from __future__ import annotations
 
@@ -357,3 +366,29 @@ def monster_statschluessel(body: str | None) -> tuple:
     heissen 'unvollstaendig -> nicht fuer den Abgleich geeignet'."""
     return (monster_typ(body), monster_hg(body), monster_rk(body), monster_tp(body),
             monster_attribute(body))
+
+
+# --- Der Meta-Seitenwagen: EINE Definition fuer Schreiber und Leser ------------------
+# Welche Kategorie in welche Tabelle faellt und welche Felder dort stehen. Bis zum
+# 29.07.2026 fuehrten Schreiber (importer/facetten_seeder.py) und Leser
+# (app/tools/nachschlagen.py) je eine eigene, byte-identische Kopie - eine neue Facette
+# erschien deshalb nie in der Tool-Ausgabe, bis jemand die zweite Liste fand. Ein halb
+# gelandetes Feature ohne Fehlermeldung.
+#
+# Sie steht hier, weil beide Seiten dieses Modul ohnehin importieren (es traegt die
+# Parser) und die Schichtung dadurch erhalten bleibt: importer haengt an app, nie
+# umgekehrt. Die Spalten selbst legt db/schema.sql an - tests/test_facetten_seeder.py
+# haelt beide Seiten aneinander.
+#
+# gegenstand_meta.seltenheit fehlt bewusst: eine belastbare Seltenheits-Ableitung gibt es
+# im Bestand nicht (magische Gegenstaende fuehren sie, Ausruestung nicht) - lieber NULL
+# als geraten (Regel 1).
+META_TABELLEN: dict[str, tuple[str, tuple[str, ...]]] = {
+    "zauber": ("zauber_meta", ("grad", "schule", "klassen", "reichweite_m",
+                               "komponenten", "dauer_min", "konzentration", "ritual")),
+    "monster": ("monster_meta", ("hg", "typ", "rk", "tp")),
+    "gegenstand": ("gegenstand_meta", ("preis_cent",)),
+}
+
+# Felder, die als Wahrheitswert gemeint sind - 0/1 in der DB, true/false in der Ausgabe.
+META_BOOL = frozenset({"konzentration", "ritual"})

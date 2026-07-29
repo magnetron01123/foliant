@@ -4,12 +4,15 @@ entfernt - jedes echte Tool beweist die Verbindung, und weniger Tools = weniger 
 Tool-Namen einheitlich foliant_<verb>_<nomen> (BP #2).
 
 WICHTIG (Review-Fund): Die Verhaltensregeln werden ueber DREI Kanaele zugestellt, weil
-Server-`instructions` nicht von jedem MCP-Client zuverlaessig ans Modell gereicht werden:
-  1. FastMCP(instructions=...)            (hier verdrahtet)
-  2. Kurzfassung in jeder Tool-Beschreibung (Phase 1, TODO(claude-code))
-  3. Grounding-Hinweise IN den Tool-AUSGABEN (Phase 1, TODO(claude-code)) - z. B. liefert eine
-     leere Suche explizit {"treffer": [], "hinweis": "Nichts im Bestand - ehrlich sagen, nicht
-     aus Allgemeinwissen antworten."}
+Server-`instructions` nicht von jedem MCP-Client zuverlaessig ans Modell gereicht werden.
+Alle drei sind gebaut:
+  1. FastMCP(instructions=...) aus config/stil.py            (hier verdrahtet)
+  2. Kurzfassung der Kernregeln in jeder Tool-Beschreibung   (= Docstring des Tools)
+  3. Grounding-Hinweise IN den Tool-AUSGABEN - der zuverlaessigste Kanal (SPEC.md par. 7):
+     eine leere Suche liefert explizit {"treffer": [], "hinweis": "Nichts im Bestand -
+     ehrlich sagen, nicht aus Allgemeinwissen antworten."} (nachschlagen.HINWEIS_*)
+Dass dieselben tragenden Regeln in allen DREI Kanaelen stehen, prueft
+tests/test_verhaltensregeln.py.
 """
 from __future__ import annotations
 

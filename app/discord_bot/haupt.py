@@ -12,10 +12,10 @@ import sys
 import time
 
 from app import db as _db
+from app import llm as _llm
 from config import stil
 
 _log = logging.getLogger("foliant.discord")
-_STANDARD_MODELL = "claude-sonnet-5"
 
 
 def _warte_ewig(meldung: str) -> None:
@@ -44,7 +44,7 @@ def _lies_konfig() -> dict:
             "tagesdeckel": int(os.environ.get("DISCORD_TAGESDECKEL") or 100),
             "api_key": key,
             "modell": (os.environ.get("ANTHROPIC_MODEL") or "").strip()
-                      or _STANDARD_MODELL}
+                      or _llm.STANDARD_MODELL}
 
 
 def _warte_auf_bestand() -> None:

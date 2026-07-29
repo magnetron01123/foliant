@@ -21,18 +21,19 @@ ausgefüllten offiziellen deutschen WotC-Bogen 2024, druckbar.
    keine offizielle Übersetzung existiert.
 3. **Version immer:** aktuelle Regeln (2024) als Standard; ältere Stände klar gekennzeichnet.
 
-## Stand (25.07.2026)
+## Stand (29.07.2026)
 
-**MVP komplett und live** auf einem Raspberry Pi 4: ~9490 Einträge aus 12 Quellen (dt. SRD
-5.2.1, Open5e, 10 D&D-Beyond-Bücher), 16 Tools, Zugang über geheimen Pfad + IP-Allowlist,
-Datenbank-QS abgeschlossen. Der Charakterbogen-Übersetzer läuft als eigener Container daneben.
+**MVP komplett und live** auf einem Raspberry Pi 4: ~12 500 Einträge aus 15 Quellen (dt. SRD
+5.2.1, drei deutsche 2014-Bücher, Open5e, D&D-Beyond-Bücher), 16 Tools, Zugang über geheimen
+Pfad + IP-Allowlist, Datenbank-QS abgeschlossen. Der Charakterbogen-Übersetzer läuft als
+eigener Container daneben, der Discord-Bot ebenso. Maßgeblich ist immer `admin status`.
 Was noch offen ist: [BACKLOG.md](BACKLOG.md).
 
 ## Dokumentation — vier Dateien, mehr nicht
 
 | Datei | Enthält |
 |---|---|
-| **[SPEC.md](SPEC.md)** | Das verbindliche **„Was"**: Anforderungen, Sprach- und Versionsregeln, Verhalten, Abnahmekriterien, die Projektanweisung zum Kopieren |
+| **[SPEC.md](SPEC.md)** | Das verbindliche **„Was"**: Anforderungen, Sprach- und Versionsregeln, Verhalten, Abnahmekriterien (die Projektanweisung selbst steht in [`config/projektanweisung.md`](config/projektanweisung.md)) |
 | **[CONCEPT.md](CONCEPT.md)** | Das **„Wie"**: Architektur, Datenmodell, Import-Pipelines, Betrieb und Deployment, Entscheidungen, Fallen, Sicherheitsmodell |
 | **[BACKLOG.md](BACKLOG.md)** | Was **offen** ist: Phasen mit Gates, Abnahme-Checkliste, Rest-Posten, Ausbaustufen, erledigte Chronik |
 | **README.md** | Diese Datei: Einstieg, Schnellstart, Nutzung, Recht |

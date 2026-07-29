@@ -21,7 +21,7 @@ from app.charakterbogen.uebersetzer import (
 
 @pytest.fixture()
 def con():
-    glossar._GLOSSAR_CACHE.clear()  # Test-Isolation (Cache ist signatur-basiert)
+    glossar.leere_cache()  # Test-Isolation (Cache ist signatur-basiert)
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     c.execute("CREATE TABLE glossar (term_de TEXT, term_en TEXT, offiziell INT, "
@@ -34,7 +34,7 @@ def con():
     ])
     c.commit()
     yield c
-    glossar._GLOSSAR_CACHE.clear()
+    glossar.leere_cache()
     c.close()
 
 
@@ -149,14 +149,14 @@ def test_liste_bekommt_klammer_ohne_stern(con):
                 "('Elfisch','Elvish',1,'U','2024','')")
     con.commit()
     from app import glossar as g
-    g._GLOSSAR_CACHE.clear()
+    g.leere_cache()
     c = Charakter()
     c.uebungen.sprachen.append(UeText(en="Common, Elvish", art="liste"))
     try:
         fake = FakeProvider()
         uebersetze(c, con, fake)
     finally:
-        g._GLOSSAR_CACHE.clear()
+        g.leere_cache()
     assert c.uebungen.sprachen[0].de == "Gemeinsprache, Elfisch (Common, Elvish)"
     assert "*" not in c.uebungen.sprachen[0].de
     assert fake.aufrufe == 0                     # Listen erreichen das Modell nie
@@ -245,13 +245,13 @@ def test_liste_teilbelegt_mischt_deterministisch(con):
                 "('Krummsäbel','Scimitar',1,'U','2024','')")
     con.commit()
     from app import glossar as g
-    g._GLOSSAR_CACHE.clear()
+    g.leere_cache()
     c = Charakter()
     c.uebungen.waffen.append(UeText(en="Hand Crossbow, Wargong, Scimitar", art="liste"))
     try:
         uebersetze(c, con, FakeProvider())
     finally:
-        g._GLOSSAR_CACHE.clear()
+        g.leere_cache()
     assert c.uebungen.waffen[0].de == \
         "Handarmbrust, Wargong, Krummsäbel (Hand Crossbow, Wargong, Scimitar)"
 
@@ -348,11 +348,11 @@ def test_mehrklassen_anzeige_und_stufensumme(con):
     con.execute("INSERT INTO glossar VALUES ('Schurke','Rogue',1,'Ulisses','2024','')")
     con.commit()
     from app import glossar as g
-    g._GLOSSAR_CACHE.clear()
+    g.leere_cache()
     try:
         c = uebersetze(_mehrklassen_charakter(), con, FakeProvider())
     finally:
-        g._GLOSSAR_CACHE.clear()
+        g.leere_cache()
     assert c.identitaet.mehrklassen_anzeige == "Mönch 3 / Schurke 2 (Monk 3 / Rogue 2)"
     assert c.identitaet.stufe == 5                       # Summe, regeldefiniert
     assert c.identitaet.klasse is None                   # Beleg-Semantik unveraendert
@@ -361,11 +361,11 @@ def test_mehrklassen_anzeige_und_stufensumme(con):
 def test_mehrklassen_unbelegte_klasse_bleibt_englisch(con):
     # 'Rogue' ist hier NICHT belegt -> Teil bleibt englisch, kein Raten
     from app import glossar as g
-    g._GLOSSAR_CACHE.clear()
+    g.leere_cache()
     try:
         c = uebersetze(_mehrklassen_charakter(), con, FakeProvider())
     finally:
-        g._GLOSSAR_CACHE.clear()
+        g.leere_cache()
     assert c.identitaet.mehrklassen_anzeige == "Mönch 3 / Rogue 2 (Monk 3 / Rogue 2)"
     assert c.identitaet.stufe == 5
 

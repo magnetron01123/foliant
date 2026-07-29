@@ -94,3 +94,68 @@ def test_p2_glossar_cache_invalidiert_nach_aenderung(bestand):
         assert zeilen and zeilen[0]["term_en"] == "Fireball"         # Cache invalidiert
     finally:
         con.close()
+
+
+def test_kategorien_stehen_ueberall_gleich():
+    """Die acht Kategorien sind ein geschlossener Vertrag und stehen an DREI Orten:
+    db.KATEGORIEN (Laufzeit-Validierung), das Literal in nachschlagen (daraus erzeugt
+    FastMCP das Enum-Schema fuer den Client) und der CHECK in db/schema.sql.
+
+    Driftet einer, entsteht genau die Fehlerklasse aus SYN-P0-006, nur eine Ebene tiefer:
+    entweder gibt es Inhalte, die kein Tool abfragen kann, oder ein Tool bietet eine
+    Kategorie an, die der Schema-CHECK beim Import ablehnt. Beides faellt sonst erst
+    am Bestand auf. Das Literal muss literal bleiben - aus einem Tupel gebaut erzeugte
+    FastMCP kein Enum -, also prueft der Test die Gleichheit, statt sie zu erzwingen."""
+    import re
+    import typing
+
+    literal = set(typing.get_args(ns.Kategorie))
+    assert literal == set(adb.KATEGORIEN), (
+        f"nachschlagen.Kategorie vs. db.KATEGORIEN: "
+        f"nur im Literal {sorted(literal - set(adb.KATEGORIEN))}, "
+        f"nur in db {sorted(set(adb.KATEGORIEN) - literal)}")
+
+    sql = _SCHEMA.read_text(encoding="utf-8")
+    block = re.search(r"kategorie\s+TEXT NOT NULL CHECK \(kategorie IN\s*\((.*?)\)\)",
+                      sql, re.S)
+    assert block, "CHECK-Constraint fuer kategorie in db/schema.sql nicht gefunden"
+    im_schema = set(re.findall(r"'([^']+)'", block.group(1)))
+    assert im_schema == set(adb.KATEGORIEN), (
+        f"db/schema.sql vs. db.KATEGORIEN: "
+        f"nur im Schema {sorted(im_schema - set(adb.KATEGORIEN))}, "
+        f"nur in db {sorted(set(adb.KATEGORIEN) - im_schema)}")
+
+
+def test_artefaktvertrag_kennt_dieselben_kategorien():
+    """`importer/ddb_artefakt.KATEGORIEN_ERLAUBT` ist die fuenfte Stelle mit den acht
+    Kategorien - und bleibt bewusst eine eigene: das Modul ist der ARTEFAKTVERTRAG und
+    ausdruecklich architekturneutral (es laeuft im Exporter-Container, der die Foliant-DB
+    gar nicht sieht). Ein Import von app.db waere dort die falsche Abhaengigkeit.
+
+    Stimmen muessen sie trotzdem: kennt der Vertrag eine Kategorie weniger, kann der
+    Exporter sie nie liefern; kennt er eine mehr, schreibt der Offline-Import einen Wert,
+    den der Schema-CHECK ablehnt. Also ein Waechter statt einer Kopplung."""
+    from importer.ddb_artefakt import KATEGORIEN_ERLAUBT
+
+    assert KATEGORIEN_ERLAUBT == set(adb.KATEGORIEN), (
+        f"Artefaktvertrag vs. db.KATEGORIEN: "
+        f"nur im Vertrag {sorted(KATEGORIEN_ERLAUBT - set(adb.KATEGORIEN))}, "
+        f"nur in db {sorted(set(adb.KATEGORIEN) - KATEGORIEN_ERLAUBT)}")
+
+
+def test_ddb_editionsnamen_stimmen_mit_den_aliassen():
+    """Dass D&D Beyond 2024 als '5.5e' und 2014 als '5e' fuehrt, ist EIN externer Fakt
+    (SPEC.md §13) - er steht aber an zwei Stellen: `db.EDITION_ALIASSE` (Nutzereingabe in
+    der Suche) und `ddb_exporter.katalog._EDITION_PREFIX` (Buch-Kategorie beim Export).
+
+    Zusammengelegt werden sie NICHT: die Katalog-Fassung ist eine geordnete Liste, weil
+    sie per PRAEFIX matcht und '5.5e' vor '5e' geprueft werden muss - eine Ableitung aus
+    dem Dict muesste diese Ordnung durch Sortieren wiederherstellen und waere fragiler als
+    zwei klare Listen. Der Waechter genuegt: eine kuenftige Edition darf nicht in nur
+    einer der beiden landen."""
+    from importer.ddb_exporter.katalog import _EDITION_PREFIX
+
+    assert dict(_EDITION_PREFIX) == adb.EDITION_ALIASSE
+    # Praefix-Ordnung ist Semantik, nicht Kosmetik: '5e' zuerst wuerde '5.5e' schlucken.
+    laengen = [len(p) for p, _ in _EDITION_PREFIX]
+    assert laengen == sorted(laengen, reverse=True), "laengster Praefix muss zuerst stehen"

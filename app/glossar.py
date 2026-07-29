@@ -70,6 +70,16 @@ _norm = norm_begriff
 # gemischtem Bestand der Altstand-Fallback ('Erschöpfung' -> 2014-'Exhaustion').
 KLAMMER_SUFFIX = re.compile(r"\s*\([^()]{1,40}\)\s*$")
 
+# Herkunfts-Label der 2024-Aktionszeilen (glossar.quelle). Es steht hier statt beim Seeder,
+# weil es SCHREIBER und LESER verbindet: `importer/import_glossar.seed_aktionen` setzt es,
+# der Charakterbogen-Uebersetzer holt genau diese Zeilen wieder heraus. Deren EN-Lemmata
+# (Attack, Magic, Hide ...) sind Alltagswoerter und deshalb in _HOMONYM_STOP - der
+# Inline-Annotator findet sie also NIE, der Bogen braucht sie aber (C4: amtliche Begriffe
+# schlagen Modelluebersetzungen). Bis zum 29.07.2026 stand der String im Uebersetzer als
+# Literal: haette der Seeder sein Label geaendert, waeren die 2024-Aktionsnamen dort still
+# ausgefallen - ohne Fehler, nur mit schlechterem Deutsch auf dem gedruckten Bogen.
+QUELLE_AKTIONEN = "SRD 5.2.1 (Aktionen)"
+
 # SYN-P2-004 (codex TECH-013): jeder Glossarpfad (lookup, exakte_entsprechungen,
 # _brueckennamen) las bisher die KOMPLETTE Tabelle pro Aufruf - eine Suche loest 5-8
 # Voll-Scans aus, die mit dem Vollseeding (~1.400 Zeilen) linear teurer werden. Cache
@@ -80,6 +90,25 @@ _GLOSSAR_CACHE: dict[tuple, list[dict]] = {}
 _INDEX_CACHE: dict[tuple, dict[tuple[str, str], list[dict]]] = {}
 # Namens-/Fuzzy-Schluessel je Spalte (s. _namen_index) - ebenfalls an die DB-Signatur gebunden.
 _NAMEN_CACHE: dict[tuple, dict[str, tuple]] = {}
+
+
+def leere_cache() -> None:
+    """Alle drei Glossar-Caches verwerfen - nach einem SCHREIBZUGRIFF auf die Tabelle.
+
+    Der Normalfall braucht das nicht: die Signatur (_db_signatur) enthaelt mtime und
+    Zeilenzahl und faellt nach einem Import von selbst. INNERHALB einer offenen
+    Schreibtransaktion greift das aber nicht zuverlaessig - die Datei-mtime steht noch,
+    und ein Seeder, der nur bestehende Zeilen AENDERT, laesst auch die Zeilenzahl gleich.
+    Genau dort ruft die Glossar-Kette diese Funktion (importer/import_glossar.py): ein
+    Folge-Seeder muss sehen, was sein Vorgaenger geschrieben hat.
+
+    Die Zusage steht hier, weil sie nur hier einloesbar ist: _INDEX_CACHE und _NAMEN_CACHE
+    sind aus den Zeilen ABGELEITET und muessen mitfallen. Bis zum 29.07.2026 leerte
+    import_glossar an zehn Stellen `_GLOSSAR_CACHE` direkt - das funktionierte, aber nur
+    ueber den Umweg, dass _alle_zeilen die beiden anderen beim Neuaufbau mitleert."""
+    _GLOSSAR_CACHE.clear()
+    _INDEX_CACHE.clear()
+    _NAMEN_CACHE.clear()
 
 
 def _db_signatur(con: sqlite3.Connection) -> tuple:
