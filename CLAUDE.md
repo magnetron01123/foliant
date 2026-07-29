@@ -2,7 +2,7 @@
 
 Foliant ist ein self-hosted MCP-Server: **Regel-Nachschlagewerk für D&D 5e (Fassung 2024),
 Deutsch-first**, plus ein Charakterbogen-Übersetzer als zweiter Dienst. **MVP komplett und
-live** auf dem Pi (`pi@<pi-host>`, `~/foliant`).
+live** auf dem Pi (SSH-Ziel: `PI=` in der `.env`; Verzeichnis `~/foliant`).
 
 **Die Dokumentation besteht aus genau vier Dateien. Halte es dabei — nichts Neues anlegen:**
 
@@ -40,7 +40,7 @@ für Davids Claude-Projekt steht in `config/projektanweisung.md` (Wegweiser: `SP
 - **Einzelne Dienste nur mit `--no-deps` bauen** — sonst startet `depends_on` den Live-MCP durch.
 - **`make test` ist das EINE Gate**, aber die lokale Dev-DB ist oft nur ein SUBSET → bei
   korpusabhängigen Fällen trügerisch grün. Nach jedem Deploy / srd-de-Re-Import zusätzlich
-  **`make test-golden-pi PI=pi@<host>`**.
+  **`make test-golden-pi`**.
 - **`rsync` aufs Pi nie mit `--delete` und nie mit `data/`** — die Mac-DB würde den vollen
   Bestand überschreiben, gitignorierte Privatmodule verschwänden.
 - **Facetten nie über einen Re-Import nachziehen**, sondern mit

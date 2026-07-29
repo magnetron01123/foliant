@@ -9,7 +9,7 @@
 # gruen. Nach jedem Deploy / srd-de-Re-Import daher zusaetzlich `make test-golden-pi` gegen
 # den VOLLEN Bestand fahren (CONCEPT.md §8).
 
-.PHONY: test test-haupt test-ddb test-daten test-golden-pi lasttest-pi
+.PHONY: test test-haupt test-ddb test-daten test-golden-pi lasttest-pi deploy-pi
 
 test: test-haupt test-ddb test-daten
 	@echo "OK: alle Test-Stufen bestanden."
@@ -33,25 +33,54 @@ test-daten:
 		echo "Hinweis: keine data/foliant.sqlite - Daten-Stufe uebersprungen (Dev ohne Bestand)."; \
 	fi
 
+# Das SSH-Ziel des Pi steht EINMAL in .env (gitignored, Vorlage in .env.example) - hier
+# stand frueher ein Platzhalter, der bei jedem Aufruf ueberschrieben werden musste. Warum
+# nicht in der Doku: das Repository ist oeffentlich und die Betreiber-Angaben sind bewusst
+# anonymisiert. Einmalig uebersteuern geht weiter: `make <ziel> PI=pi@<host>`.
+# Bewusst NICHT `include .env`: das zoege alle Secrets in jede Make-Umgebung.
+PI ?= $(strip $(shell sed -n 's/^[[:space:]]*PI=[[:space:]]*//p' .env 2>/dev/null | tail -1))
+
+.PHONY: _pi-ziel
+_pi-ziel:
+	@test -n "$(PI)" || { \
+	  echo "FEHLER: kein Pi-Ziel gesetzt."; \
+	  echo "  Einmalig in .env eintragen:   PI=pi@<host>"; \
+	  echo "  oder einmalig mitgeben:       make <ziel> PI=pi@<host>"; \
+	  exit 1; }
+
+# Kanonischer Deploy (CONCEPT.md §9) als EIN Befehl - vorher drei Zeilen zum Abtippen,
+# von denen die erste zwei Fussangeln hat: kein --delete und kein data/, sonst
+# ueberschreibt das Mac-Subset den Pi-Vollbestand und die gitignorierten Privatmodule
+# verschwinden. Die Ausschluesse stehen deshalb hier im Code statt als Warnung daneben.
+# Der Rebuild ist zwingend (der Code ist ins Image gebacken), und die Golden-Suite gegen
+# den Vollbestand ist laut CONCEPT.md §11 Pflicht NACH jedem Deploy - deshalb haengt sie
+# hier dran, statt vergessen werden zu koennen.
+.PHONY: deploy-pi
+deploy-pi: _pi-ziel
+	rsync -a --exclude '.git' --exclude '.venv*' --exclude 'data' --exclude 'quellen' \
+	      --exclude 'config/foliant.toml' --exclude '.env' --exclude '.claude' \
+	      ./ $(PI):~/foliant/
+	ssh $(PI) 'cd ~/foliant && docker compose up -d --build foliant'
+	@echo "--- Rebuild durch, jetzt die Pflicht-Pruefung am Vollbestand ---"
+	$(MAKE) test-golden-pi PI=$(PI)
+
 # Golden-Suite gegen den VOLLEN Bestand im Pi-Container (Regel-Semantik am echten Korpus,
-# nicht am Mac-Subset). PI = SSH-Ziel des Pi (Default-Platzhalter; mit der echten LAN-Adresse
-# ueberschreiben: `make test-golden-pi PI=pi@<host>`). Pflicht nach Deploy / srd-de-Re-Import.
-PI ?= pi@raspberrypi.local
-test-golden-pi:
+# nicht am Mac-Subset). Pflicht nach Deploy / srd-de-Re-Import.
+test-golden-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T -w /app foliant python -m pytest -q tests/test_golden_bestand.py'
 
 # B9 unter Sessionlast: Antwortzeiten bei mehreren gleichzeitigen Spielern, gegen den
 # VOLLEN Pi-Korpus. Rein lesend, gefahrlos neben dem Live-Betrieb. Exitcode != 0, wenn
 # p95 die Grenze reisst - der Lauf ist damit auch als Regressionswaechter brauchbar.
-lasttest-pi:
+lasttest-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T -w /app foliant python -m evals.lasttest'
 
 # Schicht-3-Verhaltens-Evals gegen den VOLLEN Pi-Korpus (BACKLOG.md par. 2). Kostet echte
 # API-Tokens (~15 Faelle x 3-5 Runden). Der Key wird NUR fuer den Einmal-Exec injiziert -
 # der Serving-Container traegt dauerhaft keinen (bewusst, docker-compose.yml). Aufruf:
-#   ANTHROPIC_API_KEY=sk-... make eval-verhalten-pi PI=pi@<host>
+#   ANTHROPIC_API_KEY=sk-... make eval-verhalten-pi
 .PHONY: eval-verhalten-pi
-eval-verhalten-pi:
+eval-verhalten-pi: _pi-ziel
 	@test -n "$$ANTHROPIC_API_KEY" || { echo "FEHLER: ANTHROPIC_API_KEY fehlt."; exit 1; }
 	ssh $(PI) "cd ~/foliant && docker compose exec -T -e ANTHROPIC_API_KEY=$$ANTHROPIC_API_KEY -w /app foliant python -m evals.verhaltens_eval $(EVAL_ARGS)"
 
@@ -63,7 +92,7 @@ eval-verhalten-pi:
 # ueber die sqlite3-CLI scheiterte, weil sie auf dem Pi-HOST nicht installiert ist
 # (nur im Container). Der Download (~10 MB) laeuft gegen die Online-DB - fuer die reine
 # glossar-Uebernahme unkritisch (Tabelle aendert sich nur bei admin-glossar-Laeufen).
-glossar-vom-pi:
+glossar-vom-pi: _pi-ziel
 	@test -f data/foliant.sqlite || (echo "FEHLER: keine data/foliant.sqlite"; exit 1)
 	scp $(PI):foliant/data/foliant.sqlite .glossar_pi.sqlite
 	@test -s .glossar_pi.sqlite || (echo "FEHLER: leerer Download vom Pi"; rm -f .glossar_pi.sqlite; exit 1)
