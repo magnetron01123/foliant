@@ -266,6 +266,30 @@ Bestandskorrektur nachziehen (M5).
 
 ### Lauf-Protokoll
 
+**29.07.2026 · Pi-Vollbestand nach der strukturellen Konsolidierung · deployed und
+nachgemessen.** Golden-Suite **16/16**, `admin check` OK, Bestand **unverändert bei 12 503
+Einträgen** (`inhalts_hash e1c9fd188a6da4de`, Glossar 3192 — identisch zum Stand vor dem
+Deploy, wie es bei reinen Code-Änderungen sein muss). Facetten-Deckung unverändert
+94/91/34 %. `/health` und `/ready` je 200 (12 503), alle fünf Container gesund.
+
+Über den Tunnel geprüft: `https://dnd.magnetron.me/health` → 200 in 0,14 s;
+`/mcp` von fremder IP → **403** (IP-Allowlist greift).
+
+*B9 unter Sessionlast, nach der Konsolidierung:*
+
+| gleichzeitige Spieler | p50 | p95 | Aufrufe/s |
+|---|---|---|---|
+| 1 | 41 ms | 88 ms | 23 |
+| 2 | 51 ms | 115 ms | 34 |
+| 4 | 87 ms | **211 ms** | 40 |
+| 8 | 197 ms | **514 ms** | 32 |
+
+Deckt sich mit der Messung vom 28.07. (191/546 ms) — die Konsolidierung hat die Laufzeit
+weder verbessert noch verschlechtert, was das Ziel war.
+
+Gefahren mit `make deploy-pi` (seit diesem Stand der eine Weg: rsync → Rebuild →
+Golden-Suite in einem Befehl).
+
 **28.07.2026 · Pi-Vollbestand nach Phase 5 · deployed und nachgemessen.**
 Golden-Suite **16/16**, `admin check` OK, Bestand unverändert bei 12 503 Einträgen.
 Die neue Spalte `eintraege.kontext` wurde beim ersten Admin-Lauf migriert und aus dem Body
