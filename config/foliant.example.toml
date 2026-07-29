@@ -64,7 +64,10 @@ prioritaet = 60          # geringer als deutsche Quellen -> fuellt Luecken, gewi
 [ddb]
 artifact_dir = "data/private/ddb-artifacts"
 work_dir = "data/private/ddb-work"
-min_reimport_ratio = 0.70
+# Der Schrumpf-Schutz des DDB-Re-Imports ist NICHT konfigurierbar: alle Plausibilitaets-
+# Schwellen stehen seit Phase 4 an EINER Stelle (importer/schwellen.py). Hier stand bis
+# zum 29.07.2026 ein 'min_reimport_ratio = 0.70' - dieselbe Zahl, aber von keinem
+# Codepfad gelesen. Wer ihn bewusst uebergehen will, nimmt --force.
 
 # ZIEL des DDB-Imports:
 # - Standard (Vorsicht, B2): separate private DB, vom oeffentlichen Endpoint NICHT bedient.

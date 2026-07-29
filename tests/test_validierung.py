@@ -124,3 +124,38 @@ def test_kategorien_stehen_ueberall_gleich():
         f"db/schema.sql vs. db.KATEGORIEN: "
         f"nur im Schema {sorted(im_schema - set(adb.KATEGORIEN))}, "
         f"nur in db {sorted(set(adb.KATEGORIEN) - im_schema)}")
+
+
+def test_artefaktvertrag_kennt_dieselben_kategorien():
+    """`importer/ddb_artefakt.KATEGORIEN_ERLAUBT` ist die fuenfte Stelle mit den acht
+    Kategorien - und bleibt bewusst eine eigene: das Modul ist der ARTEFAKTVERTRAG und
+    ausdruecklich architekturneutral (es laeuft im Exporter-Container, der die Foliant-DB
+    gar nicht sieht). Ein Import von app.db waere dort die falsche Abhaengigkeit.
+
+    Stimmen muessen sie trotzdem: kennt der Vertrag eine Kategorie weniger, kann der
+    Exporter sie nie liefern; kennt er eine mehr, schreibt der Offline-Import einen Wert,
+    den der Schema-CHECK ablehnt. Also ein Waechter statt einer Kopplung."""
+    from importer.ddb_artefakt import KATEGORIEN_ERLAUBT
+
+    assert KATEGORIEN_ERLAUBT == set(adb.KATEGORIEN), (
+        f"Artefaktvertrag vs. db.KATEGORIEN: "
+        f"nur im Vertrag {sorted(KATEGORIEN_ERLAUBT - set(adb.KATEGORIEN))}, "
+        f"nur in db {sorted(set(adb.KATEGORIEN) - KATEGORIEN_ERLAUBT)}")
+
+
+def test_ddb_editionsnamen_stimmen_mit_den_aliassen():
+    """Dass D&D Beyond 2024 als '5.5e' und 2014 als '5e' fuehrt, ist EIN externer Fakt
+    (SPEC.md §13) - er steht aber an zwei Stellen: `db.EDITION_ALIASSE` (Nutzereingabe in
+    der Suche) und `ddb_exporter.katalog._EDITION_PREFIX` (Buch-Kategorie beim Export).
+
+    Zusammengelegt werden sie NICHT: die Katalog-Fassung ist eine geordnete Liste, weil
+    sie per PRAEFIX matcht und '5.5e' vor '5e' geprueft werden muss - eine Ableitung aus
+    dem Dict muesste diese Ordnung durch Sortieren wiederherstellen und waere fragiler als
+    zwei klare Listen. Der Waechter genuegt: eine kuenftige Edition darf nicht in nur
+    einer der beiden landen."""
+    from importer.ddb_exporter.katalog import _EDITION_PREFIX
+
+    assert dict(_EDITION_PREFIX) == adb.EDITION_ALIASSE
+    # Praefix-Ordnung ist Semantik, nicht Kosmetik: '5e' zuerst wuerde '5.5e' schlucken.
+    laengen = [len(p) for p, _ in _EDITION_PREFIX]
+    assert laengen == sorted(laengen, reverse=True), "laengster Praefix muss zuerst stehen"

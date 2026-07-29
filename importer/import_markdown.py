@@ -30,7 +30,7 @@ vorherigen Eintrag des Kapitels angehaengt.
 
 RE-IMPORT IDEMPOTENT UND VERLUSTSICHER (A7): Das Markdown wird VOLLSTAENDIG geparst,
 BEVOR irgendetwas geloescht wird. Null Chunks oder ein unplausibler Schrumpf (unter
-SCHRUMPF_SCHWELLE des Altbestands, ohne erlaube_schrumpfen) brechen ab - der alte
+schwellen.SCHRUMPF_SCHWELLE des Altbestands, ohne erlaube_schrumpfen) brechen ab - der alte
 Bestand bleibt unangetastet. Die Funktion committet NICHT selbst: der AUFRUFER fuehrt
 die Transaktion (z. B. `with con: importiere_markdown(...)`), damit Loeschen, Einfuegen
 und FTS-Rebuild atomar zusammen landen oder zusammen zurueckrollen."""
@@ -57,8 +57,10 @@ SKIP_NAMEN: dict[str, "re.Pattern[str]"] = {
 }
 _MIN_BODY = 1            # leere Abschnitte (reine Kapitel-Deckblaetter) ueberspringen
 # Die Plausibilitaets-Schwellen liegen seit Phase 4 gesammelt in importer/schwellen.py
-# (Befund D3). Der Name bleibt hier als Re-Export, weil import_open5e ihn von hier holt.
-SCHRUMPF_SCHWELLE = _schwellen.SCHRUMPF_SCHWELLE
+# (Befund D3); dieses Modul prueft ueber _schwellen.pruefe_umfang. Ein Re-Export
+# SCHRUMPF_SCHWELLE stand hier bis zum 29.07.2026 mit der Begruendung, import_open5e hole
+# ihn von hier - das stimmte nicht mehr (der nimmt schwellen direkt), und kein Codepfad
+# las ihn. Wer den Wert braucht, nimmt importer/schwellen.py.
 
 
 class Importbilanz:
@@ -615,7 +617,7 @@ def importiere_markdown(con: sqlite3.Connection, quelle_kuerzel: str, markdown: 
     """Chunkt Markdown und schreibt Einträge mit Quelle/Seite/Version. edition Pflicht.
     split_regeln: explizit oder automatisch aus SPLIT_REGELN[quelle_kuerzel].
     A7: parst vollstaendig VOR dem Loeschen; 0 Chunks oder unplausibles Schrumpfen
-    (< SCHRUMPF_SCHWELLE des Altbestands ohne erlaube_schrumpfen) -> ValueError, der
+    (< schwellen.SCHRUMPF_SCHWELLE des Altbestands ohne erlaube_schrumpfen) -> ValueError, der
     alte Bestand bleibt. COMMITTET NICHT - der Aufrufer fuehrt die Transaktion
     (`with con: ...`). Gibt die Zahl importierter Einträge zurück."""
     if not edition:
