@@ -36,7 +36,8 @@ dist/
 # ---------------------------------------------------------------------------
 # PRIVAT — aus DDB-Kaufbuechern abgeleitete Druck-Reparaturen (nicht im oeffentlichen
 # Repo; privater Eigenbedarf, DDB-ToS). Der oeffentliche Code laedt sie optional und
-# bleibt ohne sie voll nutzbar (nur die srd-de/CC-BY-Pipeline). Siehe SECURITY.md.
+# bleibt ohne sie voll nutzbar (nur die srd-de/CC-BY-Pipeline). Siehe CONCEPT.md §13
+# (Sicherheitsmodell) - das fruehere SECURITY.md ging in der Doku-Konsolidierung auf.
 importer/frhof_reparatur.py
 importer/reparatur_ddb_privat.py
 tests/test_ddb_druck_privat.py
