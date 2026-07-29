@@ -436,9 +436,36 @@ Bestandszeile angefasst.
   `schema.sql`); ein Wächter für **Kanal 3** der Verhaltensregeln — laut §7 der zuverlässigste
   und bis dahin der einzige ungeschützte.
 
+**Zweiter Durchgang** über die im ersten Lauf nur überflogenen Bereiche (Charakterbogen,
+Discord-Bot, DDB-Exporter, hintere Hälfte der Admin-CLI) — dieselbe Fehlerklasse, vier
+weitere Fälle:
+
+- **`QUELLE_AKTIONEN`** stand im Seeder als Konstante, im Charakterbogen-Übersetzer als
+  Literal. Dessen EN-Lemmata (Attack, Magic, Hide …) sind Alltagswörter und deshalb
+  Homonym-gestoppt — das Label ist der **einzige** Weg, wie die amtlichen 2024-Aktionsnamen
+  auf den Bogen kommen (C4). Ein geändertes Label hätte sie still ausfallen lassen: kein
+  Fehler, nur schlechteres Deutsch auf dem Ausdruck. Jetzt `app.glossar.QUELLE_AKTIONEN`.
+- **Das Standardmodell** stand doppelt (Discord-Bot, Eval). Ihre *Gleichheit* ist eine
+  Zusage — M6 begründet das Bot-Verhalten mit dem gemessenen Eval-Lauf. Jetzt
+  `app.llm.STANDARD_MODELL`; der Charakterbogen behält bewusst **keinen** Default.
+- **`min_reimport_ratio`** stand in der Config-Vorlage, wurde aber **nie gelesen** (der Wert
+  ist `schwellen.DDB_SCHRUMPF_SCHWELLE`). Entfernt statt verdrahtet: Phase 4 hat die
+  Schwellen bewusst an einer Stelle gebündelt, `--force` deckt den Absichtsfall ab.
+- **Toter Re-Export** `import_markdown.SCHRUMPF_SCHWELLE` mit falscher Begründung — plus ein
+  Test, der ihn festnagelte.
+
+Zwei weitere Doppelungen bekamen einen **Wächter statt einer Kopplung**, weil die zweite
+Kopie Absicht ist: `ddb_artefakt.KATEGORIEN_ERLAUBT` (der Artefaktvertrag ist
+architekturneutral und läuft im Exporter-Container ohne DB) und `katalog._EDITION_PREFIX`
+(geordnete Präfixliste, `5.5e` muss vor `5e` geprüft werden).
+
 Bewusst **nicht** angefasst: die zwei Prompt-Kanäle (verschiedene Adressaten, SPEC §7),
 `fingerabdruck` neben `kopf_felder` (CONCEPT §12), die Größe von `nachschlagen.py`, die
-absichtlich schwächeren `_norm`-Kopien, `config/foliant.toml` als maschinenlokale Datei.
+absichtlich schwächeren `_norm`-Kopien, `config/foliant.toml` als maschinenlokale Datei,
+`abenteuer_setting` als Literal an vier Stellen (durch `tests/test_suchausgabe.py` und
+`tests/test_import_ddb.py` **verhaltensseitig** abgedeckt — besser als eine geteilte
+Konstante), die drei Attributs-Mappings (verschiedene Zielvokabulare, keine gemeinsame
+Regel).
 
 **Import-/Datenbank-Review + fünfphasiger Umbau (28.07.2026)** — drei parallele Code-Analysen
 plus eigene Messungen am Pi-Vollbestand. Kernergebnis: die *Daten* waren besser als erwartet;
