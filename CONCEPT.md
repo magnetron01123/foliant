@@ -466,6 +466,23 @@ statt auf einen Platzhalter zu laufen.
 > deshalb stehen die Ausschlüsse im `Makefile` und nicht als Warnung neben einer
 > Kommandozeile zum Abtippen.
 
+**Der Preis dieser Regel: der Deploy fügt hinzu und aktualisiert, er entfernt nie.** Eine
+im Repository gelöschte Datei bleibt auf dem Pi liegen — und weil das Image sie per
+`COPY . .` einbackt, landet sie auch im Container. Am 29.07.2026 nachgemessen: **54
+verwaiste Einträge**, die älteste Schicht stammt aus der Doku-Konsolidierung vom 25.07.
+(das komplette alte `docs/`-Verzeichnis).
+
+Meist ist das harmlos (Markdown), aber **verwaister Python-Code ist es nicht** — er ist
+importierbar. Deshalb nach dem Entfernen einer `.py`-Datei einmal nachsehen:
+```sh
+# Trockenlauf, loescht nichts - listet nur, was auf dem Pi liegt und lokal fehlt:
+rsync -ani --delete <dieselben --exclude wie in make deploy-pi> ./ $PI:~/foliant/ | grep deleting
+```
+Aufräumen dann **gezielt von Hand**, nie per `--delete`: auf dem Pi liegen auch eigene
+Sicherungen des Betreibers (`.env.save`, `config/foliant.toml.bak-*`), die ein pauschaler
+Lauf mitnähme. Wer etwas entfernt, legt es besser beiseite (`mv ~/foliant-entfernt-<datum>/`)
+als es zu löschen, und baut danach neu.
+
 ### Discord-Bot einrichten (einmalig)
 
 1. **Entwicklerportal** (discord.com/developers): Application anlegen → *Bot* →
