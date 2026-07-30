@@ -430,7 +430,9 @@ def foliant_hol_attributswerte(attributsmethode: Literal["standard_array",
     danach foliant_pruefe_build aufrufen.
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen; Deutsch-first."""
     if attributsmethode not in ("standard_array", "point_buy"):
-        return {"fehler": "attributsmethode muss 'standard_array' oder 'point_buy' sein"}
+        return {"fehler": f"Unbekannte attributsmethode {attributsmethode!r} - gueltig: "
+                          f"'standard_array', 'point_buy'.",
+                "hinweis": _ns._HINWEIS_PARAMETER}
     beleg, kosten_geprueft = _attributsregel_beleg(attributsmethode)
     if beleg is None:
         return {"verfuegbar": False, "methode": attributsmethode,

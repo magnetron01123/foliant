@@ -63,8 +63,9 @@ def _zitat(e: dict) -> str:
 def _knapp(t: dict, con: sqlite3.Connection | None = None) -> dict:
     """Knapper Suchtreffer (BP #1): Name, Auszug, Quelle, ggf. Seite, Version.
     eintrag_id/quelle_kuerzel (SYN-P1-002): stabile Referenz - ein ausgewaehlter
-    Treffer laesst sich per foliant_hol_*(eintrag_id=...) EXAKT nachladen, statt ueber
-    den Namen erneut zu raten (der Rundlauf wechselte sonst still die Quelle).
+    Treffer laesst sich per foliant_hol_eintrag(kategorie, eintrag_id=...) EXAKT
+    nachladen, statt ueber den Namen erneut zu raten (der Rundlauf wechselte sonst still
+    die Quelle).
 
     Review 28.07.2026 - der Suchtreffer trug drei Dinge nicht, die die Verhaltensregeln
     voraussetzen:
@@ -191,6 +192,10 @@ def _name_score(k: dict, ziele: set[str]) -> float:
     return best
 
 
+# Herausforderungsgrad, wie die Statbloecke ihn fuehren: ganze Zahl oder Bruch.
+_HG_FORMAT = re.compile(r"\d+(?:/\d+)?")
+
+
 def _facetten_vorbereiten(kategorie, grad, schule, klasse, schadensart, hg, typ):
     """Validiert die STRUKTUR-Filter und baut ein Praedikat body->bool (fuer #3, in die
     Suche gefaltet). Liefert (praedikat|None, kategorie|None, echo, fehler_antwort|None).
@@ -233,7 +238,20 @@ def _facetten_vorbereiten(kategorie, grad, schule, klasse, schadensart, hg, typ)
                     "hinweis": "Gueltige Schadensart aus 'gueltige_schadensarten' nutzen."}
         echo["schadensart"] = schaden_key
     if hg:
-        echo["hg"] = str(hg).strip()
+        # Befund 30.07.2026: hg ging als EINZIGER Facetten-Parameter ungeprueft durch,
+        # waehrend schule, schadensart und typ einen strukturierten Fehler liefern.
+        # 'abc' erzeugte deshalb keinen Parameterfehler, sondern einen ehrlich klingenden
+        # Nulltreffer ("Kein Eintrag passt auf ALLE Filter") - genau die Antwortklasse,
+        # gegen die SYN-P0-006 angetreten ist. Erlaubt ist der Herausforderungsgrad als
+        # ganze Zahl oder Bruch, wie ihn die Statbloecke fuehren ('1', '1/4', '0').
+        hg_text = str(hg).strip()
+        if not _HG_FORMAT.fullmatch(hg_text):
+            return None, None, {}, {
+                "treffer": [], "fehler": f"unbekannter Herausforderungsgrad {hg!r}",
+                "hinweis": "hg ist der Herausforderungsgrad als ganze Zahl oder Bruch, "
+                           "z. B. '0', '1', '1/4', '1/2'. Ungueltiger PARAMETER - das ist "
+                           "KEIN 'nicht im Bestand' (B1/B4)."}
+        echo["hg"] = hg_text
     if typ:
         typ_key = _facetten.typ_schluessel(typ)
         if not typ_key:
@@ -586,8 +604,9 @@ def foliant_suche_bestand(suchbegriff: str | None = None, kategorie: Kategorie |
                           hg: str | None = None, typ: str | None = None) -> dict:
     """Findet Eintraege im GESAMTEN Bestand - per Freitext ODER per STRUKTUR-Filter (oder
     beides kombiniert). Liefert KNAPPE Treffer (Name, Auszug, Quelle, ggf. Seite,
-    Regelversion; Zauber/Monster zusaetzlich 'kurzinfo' mit Grad bzw. HG) - Details per
-    foliant_hol_*.
+    Regelversion; Zauber/Monster zusaetzlich 'kurzinfo' mit Grad bzw. HG) - den vollen
+    Text eines Treffers holt foliant_hol_eintrag (dessen `kategorie` und `eintrag_id`
+    stehen an jedem Treffer).
     - Freitext: `suchbegriff` deutsch ODER englisch, auch Abkuerzungen (AoO) und Tippfehler.
     - Struktur-Filter (fuer 'welche Grad-1-Feuerzauber kann ein Hexenmeister lernen?', die
       der Freitext nur zufaellig trifft): Zauber ueber grad (0-9, 0=Zaubertrick), schule,
@@ -875,8 +894,10 @@ def _hole_detail(kategorie: str, name: str | None = None,
                  edition: str = _db.STANDARD_EDITION,
                  aggregiere_kinder: bool = False,
                  eintrag_id: int | None = None) -> dict:
-    """Protokollierender Mantel um _hole_detail_impl - EIN Hook deckt alle acht
-    foliant_hol_*-Tools (nachschlagen.py UND charakter.py delegieren hierher)."""
+    """Protokollierender Mantel um _hole_detail_impl - EIN Hook fuer den gesamten
+    Detailpfad. Seit der Zusammenlegung auf foliant_hol_eintrag gibt es nur noch einen
+    oeffentlichen Aufrufer; das Protokoll bleibt kategoriebasiert (werkzeug=hol_<kategorie>),
+    damit der Suchbericht ueber den Umbau hinweg vergleichbar bleibt."""
     start = time.monotonic()
     antwort = _hole_detail_impl(kategorie, name, edition, aggregiere_kinder, eintrag_id)
     if eintrag_id is not None:
@@ -918,10 +939,16 @@ def _detail_per_id(con, kategorie: str, eintrag_id: int,
                 "fehler": f"eintrag_id {eintrag_id} existiert nicht (Referenz "
                           f"veraltet? Neu suchen)."}
     if voll["kategorie"] != kategorie:
+        # Selbstkorrigierend formuliert: der Aufruf ist bis auf EIN Feld richtig, also
+        # nennt die Meldung den Wert, der dort hingehoert. Der alte Wortlaut ('passendes
+        # foliant_hol_* nutzen') stammte aus der Zeit der acht Detail-Werkzeuge und
+        # schickte das Modell zu einem Werkzeug, das es nicht mehr gibt.
         return {"gefunden": False,
                 "fehler": f"eintrag_id {eintrag_id} ist Kategorie "
-                          f"'{voll['kategorie']}' - dieses Werkzeug liefert "
-                          f"'{kategorie}' (passendes foliant_hol_* nutzen)."}
+                          f"'{voll['kategorie']}', angefragt war '{kategorie}' - "
+                          f"denselben Aufruf mit kategorie='{voll['kategorie']}' "
+                          f"wiederholen.",
+                "hinweis": _HINWEIS_PARAMETER}
     voll, _kinder = _mit_kindern(con, voll, aggregiere_kinder)
     return {"gefunden": True, **_detail(voll, con)}
 
@@ -1081,6 +1108,14 @@ def _quellabweichungen(con, voll: dict, gewaehlt: dict, exakt: list[dict],
     return konflikte, fremdsprachige
 
 
+# Derselbe Satz an jeder Stelle, die einen PARAMETER-Fehler meldet (SYN-P0-006): das
+# Modell muss ihn von einem echten Leerbefund unterscheiden koennen, sonst meldet es dem
+# Nutzer eine Fehlanzeige fuer Inhalte, die es gibt.
+_HINWEIS_PARAMETER = ("Ungueltiger PARAMETER - das ist KEIN 'nicht im Bestand'. Aufruf mit "
+                      "einem gueltigen Wert (siehe fehler) wiederholen; dem Nutzer keine "
+                      "Fehlanzeige melden (B1/B4).")
+
+
 def _hole_detail_impl(kategorie: str, name: str | None = None,
                       edition: str = _db.STANDARD_EDITION,
                       aggregiere_kinder: bool = False,
@@ -1101,13 +1136,27 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
     if con is None:
         return {"gefunden": False, "hinweis": HINWEIS_DB_FEHLT}
     try:
+        # Befund 30.07.2026: Die KATEGORIE kam bis zur Zusammenlegung der acht
+        # foliant_hol_<typ> nie vom Nutzer - sie war im Werkzeugnamen verdrahtet und konnte
+        # gar nicht ungueltig sein. Seit foliant_hol_eintrag ist sie ein Parameter, und ein
+        # ungueltiger Wert flog als ungefangene ValueError aus _pruefe_kategorie (ueber
+        # fts_suche) heraus, statt als strukturierter 'fehler' zurueckzukommen. Der SUCH-Pfad
+        # faengt sie seit SYN-P0-006; der Detailpfad hatte die Stelle nie gebraucht.
+        # Die Pruefung steht VOR der eintrag_id-Weiche, damit BEIDE Wege sie nehmen - sonst
+        # meldet der ID-Weg bei falscher Kategorie 'Referenz veraltet' statt des echten Grundes.
+        try:
+            _db._pruefe_kategorie(kategorie)
+        except ValueError as fehler:
+            return {"gefunden": False, "fehler": str(fehler),
+                    "hinweis": _HINWEIS_PARAMETER}
         if eintrag_id is not None:
             return _detail_per_id(con, kategorie, eintrag_id, aggregiere_kinder)
         edition = _db.normalisiere_edition(edition)      # '5.5e' -> '2024' (SYN-P2-001)
         try:
             _db._pruefe_edition(con, edition)
         except ValueError as fehler:
-            return {"gefunden": False, "fehler": str(fehler)}
+            return {"gefunden": False, "fehler": str(fehler),
+                    "hinweis": _HINWEIS_PARAMETER}
         # edition=None: AUSDRUECKLICH editionsuebergreifend suchen - gewaehlt wird unten
         # gezielt; so bleiben andere Fassungen fuer den Zusatz sichtbar (Q1/T6).
         ergebnis = _db.fts_suche(con, name, kategorie=kategorie, edition=None, limit=6)
