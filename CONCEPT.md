@@ -522,15 +522,23 @@ als es zu löschen, und baut danach neu.
 1. **Entwicklerportal** (discord.com/developers): Application anlegen → *Bot* →
    Token erzeugen (→ `.env` `DISCORD_BOT_TOKEN`) → **Message Content Intent aktivieren**
    (Privileged Intent; Review-Pflicht erst ab 100 Servern — irrelevant bei einer Guild).
+   Profilbild: `deploy/discord_avatar.svg` nach PNG rendern und unter *Bot → Avatar*
+   hochladen (Discord nimmt kein SVG) —
+   `qlmanage -t -s 512 -o /tmp deploy/discord_avatar.svg` legt
+   `/tmp/discord_avatar.svg.png` ab.
 2. **Einladen** mit minimalen Scopes/Rechten: Scopes `bot` + `applications.commands`,
    Rechte *Send Messages*, *Create Public Threads*, *Send Messages in Threads*,
    *Read Message History*.
 3. **`.env`**: `DISCORD_GUILD_ID` (Server-ID der Runde — Pflicht, sonst startet der Bot
-   nicht), optional `DISCORD_KANAL_IDS`, `DISCORD_TAGESDECKEL` (Default 100/Tag).
+   nicht), optional `DISCORD_KANAL_IDS`, `DISCORD_TAGESDECKEL` (Default 100/Tag),
+   `DISCORD_COOLDOWN_S` (Default 10 s zwischen zwei Fragen desselben Nutzers).
 4. **Start:** `docker compose up -d --build --no-deps discord` · Logs:
    `docker compose logs -f discord` · Nutzung: `/regel <frage>` oder @Foliant erwähnen;
-   Folgefragen im automatisch erzeugten Thread. Nach einem Neustart vergisst der Bot
-   laufende Threads und sagt das dort einmalig (Verlauf ist bewusst in-memory).
+   Folgefragen im automatisch erzeugten Thread. `/regel … privat:True` antwortet nur
+   dem Fragenden (ephemer, deshalb ohne Thread für Nachfragen). Der Verlauf bleibt
+   bewusst in-memory, ein Neustart löscht ihn — der Bot liest den Thread dann aber aus
+   der Discord-Historie zurück (`app/discord_bot/rebuild.py`, max. 40 Nachrichten); nur
+   wenn dort nichts Verwertbares steht, sagt er im Thread, dass er vergessen hat.
 5. **Kontrolle:** Discord-Anfragen erscheinen im Abfrage-Protokoll
    (`admin suchbericht`) — derselbe Kurations-Kreislauf wie beim MCP.
 
@@ -822,7 +830,10 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Zugangskontrolle ist die **Guild-Sperre** plus Nutzer-Cooldown und Tagesdeckel. Die
   Tools laufen in-process am `ZugriffsFilter` vorbei — bewusst, wie beim Eval-Harness:
   der Filter schützt den HTTP-Weg, nicht die Prozessgrenze (SPEC.md §12 Nr. 6). Der
-  Spoiler-Schutz bleibt prompt-basiert; im gemeinsamen Kanal sieht jeder jede Antwort.
+  Spoiler-Schutz bleibt prompt-basiert; im gemeinsamen Kanal sieht jeder jede Antwort
+  (Ausnahme: `/regel … privat` antwortet ephemer nur dem Fragenden — das ist Rücksicht
+  auf den Kanal, **keine** Vertraulichkeitszusage: Discord entscheidet, wie lange eine
+  ephemere Nachricht lebt, und der Rebuild liest ohnehin nur echte Kanalbeiträge).
 - **Inhalte-Recht:** Das Repository enthält **keine** kommerziellen Regelinhalte. Die aus
   gekauften Druck-PDFs abgeleiteten Reparatur-Module (`importer/frhof_reparatur.py`,
   `importer/reparatur_ddb_privat.py`, `tests/test_ddb_druck_privat.py`) sind bewusst nicht

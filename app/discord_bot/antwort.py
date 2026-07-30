@@ -17,6 +17,10 @@ FEHLER_MAX_TOKENS = ("⚠️ Die Antwort wurde laenger als mein Limit und ist ab
 FEHLER_REFUSAL = "🚫 Diese Anfrage beantworte ich nicht."
 HINWEIS_VERGESSEN = ("⚠️ Ich habe den bisherigen Verlauf nach einem Neustart vergessen - "
                      "stell die Frage bitte noch einmal im Ganzen.")
+# Ephemere Antworten koennen keinen Thread tragen (Discord-Grenze) - das sagt der Bot
+# dazu, statt die fehlende Nachfrage-Moeglichkeit unerklaert zu lassen.
+HINWEIS_PRIVAT = ("ℹ️ Diese Antwort sieht nur du - deshalb gibt es hier keinen Thread "
+                  "fuer Nachfragen. Fuer ein Gespraech die Frage ohne `privat` stellen.")
 
 
 def fehlertext(stop_grund: str) -> str | None:

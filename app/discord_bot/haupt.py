@@ -26,6 +26,23 @@ def _warte_ewig(meldung: str) -> None:
         time.sleep(3600)
 
 
+def _zahl(name: str, standard: float) -> float:
+    """Optionale Zahl aus der Umgebung. Unsinn faellt mit Log-Hinweis auf den Standard
+    zurueck: ein Tippfehler in der .env darf den Bot nicht ausknipsen (fail-soft) und
+    schon gar nicht eine Schranke stillschweigend auf 0 setzen."""
+    roh = (os.environ.get(name) or "").strip()
+    if not roh:
+        return standard
+    try:
+        wert = float(roh)
+    except ValueError:
+        wert = -1.0
+    if wert < 0:
+        _log.warning("%s ist keine gueltige Zahl - nutze %s.", name, standard)
+        return standard
+    return wert
+
+
 def _lies_konfig() -> dict:
     token = (os.environ.get("DISCORD_BOT_TOKEN") or "").strip()
     guild = (os.environ.get("DISCORD_GUILD_ID") or "").strip()
@@ -41,7 +58,8 @@ def _lies_konfig() -> dict:
                         (os.environ.get("DISCORD_KANAL_IDS") or "").split(",")
                         if k.strip().isdigit())
     return {"token": token, "guild_id": int(guild), "kanal_ids": kanaele,
-            "tagesdeckel": int(os.environ.get("DISCORD_TAGESDECKEL") or 100),
+            "tagesdeckel": int(_zahl("DISCORD_TAGESDECKEL", 100)),
+            "cooldown_s": _zahl("DISCORD_COOLDOWN_S", 10.0),
             "api_key": key,
             "modell": (os.environ.get("ANTHROPIC_MODEL") or "").strip()
                       or _llm.STANDARD_MODELL}
@@ -72,7 +90,8 @@ def main() -> None:
 
     bot = FoliantBot(guild_id=konfig["guild_id"], kanal_ids=konfig["kanal_ids"],
                      tagesdeckel=konfig["tagesdeckel"], api_key=konfig["api_key"],
-                     modell=konfig["modell"], system=_system_prompt())
+                     modell=konfig["modell"], system=_system_prompt(),
+                     cooldown_s=konfig["cooldown_s"])
     # log_handler=None: discord.py wuerde sonst ein zweites basicConfig aufsetzen.
     bot.run(konfig["token"], log_handler=None)
 

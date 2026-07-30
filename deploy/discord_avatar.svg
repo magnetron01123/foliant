@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Profilbild des Discord-Bots. Motiv: aufgeschlagener Foliant (der Name) mit einem
+       W20 darueber (D&D) - Nachschlagewerk am Spieltisch, kein Wuerfel-Bot: der Wuerfel
+       LIEGT auf dem Buch, er ist nicht die Hauptsache.
+       Farben aus der Foliant-Website (app/charakterbogen/static/site.css): Pergament,
+       Weinrot, gedecktes Gold. Bewusst grosse Flaechen und wenige Details - Discord
+       zeigt Avatare rund und teilweise in 32 px.
+       PNG erzeugen (Discord nimmt kein SVG):
+         qlmanage -t -s 512 -o <zielordner> deploy/discord_avatar.svg -->
+  <rect width="512" height="512" fill="#241f1a"/>
+  <circle cx="256" cy="256" r="228" fill="none" stroke="#7c2b25" stroke-width="12"/>
+  <circle cx="256" cy="256" r="211" fill="none" stroke="#b9a888" stroke-width="3"
+          opacity="0.45"/>
+
+  <!-- Groesse bewusst so belassen: schon bei 1,1-facher Skalierung schneiden die
+       Buchecken in den Zierring. -->
+
+  <!-- W20: Aussensechseck, eingeschriebenes Dreieck, obere Flaeche hell abgesetzt -->
+  <g stroke="#241f1a" stroke-width="7" stroke-linejoin="round">
+    <polygon points="256,104 330.5,147 330.5,233 256,276 181.5,233 181.5,147"
+             fill="#b9a888"/>
+    <polygon points="256,104 330.5,233 181.5,233" fill="#c9b795"/>
+    <polygon points="218.75,168.5 293.25,168.5 256,233" fill="#f4ecd8"/>
+  </g>
+
+  <!-- Aufgeschlagenes Buch: Einband, zwei Seiten, Bund -->
+  <path d="M88 274 C145 268, 212 282, 256 306 C300 282, 367 268, 424 274
+           L424 388 C367 382, 300 396, 256 420 C212 396, 145 382, 88 388 Z"
+        fill="#7c2b25"/>
+  <path d="M102 288 C152 284, 211 296, 253 317 L253 399 C211 378, 152 366, 102 370 Z"
+        fill="#faf5e9"/>
+  <path d="M410 288 C360 284, 301 296, 259 317 L259 399 C301 378, 360 366, 410 370 Z"
+        fill="#f4ecd8"/>
+  <path d="M256 306 L256 420" stroke="#5e201b" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Angedeutete Textzeilen; dezent, damit sie klein nicht zu Matsch werden -->
+  <g stroke="#b9a888" stroke-width="7" stroke-linecap="round" opacity="0.5">
+    <path d="M124 312 L228 326"/>
+    <path d="M124 338 L228 352"/>
+    <path d="M124 364 L196 375"/>
+    <path d="M284 326 L388 312"/>
+    <path d="M284 352 L388 338"/>
+    <path d="M284 375 L356 364"/>
+  </g>
+</svg>
