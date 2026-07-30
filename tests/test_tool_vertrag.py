@@ -13,6 +13,7 @@ import pytest
 
 from app import db as adb
 from app.tools import nachschlagen as ns
+from app.tools import suche as su
 
 _SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 
@@ -63,7 +64,7 @@ def test_p1_rundlauf_per_eintrag_id(bestand):
     """SYN-P1-002: Treffer tragen eintrag_id/quelle_kuerzel; der Detailabruf per
     Referenz liefert EXAKT diesen Eintrag - auch wenn die Namensaufloesung eine andere
     (Prioritaets-)Quelle waehlen wuerde."""
-    s = ns.foliant_suche_bestand("Nightmare")
+    s = su.foliant_suche_bestand("Nightmare")
     t = s["treffer"][0]
     assert t["eintrag_id"] and t["quelle_kuerzel"] == "srd-de"   # kanonisch: Prio 10
     # Open5e-Fassung gezielt: ueber fremdsprachige_fassungen/Konflikt-Referenz laden.
@@ -123,12 +124,12 @@ def test_volltext_kuerzung_wird_ausgewiesen(bestand):
     """hinweis_gekuerzt auch im Volltext-Pfad: stil.py/SPEC par. 8 versprechen dem Modell
     dieses Signal generell - vor dem Fix kappte der FTS-Pfad still auf das Limit und nur
     der reine Struktur-Filter-Pfad wies die Kuerzung aus."""
-    s = ns.foliant_suche_bestand("Testfeuer", kategorie="zauber")
+    s = su.foliant_suche_bestand("Testfeuer", kategorie="zauber")
     assert len(s["treffer"]) == 8, s                     # fts_suche-Default-Limit
     assert s["anzahl_gesamt"] == 12
     assert "12 Treffer" in s["hinweis_gekuerzt"]
     # Ungekuerzte Suche traegt weder Zahl noch Hinweis - kein falscher 'mehr da'-Reiz:
-    v = ns.foliant_suche_bestand("Konfliktzauber")
+    v = su.foliant_suche_bestand("Konfliktzauber")
     assert "hinweis_gekuerzt" not in v and "anzahl_gesamt" not in v
 
 

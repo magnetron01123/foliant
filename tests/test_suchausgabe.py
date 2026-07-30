@@ -22,6 +22,7 @@ import pytest
 
 from app import db as adb
 from app.tools import nachschlagen as ns
+from app.tools import suche as su
 
 _SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 
@@ -76,7 +77,7 @@ def test_facettenfilter_erzeugt_keinen_falschen_leerbefund(bestand):
     """A1 — DER Kernfall: 'Pruefflamme' trifft 12 Eintraege, aber nur der zwoelfte ist
     5. Grades. Vor dem Fix lief der Gradfilter auf den ersten acht, fand nichts und der
     Code meldete 'Nichts im Bestand gefunden' — fuer einen Eintrag, den es gibt."""
-    r = ns.foliant_suche_bestand("Pruefflamme", grad=5)
+    r = su.foliant_suche_bestand("Pruefflamme", grad=5)
     namen = [t["name_de"] for t in r["treffer"]]
     assert namen == ["Pruefflamme 12"], f"5.-Grad-Zauber nicht gefunden: {namen}"
     assert "hinweis" not in r or "Nichts im Bestand" not in r.get("hinweis", "")
@@ -86,7 +87,7 @@ def test_leerer_filtertreffer_ist_kein_nicht_im_bestand(bestand):
     """Gegenprobe: passt WIRKLICH kein Treffer auf den Filter, muss der Hinweis trotzdem
     klarstellen, dass der Suchbegriff getroffen hat — sonst meldet das Modell faelschlich
     eine Fehlanzeige."""
-    r = ns.foliant_suche_bestand("Pruefflamme", grad=9)
+    r = su.foliant_suche_bestand("Pruefflamme", grad=9)
     assert r["treffer"] == []
     hinweis = r.get("hinweis", "")
     assert "Nichts im Bestand" not in hinweis
@@ -96,7 +97,7 @@ def test_leerer_filtertreffer_ist_kein_nicht_im_bestand(bestand):
 def test_abenteuertreffer_ist_schon_in_der_trefferliste_markiert(bestand):
     """A2 — Spoiler-Schutz ist die oberste Regel. Die Trefferliste liefert Volltext, also
     muss die Kennzeichnung dort stehen und nicht erst im Detail-Abruf."""
-    r = ns.foliant_suche_bestand("Domaene")
+    r = su.foliant_suche_bestand("Domaene")
     aus_abenteuer = [t for t in r["treffer"] if t.get("inhaltsart") == "abenteuer_setting"]
     assert aus_abenteuer, "Abenteuertreffer nicht markiert"
     assert "hinweis_inhaltsart" in r
@@ -106,7 +107,7 @@ def test_abenteuertreffer_ist_schon_in_der_trefferliste_markiert(bestand):
 def test_suchtreffer_traegt_zitat_und_anzeigename(bestand):
     """A3/A6 — 'zitat' woertlich ausgeben ist Prompt-Pflicht, und Deutsch-first darf nicht
     erst im Detail greifen."""
-    t = ns.foliant_suche_bestand("Pruefflamme")["treffer"][0]
+    t = su.foliant_suche_bestand("Pruefflamme")["treffer"][0]
     assert t["zitat"].startswith("Quelle: SRD 5.2.1 (Deutsch)")
     assert "Regelversion: 2024" in t["zitat"]
     assert "S. " in t["zitat"]                     # Seite ist gesetzt -> muss drinstehen
@@ -117,7 +118,7 @@ def test_relevanz_trennt_namenstreffer_von_texterwaehnung(bestand):
     """A4 — 'Nebelwanderung' erwaehnt 'Domaene' nur im Fliesstext; sein Name hat mit der
     Anfrage nichts zu tun. Ohne dieses Signal sah das Modell beide Treffer als gleichwertig
     (der Beholder-Fall: 8 plausible Treffer fuer etwas, das es nicht gibt)."""
-    r = ns.foliant_suche_bestand("Domaene")
+    r = su.foliant_suche_bestand("Domaene")
     nach_namen = {t["name_de"] or t["name_en"]: t["relevanz"] for t in r["treffer"]}
     assert nach_namen.get("Nebelwanderung") == "nur_im_text"
     # Und wenn KEIN Treffer am Namen passt, muss die Suche das ausdruecklich sagen:
@@ -168,7 +169,7 @@ def test_facettenpfad_meldet_die_gekuerzte_menge(bestand):
     """A5 — 11 der 12 Pruefflammen sind 1. Grades, gezeigt werden 8. Die Zaehlung stand
     HINTER dem Kappen, war damit per Konstruktion gleich der Anzeigemenge, und der
     hinweis_gekuerzt konnte nie feuern: die Liste kuerzte still."""
-    r = ns.foliant_suche_bestand("Pruefflamme", grad=1)
+    r = su.foliant_suche_bestand("Pruefflamme", grad=1)
     assert len(r["treffer"]) == 8
     assert r["anzahl_gesamt"] == 11
     assert "mindestens 11" in r["hinweis_gekuerzt"]

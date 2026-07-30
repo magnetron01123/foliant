@@ -10,6 +10,7 @@ import sys
 from app import db as adb
 from app.tools import charakter as ch
 from app.tools import nachschlagen as ns
+from app.tools import suche as su
 
 
 def _drucke(titel: str, daten: dict, felder: list[str] | None = None) -> None:
@@ -24,7 +25,7 @@ def smoke_alle_tools() -> int:
     Hinweis (aeltere_staende), falls beide Fassungen vorhanden. Rueckgabe: Fehlerzahl."""
     fehler = 0
 
-    s = ns.foliant_suche_bestand("fireball")
+    s = su.foliant_suche_bestand("fireball")
     _drucke("foliant_suche_bestand('fireball')", s)
     if not s["treffer"]:
         print("!! Suche fand nichts - Bestand importiert?"); fehler += 1
@@ -32,7 +33,7 @@ def smoke_alle_tools() -> int:
     # Kernfall Deutsch-first (Regressionsfall 10.07.2026): deutscher Suchbegriff muss den
     # englischen Bestand ueber die Glossar-Bruecke treffen.
     for deutsch in ("Feuerball", "Gelegenheitsangriff"):
-        sd = ns.foliant_suche_bestand(deutsch)
+        sd = su.foliant_suche_bestand(deutsch)
         kurz = [t["name_en"] or t["name_de"] for t in sd["treffer"][:3]]
         print(f"\n=== foliant_suche_bestand('{deutsch}') ===\n treffer={kurz} "
               f"suchweg={sd.get('hinweis_suchweg', 'direkt')}")
@@ -59,7 +60,7 @@ def smoke_alle_tools() -> int:
     _drucke("foliant_uebersetze_begriff('opportunity attack')", u)
     fehler += 0 if u.get("gefunden") else 1
 
-    leer = ns.foliant_suche_bestand("Zzxqmbl Qwertzuiop Vhnjmklop")  # garantiert nicht im Bestand
+    leer = su.foliant_suche_bestand("Zzxqmbl Qwertzuiop Vhnjmklop")  # garantiert nicht im Bestand
     _drucke("Leersuche (Grounding-Hinweis, Kanal 3)", leer)
     if leer.get("treffer") or "hinweis" not in leer:
         print("!! Leersuche ohne Grounding-Hinweis"); fehler += 1

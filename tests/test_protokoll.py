@@ -12,6 +12,7 @@ from app import admin as adm
 from app import db as adb
 from app import protokoll as _protokoll
 from app.tools import nachschlagen as ns
+from app.tools import suche as su
 
 _SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 
@@ -56,10 +57,10 @@ def _zeilen() -> list[dict]:
 
 
 def test_suche_schreibt_zeile_mit_suchweg(bestand):
-    ns.foliant_suche_bestand("Nachtmahr")                    # direkter FTS-Treffer
-    ns.foliant_suche_bestand("gibtesnichtxyz")               # ehrlicher Nulltreffer
-    ns.foliant_suche_bestand("Feurball")                     # Tippfehler -> fuzzy
-    ns.foliant_suche_bestand("Nacthmahr")                    # Tippfehler -> Glossar-Bruecke
+    su.foliant_suche_bestand("Nachtmahr")                    # direkter FTS-Treffer
+    su.foliant_suche_bestand("gibtesnichtxyz")               # ehrlicher Nulltreffer
+    su.foliant_suche_bestand("Feurball")                     # Tippfehler -> fuzzy
+    su.foliant_suche_bestand("Nacthmahr")                    # Tippfehler -> Glossar-Bruecke
     z = _zeilen()
     assert [r["werkzeug"] for r in z] == ["suche_bestand"] * 4
     assert z[0]["suchweg"] == "direkt" and z[0]["anzahl_treffer"] >= 1
@@ -85,7 +86,7 @@ def test_kaputter_logpfad_bricht_lookup_nicht(bestand, tmp_path, monkeypatch):
     die fertige Antwort nie verwerfen."""
     monkeypatch.setattr(_protokoll, "protokoll_pfad",
                         lambda: tmp_path / "gibt-es-nicht" / "log.sqlite")
-    antwort = ns.foliant_suche_bestand("Nachtmahr")
+    antwort = su.foliant_suche_bestand("Nachtmahr")
     assert antwort["treffer"], "Lookup muss trotz Log-Fehler normal liefern"
     assert _protokoll._fehler_in_folge == 1
 
@@ -113,9 +114,9 @@ def test_rotation_deckelt_zeilenzahl(bestand, monkeypatch):
 
 
 def test_suchbericht_aggregiert_kurationssignale(bestand, capsys):
-    ns.foliant_suche_bestand("gibtesnichtxyz")
-    ns.foliant_suche_bestand("gibtesnichtxyz")
-    ns.foliant_suche_bestand("Feurball")                     # fuzzy
+    su.foliant_suche_bestand("gibtesnichtxyz")
+    su.foliant_suche_bestand("gibtesnichtxyz")
+    su.foliant_suche_bestand("Feurball")                     # fuzzy
     ns.foliant_uebersetze_begriff("Totally Unknown Term")    # Glossar-Luecke
     adm.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=True))
     bericht = json.loads(capsys.readouterr().out)

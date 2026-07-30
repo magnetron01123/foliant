@@ -14,6 +14,7 @@ import pytest
 from app import db as adb
 from app import glossar as gl
 from app.tools import nachschlagen as ns
+from app.tools import suche as su
 
 _SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 
@@ -144,5 +145,5 @@ def test_detailabruf_waehlt_keinen_fremden_eintrag(bestand):
 
 def test_suche_boostet_fuzzy_nicht_als_exakt(bestand):
     """Suche 'Aktionen': der Aktionen-Eintrag steht vor dem fuzzy-nahen Reaktionen-Eintrag."""
-    s = ns.foliant_suche_bestand("Aktionen")
+    s = su.foliant_suche_bestand("Aktionen")
     assert s["treffer"] and s["treffer"][0]["name_de"] == "Aktionen"

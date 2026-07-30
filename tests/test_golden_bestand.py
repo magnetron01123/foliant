@@ -16,6 +16,7 @@ if not (Path(__file__).resolve().parent.parent / "data" / "foliant.sqlite").exis
                 allow_module_level=True)
 
 from app.tools import nachschlagen as ns  # noqa: E402  (nach dem Modul-Skip)
+from app.tools import suche as su
 
 
 def _text(d: dict) -> str:
@@ -101,7 +102,7 @@ def test_golden_beeinflussen_und_attributswurf_getrennt():
 
 def test_golden_parameterfehler_ist_kein_leerbefund():
     """SYN-P0-006 am echten Bestand: vorhandener Inhalt + falscher Kategoriewert."""
-    s = ns.foliant_suche_bestand("Feuerball", kategorie="spell")
+    s = su.foliant_suche_bestand("Feuerball", kategorie="spell")
     assert "fehler" in s and "Nichts im Bestand" not in s.get("hinweis", "")
 
 
@@ -143,7 +144,7 @@ def test_golden_gleichnamige_regelabschnitte_liefern_kernabschnitt():
     # Todesrettungswurf: das Regelglossar fuehrt nur einen Verweis-Stub; der VOLLE
     # Abschnitt heisst 'Auf 0 Trefferpunkte sinken' und muss ueber die Suche sichtbar
     # sein (RAW-treu: das Glossar verweist mit 'Siehe auch').
-    treffer = {t["name_de"] for t in ns.foliant_suche_bestand("Todesrettungswurf")["treffer"]}
+    treffer = {t["name_de"] for t in su.foliant_suche_bestand("Todesrettungswurf")["treffer"]}
     assert "Auf 0 Trefferpunkte sinken" in treffer
     voll = ns.foliant_hol_eintrag("regel", "Auf 0 Trefferpunkte sinken")
     assert "10" in voll["regeltext_md"] and "drei" in voll["regeltext_md"]
@@ -191,7 +192,7 @@ def test_golden_b6_findability_top3():
         "Verstecken": "Verstecken (Aktion)",                  # die Aktion, nicht 'Hide Armor'
     }
     for begriff, ziel in faelle.items():
-        s = ns.foliant_suche_bestand(begriff)
+        s = su.foliant_suche_bestand(begriff)
         top3 = [t["name_de"] or t["name_en"] for t in s["treffer"][:3]]
         assert ziel in top3, (begriff, top3)
     # Die 8 Meisterschaftseigenschaften sind zweisprachig aufloesbar:
@@ -218,20 +219,20 @@ def test_golden_struktur_filter_in_suche():
     (kein eigenes Tool). Zauber (grad/schule/klasse/schadensart) UND Monster (hg/typ);
     Fehlwerte sind KEIN Leerbefund."""
     # Zauber: Grad-1-Feuerzauber des Hexenmeisters = Höllischer Tadel (Hellish Rebuke).
-    r = ns.foliant_suche_bestand(grad=1, klasse="Hexenmeister", schadensart="feuer")
+    r = su.foliant_suche_bestand(grad=1, klasse="Hexenmeister", schadensart="feuer")
     assert r["treffer"] and all(t.get("kurzinfo") == "Grad 1" for t in r["treffer"]), r
     assert any("Tadel" in (t.get("name_de") or t.get("name_en") or "") for t in r["treffer"])
     # Monster: Feenwesen mit HG 1/4 -> u. a. der Goblinkrieger.
-    m = ns.foliant_suche_bestand(hg="1/4", typ="Feenwesen")
+    m = su.foliant_suche_bestand(hg="1/4", typ="Feenwesen")
     assert m["treffer"] and all(t.get("kurzinfo") == "HG 1/4" for t in m["treffer"]), m
     # Kombi Suchbegriff + Facette (UND): 'Feuerball' + grad=3 bleibt, grad=1 fällt raus.
-    assert ns.foliant_suche_bestand("Feuerball", kategorie="zauber", grad=3)["treffer"]
-    assert not ns.foliant_suche_bestand("Feuerball", kategorie="zauber", grad=1)["treffer"]
+    assert su.foliant_suche_bestand("Feuerball", kategorie="zauber", grad=3)["treffer"]
+    assert not su.foliant_suche_bestand("Feuerball", kategorie="zauber", grad=1)["treffer"]
     # Guards -> strukturierter 'fehler', nie 'nicht im Bestand'.
-    assert ns.foliant_suche_bestand().get("fehler") == "kein_kriterium"
-    assert ns.foliant_suche_bestand(grad=1, typ="Untoter").get("fehler") \
+    assert su.foliant_suche_bestand().get("fehler") == "kein_kriterium"
+    assert su.foliant_suche_bestand(grad=1, typ="Untoter").get("fehler") \
         == "zauber_und_monster_filter_gemischt"
-    ungueltig = ns.foliant_suche_bestand(schule="Zauberei")
+    ungueltig = su.foliant_suche_bestand(schule="Zauberei")
     assert "fehler" in ungueltig and ungueltig.get("gueltige_schulen")
 
 
@@ -267,7 +268,7 @@ def test_golden_monster_bruecke_strukturabgleich():
 def test_golden_suchtreffer_tragen_grad_und_hg():
     """#2 (Finetuning 13.07.2026): knappe Zauber-/Monster-Treffer tragen die
     Triage-Facette (Grad bzw. HG) aus dem Body."""
-    s = ns.foliant_suche_bestand("Feuerball", kategorie="zauber")
+    s = su.foliant_suche_bestand("Feuerball", kategorie="zauber")
     assert s["treffer"] and s["treffer"][0].get("kurzinfo", "").startswith("Grad"), s["treffer"][:1]
-    m = ns.foliant_suche_bestand("Goblin", kategorie="monster")
+    m = su.foliant_suche_bestand("Goblin", kategorie="monster")
     assert any((t.get("kurzinfo") or "").startswith("HG") for t in m["treffer"]), m["treffer"]

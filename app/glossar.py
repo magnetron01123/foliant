@@ -380,3 +380,54 @@ def begriffe_im_text(con: sqlite3.Connection, text: str, *,
                if re.search(r"\b" + re.escape(z["term_en"]) + r"\b", text, re.IGNORECASE)]
     treffer.sort(key=lambda z: z["term_en"].lower())
     return treffer[:max_treffer]
+
+# --- Namensrelevanz -------------------------------------------------------
+# Am 30.07.2026 aus app/tools/nachschlagen.py hierher gezogen. Sie gehoert hierhin:
+# ihre Schwelle IST FUZZY_NAME (eine Zeile tiefer), ihr Vergleich laeuft ueber
+# norm_begriff und KLAMMER_SUFFIX, und sie war die EINZIGE Stelle, an der sich Such-
+# und Detailpfad beruehrten - erst nach dem Umzug liessen die beiden sich trennen.
+
+# Namensrelevanz eines Kandidaten (#1). Wert und Begruendung in app/glossar.py, wo alle
+# vier Fuzzy-Schwellen des Projekts zusammen stehen (Befund E5).
+_NAME_MIN = FUZZY_NAME
+
+def _name_score(k: dict, ziele: set[str]) -> float:
+    """Relevanz des Kandidatennamens zur Anfrage (0-100): exakt = 100, sonst der beste
+    rapidfuzz.ratio gegen die (normalisierten) Anfrage-Varianten `ziele`. Trennt echte
+    Namenstreffer von blossen Body-Erwaehnungen (deren Name gar nicht passt).
+
+    KEIN Praefix-Kurzschluss (Befund 30.07.2026): 'n.startswith(z) or z.startswith(n)'
+    gab JEDEM Praefix 100.0, ohne Mindestlaenge - 'Elf' war damit ein voller Namenstreffer
+    auf 'Elfenruestung', und der Detailpfad lieferte den Fremdeintrag als belegte Antwort
+    aus (Verstoss gegen B1, die Anti-Halluzinations-Regel). Die abgedeckten ECHTEN Faelle
+    - Wortrisse und OCR-Verstuemmelungen um ein bis zwei Zeichen - traegt fuzz.ratio
+    ohnehin: ein echter Praefix erreicht 2*len(kurz)/(len(kurz)+len(lang))*100, liegt also
+    ab rund 82 % Namensdeckung ueber der Schwelle von 90. Genau die kurzen, unspezifischen
+    Praefixe fallen heraus, und nur die."""
+    namen = _eintrag_namen(k)
+    if namen & ziele:
+        return 100.0
+    best = 0.0
+    for n in namen:
+        for z in ziele:
+            if not n or not z:
+                continue
+            best = max(best, fuzz.ratio(n, z))
+    return best
+
+def _eintrag_namen(k: dict) -> set[str]:
+    """Namensvarianten eines Eintrags fuer den Exakt-Vergleich, kanonisch normalisiert
+    (glossar.norm_begriff: case-/diakritika-/NFD-fest - PDF-Namen kommen teils
+    NFD-dekomponiert an, S11/A3). Das srd-de-Namensschema '<Klasse>-Unterklasse: <Name>'
+    zaehlt auch mit dem blanken Unterklassen-Namen als exakt - sonst gewinnt bei
+    foliant_hol_eintrag("klasse", 'Champion') der englische Open5e-Eintrag (S10). Klammer-Suffixe
+    zaehlen zusaetzlich OHNE Zusatz (SYN-P0-002)."""
+    namen = {norm_begriff(k["name_de"]), norm_begriff(k["name_en"])}
+    m = re.match(r".+-unterklasse:\s*(.+)$", norm_begriff(k["name_de"]))
+    if m:
+        namen.add(m.group(1).strip())
+    for n in list(namen):
+        ohne_zusatz = KLAMMER_SUFFIX.sub("", n).strip()
+        if ohne_zusatz:
+            namen.add(ohne_zusatz)
+    return namen - {""}
