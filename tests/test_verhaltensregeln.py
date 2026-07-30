@@ -148,3 +148,63 @@ def test_leerbefund_hinweis_deckt_sich_mit_der_web_regel():
     assert "🚫" in ns.HINWEIS_LEER              # Spoiler-Regel gilt auch im Web
     for kanal in (INSTRUCTIONS, stil.projektanweisung()):
         assert "🌐" in kanal
+
+
+# --------------------------------------------------------------------- Kanal 2
+# Die Tool-BESCHREIBUNGEN waren bis zum 30.07.2026 der einzige Verhaltenskanal ohne
+# Waechter - ausgerechnet der, den app/server.py:6-15 als Ausfallsicherung fuer Clients
+# begruendet, die `instructions` nicht durchreichen. Ohne Pruefung war der KERNREGELN-Block
+# in sieben Varianten von 39 bis 159 Byte auseinandergedriftet, und foliant_hol_attributs-
+# werte hatte die Quellenpflicht bereits ganz verloren.
+#
+# Geprueft wird wie in den anderen Kanaelen die AUSSAGE, nicht der Wortlaut: die Tools
+# haben verschiedene Aufgaben und duerfen verschieden formulieren. Ein Uebersetzungs-
+# Werkzeug nennt keine Regelversion, ein Listen-Werkzeug keinen Regeltext.
+
+def _tool_beschreibungen() -> dict[str, str]:
+    """Die Beschreibungen so, wie FastMCP sie dem Client schickt."""
+    import asyncio
+
+    from app.server import mcp
+
+    return {name: (werkzeug.description or "")
+            for name, werkzeug in asyncio.run(mcp.get_tools()).items()}
+
+
+def test_jede_tool_beschreibung_traegt_die_kernregeln():
+    """Jede Beschreibung muss die drei tragenden Zusagen mitfuehren: nur aus dem Bestand,
+    Herkunft nennen, Deutsch-first. Das ist Kanal 2 - er greift, wenn ein Client die
+    Server-`instructions` nicht durchreicht."""
+    fehlend: list[str] = []
+    for name, text in _tool_beschreibungen().items():
+        if "KERNREGELN" not in text:
+            fehlend.append(f"{name}: kein KERNREGELN-Block")
+            continue
+        block = text[text.index("KERNREGELN"):]
+        # Geerdet: 'nur aus dem Bestand' fuer die Nachschlage-Werkzeuge, 'nichts erfinden'
+        # fuer das Glossar, 'nichts aus Allgemeinwissen ergaenzen' fuer die Build-Pruefung.
+        # Drei Formulierungen derselben Zusage - der Kanal traegt sie, nicht ein Wortlaut.
+        if not any(w in block for w in ("Bestand", "Allgemeinwissen", "erfinden")):
+            fehlend.append(f"{name}: sagt nicht, dass nur der Bestand gilt")
+        # Herkunft: Regelwerks-Werkzeuge nennen Quelle+Version, das Glossar seine Herkunft
+        # ueber das Original in Klammern - beides ist 'sag, woher es kommt'.
+        if not any(w in block for w in ("Quelle", "Original", "erfinden")):
+            fehlend.append(f"{name}: nennt keine Herkunftspflicht")
+        if "Deutsch-first" not in block and "Klammern" not in block:
+            fehlend.append(f"{name}: sagt nichts zu Deutsch-first")
+    assert not fehlend, "Kanal 2 unvollstaendig:\n  " + "\n  ".join(fehlend)
+
+
+def test_tool_schema_bleibt_im_kontextbudget():
+    """Die Beschreibungen kosten Kontext bei JEDER Verbindung. Sie zu kuerzen ist der
+    billigste Eingriff ins Verhalten und war als einziger voellig ungeprueft - ein
+    Budget-Deckel macht sowohl Wachstum als auch heimliches Schrumpfen sichtbar.
+
+    Dieselbe Bauart wie der INSTRUCTIONS-Deckel oben: eine Grenze mit Luft, keine Klippe.
+    Reisst sie, ist die Frage 'zusammenlegen?' faellig, nicht 'Assert anheben?'."""
+    import json
+
+    schema = sum(len(json.dumps({"name": n, "description": t}, ensure_ascii=False))
+                 for n, t in _tool_beschreibungen().items())
+    assert schema < 11_000, (
+        f"Tool-Beschreibungen: {schema} Zeichen - erst zusammenlegen, dann anheben")
