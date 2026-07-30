@@ -108,7 +108,8 @@ Zauberkapitels (`Dauer`, `Effekte`, `Verbalkomponente (V)` — siehe §3). Damit
 Übersetzungslücke bei den echten Zaubern geschlossen.
 
 **Gate:** dt. Kernbegriffe/Optionen (z. B. Aasimar) kommen **deutsch** aus dem Bestand;
-die deutsche Quelle rankt vor DDB-Englisch.
+die deutsche Quelle rankt vor DDB-Englisch. *Mit welcher `prioritaet` das Buch einrangiert,
+ist unentschieden — §4 „Quellen-Wertigkeit".*
 
 ### M5 — Feedback & Iteration · *laufend, kein Gate*
 
@@ -366,6 +367,77 @@ offen — sie sitzen in Parsern, die **nicht** in die Meta-Tabellen schreiben:
 | OAuth-Identität statt Geheimpfad | erst ab mehr Nutzern sinnvoll |
 
 Alle docken laut Datenmodell **ohne Neuaufbau** an (NF7).
+
+### Ideen mit Klärungsbedarf
+
+Vorgemerkt, aber noch nicht als Arbeit beschlossen — hier steht die Frage, nicht die Antwort.
+
+#### Quellen-Wertigkeit explizit machen · *David, 30.07.2026*
+
+**Die Mechanik gibt es schon, die Regel dahinter nicht.** Dubletten löst `quellen.prioritaet`
+auf (Q2, kleiner = Vorrang; [CONCEPT.md](CONCEPT.md) §5). Die *Zahl* wird aber an vier Stellen
+unabhängig vergeben, ohne dass irgendwo stünde, warum sie so ausfällt:
+
+| Stelle | Wert |
+|---|---|
+| [`config/foliant.example.toml`](config/foliant.example.toml) | `srd-de` 10 · dt. Druckbuch 20 · Open5e 60 |
+| [`importer/import_ddb.py`](importer/import_ddb.py) | 40, fest |
+| [`importer/import_open5e.py`](importer/import_open5e.py) | 60 + Laufindex je Dokument |
+| [`app/admin.py`](app/admin.py) | 100 als Rückfall, wenn nichts angegeben ist |
+
+Wer die nächste Quelle einpflegt — spätestens M1 mit dem dt. PHB 2024 — **rät die Zahl**.
+Gewünscht ist eine benannte Rangfolge: welche Quelle ist am meisten wert, welche am wenigsten,
+und aus welchem Grund.
+
+**Die Achsen, die heute in der einen Zahl verschmelzen:**
+
+1. **Offizialität** — Kernregelwerk (WotC/Ulisses) > Ergänzungsband > SRD-Auszug >
+   Drittanbieter/Community.
+2. **Sprache** — Deutsch vor Englisch (S10).
+3. **Texttreue** — sauberer Markdown-/API-Import vor OCR-Scan. Die 2014-Scans zeigen, dass das
+   eine echte Dimension ist: dieselbe Autorität, messbar schlechterer Text.
+4. **Edition** — läuft **nicht** über `prioritaet`, sondern über `edition` + Q1. Eine Logik
+   muss sagen, dass sie das *nicht* mitregelt, sonst wird sie doppelt eingebaut.
+
+**Der Fall, an dem sich die Logik beweisen muss: Deutsch-2014 gegen Englisch-2024.** Nach S7
+ist Terminologie editionsübergreifend (der deutsche Begriff aus dem Altbuch gilt), nach Q1 und
+Regel 2 ist der *Regelinhalt* 2024-first. Beides gleichzeitig kann eine einzelne Zahl nicht —
+möglicherweise braucht es **zwei Rangfolgen: Inhaltsautorität und Begriffsautorität.** Heute
+ist das implizit gelöst (2014-Bücher tragen die niedrigste Priorität, die Begriffe kommen über
+den eigenen Glossar-Weg); die Idee wäre, es explizit zu machen.
+
+**Zweiter offener Punkt, konkret am Bestand:** `srd-de` steht heute auf 10, ein gekauftes
+deutsches Grundregelwerk auf 20 — der Auszug rankt also vor dem Vollbuch desselben Textes. Das
+kann richtig sein (CC-BY, sauberes PDF, verlässliche Struktur) oder falsch (das Vollbuch ist
+vollständiger und ebenso offiziell). Entschieden wurde es nie.
+
+**Dritter Strang — Zitierautorität: was die Runde am Tisch aufschlägt.** F7 verlangt bei jeder
+Auskunft die Quelle. Nützlich ist dabei das **Buch**, nicht der Auszug: „Spielerhandbuch 2024,
+S. 112" kann ein Spieler nachschlagen, „SRD 5.2.1" liegt niemandem auf dem Tisch. Das ist eine
+*andere* Frage als die nach dem besten Text — der sauberste Text und der nachschlagbarste
+Beleg können auseinanderfallen (Buch = OCR-Scan, SRD = sauberes PDF).
+
+*Der Befund dazu, am Code geprüft (30.07.2026):* Die Dublettenauflösung führt die unterlegenen
+Fassungen bereits mit — `weitere_quellen` (Titel) und `weitere_fassungen` (`id`, `quelle_titel`,
+`sprache`) in [`app/db.py`](app/db.py) `_dedupe_und_sortiere`. Was dort **fehlt, ist `seite`**:
+die Buchfundstelle steht in `eintraege.seite` in der Datenbank und fällt trotzdem aus der
+Antwort. Deshalb kann eine Auskunft heute gar nicht „steht auch im Spielerhandbuch, S. 112"
+sagen, selbst wenn beide Bücher im Bestand liegen.
+
+*Empfehlung:* **keine** dritte Rangfolge bauen. Der Beleg wird um die Buchfundstelle *ergänzt*,
+statt die Textpriorität umzubiegen — dann bleibt der beste Text kanonisch und der Spieler
+bekommt trotzdem die Seite im Buch. Das entschärft auch den zweiten Punkt oben: `srd-de` darf
+vorn bleiben, wenn der Beleg das Buch mitnennt. Grenze aus Regel 1: eine Seitenzahl darf **nur**
+genannt werden, wenn die Quelle im Bestand liegt und diesen Eintrag führt. Aus „das steht sicher
+auch im PHB" wird sonst eine erfundene Fundstelle.
+
+**Denkbare Form:** dokumentierte Prioritäts**bänder** statt freier Zahlen (z. B. 10er = dt.
+Kernregelwerk 2024, 20er = dt. SRD, 30er = dt. Altbücher, 40er = engl. Kaufbücher, 60er =
+Open5e/CC, 90+ = Drittanbieter/unklar), an *einer* Stelle definiert, aus den Achsen ableitbar,
+von `admin check` gegen den Bestand geprüft.
+
+**Entscheidungsbedarf David:** Reicht eine Rangfolge oder braucht es Inhalt und Begriff
+getrennt? Und wo steht das gekaufte dt. Vollbuch gegenüber dem dt. SRD?
 
 ---
 
