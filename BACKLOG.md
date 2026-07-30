@@ -131,7 +131,7 @@ Der Meldeweg (O4) ist gebaut: das Abfrage-Protokoll (`data/foliant-protokoll.sql
 `[protokoll]` in der Config) loggt jede Nachschlage-Anfrage; `docker compose exec foliant
 python -m app.admin suchbericht` listet Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten und
 Übersetzungs-Lücken als Kuratier-Kandidaten (inkl. Antwortzeit p50/p95 → B9/M3).
-Aus einem Kandidaten wird ein Glossar-Paar über `admin glossar-paare --vorschau`
+Aus einem Kandidaten wird ein Glossar-Paar über `admin glossar-paare --nur-neue`
 (Struktur-Abgleich Gegenstände/Monster mit Beweisstufe, Review vor
 `import --quelle glossar`); nach jedem Seeding-Lauf dürfen die **echten** Konflikte in
 `admin glossar-audit` nicht zunehmen (editionsgetrennte Formen regelt S8 selbst).

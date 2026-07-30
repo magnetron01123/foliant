@@ -1,4 +1,4 @@
-"""Schmale Web-App (Starlette): Upload eines DDB-PDF -> gefüllter deutscher Bogen (AUFTRAG §6).
+"""Schmale Web-App (Starlette): Upload eines DDB-PDF -> gefüllter deutscher Bogen (SPEC.md §14).
 
 Eigenständige ASGI-App NEBEN dem MCP-Server (kein Eingriff in app/server.py, kein öffentliches
 MCP-Token, keine Persistenz). Verarbeitung im Speicher (BytesIO), eine Konvertierung gleichzeitig
@@ -72,7 +72,7 @@ ZEITLIMIT_S = 100.0                 # Unter Cloudflares Proxy-Read-Timeout (120 
                                     # GEMESSEN: 58 s für einen echten Bogen — 70 s wären zu knapp,
                                     # 100 s lassen Luft und bleiben 20 s unter der Kante.
 
-# Öffentliche Fehlertexte (AUFTRAG §6.3) - keine Interna.
+# Öffentliche Fehlertexte (SPEC.md §14) - keine Interna.
 NICHT_PDF = "Bitte wähle eine PDF-Datei aus."
 KEIN_DDB = "Kein unterstützter D&D-Beyond-Charakterbogen."
 NICHT_SICHER = "Dieser PDF-Bogen kann nicht sicher verarbeitet werden."

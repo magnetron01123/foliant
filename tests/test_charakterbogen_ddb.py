@@ -248,7 +248,7 @@ def test_verlustfrei_alle_widgets_in_roh():
 
 
 def test_wert_aus_contents_fallback():
-    """KONZEPT §4.1: liegt der Wert in /Contents statt /V, wird er dennoch erfasst."""
+    """CONCEPT.md §7: liegt der Wert in /Contents statt /V, wird er dennoch erfasst."""
     data = baue_ddb_pdf(BEISPIEL, contents_felder={0: {"CurrentHP": "25"}})
     char = extrahiere(data)
     assert "CurrentHP" in {r.name for r in char.roh_felder}

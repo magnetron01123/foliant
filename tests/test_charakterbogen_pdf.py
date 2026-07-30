@@ -108,7 +108,7 @@ def test_uebersetzt_bevorzugt_de_vor_en():
     assert "Mönch (Monk)" in txt
 
 
-# --- Überlauf / Fortsetzungsseiten (KONZEPT §9) ------------------------------
+# --- Überlauf / Fortsetzungsseiten (CONCEPT.md §7) ------------------------------
 
 def test_ueberlauf_erzeugt_fortsetzungsseite_ohne_verlust():
     c = _mini_charakter()
