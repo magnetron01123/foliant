@@ -341,6 +341,11 @@ def test_bestandsuebersicht_zeigt_die_buecher(tmp_path):
     assert "2 Büchern" in html and "3 Einträgen" in html
     # 3. Abenteuerbaende stehen getrennt, mit der Spoiler-Ansage (B6).
     assert "Abenteuer" in html and "Handlung" in html
+    # 4. Einheitliche Zeile: Titel OHNE den Klammer-Zusatz, Sprache und Regelversion
+    #    als eigene Angaben daneben - die Herkunft steht nicht doppelt im Titel.
+    assert ">SRD 5.2.1<" in html and "(Deutsch)" not in html
+    assert ">Ravenloft<" in html and "(D&D Beyond)" not in html
+    assert "Regeln 2024" in html
 
 
 def test_bestandsuebersicht_faellt_ohne_quellen_weg():
@@ -349,3 +354,27 @@ def test_bestandsuebersicht_faellt_ohne_quellen_weg():
 
     assert web._bestand_lesen(None) == []
     assert web._bestand_html([]) == ""
+
+
+def test_buchtitel_verlieren_nur_die_doppelten_zusaetze():
+    """Die Buchliste war uneinheitlich, weil jeder Importweg einen anderen Klammer-Zusatz
+    an denselben Werktitel haengt. Entfernt wird deshalb NUR, was daneben ohnehin als
+    eigene Angabe steht (Sprache, Regelversion, Bezugsweg) - ein echter Namenszusatz
+    bleibt, sonst schneidet die Kosmetik Werktitel ab."""
+    from app.charakterbogen.web import _titel_schlicht
+
+    # Weg: Sprache, Regelversion, Bezugsweg - auch zwei Klammern hintereinander.
+    assert _titel_schlicht("SRD 5.2.1 (Deutsch)") == "SRD 5.2.1"
+    assert _titel_schlicht("Basic Rules (2014) (D&D Beyond)") == "Basic Rules"
+    assert _titel_schlicht("Spielerhandbuch (Deutsch, 2014er Regeln)") == "Spielerhandbuch"
+    assert _titel_schlicht("Eberron: Forge of the Artificer (Druck)") == \
+        "Eberron: Forge of the Artificer"
+
+    # Bleibt: alles, was zum Werknamen gehoert.
+    assert _titel_schlicht("Monstrous Compendium Vol. 1 (Spelljammer Creatures)") == \
+        "Monstrous Compendium Vol. 1 (Spelljammer Creatures)"
+    assert _titel_schlicht("Curse of Strahd: Character Options") == \
+        "Curse of Strahd: Character Options"
+    # Ein Titel, der NUR aus dem Zusatz besteht, wird nicht zu einer leeren Zeile.
+    assert _titel_schlicht("(Deutsch)") == "(Deutsch)"
+    assert _titel_schlicht("") == ""
