@@ -87,7 +87,13 @@ def test_p1_rundlauf_per_eintrag_id(bestand):
     assert falsch["gefunden"] is False and "fehler" in falsch
     # Veraltete Referenz -> ehrlicher Fehler:
     weg = ns.foliant_hol_eintrag("monster", "egal", eintrag_id=999999)
-    assert weg["gefunden"] is False and "existiert nicht" in weg["fehler"]
+    # Auf die ZUSAGE pruefen, nicht auf den Wortlaut (am 30.07.2026 selbstkorrigierend
+    # umformuliert): ehrlicher Fehler, der die tote Referenz nennt UND sagt, wie man an
+    # eine frische kommt. Der alte Text "existiert nicht" las sich wie eine Aussage ueber
+    # den BESTAND statt ueber die Referenz.
+    assert weg["gefunden"] is False
+    assert "999999" in weg["fehler"] and "foliant_suche_bestand" in weg["fehler"]
+    assert "KEIN 'nicht im Bestand'" in weg["hinweis"]
 
 
 def test_p1_fremdfassung_wird_ausgewiesen(bestand):

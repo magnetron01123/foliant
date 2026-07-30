@@ -313,7 +313,7 @@ def _pruefe_edition(con: sqlite3.Connection, edition: str | None) -> None:
         raise ValueError(
             f"Nicht unterstuetzte Regelversion {edition!r} - unterstuetzt: "
             f"{', '.join(UNTERSTUETZTE_EDITIONEN)} (Aliasse: "
-            f"{', '.join(EDITION_ALIASSE)}); im Bestand: "
+            f"{', '.join(f'{a}={z}' for a, z in EDITION_ALIASSE.items())}); im Bestand: "
             f"{', '.join(verfuegbar) or '(leer)'}. Standard ist '{STANDARD_EDITION}'.")
 
 

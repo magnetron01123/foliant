@@ -138,6 +138,12 @@ for _kanon, _formen in {
 _KANON_KLASSEN = set(_KLASSEN_SYN.values())      # die zwoelf Klassen, kanonisch
 
 
+def klassen_anzeige() -> list[str]:
+    """Die zwoelf kanonischen Klassen - fuer Fehlermeldungen/Discovery, wie
+    schulen_anzeige() und schadensarten_anzeige()."""
+    return sorted(_KANON_KLASSEN)
+
+
 def _klasse_kanon(begriff: str) -> str:
     return _KLASSEN_SYN.get(_n(begriff), _n(begriff))
 

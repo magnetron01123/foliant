@@ -229,6 +229,18 @@ def _facetten_vorbereiten(kategorie, grad, schule, klasse, schadensart, hg, typ)
                     "hinweis": "Gueltige Schule aus 'gueltige_schulen' nutzen (B1/B4)."}
         echo["schule"] = _facetten.schule_anzeige(schule_key)
     if klasse:
+        # Befund 30.07.2026: klasse war nach hg der LETZTE ungepruefte Facetten-Parameter.
+        # 'Quatschklasse' erzeugte keinen Parameterfehler, sondern einen ehrlich
+        # klingenden Nulltreffer - dieselbe Antwortklasse, gegen die SYN-P0-006 antrat.
+        # Der Wert wird kanonisiert (DE/EN), aber im echo bleibt die Nutzereingabe stehen,
+        # damit die Filterzeile zeigt, wonach der Nutzer gefragt hat.
+        if _facetten._klasse_kanon(klasse) not in _facetten._KANON_KLASSEN:
+            return None, None, {}, {
+                "treffer": [], "fehler": f"unbekannte Klasse {klasse!r}",
+                "gueltige_klassen": _facetten.klassen_anzeige(),
+                "hinweis": "Gueltige Klasse aus 'gueltige_klassen' nutzen (deutsch oder "
+                           "englisch). Ungueltiger PARAMETER - das ist KEIN 'nicht im "
+                           "Bestand' (B1/B4)."}
         echo["klasse"] = klasse
     if schadensart:
         schaden_key = _facetten.schadensart_schluessel(schadensart)
@@ -900,6 +912,8 @@ def _hole_detail(kategorie: str, name: str | None = None,
     damit der Suchbericht ueber den Umbau hinweg vergleichbar bleibt."""
     start = time.monotonic()
     antwort = _hole_detail_impl(kategorie, name, edition, aggregiere_kinder, eintrag_id)
+    if not antwort.get("gefunden") and (alias := _alias_hinweis(edition)):
+        antwort["hinweis_edition_alias"] = alias
     if eintrag_id is not None:
         suchweg = "direkt_id"        # Nachladen einer Referenz - kein Kurations-Signal
     elif "fehler" in antwort:
@@ -936,8 +950,10 @@ def _detail_per_id(con, kategorie: str, eintrag_id: int,
     voll = _db.hole_eintrag(con, int(eintrag_id))
     if voll is None:
         return {"gefunden": False,
-                "fehler": f"eintrag_id {eintrag_id} existiert nicht (Referenz "
-                          f"veraltet? Neu suchen)."}
+                "fehler": f"eintrag_id {eintrag_id} gibt es in diesem Bestand nicht - "
+                          f"die Referenz ist veraltet. Mit foliant_suche_bestand neu "
+                          f"suchen und die eintrag_id aus dem frischen Treffer nehmen.",
+                "hinweis": _HINWEIS_PARAMETER}
     if voll["kategorie"] != kategorie:
         # Selbstkorrigierend formuliert: der Aufruf ist bis auf EIN Feld richtig, also
         # nennt die Meldung den Wert, der dort hingehoert. Der alte Wortlaut ('passendes
@@ -1111,6 +1127,26 @@ def _quellabweichungen(con, voll: dict, gewaehlt: dict, exakt: list[dict],
 # Derselbe Satz an jeder Stelle, die einen PARAMETER-Fehler meldet (SYN-P0-006): das
 # Modell muss ihn von einem echten Leerbefund unterscheiden koennen, sonst meldet es dem
 # Nutzer eine Fehlanzeige fuer Inhalte, die es gibt.
+def _alias_hinweis(roh: str | None) -> str | None:
+    """Sagt es, wenn ein Editions-ALIAS die Anfrage umgeschrieben hat.
+
+    Befund 30.07.2026: '5e' bildet still auf 2014 ab, '5.5e' auf 2024 (db.EDITION_ALIASSE).
+    Umgangssprachlich meint '5e' aber die ganze 5. Edition INKLUSIVE 2024 - fragte ein
+    Modell danach, bekam es "Keine Fassung der Regelversion 2014 im Bestand" fuer einen
+    Eintrag, den der Bestand in 2024 fuehrt, und meldete dem Nutzer eine Fehlanzeige.
+    Der eigene Wert tauchte in der Antwort nirgends mehr auf, also gab es auch keinen
+    Anhaltspunkt. Genau die Fehlerklasse aus B1, nur ueber einen Parameter erzeugt."""
+    if roh is None:
+        return None
+    ziel = _db.normalisiere_edition(roh)
+    if ziel is None or str(roh).strip() == ziel:
+        return None
+    return (f"ACHTUNG: '{roh}' wurde als Regelversion {ziel} gelesen (Alias). Ist die "
+            f"aktuelle Fassung gemeint, den Aufruf ohne 'edition' oder mit "
+            f"edition='{_db.STANDARD_EDITION}' wiederholen, BEVOR du eine Fehlanzeige "
+            f"meldest.")
+
+
 _HINWEIS_PARAMETER = ("Ungueltiger PARAMETER - das ist KEIN 'nicht im Bestand'. Aufruf mit "
                       "einem gueltigen Wert (siehe fehler) wiederholen; dem Nutzer keine "
                       "Fehlanzeige melden (B1/B4).")
@@ -1330,6 +1366,15 @@ def foliant_uebersetze_begriff(begriff: str,
 
 def _uebersetze_begriff_impl(begriff: str, richtung: str) -> dict:
     """Kernlogik; Tool-Beschreibung und Protokoll-Hook sitzen im oeffentlichen Wrapper."""
+    # Befund 30.07.2026: Ein leerer Begriff lief bis zum Schluss durch und kam als
+    # "Kein Glossar-Eintrag im Bestand" zurueck - eine Luecken-Meldung fuer eine Frage,
+    # die nie gestellt wurde. Dieselbe Antwortklasse wie SYN-P0-006, und hier besonders
+    # irrefuehrend: das Modell haette daraus geschlossen, es gebe keine Uebersetzung.
+    if not (begriff and begriff.strip()):
+        return {"gefunden": False, "fehler": "kein_kriterium",
+                "hinweis": "Bitte einen Begriff angeben. Das ist ein PARAMETER-Fehler, "
+                           "KEIN fehlender Glossareintrag - dem Nutzer keine Fehlanzeige "
+                           "melden (B1/B4)."}
     if richtung not in ("en_de", "de_en", "auto"):
         return {"gefunden": False,
                 "fehler": f"Unbekannte richtung {richtung!r} - gueltig: 'en_de', "

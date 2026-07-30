@@ -195,3 +195,27 @@ def test_c1_editionszustaende_leer_und_2014only(tmp_path, monkeypatch):
     assert s2["treffer"] == []                               # kein 2024-Treffer
     assert s2.get("aeltere_staende"), s2                     # aber 2014 als Altstand sichtbar
     assert "2024-Fassung" in s2["hinweis"]
+
+
+def test_editions_alias_wird_bei_fehlanzeige_offengelegt(bestand):
+    """Befund 30.07.2026: '5e' bildet still auf 2014 ab (db.EDITION_ALIASSE), '5.5e' auf
+    2024. Umgangssprachlich meint '5e' aber die ganze 5. Edition INKLUSIVE 2024.
+
+    Fragte ein Modell danach, bekam es "Keine Fassung der Regelversion 2014 im Bestand"
+    fuer einen Eintrag, den der Bestand in 2024 fuehrt - und der eigene Wert tauchte
+    nirgends mehr auf, also gab es keinen Anhaltspunkt fuer die Umdeutung. Das ist die
+    B1-Fehlerklasse (falsche Fehlanzeige), nur ueber einen Parameter erzeugt.
+
+    Der Hinweis kommt NUR bei Nicht-Treffern: bei einem Erfolg ist die gelieferte Edition
+    ohnehin am Eintrag sichtbar."""
+    # 'Donnerkeil' gibt es NUR in 2024 - genau der gefaehrliche Fall: die Anfrage nach
+    # '5e' landet in 2014, findet nichts, und der Eintrag existiert trotzdem.
+    r = ns.foliant_hol_eintrag("zauber", "Donnerkeil", edition="5e")
+    assert r.get("gefunden") is not True
+    alias = r.get("hinweis_edition_alias") or ""
+    assert "5e" in alias and "2014" in alias, alias
+    assert "2024" in alias, "der Weg zur aktuellen Fassung fehlt"
+
+    # Eine echte Editionsangabe ist KEIN Alias und darf den Hinweis nicht ausloesen:
+    assert "hinweis_edition_alias" not in ns.foliant_hol_eintrag(
+        "zauber", "Gibtsnichtxyz", edition="2014")
