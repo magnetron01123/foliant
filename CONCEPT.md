@@ -288,7 +288,7 @@ DDB-PDF (EN) ──[1 Extractor]──► neutrales Modell (EN) ──[2 Überse
 | `terminologie.py` | Löst feste Begriffe **in-process über `app.glossar`** auf — kein zweites Glossar. |
 | `uebersetzer.py` | Provider-Vertrag + Anthropic-Adapter + Fake. Zweistufige Übersetzung, Übersetzungsgedächtnis, JSON-Vertrag mit 1× Retry. |
 | `de_bogen.py` | **Renderer** (fitz-Overlay): zeichnet auf eine Kopie der DE-Vorlage, Auto-Fit, Fortsetzungsseiten, Kalibrier-Modus. |
-| `glossar_export.py` | Erzeugt die glossar-nur-DB für den Web-Container (kein privater Buchinhalt dorthin). |
+| `glossar_export.py` | Erzeugt die Web-DB für den Web-Container: Glossar **und** Quellen-Metadaten (Titel, Sprache, Regelversion, Eintragszahl) — kein Buchtext, keine Dateipfade. Läuft nach jedem `admin import` automatisch; bleibt bewusst ohne `app.db`-Abhängigkeit, damit es mit dem System-Python des Wirts läuft, bevor `web` startet (§12). |
 | `web.py` | Starlette-App: `GET /`, `POST /bogen`, `GET /health`. Kennwort-Seite, Ein-Konvertierung-Semaphore, keine Persistenz, `no-store`/CSP. |
 
 ### Die tragenden Entwurfsregeln

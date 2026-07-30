@@ -5,6 +5,7 @@ Nur synthetische Fixtures + FakeProvider (keine echte API, keine privaten Binär
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 import fitz
 import pytest
@@ -289,3 +290,62 @@ def test_credit_zeile_auf_der_seite(client):
     assert r.status_code == 200
     assert "David Trogemann" in r.text            # Urheber-Credit im Fuß
     assert "©" in r.text and "für Nerds" in r.text
+
+
+def test_bestandsuebersicht_zeigt_die_buecher(tmp_path):
+    """Die Runde soll nachschauen koennen, was im Bestand steht, statt zu raten - und die
+    Zahl soll nicht im Template gepflegt werden muessen (dort stand am 30.07.2026 'rund
+    9.500', waehrend es 12.503 waren).
+
+    Geprueft wird die GRENZE mit: in die Web-DB gehen nur Metadaten. Buchtext und
+    Dateipfade bleiben draussen (SPEC.md par. 14) - das ist der Grund, warum der
+    web-Container die volle DB nicht sieht."""
+    import sqlite3
+
+    from app.charakterbogen import glossar_export, web
+
+    korpus = tmp_path / "korpus.sqlite"
+    con = sqlite3.connect(korpus)
+    con.executescript((Path(__file__).resolve().parent.parent / "db" / "schema.sql")
+                      .read_text(encoding="utf-8"))
+    con.executemany(
+        "INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,prioritaet,"
+        "inhaltsart,dateipfad) VALUES (?,?,?,?,?,?,?,?,?)",
+        [("srd-de", "SRD 5.2.1 (Deutsch)", "de", "2024", "pdf", "CC-BY-4.0", 10,
+          "regelwerk", "/geheim/pfad/srd.pdf"),
+         ("rav-en", "Ravenloft (D&D Beyond)", "en", "2024", "ddb", "privat", 40,
+          "abenteuer_setting", "/geheim/pfad/rav.pdf")])
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,"
+        "body_md) VALUES (?,?,?,?,?,?,?)",
+        [(1, "zauber", "Feuerball", None, "de", "2024", "Geheimer Regeltext."),
+         (1, "zauber", "Licht", None, "de", "2024", "Noch ein Regeltext."),
+         (2, "monster", None, "Strahd", "en", "2024", "SPOILER: Strahds Schwaeche ist ...")])
+    con.commit()
+    con.close()
+
+    web_db = tmp_path / "web.sqlite"
+    glossar_export.exportiere(str(korpus), str(web_db))
+
+    # 1. Die Grenze: kein Buchtext, kein Dateipfad in der Web-DB.
+    roh = web_db.read_bytes()
+    assert b"SPOILER" not in roh and b"Geheimer Regeltext" not in roh
+    assert b"/geheim/pfad" not in roh
+    spalten = {r[1] for r in sqlite3.connect(web_db).execute("PRAGMA table_info(quellen)")}
+    assert "dateipfad" not in spalten
+
+    # 2. Die Anzeige: beide Buecher, mit Zahlen aus dem Bestand.
+    quellen = web._bestand_lesen(str(web_db))
+    assert {q["titel"] for q in quellen} == {"SRD 5.2.1 (Deutsch)", "Ravenloft (D&D Beyond)"}
+    html = web._bestand_html(quellen)
+    assert "2 Büchern" in html and "3 Einträgen" in html
+    # 3. Abenteuerbaende stehen getrennt, mit der Spoiler-Ansage (B6).
+    assert "Abenteuer" in html and "Handlung" in html
+
+
+def test_bestandsuebersicht_faellt_ohne_quellen_weg():
+    """Aeltere Web-DB ohne die Tabelle: der Abschnitt entfaellt, die Seite bleibt heil."""
+    from app.charakterbogen import web
+
+    assert web._bestand_lesen(None) == []
+    assert web._bestand_html([]) == ""
