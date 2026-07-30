@@ -106,7 +106,7 @@ def test_lesepfad_kommt_ohne_die_spalte_aus(tmp_path):
     c.close()
     lese = sqlite3.connect(f"file:{pfad}?mode=ro", uri=True)
     try:
-        bedingung, params = ch._kontext_bedingung(lese, "Klassen > Kämpfer")
+        bedingung, params = adb.kontext_bedingung(lese, "Klassen > Kämpfer")
         assert "kontext" not in bedingung, "ohne Spalte darf sie nicht abgefragt werden"
         treffer = lese.execute(
             f"SELECT name_de FROM eintraege WHERE kategorie='klasse' AND {bedingung}",
@@ -119,7 +119,7 @@ def test_lesepfad_kommt_ohne_die_spalte_aus(tmp_path):
 def test_lesepfad_nutzt_die_spalte_wenn_sie_da_ist(con):
     with con:
         importiere_markdown(con, "srd-de", _MARKDOWN, edition="2024", kategorie="klasse")
-    bedingung, params = ch._kontext_bedingung(con, "Klassen > Kämpfer")
+    bedingung, params = adb.kontext_bedingung(con, "Klassen > Kämpfer")
     assert "kontext = ?" in bedingung
     treffer = [r[0] for r in con.execute(
         f"SELECT name_de FROM eintraege WHERE kategorie='klasse' AND {bedingung}",

@@ -89,13 +89,13 @@ def test_a1_explizite_2014_suche_ohne_falschen_altstand(bestand):
 
 def test_a1_gezielter_editions_abruf(bestand):
     """Gleichnamiger 2014-/2024-Eintrag: beide Fassungen gezielt und vollstaendig abrufbar."""
-    d24 = ns.foliant_hol_zauber("Feuerball")                     # Default = 2024
+    d24 = ns.foliant_hol_eintrag("zauber", "Feuerball")                     # Default = 2024
     assert d24["gefunden"] and d24["edition"] == "2024" and "2024er" in d24["regeltext_md"]
-    d14 = ns.foliant_hol_zauber("Feuerball", edition="2014")     # ausdruecklich 2014
+    d14 = ns.foliant_hol_eintrag("zauber", "Feuerball", edition="2014")     # ausdruecklich 2014
     assert d14["gefunden"] and d14["edition"] == "2014" and "alte Fassung" in d14["regeltext_md"]
     # Ausdruecklich angeforderte, nicht vorhandene Edition: ehrlich nicht gefunden,
     # mit Verweis auf die vorhandene Fassung - nicht still die andere liefern.
-    d = ns.foliant_hol_zauber("Nebelschritt", edition="2014")
+    d = ns.foliant_hol_eintrag("zauber", "Nebelschritt", edition="2014")
     assert d["gefunden"] is False
     assert d.get("vorhandene_fassungen") or "2024" in d.get("hinweis", "")
 
@@ -112,7 +112,7 @@ def test_a1_ungueltige_edition_strukturiert(bestand):
     assert s55["treffer"] and s55["treffer"][0]["edition"] == "2024"
     s5 = ns.foliant_suche_bestand("Feuerball", edition="5e")
     assert s5["treffer"] and s5["treffer"][0]["edition"] == "2014"
-    d = ns.foliant_hol_zauber("Feuerball", edition="quatsch")
+    d = ns.foliant_hol_eintrag("zauber", "Feuerball", edition="quatsch")
     assert d["gefunden"] is False and "fehler" in d
     with pytest.raises(ValueError):
         con = adb.connect(str(adb.standard_pfad()))
@@ -126,7 +126,7 @@ def test_p0_klammerloser_zustand_faellt_nie_auf_2014(bestand):
     """SYN-P0-002: 'Erschöpfung' (klammerlos) liefert bei Standard-Edition den
     2024-Eintrag 'Erschöpfung (Zustand)' - NIE den englischen 2014-'Exhaustion' mit
     falscher 'keine 2024-Fassung'-Behauptung. Explizit 2014 bleibt gezielt abrufbar."""
-    d = ns.foliant_hol_regel("Erschöpfung")
+    d = ns.foliant_hol_eintrag("regel", "Erschöpfung")
     assert d["gefunden"] is True and d["edition"] == "2024", d
     assert d["name_de"] == "Erschöpfung (Zustand)"
     assert "hinweis_alter_stand" not in d
@@ -134,7 +134,7 @@ def test_p0_klammerloser_zustand_faellt_nie_auf_2014(bestand):
     # die 2014-Fassung bleibt als markierter Zusatz sichtbar (Q1/T6):
     assert any(f["edition"] == "2014" for f in d.get("andere_fassungen", []))
 
-    d14 = ns.foliant_hol_regel("Erschöpfung", edition="2014")
+    d14 = ns.foliant_hol_eintrag("regel", "Erschöpfung", edition="2014")
     assert d14["gefunden"] is True and d14["edition"] == "2014"
     assert d14["name_en"] == "Exhaustion"
 

@@ -128,7 +128,7 @@ def bestand(tmp_path, monkeypatch):
 def test_t1_quelle_seite_version(bestand):
     """Regelfrage im Bestand -> Antwort mit Quelle, Seite und Regelversion (F7/P4);
     Lizenz + CC-BY-Attribution werden im Detailpfad mitgefuehrt (A12/Q6)."""
-    d = ns.foliant_hol_zauber("Feuerball")
+    d = ns.foliant_hol_eintrag("zauber", "Feuerball")
     assert d["gefunden"] is True
     assert d["quelle"] == "SRD 5.2.1 (Deutsch)" and d["edition"] == "2024" and d["seite"] == "142"
     assert "SRD 5.2.1" in d["zitat"] and "S. 142" in d["zitat"] and "2024" in d["zitat"]
@@ -145,7 +145,7 @@ def test_t2_ehrliches_nicht_gefunden(bestand):
     s = ns.foliant_suche_bestand("Aasimar")
     assert s["treffer"] == [] and "aeltere_staende" not in s
     assert "ehrlich" in s["hinweis"] and "Allgemeinwissen" in s["hinweis"]
-    d = ns.foliant_hol_zauber("Wunsch des Chronomanten")
+    d = ns.foliant_hol_eintrag("zauber", "Wunsch des Chronomanten")
     assert d["gefunden"] is False and "ehrlich" in d["hinweis"]
 
 
@@ -173,7 +173,7 @@ def test_t5_alter_stand_klar(bestand):
     s = ns.foliant_suche_bestand("Hexenpfeil")
     assert s["treffer"] == [] and s["aeltere_staende"][0]["edition"] == "2014"
     assert "2024-Fassung" in s["hinweis"]
-    d = ns.foliant_hol_zauber("Hexenpfeil")
+    d = ns.foliant_hol_eintrag("zauber", "Hexenpfeil")
     assert d["gefunden"] is True and d["edition"] == "2014"
     assert "hinweis_alter_stand" in d and "anzupassen" in d["hinweis_alter_stand"]
 
@@ -184,7 +184,7 @@ def test_t6_2024_primaer(bestand):
     assert s["treffer"][0]["edition"] == "2024" and s["treffer"][0]["name_de"] == "Feuerball"
     assert all(t["edition"] == "2024" for t in s["treffer"])
     assert any(t["edition"] == "2014" for t in s["aeltere_staende"])
-    d = ns.foliant_hol_zauber("Feuerball")
+    d = ns.foliant_hol_eintrag("zauber", "Feuerball")
     assert d["edition"] == "2024"
     assert any(f["edition"] == "2014" for f in d.get("andere_fassungen", []))
 
@@ -208,7 +208,7 @@ def test_t7b_bruecke_deutscher_begriff_englischer_bestand(bestand):
     assert "hinweis_suchweg" in s  # Suchweg wird transparent gemacht
     # Detail-Abruf mit deutschem Namen: nach Glossar-Aufloesung ist der englische Eintrag
     # ein EXAKTER Treffer, kein Mehrdeutigkeitsfall (Regressionsfall Pi-Deploy 10.07.2026).
-    d = ns.foliant_hol_zauber("Nebelschritt")
+    d = ns.foliant_hol_eintrag("zauber", "Nebelschritt")
     assert d["gefunden"] is True and d["name_en"] == "Misty Step"
     assert d["anzeige_name"] == "Nebelschritt (Misty Step)"  # S3-Annotation zur Laufzeit
 
@@ -218,21 +218,21 @@ def test_t8_mehrdeutigkeit(bestand):
     s = ns.foliant_suche_bestand("Schild")
     kategorien = {t["kategorie"] for t in s["treffer"] if t["name_de"] == "Schild"}
     assert {"zauber", "gegenstand"} <= kategorien  # Unterscheidungsmerkmal sichtbar
-    d = ns.foliant_hol_zauber("Feuer")  # kein exakter Name -> nicht raten
+    d = ns.foliant_hol_eintrag("zauber", "Feuer")  # kein exakter Name -> nicht raten
     assert d["gefunden"] is False and d.get("mehrdeutig") is True
     assert len(d["kandidaten"]) >= 2 and "hinweis" in d
 
 
 def test_a2_hol_regel_vollstaendig(bestand):
     """A2: Ein Regel-Chunk, dessen relevante Aussage AUSSERHALB des Such-Snippets liegt,
-    laesst sich ueber foliant_hol_regel vollstaendig abrufen (Text+Quelle+Edition+Seite);
+    laesst sich ueber foliant_hol_eintrag vollstaendig abrufen (Text+Quelle+Edition+Seite);
     Mehrdeutigkeit verhaelt sich wie bei den bestehenden Detail-Tools."""
     s = ns.foliant_suche_bestand("Unterwasserkampf")
     assert s["treffer"] and "Dreizack" not in s["treffer"][0]["auszug"]
-    d = ns.foliant_hol_regel("Unterwasserkampf")
+    d = ns.foliant_hol_eintrag("regel", "Unterwasserkampf")
     assert d["gefunden"] is True and "Dreizack" in d["regeltext_md"]
     assert d["edition"] == "2024" and d["quelle"] == "SRD 5.2.1 (Deutsch)" and d["seite"] == "26"
-    leer = ns.foliant_hol_regel("Initiativephasenmodell")
+    leer = ns.foliant_hol_eintrag("regel", "Initiativephasenmodell")
     assert leer["gefunden"] is False and "hinweis" in leer
 
 
@@ -300,9 +300,9 @@ def test_t12_charakterbau_reihenfolge_serverseite(bestand):
     Verhaltenstest, manuelle Checkliste im Modul-Docstring."""
     from app.tools import charakter as ch
 
-    k = ch.foliant_liste_klassen()
-    h = ch.foliant_liste_hintergruende()
-    s = ch.foliant_liste_spezies()
+    k = ch.foliant_liste_optionen("klasse")
+    h = ch.foliant_liste_optionen("hintergrund")
+    s = ch.foliant_liste_optionen("spezies")
     assert "SCHRITT 1" in k["hinweis_reihenfolge"]
     assert "SCHRITT 2" in h["hinweis_reihenfolge"]
     assert "SCHRITT 3" in s["hinweis_reihenfolge"]
@@ -316,5 +316,5 @@ def test_t12_charakterbau_reihenfolge_serverseite(bestand):
     assert len(kaempfer["unterklassen"][0]["quellen"]) == 2   # srd-de + Open5e gemergt
     assert [z["anzeige"] for z in s["spezies"]] == ["Mensch (Human)"]
     assert [z["anzeige"] for z in h["hintergruende"]] == ["Soldat (Soldier)"]
-    t = ch.foliant_liste_talente(kategorie="herkunft")
+    t = ch.foliant_liste_optionen("talent", talent_kategorie="herkunft")
     assert [z["name_de"] for z in t["talente"]] == ["Wilder Angreifer"]

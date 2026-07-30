@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from app.tools import charakter as ch
+from app.tools import nachschlagen as ns
 
 _SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 
@@ -99,7 +100,7 @@ def _befunde(r):
 
 def test_a4_2014_klasse_nicht_in_listen_und_nicht_ok(bestand):
     """Nur-2014-Klasse erscheint nicht in 2024-Listen und wird im Build nie 'ok'."""
-    k = ch.foliant_liste_klassen()
+    k = ch.foliant_liste_optionen("klasse")
     namen = {z["name_de"] or z["name_en"] for z in k["klassen"]}
     assert "Hexer" not in namen and "Kämpfer" in namen
     r = ch.foliant_pruefe_build(klasse="Hexer", stufe=3)
@@ -111,7 +112,7 @@ def test_a4_2014_klasse_nicht_in_listen_und_nicht_ok(bestand):
 
 def test_a4_listen_quellen_editionsrein(bestand):
     """2014- und 2024-Kämpfer werden nicht editionsuebergreifend gruppiert."""
-    k = ch.foliant_liste_klassen()
+    k = ch.foliant_liste_optionen("klasse")
     kaempfer = next(z for z in k["klassen"] if z["name_de"] == "Kämpfer")
     assert all("2014" not in q for q in kaempfer["quellen"]), kaempfer["quellen"]
     assert kaempfer["edition"] == "2024"
@@ -130,7 +131,7 @@ def test_a4_englische_unterklasse_zu_deutscher_klasse(bestand):
     assert b["unterklasse_stufe"]["status"] == "ok"
     assert r["ergebnis"] == "legal_soweit_pruefbar"
     # Die Klassen-Liste haengt die EN-Unterklasse ebenfalls an die deutsche Klasse:
-    k = ch.foliant_liste_klassen()
+    k = ch.foliant_liste_optionen("klasse")
     kaempfer = next(z for z in k["klassen"] if z["name_de"] == "Kämpfer")
     assert [u["name_en"] for u in kaempfer["unterklassen"]] == ["Champion"]
 
@@ -293,7 +294,7 @@ def test_ist_option_letztes_kontext_segment():
 
 def test_hol_spezies_fuehrt_ddb_unterabschnitte_zusammen(tmp_path, monkeypatch):
     """Fachliche Vollständigkeit: DDB zerlegt eine Spezies in Intro + '<Name> Traits' (die
-    eigentlichen Werte). foliant_hol_spezies führt DIREKTE Unterabschnitte in den Regeltext
+    eigentlichen Werte). foliant_hol_eintrag führt DIREKTE Unterabschnitte in den Regeltext
     zusammen - quellen-/editionsrein und NUR direkte Kinder (kein Einsaugen fremder Abschnitte)."""
     pfad = tmp_path / "foliant-agg.sqlite"
     con = sqlite3.connect(pfad)
@@ -314,7 +315,7 @@ def test_hol_spezies_fuehrt_ddb_unterabschnitte_zusammen(tmp_path, monkeypatch):
     con.commit(); con.close()
     from app import db as adb
     monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
-    d = ch.foliant_hol_spezies("Aasimar")
+    d = ns.foliant_hol_eintrag("spezies", "Aasimar")
     assert d["gefunden"]
     assert "Aasimar carry" in d["regeltext_md"]              # Intro
     assert "Celestial Resistance" in d["regeltext_md"]       # Werte aus 'Aasimar Traits'
@@ -391,7 +392,7 @@ def test_c2_pointbuy_beleg_umfang_und_widerspruch(bestand, tmp_path, monkeypatch
 def test_c4_fuehrungstext_nennt_pflichtwahlen(bestand):
     """SYN-P2-005 C4-Abnahme: die Charakterbau-Führung nennt die 2024-Pflichtwahlen
     Sprachen und Spezies-Optionen (nicht nur Klasse→Hintergrund→Spezies)."""
-    for antwort in (ch.foliant_liste_klassen(), ch.foliant_liste_spezies(),
-                    ch.foliant_liste_hintergruende()):
+    for antwort in (ch.foliant_liste_optionen("klasse"), ch.foliant_liste_optionen("spezies"),
+                    ch.foliant_liste_optionen("hintergrund")):
         hinweis = antwort.get("hinweis_reihenfolge", "")
         assert "SPRACHEN" in hinweis.upper() or "Sprachen" in hinweis

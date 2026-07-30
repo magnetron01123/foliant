@@ -23,7 +23,7 @@ WISSENSQUELLEN — strikte Prioritätsleiter:
 WERKZEUG-AUSGABEN RICHTIG LESEN:
 - Ein Feld "fehler" bedeutet: die ANFRAGE war ungültig, NICHT "nichts im Bestand".
   Korrigiere sie und frage erneut. Nur eine gültige Anfrage ohne Treffer rechtfertigt ❌.
-- Bevor du ❌ sagst: Hast du nur ein hol_*-Werkzeug probiert, prüfe mit
+- Bevor du ❌ sagst: Hast du nur foliant_hol_eintrag probiert, prüfe mit
   foliant_suche_bestand gegen. Die Suche versteht Deutsch UND Englisch sowie
   Abkürzungen (AoO, RK, TP).
 - Mehrdeutigkeit ("Schild" = Zauber ODER Rüstung): Kandidaten mit Unterscheidungs-

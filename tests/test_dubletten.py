@@ -107,7 +107,7 @@ def test_a3_editionen_bleiben_getrennt(bestand):
     s = ns.foliant_suche_bestand("Feuerball")
     assert all(t["edition"] == "2024" for t in s["treffer"])
     assert any(t["edition"] == "2014" for t in s.get("aeltere_staende", []))
-    d = ns.foliant_hol_zauber("Feuerball", edition="2014")
+    d = ns.foliant_hol_eintrag("zauber", "Feuerball", edition="2014")
     assert d["gefunden"] and "Alter 2014" in d["regeltext_md"]
 
 
@@ -120,7 +120,7 @@ def test_p0_gleichnamige_abschnitte_derselben_quelle_bleiben_getrennt(bestand):
     s = ns.foliant_suche_bestand("Reaktionen")
     reaktionen = [t for t in s["treffer"] if t["name_de"] == "Reaktionen"]
     assert len(reaktionen) == 2, reaktionen                 # beide Abschnitte sichtbar
-    d = ns.foliant_hol_regel("Reaktionen")
+    d = ns.foliant_hol_eintrag("regel", "Reaktionen")
     assert d["gefunden"] is True                            # Kernabschnitt geliefert
     assert "eine Reaktion pro Runde" in d["regeltext_md"]   # der laengere Spielregel-Text
     assert "Wertekasten" not in d["regeltext_md"]           # nicht die Meta-Erklaerung

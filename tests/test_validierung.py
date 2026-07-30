@@ -54,7 +54,7 @@ def test_quellen_titel_statt_kuerzel_wird_erklaert(bestand):
 
 
 def test_ungueltige_talent_kategorie(bestand):
-    antwort = ch.foliant_liste_talente(kategorie="origin")
+    antwort = ch.foliant_liste_optionen("talent", talent_kategorie="origin")
     assert antwort["talente"] == [] and "fehler" in antwort
     assert "herkunft" in antwort["fehler"]
 

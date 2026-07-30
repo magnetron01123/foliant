@@ -40,7 +40,7 @@ _UNTERKLASSE_DE = re.compile(r"^(.+)-Unterklasse:\s*(.+)$")
 # kontext == 'Klassen' und das deutsche Namensschema; damit fielen 13 Unterklassen aus den
 # englischen Druckquellen lautlos aus BEIDEN Listen ('ALCHEMIST' & Co. unter
 # 'THE ARTIFICER > ARTIFICER SUBCLASSES', 'BLADESINGER (WIZARD)' & Co. unter 'SUBCLASSES') -
-# obwohl foliant_hol_klasse sie sehr wohl liefert. IGNORECASE, weil Druck-PDFs ihre
+# obwohl foliant_hol_eintrag sie sehr wohl liefert. IGNORECASE, weil Druck-PDFs ihre
 # Kapitel-Header in Grossbuchstaben liefern. Fuer neue Quellen hier ergaenzen.
 _KLASSEN_KONTEXT = re.compile(r"^(?:Klassen|Classes)$", re.IGNORECASE)
 _UNTERKLASSEN_KONTEXT = re.compile(r"^(?:\S+\s+)*(?:Unterklassen|Subclasses)$", re.IGNORECASE)
@@ -111,25 +111,6 @@ _HINWEIS_BESTAND = ("Nur Optionen aus dem Bestand. Fehlt eine erwartete Option (
 
 def _norm(text: str | None) -> str:
     return (text or "").strip().lower()
-
-
-def _kontext_bedingung(con, breadcrumb: str, praefix: str = "") -> tuple[str, list]:
-    """SQL-Bedingung + Parameter, um Eintraege mit genau diesem Breadcrumb zu finden.
-
-    Nutzt die Spalte `kontext`, wo es sie gibt, und faellt sonst auf die alte LIKE-Suche
-    im body_md zurueck. Beides ist noetig: der SERVING-Pfad ist read-only und migriert
-    NICHT, eine Bestands-DB kann die Spalte also noch gar nicht haben (dann wuerde
-    `kontext = ?` die Abfrage sprengen); und selbst mit Spalte kann sie fuer einzelne
-    Zeilen NULL sein, solange die Quelle nicht neu importiert wurde."""
-    like = f"*Kontext: {breadcrumb}*%"
-    try:
-        hat_spalte = "kontext" in {r[1] for r in con.execute("PRAGMA table_info(eintraege)")}
-    except sqlite3.Error:
-        hat_spalte = False
-    if not hat_spalte:
-        return f"{praefix}body_md LIKE ?", [like]
-    return (f"({praefix}kontext = ? OR ({praefix}kontext IS NULL "
-            f"AND {praefix}body_md LIKE ?))"), [breadcrumb, like]
 
 
 def _kontext(e: dict | str | None) -> str:
@@ -275,8 +256,41 @@ def _liste(kategorie: str, schluessel: str, schritt_hinweis: str) -> dict:
         con.close()
 
 
-def foliant_liste_spezies() -> dict:
-    """Waehlbare Spezies im Bestand (KNAPPE Liste; Details per foliant_hol_spezies).
+def foliant_liste_optionen(
+        kategorie: Literal["klasse", "hintergrund", "spezies", "talent"],
+        talent_kategorie: Literal["herkunft", "allgemein", "kampfstil",
+                                  "epische_gabe"] | None = None) -> dict:
+    """Waehlbare Optionen einer Kategorie im Bestand, KNAPP - Details per
+    foliant_hol_eintrag. Zeigt NUR waehlbare Optionen, nicht die Unterabschnitte
+    (Klassenmerkmale, Zauberlisten, Merkmalsbeschreibungen).
+
+    kategorie in der Reihenfolge der 2024-Charaktererstellung (B7):
+      klasse       Schritt 1 - inkl. der Unterklassen je Klasse
+      hintergrund  Schritt 2 - liefert Attributserhoehungen und das Ursprungstalent
+      spezies      Schritt 3
+      talent       weitere Talente ueber Stufenaufstiege
+    talent_kategorie filtert NUR bei kategorie='talent' (herkunft | allgemein |
+    kampfstil | epische_gabe); ungueltige Werte werden mit 'fehler' abgelehnt, was
+    NICHT 'nichts im Bestand' bedeutet.
+    KERNREGELN: nur aus dem Bestand nennen, nichts aus Allgemeinwissen ergaenzen
+    (fehlende Optionen = fehlendes Buch, B2); Quelle und Regelversion nennen;
+    Deutsch-first (englisches Original in Klammern)."""
+    if talent_kategorie is not None and kategorie != "talent":
+        return {"fehler": f"talent_kategorie gilt nur fuer kategorie='talent', nicht "
+                          f"fuer {kategorie!r}.",
+                "hinweis": "Ungueltige PARAMETER-Kombination - das ist KEIN 'nichts im "
+                           "Bestand'; Aufruf ohne talent_kategorie wiederholen."}
+    if kategorie == "klasse":
+        return _liste_klassen()
+    if kategorie == "hintergrund":
+        return _liste_hintergruende()
+    if kategorie == "spezies":
+        return _liste_spezies()
+    return _liste_talente(talent_kategorie)
+
+
+def _liste_spezies() -> dict:
+    """Waehlbare Spezies im Bestand (KNAPPE Liste; Details per foliant_hol_eintrag).
     Schritt 3 der 2024-Charaktererstellung - Klasse und Hintergrund kommen davor (B7).
     KERNREGELN: nur Bestand nennen, nichts aus Allgemeinwissen ergaenzen; Deutsch-first
     mit englischem Original in Klammern; Quelle und Regelversion nennen."""
@@ -285,9 +299,9 @@ def foliant_liste_spezies() -> dict:
                   _HINWEIS_REIHENFOLGE)
 
 
-def foliant_liste_hintergruende() -> dict:
+def _liste_hintergruende() -> dict:
     """Waehlbare Hintergruende im Bestand (KNAPPE Liste; Details per
-    foliant_hol_hintergrund). Schritt 2 der 2024-Charaktererstellung (B7). Ein Hintergrund
+    foliant_hol_eintrag). Schritt 2 der 2024-Charaktererstellung (B7). Ein Hintergrund
     liefert Attributserhoehungen, ein Ursprungstalent, Fertigkeiten und Ausruestung.
     KERNREGELN: nur Bestand; Deutsch-first (Original in Klammern); Quelle+Version nennen."""
     return _liste("hintergrund", "hintergruende",
@@ -295,9 +309,9 @@ def foliant_liste_hintergruende() -> dict:
                   _HINWEIS_REIHENFOLGE)
 
 
-def foliant_liste_talente(kategorie: Literal["herkunft", "allgemein",
+def _liste_talente(kategorie: Literal["herkunft", "allgemein",
         "kampfstil", "epische_gabe"] | None = None) -> dict:
-    """Talente (Feats) im Bestand, KNAPP (Details per foliant_hol_talent). kategorie
+    """Talente (Feats) im Bestand, KNAPP (Details per foliant_hol_eintrag). kategorie
     optional, exakt: herkunft | allgemein | kampfstil | epische_gabe - andere Werte
     werden mit 'fehler' abgelehnt (kein 'nichts im Bestand'). Herkunftstalente kommen
     ueber den Hintergrund (Schritt 2), weitere Talente ueber Stufenaufstiege.
@@ -324,11 +338,9 @@ def foliant_liste_talente(kategorie: Literal["herkunft", "allgemein",
     return antwort
 
 
-def foliant_liste_klassen() -> dict:
-    """Waehlbare Klassen inkl. ihrer Unterklassen im Bestand (KNAPPE Liste; Details per
-    foliant_hol_klasse). Klasse ist SCHRITT 1 der 2024-Charaktererstellung (B7).
-    KERNREGELN: nur Bestand nennen (fehlende Unterklassen = fehlendes Buch, B2);
-    Deutsch-first mit englischem Original in Klammern; Quelle und Regelversion nennen."""
+def _liste_klassen() -> dict:
+    """Klassen mit ihren Unterklassen. Eigene Maschine statt _liste, weil die Kategorie
+    'klasse' BEIDES fuehrt und die Zuordnung ueber drei Quellen-Schreibweisen laeuft."""
     con = _ns._verbinde()
     if con is None:
         return {"klassen": [], "hinweis": _ns.HINWEIS_DB_FEHLT}
@@ -346,7 +358,7 @@ def foliant_liste_klassen() -> dict:
                     unterklassen_eintraege.append(e)
                 # Alles Uebrige ist Unterabschnitt (Klassenmerkmale, Zauberliste,
                 # 'Ein Barde werden ...') und gehoert bewusst in keine der Listen -
-                # foliant_hol_klasse weist sie als 'verwandte_abschnitte' aus.
+                # foliant_hol_eintrag weist sie als 'verwandte_abschnitte' aus.
             else:
                 (unterklassen_eintraege if _SUBCLASS.search(e["body_md"] or "")
                  else klassen_eintraege).append(e)
@@ -405,67 +417,6 @@ def foliant_liste_klassen() -> dict:
         if not klassen:
             antwort["hinweis"] = _ns.HINWEIS_LEER
         return antwort
-    finally:
-        con.close()
-
-
-def foliant_hol_spezies(name: str | None = None, edition: str = "2024",
-        eintrag_id: int | None = None) -> dict:
-    """Vollstaendige Spezies-Beschreibung aus dem Bestand (Merkmale, Groesse, Bewegungsrate),
-    mit Zitat (Quelle, ggf. Seite, Regelversion). Name deutsch oder englisch -
-    alternativ eintrag_id aus einem Suchtreffer. Spezies ist
-    Schritt 3 der 2024-Erstellung (B7).
-    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
-    Deutsch-first (Original in Klammern)."""
-    return _ns._hole_detail("spezies", name, edition, aggregiere_kinder=True, eintrag_id=eintrag_id)
-
-
-def foliant_hol_hintergrund(name: str | None = None, edition: str = "2024",
-        eintrag_id: int | None = None) -> dict:
-    """Vollstaendiger Hintergrund aus dem Bestand (Attributswerte, Ursprungstalent,
-    Fertigkeiten, Ausruestung), mit Zitat (Quelle, ggf. Seite, Regelversion). Name deutsch
-    oder englisch. Hintergrund ist Schritt 2 der 2024-Erstellung (B7).
-    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
-    Deutsch-first (Original in Klammern)."""
-    return _ns._hole_detail("hintergrund", name, edition, eintrag_id=eintrag_id)
-
-
-def foliant_hol_talent(name: str | None = None, edition: str = "2024",
-        eintrag_id: int | None = None) -> dict:
-    """Vollstaendige Talent-Beschreibung (Feat) aus dem Bestand, mit Zitat (Quelle, ggf.
-    Seite, Regelversion). Name deutsch oder englisch - alternativ eintrag_id aus
-    einem Suchtreffer.
-    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
-    Deutsch-first (Original in Klammern)."""
-    return _ns._hole_detail("talent", name, edition, aggregiere_kinder=True, eintrag_id=eintrag_id)
-
-
-def foliant_hol_klasse(name: str | None = None, edition: str = "2024",
-        eintrag_id: int | None = None) -> dict:
-    """Vollstaendige Klassen- oder Unterklassen-Beschreibung aus dem Bestand, mit Zitat
-    (Quelle, ggf. Seite, Regelversion). Name deutsch oder englisch ('Kaempfer', 'Champion').
-    Liefert bei Klassen zusaetzlich die verwandten Abschnitte (Klassenmerkmale, Zauberliste,
-    Unterklassen) als Namen - bei Bedarf einzeln per foliant_hol_klasse nachladen (haelt die
-    Antwort knapp). Klasse ist Schritt 1 der 2024-Erstellung (B7).
-    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
-    Deutsch-first (Original in Klammern)."""
-    d = _ns._hole_detail("klasse", name, edition, eintrag_id=eintrag_id)
-    if not d.get("gefunden") or not d.get("name_de"):
-        return d
-    con = _ns._verbinde()
-    if con is None:
-        return d
-    try:
-        bedingung, params = _kontext_bedingung(con, f"Klassen > {d['name_de']}")
-        verwandte = [r[0] for r in con.execute(
-            "SELECT name_de FROM eintraege WHERE kategorie='klasse' AND name_de IS NOT NULL "
-            f"AND edition = ? AND {bedingung} ORDER BY id",
-            [d["edition"], *params])]
-        if verwandte:
-            d["verwandte_abschnitte"] = verwandte
-            d["hinweis_abschnitte"] = ("Stufentabelle und Merkmale stehen in den verwandten "
-                                       "Abschnitten (per foliant_hol_klasse abrufbar).")
-        return d
     finally:
         con.close()
 
@@ -728,7 +679,7 @@ def _klassenmerkmale_body(name_de: str) -> str | None:
     if con is None:
         return None
     try:
-        bedingung, params = _kontext_bedingung(con, f"Klassen > {name_de}", praefix="e.")
+        bedingung, params = _db.kontext_bedingung(con, f"Klassen > {name_de}", praefix="e.")
         rows = con.execute(
             "SELECT e.body_md FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
             f"WHERE e.kategorie='klasse' AND e.edition=? AND {bedingung} "

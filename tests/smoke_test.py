@@ -39,17 +39,17 @@ def smoke_alle_tools() -> int:
         if not sd["treffer"]:
             print(f"!! Deutscher Begriff '{deutsch}' fand nichts (Glossar geseedet?)"); fehler += 1
 
-    d = ns.foliant_hol_zauber("Fireball")
-    _drucke("foliant_hol_zauber('Fireball')", d,
+    d = ns.foliant_hol_eintrag("zauber", "Fireball")
+    _drucke("foliant_hol_eintrag(\'zauber\', 'Fireball')", d,
             ["gefunden", "anzeige_name", "zitat", "edition", "hinweis_uebersetzung"])
     fehler += 0 if d.get("gefunden") else 1
 
-    m = ns.foliant_hol_monster("Aboleth")
-    _drucke("foliant_hol_monster('Aboleth')", m, ["gefunden", "anzeige_name", "zitat"])
+    m = ns.foliant_hol_eintrag("monster", "Aboleth")
+    _drucke("foliant_hol_eintrag(\'monster\', 'Aboleth')", m, ["gefunden", "anzeige_name", "zitat"])
     fehler += 0 if m.get("gefunden") else 1
 
-    g = ns.foliant_hol_gegenstand("Battleaxe")
-    _drucke("foliant_hol_gegenstand('Battleaxe')", g,
+    g = ns.foliant_hol_eintrag("gegenstand", "Battleaxe")
+    _drucke("foliant_hol_eintrag(\'gegenstand\', 'Battleaxe')", g,
             ["gefunden", "anzeige_name", "zitat", "regeltext_md"])
     if g.get("gefunden") and "Mastery" not in g.get("regeltext_md", ""):
         print("!! Waffenmeisterschaft fehlt im Gegenstand (weapons-Merge kaputt?)"); fehler += 1
@@ -90,11 +90,11 @@ def smoke_charakter() -> int:
     DDB/Open5e duerfen Optionen ERGAENZEN, aber die SRD-Basis muss da und muellfrei sein."""
     fehler = 0
 
-    k = ch.foliant_liste_klassen()
+    k = ch.foliant_liste_optionen("klasse")
     SRD_KLASSEN = {"barbar", "barde", "druide", "hexenmeister", "kämpfer", "kleriker",
                    "magier", "mönch", "paladin", "schurke", "waldläufer", "zauberer"}
     vorhanden = {(z.get("name_de") or "").lower() for z in k["klassen"]}
-    print(f"\n=== foliant_liste_klassen ===\n {len(k['klassen'])} Klassen")
+    print(f"\n=== foliant_liste_optionen ===\n {len(k['klassen'])} Klassen")
     if SRD_KLASSEN - vorhanden:
         print(f"!! SRD-Klassen fehlen in der Liste: {sorted(SRD_KLASSEN - vorhanden)}"); fehler += 1
     if _junk_namen(k["klassen"]):
@@ -105,19 +105,19 @@ def smoke_charakter() -> int:
     if ohne_uk:
         print(f"!! SRD-Klassen ohne Unterklasse: {ohne_uk}"); fehler += 1
 
-    s = ch.foliant_liste_spezies()
+    s = ch.foliant_liste_optionen("spezies")
     SRD_SPEZIES = {"elf", "zwerg", "gnom", "goliath", "halbling", "mensch", "ork",
                    "tiefling", "drachenblütiger"}
     sp_de = {(z.get("name_de") or "").lower() for z in s["spezies"]}
-    print(f"=== foliant_liste_spezies ===\n {[z['anzeige'] for z in s['spezies']]}")
+    print(f"=== foliant_liste_optionen ===\n {[z['anzeige'] for z in s['spezies']]}")
     if SRD_SPEZIES - sp_de:
         print(f"!! SRD-Spezies fehlen in der Liste: {sorted(SRD_SPEZIES - sp_de)}"); fehler += 1
     if _junk_namen(s["spezies"]):
         print(f"!! Kapitel-Header als Spezies (Import-Filter kaputt?): {_junk_namen(s['spezies'])}")
         fehler += 1
 
-    h = ch.foliant_liste_hintergruende()
-    t = ch.foliant_liste_talente()
+    h = ch.foliant_liste_optionen("hintergrund")
+    t = ch.foliant_liste_optionen("talent")
     kategorien = {z.get("kategorie") for z in t["talente"]}
     print(f"=== hintergruende/talente ===\n {len(h['hintergruende'])} Hintergruende, "
           f"{len(t['talente'])} Talente, Kategorien: {sorted(str(k) for k in kategorien)}")
@@ -130,12 +130,12 @@ def smoke_charakter() -> int:
     if None in kategorien:
         print("!! Talente ohne Kategorie (Typzeile nicht geparst / Header-Stub?)"); fehler += 1
 
-    d = ch.foliant_hol_klasse("Kämpfer")
-    _drucke("foliant_hol_klasse('Kämpfer')", d,
+    d = ns.foliant_hol_eintrag("klasse", "Kämpfer")
+    _drucke("foliant_hol_eintrag(\'klasse\', 'Kämpfer')", d,
             ["gefunden", "anzeige_name", "zitat", "verwandte_abschnitte"])
     fehler += 0 if d.get("gefunden") and d.get("verwandte_abschnitte") else 1
-    d = ch.foliant_hol_spezies("Elf")
-    print(f"\n=== foliant_hol_spezies('Elf') ===\n {d.get('anzeige_name')} | {d.get('zitat')}")
+    d = ns.foliant_hol_eintrag("spezies", "Elf")
+    print(f"\n=== foliant_hol_eintrag('spezies', 'Elf') ===\n {d.get('anzeige_name')} | {d.get('zitat')}")
     if not (d.get("gefunden") and "Elfische Abstammungen" in d.get("regeltext_md", "")):
         print("!! Elf unvollstaendig (Abstammungs-Tabelle fehlt - Spezies-Merge kaputt?)")
         fehler += 1
@@ -163,20 +163,20 @@ def smoke_detail_tools() -> int:
     import sqlite3
     fehler = 0
 
-    h = ch.foliant_liste_hintergruende()
+    h = ch.foliant_liste_optionen("hintergrund")
     if h.get("hintergruende"):
         name = h["hintergruende"][0].get("name_de") or h["hintergruende"][0].get("name_en")
-        d = ch.foliant_hol_hintergrund(name)
-        print(f"\n=== foliant_hol_hintergrund('{name}') ===\n {d.get('anzeige_name')} | {d.get('zitat')}")
+        d = ns.foliant_hol_eintrag("hintergrund", name)
+        print(f"\n=== foliant_hol_eintrag('hintergrund', '{name}') ===\n {d.get('anzeige_name')} | {d.get('zitat')}")
         if not d.get("gefunden"):
             print(f"!! Hintergrund '{name}' aus der Liste nicht abrufbar (Liste<->Detail kaputt?)")
             fehler += 1
 
-    t = ch.foliant_liste_talente()
+    t = ch.foliant_liste_optionen("talent")
     if t.get("talente"):
         name = t["talente"][0].get("name_de") or t["talente"][0].get("name_en")
-        d = ch.foliant_hol_talent(name)
-        print(f"=== foliant_hol_talent('{name}') ===\n {d.get('anzeige_name')} | {d.get('zitat')}")
+        d = ns.foliant_hol_eintrag("talent", name)
+        print(f"=== foliant_hol_eintrag('talent', '{name}') ===\n {d.get('anzeige_name')} | {d.get('zitat')}")
         if not d.get("gefunden"):
             print(f"!! Talent '{name}' aus der Liste nicht abrufbar (Liste<->Detail kaputt?)")
             fehler += 1
@@ -191,13 +191,13 @@ def smoke_detail_tools() -> int:
         con.close()
     if row:
         name = row[0] or row[1]
-        d = ns.foliant_hol_regel(name)
-        print(f"=== foliant_hol_regel('{name}') ===\n {d.get('anzeige_name')} | {d.get('zitat')}")
+        d = ns.foliant_hol_eintrag("regel", name)
+        print(f"=== foliant_hol_eintrag('regel', '{name}') ===\n {d.get('anzeige_name')} | {d.get('zitat')}")
         if not d.get("gefunden"):
             print(f"!! Regel '{name}' aus dem Bestand nicht abrufbar (Detailabruf kaputt?)")
             fehler += 1
     else:
-        print("=== foliant_hol_regel ===\n   keine 'regel'-Eintraege im Bestand")
+        print("=== foliant_hol_eintrag ===\n   keine 'regel'-Eintraege im Bestand")
 
     # hol_attributswerte: am Bestand belegt (B1/A5) - fehlt der Beleg, ist 'nicht verfuegbar'
     # ehrlich (kein Fehler), nur ein Hinweis auf eine fehlende importierte Regelquelle.

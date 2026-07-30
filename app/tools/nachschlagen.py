@@ -764,7 +764,7 @@ def _eintrag_namen(k: dict) -> set[str]:
     (glossar.norm_begriff: case-/diakritika-/NFD-fest - PDF-Namen kommen teils
     NFD-dekomponiert an, S11/A3). Das srd-de-Namensschema '<Klasse>-Unterklasse: <Name>'
     zaehlt auch mit dem blanken Unterklassen-Namen als exakt - sonst gewinnt bei
-    foliant_hol_klasse('Champion') der englische Open5e-Eintrag (S10). Klammer-Suffixe
+    foliant_hol_eintrag("klasse", 'Champion') der englische Open5e-Eintrag (S10). Klammer-Suffixe
     zaehlen zusaetzlich OHNE Zusatz (SYN-P0-002)."""
     namen = {_glossar.norm_begriff(k["name_de"]), _glossar.norm_begriff(k["name_en"])}
     m = re.match(r".+-unterklasse:\s*(.+)$", _glossar.norm_begriff(k["name_de"]))
@@ -1187,54 +1187,67 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
         con.close()
 
 
-def foliant_hol_zauber(name: str | None = None, edition: str = "2024",
-        eintrag_id: int | None = None) -> dict:
-    """Vollstaendiger Zauber-Steckbrief aus dem Bestand, mit Zitat (Quelle, ggf. Seite,
-    Regelversion). Name deutsch oder englisch - alternativ eintrag_id aus einem
-    Suchtreffer. edition Standard '2024'; eine andere
-    Regelversion (z. B. '2014') laesst sich gezielt anfordern und wird nie still ersetzt.
-    Bei Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
+# Kategorien, deren Eintraege die Quelle in Intro + Unterabschnitt zerlegt ('<Name>
+# Traits' bei DDB) - dort fuehrt der Detailabruf die direkten Kinder zusammen, damit die
+# Auskunft VOLLSTAENDIG ist. Die Asymmetrie stand vorher unbegruendet in zwei Wrappern
+# verstreut (charakter.py); hier steht sie an EINER sichtbaren Stelle.
+_KINDER_AGGREGATION = frozenset({"spezies", "talent"})
+
+
+def _verwandte_klassenabschnitte(d: dict) -> dict:
+    """Bei Klassen die verwandten Abschnitte (Klassenmerkmale, Zauberliste, Unterklassen)
+    als NAMEN nachreichen, statt sie in den Regeltext einzusaugen - das haelt die Antwort
+    knapp und laesst das Modell gezielt nachladen."""
+    if not d.get("gefunden") or not d.get("name_de"):
+        return d
+    con = _verbinde()
+    if con is None:
+        return d
+    try:
+        bedingung, params = _db.kontext_bedingung(con, f"Klassen > {d['name_de']}")
+        verwandte = [r[0] for r in con.execute(
+            "SELECT name_de FROM eintraege WHERE kategorie='klasse' AND name_de IS NOT NULL "
+            f"AND edition = ? AND {bedingung} ORDER BY id",
+            [d["edition"], *params])]
+        if verwandte:
+            d["verwandte_abschnitte"] = verwandte
+            d["hinweis_abschnitte"] = (
+                "Stufentabelle und Merkmale stehen in den verwandten Abschnitten "
+                "(per foliant_hol_eintrag mit kategorie='klasse' abrufbar).")
+        return d
+    finally:
+        con.close()
+
+
+def foliant_hol_eintrag(kategorie: Kategorie, name: str | None = None,
+                        edition: str = "2024", eintrag_id: int | None = None) -> dict:
+    """Vollstaendiger Eintrag aus dem Bestand, mit Zitat (Quelle, ggf. Seite,
+    Regelversion) - die Suche liefert nur knappe Auszuege, dieses Werkzeug den ganzen Text.
+
+    kategorie ist PFLICHT und sagt, WORUM es geht:
+      zauber      Zauber-Steckbrief
+      monster     Monster-Statblock
+      gegenstand  Gegenstands-Steckbrief
+      regel       allgemeiner Regelabschnitt (Zustaende, Bewegung, Rasten, Proben,
+                  Regelglossar) - NICHT als Auffangwert benutzen: fuer Zauber, Monster,
+                  Gegenstaende, Spezies, Klassen, Hintergruende und Talente gibt es die
+                  eigenen Werte, und ein falscher Wert liefert einen fremden Eintrag.
+      spezies     Spezies inkl. Merkmalen (Schritt 3 der 2024-Erstellung, B7)
+      klasse      Klasse ODER Unterklasse ('Kaempfer', 'Champion'); bei Klassen kommen
+                  die verwandten Abschnitte als Namen dazu (Schritt 1, B7)
+      hintergrund Hintergrund mit Attributswerten, Ursprungstalent, Ausruestung (Schritt 2)
+      talent      Talent (Feat) inkl. Voraussetzungen
+    Im Zweifel welche Kategorie: erst foliant_suche_bestand, dessen Treffer nennen sie.
+
+    name deutsch oder englisch - alternativ eintrag_id aus einem Suchtreffer (dann wird
+    name ignoriert). edition Standard '2024'; eine andere Regelversion (z. B. '2014')
+    laesst sich gezielt anfordern und wird nie still ersetzt. Bei Mehrdeutigkeit kommen
+    Kandidaten zurueck - dann rueckfragen statt raten.
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
     Deutsch-first (Original in Klammern)."""
-    return _hole_detail("zauber", name, edition, eintrag_id=eintrag_id)
-
-
-def foliant_hol_monster(name: str | None = None, edition: str = "2024",
-        eintrag_id: int | None = None) -> dict:
-    """Vollstaendiger Monster-Statblock aus dem Bestand, mit Zitat (Quelle, ggf. Seite,
-    Regelversion). Name deutsch oder englisch - alternativ eintrag_id aus einem
-    Suchtreffer. edition Standard '2024'; eine andere
-    Regelversion (z. B. '2014') laesst sich gezielt anfordern und wird nie still ersetzt.
-    Bei Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
-    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
-    Deutsch-first (Original in Klammern)."""
-    return _hole_detail("monster", name, edition, eintrag_id=eintrag_id)
-
-
-def foliant_hol_gegenstand(name: str | None = None, edition: str = "2024",
-        eintrag_id: int | None = None) -> dict:
-    """Gegenstands-Steckbrief aus dem Bestand, mit Zitat (Quelle, ggf. Seite, Regelversion).
-    Name deutsch oder englisch - alternativ eintrag_id aus einem Suchtreffer.
-    edition Standard '2024'; eine andere Regelversion
-    (z. B. '2014') laesst sich gezielt anfordern und wird nie still ersetzt. Bei
-    Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
-    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
-    Deutsch-first (Original in Klammern)."""
-    return _hole_detail("gegenstand", name, edition, eintrag_id=eintrag_id)
-
-
-def foliant_hol_regel(name: str | None = None, edition: str = "2024",
-        eintrag_id: int | None = None) -> dict:
-    """Vollstaendiger Text eines allgemeinen Regelabschnitts aus dem Bestand (Zustaende,
-    Bewegung, Rasten, Proben, Regelglossar-Definitionen ...), mit Zitat (Quelle, ggf.
-    Seite, Regelversion) - die Suche liefert nur knappe Auszuege, dieses Tool den ganzen
-    Abschnitt (A2). Name deutsch oder englisch - alternativ eintrag_id aus einem
-    Suchtreffer. edition Standard '2024'; eine andere
-    Regelversion laesst sich gezielt anfordern und wird nie still ersetzt. Bei
-    Mehrdeutigkeit kommen Kandidaten zurueck - dann rueckfragen statt raten.
-    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
-    Deutsch-first (Original in Klammern)."""
-    return _hole_detail("regel", name, edition, eintrag_id=eintrag_id)
+    d = _hole_detail(kategorie, name, edition, eintrag_id=eintrag_id,
+                     aggregiere_kinder=kategorie in _KINDER_AGGREGATION)
+    return _verwandte_klassenabschnitte(d) if kategorie == "klasse" else d
 
 
 def foliant_uebersetze_begriff(begriff: str,

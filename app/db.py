@@ -640,6 +640,31 @@ def _sammle_roh(con: sqlite3.Connection, query: str, alternativen: list[str],
     return roh, suchweg
 
 
+
+def kontext_bedingung(con, breadcrumb: str, praefix: str = "") -> tuple[str, list]:
+    """SQL-Bedingung + Parameter, um Eintraege mit genau diesem Breadcrumb zu finden.
+
+    Lag bis zum 30.07.2026 in app/tools/charakter.py, obwohl sie reine SQL-Bedingungs-
+    logik auf `eintraege` ist und nichts mit Charaktererstellung zu tun hat. Der Umzug
+    macht sie fuer den Detail-Pfad in nachschlagen.py erreichbar, ohne einen
+    Modul-Zyklus zu bauen (charakter.py importiert nachschlagen, nicht umgekehrt).
+
+    Nutzt die Spalte `kontext`, wo es sie gibt, und faellt sonst auf die alte LIKE-Suche
+    im body_md zurueck. Beides ist noetig: der SERVING-Pfad ist read-only und migriert
+    NICHT, eine Bestands-DB kann die Spalte also noch gar nicht haben (dann wuerde
+    `kontext = ?` die Abfrage sprengen); und selbst mit Spalte kann sie fuer einzelne
+    Zeilen NULL sein, solange die Quelle nicht neu importiert wurde."""
+    like = f"*Kontext: {breadcrumb}*%"
+    try:
+        hat_spalte = "kontext" in {r[1] for r in con.execute("PRAGMA table_info(eintraege)")}
+    except sqlite3.Error:
+        hat_spalte = False
+    if not hat_spalte:
+        return f"{praefix}body_md LIKE ?", [like]
+    return (f"({praefix}kontext = ? OR ({praefix}kontext IS NULL "
+            f"AND {praefix}body_md LIKE ?))"), [breadcrumb, like]
+
+
 def fts_suche(con: sqlite3.Connection, query: str, kategorie: str | None = None,
               edition: str | None = STANDARD_EDITION, quelle: str | None = None,
               limit: int = 8) -> dict:

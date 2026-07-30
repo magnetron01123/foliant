@@ -40,7 +40,7 @@ WERKZEUG-AUSGABEN RICHTIG LESEN (jede Zeile ein real aufgetretener Fehler):
 - Ein Feld 'fehler' in der Ausgabe bedeutet: die ANFRAGE war ungültig (z. B. falsche
   Kategorie) - NICHT "nichts im Bestand". Korrigiere den Parameter und frage erneut.
   Nur eine gültige Anfrage ohne Treffer rechtfertigt ❌.
-- Bevor du ❌ sagst: Hast du nur ein hol_*-Werkzeug probiert, prüfe mit
+- Bevor du ❌ sagst: Hast du nur foliant_hol_eintrag probiert, prüfe mit
   foliant_suche_bestand gegen. Ein voreiliges "nicht im Bestand" ist so falsch wie eine
   erfundene Antwort - nur schwerer zu bemerken.
 - Die Suche versteht Deutsch UND Englisch sowie gängige Abkürzungen (AoO, RK, TP). Ein

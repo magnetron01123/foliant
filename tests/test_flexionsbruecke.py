@@ -78,7 +78,7 @@ def test_flexion_erkennt_nur_reine_verlaengerung(kurz, lang, erwartet):
 
 def test_der_kernfall_wird_eindeutig(bestand):
     """DER Fall aus dem Suchbericht: vorher 3 Kandidaten, nachher die srd-de-Regel."""
-    vorher = ns.foliant_hol_regel("Gelegenheitsangriff")
+    vorher = ns.foliant_hol_eintrag("regel", "Gelegenheitsangriff")
     assert vorher["gefunden"] is False and vorher.get("mehrdeutig") is True
 
     con = adb.connect(str(bestand))
@@ -88,7 +88,7 @@ def test_der_kernfall_wird_eindeutig(bestand):
     finally:
         con.close()
 
-    nachher = ns.foliant_hol_regel("Gelegenheitsangriff")
+    nachher = ns.foliant_hol_eintrag("regel", "Gelegenheitsangriff")
     assert nachher["gefunden"] is True, nachher
     assert nachher["quelle_kuerzel"] == "srd-de"                   # Deutsch-first (Q2/S10)
     assert nachher["seite"] == "208"

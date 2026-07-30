@@ -12,7 +12,7 @@ Fehler damals auffiel:
       Liste -> Detail ausdruecklich zu; `_knapp` setzt das Feld seit jeher, `_zeile` nicht.
   L3  Die Klassen-Weiche kannte nur `kontext == 'Klassen'` und das deutsche Namensschema
       '<Klasse>-Unterklasse: <Name>'. Unterklassen aus englischen Druckquellen ('SUBCLASSES',
-      'ARTIFICER SUBCLASSES') fielen aus BEIDEN Listen - lautlos, obwohl foliant_hol_klasse
+      'ARTIFICER SUBCLASSES') fielen aus BEIDEN Listen - lautlos, obwohl foliant_hol_eintrag
       sie liefert. Am echten Bestand waren das 13 Stueck.
   L4  Traegt eine Waisen-Zeile (Unterklasse ohne Klasse im Bestand) spaeter selbst eine
       Unterklasse, griff der Code auf ein nie gesetztes Feld zu -> KeyError, das ganze
@@ -25,6 +25,7 @@ import pytest
 
 from app import db as adb
 from app.tools import charakter as ch
+from app.tools import nachschlagen as ns
 
 _SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 
@@ -88,7 +89,7 @@ def test_optionsliste_kennzeichnet_abenteuerherkunft(bestand):
     """L1 - der schwerste der vier. Ein Talent, das es nur im Abenteuerband gibt, stand
     ununterscheidbar zwischen den Regelwerks-Talenten; das Modell konnte daraus zitieren,
     ohne die Kennzeichnung je gesehen zu haben."""
-    r = ch.foliant_liste_talente()
+    r = ch.foliant_liste_optionen("talent")
     nach_namen = {t["name_de"] or t["name_en"]: t for t in r["talente"]}
     assert nach_namen["ABERRANT DRAGONMARK"].get("inhaltsart") == "abenteuer_setting"
     assert nach_namen["Wachsam"].get("inhaltsart") is None, "Regelwerk faelschlich markiert"
@@ -99,7 +100,7 @@ def test_geschachtelte_unterklassen_sind_ebenfalls_gekennzeichnet(bestand):
     """L1, zweite Tuer: Unterklassen liegen verschachtelt unter ihrer Klasse. Eine
     Kennzeichnung, die nur die oberste Ebene erreicht, laesst genau die Zeilen
     unmarkiert, die aus dem Abenteuerband stammen."""
-    magier = next(k for k in ch.foliant_liste_klassen()["klassen"]
+    magier = next(k for k in ch.foliant_liste_optionen("klasse")["klassen"]
                   if k["name_de"] == "Magier")
     nach_namen = {u["name_de"] or u["name_en"]: u for u in magier["unterklassen"]}
     assert nach_namen["BLADESINGER"].get("inhaltsart") == "abenteuer_setting"
@@ -110,16 +111,16 @@ def test_listenzeile_traegt_eintrag_id_und_loest_wieder_auf(bestand):
     """L2 - SYN-P1-002 sichert den Rundlauf zu. Ohne eintrag_id musste das Modell den
     gerade gezeigten Eintrag ueber seinen NAMEN erneut suchen und lief damit in dieselbe
     Mehrdeutigkeit, die die Liste gerade aufgeloest hatte."""
-    zeile = ch.foliant_liste_spezies()["spezies"][0]
+    zeile = ch.foliant_liste_optionen("spezies")["spezies"][0]
     assert isinstance(zeile["eintrag_id"], int)
-    assert ch.foliant_hol_spezies(eintrag_id=zeile["eintrag_id"])["name_de"] == "Zwerg"
+    assert ns.foliant_hol_eintrag("spezies", eintrag_id=zeile["eintrag_id"])["name_de"] == "Zwerg"
 
 
 def test_unterklasse_aus_druckquelle_geht_nicht_verloren(bestand):
     """L3 - 'BLADESINGER (WIZARD)' steht unter dem Kapitel 'SUBCLASSES' und traegt seine
     Klasse als Klammer-Suffix: weder 'Klassen > X' noch das deutsche Namensschema. Vorher
-    fiel der Eintrag aus BEIDEN Listen, obwohl foliant_hol_klasse ihn liefert."""
-    magier = next(k for k in ch.foliant_liste_klassen()["klassen"]
+    fiel der Eintrag aus BEIDEN Listen, obwohl foliant_hol_eintrag ihn liefert."""
+    magier = next(k for k in ch.foliant_liste_optionen("klasse")["klassen"]
                   if k["name_de"] == "Magier")
     namen = {u["name_de"] or u["name_en"] for u in magier["unterklassen"]}
     assert "BLADESINGER" in namen, f"Unterklasse verschluckt: {namen}"
@@ -129,7 +130,7 @@ def test_klammer_suffix_wird_nicht_als_deutsch_first_missverstanden(bestand):
     """Der Anzeigename darf nicht 'BLADESINGER (WIZARD)' lauten: dieses Format bedeutet in
     jeder anderen Ausgabe 'Deutsch (English)' - der Klassenname saehe aus wie die englische
     Entsprechung der Unterklasse (S3/S4)."""
-    magier = next(k for k in ch.foliant_liste_klassen()["klassen"]
+    magier = next(k for k in ch.foliant_liste_optionen("klasse")["klassen"]
                   if k["name_de"] == "Magier")
     bs = next(u for u in magier["unterklassen"] if (u["name_en"] or "") == "BLADESINGER")
     assert bs["anzeige"] == "BLADESINGER"
@@ -147,7 +148,7 @@ def test_zwei_waisen_derselben_fehlenden_klasse_stuerzen_nicht_ab(bestand):
     erst durch L3 erreichbar, weil deren Unterklassen vorher gar nicht erst in der
     Zuordnungsschleife ankamen. Verifiziert am 30.07.2026: mit L3 und ohne setdefault
     wirft dieser Fall KeyError: 'unterklassen'."""
-    r = ch.foliant_liste_klassen()                      # darf schlicht nicht werfen
+    r = ch.foliant_liste_optionen("klasse")                      # darf schlicht nicht werfen
     waisen = [k for k in r["klassen"] if k.get("hinweis")]
     assert waisen, "Waisen-Fall nicht erzeugt - Fixture pruefen"
     assert all("nicht im Bestand" in w["hinweis"] for w in waisen), \
@@ -157,8 +158,8 @@ def test_zwei_waisen_derselben_fehlenden_klasse_stuerzen_nicht_ab(bestand):
 def test_unterabschnitte_bleiben_aus_beiden_listen_draussen(bestand):
     """Gegenprobe zu L3: die Weiche darf nicht in die andere Richtung kippen.
     'Klassenmerkmale des Magiers' und 'Zauberliste des Magiers' sind Unterabschnitte -
-    foliant_hol_klasse weist sie als 'verwandte_abschnitte' aus, die LISTE nicht."""
-    klassen = ch.foliant_liste_klassen()["klassen"]
+    foliant_hol_eintrag weist sie als 'verwandte_abschnitte' aus, die LISTE nicht."""
+    klassen = ch.foliant_liste_optionen("klasse")["klassen"]
     alle = {k["name_de"] or k["name_en"] for k in klassen}
     alle |= {u["name_de"] or u["name_en"]
              for k in klassen for u in k.get("unterklassen", [])}
