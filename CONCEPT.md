@@ -188,7 +188,7 @@ schreiben.
   „1.000 GM" ist tausend). Geseedet wird nur die **suffixfreie** Form („Backpack" →
   „Rucksack"), sonst entstünden EN→mehrere-offizielle-DE-Konflikte neben den
   dnddeutsch-Zeilen; Dedupe und Anzeige ziehen Klammer-Suffixe kanonisch ab
-  (`glossar.KLAMMER_SUFFIX`). Review vor dem Lauf: `admin glossar-paare --vorschau`,
+  (`glossar.KLAMMER_SUFFIX`). Review vor dem Lauf: `admin glossar-paare --nur-neue`,
   Gate danach: die **echten** Konflikte in `admin glossar-audit` nehmen nicht zu.
   Editionsgetrennte Mehrfachformen („Pouch": Tasche/2014 aus dem Spielerhandbuch vs.
   Beutel/2024 aus dem dt. SRD) zählen **nicht** dazu — dort entscheidet S8 eindeutig, und
@@ -227,7 +227,7 @@ liefern **knappe** Treffer, Detail-Tools die volle Ausgabe — das hält die Kon
 - **Status:** `/health` (offen), `/ready` (prüft DB + FTS, 503 bei kaputtem Bestand)
 
 Alle Tools sind als `readOnlyHint` deklariert, haben `Literal`-Enums und Bounds und liefern
-diskriminierte Ergebnisformen (`gefunden|mehrdeutig|fehler|nicht_verfuegbar`). Suchtreffer
+diskriminierte Ergebnisformen (`gefunden|mehrdeutig|fehler|verfuegbar`). Suchtreffer
 tragen eine stabile `eintrag_id`, über die der Detailabruf denselben Eintrag exakt nachlädt.
 
 **Arbeitsteilung:** Der Server liefert Daten, Suche und Validierung; **Claude führt das
@@ -422,6 +422,8 @@ ocr-pdf       --datei <pfad> [--redo] [--voll]
 reindex-fts   FTS neu aufbauen
 check         Integritaet, FK, FTS-Suchbarkeit, Editionen, Textqualitaet, Facetten-Deckung
 glossar-audit Glossar-Stand und -Herkunft pruefen
+glossar-paare Kandidaten fuer neue Glossar-Paare zeigen [--nur-neue] [--json]
+suchbericht   Auswertung des Abfrage-Protokolls: Nulltreffer, Fuzzy, Mehrdeutigkeiten
 backup        konsistentes, verifiziertes Online-Backup mit Rotation
 ddb-pruefe | ddb-import | ddb-import-all | ddb-remove
 ```
@@ -597,6 +599,9 @@ DDB-Verzeichnis aufgelöst; schon Exportiertes wird übersprungen.
   sondern gemeldet. Soll es trotzdem rein: `[[ddb.buch]]` mit explizitem `edition`.
 - Varianten: `sync --dry-run` · `sync --force` (nach Errata) · `ddb-import-all --dry-run` ·
   `admin ddb-remove --quelle <kuerzel>`.
+- Diagnose: `inspect --id <ddb-id>` lädt ein Buch, entschlüsselt es und zeigt Tabellen,
+  Zeilenzahlen und Spalten — **keine Zellwerte**, kein Artefakt. Der Weg, wenn ein Buch
+  leer ankommt und die Frage ist, ob die Struktur oder der Inhalt fehlt.
 
 **Wohin die Bücher landen,** steuert `config/foliant.toml`: `[ddb] ins_hauptbestand = true` →
 Merge in die bediente DB (**so läuft der Pi**, siehe [SPEC.md](SPEC.md) §12.1). Ohne die Zeile
@@ -631,8 +636,8 @@ läuft ohne Änderung weiter.
 | **Geheimpfad + IP-Allowlist statt OAuth** | Claude-Connectors können keine Custom-Header senden; ein server-seitiger Filter ist versioniert und testbar; OAuth wäre für < 5 Nutzer überdimensioniert |
 | **Ein internes Schema für alle Quellen** | einheitlicher Tool-Output; Provenienz bleibt sichtbar |
 | **Edition sichtbar, nicht wegnormalisiert** | Referenz-MCP-Server normalisieren so, „dass die LLM den Unterschied nicht sieht" — für uns ein Anti-Pattern: **Datenshape** vereinheitlichen, **Provenienz** behalten |
-| **`such_*`/`hol_*` je Entitätstyp trennen** | Suche liefert knappe Treffer, Detail die volle Ausgabe — hält die Kontextlast niedrig |
-| **Quellen-Macken beim Code, der sie behandelt** | Die Eigenheiten einer Quelle stehen im Modul-Docstring ihres Importers, die Reparatur daneben — damit dieselbe Falle nicht zweimal gelöst wird. Ein *zentrales* Macken-Modul gab es; es wurde von keinem Codepfad gelesen und beschrieb ein zweites Mal, was längst am Lösungsort stand (Chronik: [BACKLOG.md](BACKLOG.md) §5) |
+| **Suche und Detailabruf trennen** | Die eine Suche liefert knappe Treffer, die `hol_*` die volle Ausgabe — hält die Kontextlast niedrig. Die Aufteilung der Detailabrufe *je Entitätstyp* ist damit **nicht** begründet (Review 30.07.2026) |
+| **Quellen-Macken beim Code, der sie behandelt** | Die Eigenheiten einer Quelle stehen im Modul-Docstring ihres Importers, die Reparatur daneben — damit dieselbe Falle nicht zweimal gelöst wird. Ein *zentrales* Macken-Modul gab es; es wurde von keinem Codepfad gelesen und beschrieb ein zweites Mal, was längst am Lösungsort stand `app/bekannte_macken.py`, 123 Zeilen, seit dem Initial-Commit mit `TODO: fuellen` — entfernt am 29.07.2026 |
 | **Build-Prüfung minimal** | wenige klare Checks statt einer vollständigen Regel-Engine |
 | **DELETE-Journal** | Kompatibilität mit Bind-Mount-Volumes |
 | **Alles auf dem Pi** | Ein-Geräte-Wunsch; PyMuPDF4LLM ist ARM-tauglich |

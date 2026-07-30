@@ -35,7 +35,7 @@ Was noch offen ist: [BACKLOG.md](BACKLOG.md).
 |---|---|
 | **[SPEC.md](SPEC.md)** | Das verbindliche **„Was"**: Anforderungen, Sprach- und Versionsregeln, Verhalten, Abnahmekriterien (die Projektanweisung selbst steht in [`config/projektanweisung.md`](config/projektanweisung.md)) |
 | **[CONCEPT.md](CONCEPT.md)** | Das **„Wie"**: Architektur, Datenmodell, Import-Pipelines, Betrieb und Deployment, Entscheidungen, Fallen, Sicherheitsmodell |
-| **[BACKLOG.md](BACKLOG.md)** | Was **offen** ist: Phasen mit Gates, Abnahme-Checkliste, Rest-Posten, Ausbaustufen, erledigte Chronik |
+| **[BACKLOG.md](BACKLOG.md)** | Was **offen** ist: Phasen mit Gates, Abnahme-Checkliste, Rest-Posten, Ausbaustufen |
 | **README.md** | Diese Datei: Einstieg, Schnellstart, Nutzung, Recht |
 
 `CLAUDE.md` ist kein fünftes Dokument, sondern der Einstiegspunkt für Claude Code — er

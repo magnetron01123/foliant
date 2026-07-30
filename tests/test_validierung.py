@@ -161,6 +161,51 @@ def test_ddb_editionsnamen_stimmen_mit_den_aliassen():
     assert laengen == sorted(laengen, reverse=True), "laengster Praefix muss zuerst stehen"
 
 
+def test_admin_cli_block_in_concept_ist_wirklich_vollstaendig():
+    """CONCEPT.md §8 fuehrt die Admin-CLI unter der Ueberschrift "(vollstaendig)" - und
+    liess am 30.07.2026 zwei Kommandos aus (`glossar-paare`, `suchbericht`). Dazu nannte
+    der Text ein Flag `--vorschau`, das es nie gab: `git log -S` findet es ausschliesslich
+    im Doku-Commit. Wer der Anleitung folgte, bekam Exit 2.
+
+    Der Waechter vergleicht den Doku-Block mit dem echten argparse-Baum. Er prueft die
+    NAMEN, nicht die Beschreibungen - die duerfen und sollen unterschiedlich formuliert
+    sein. Dieselbe Bauart wie die Vertragswaechter darueber: eine Doppelung, die lautlos
+    driftet, bekommt einen Test statt einer Bitte."""
+    import re
+    from pathlib import Path
+
+    from app import admin
+
+    wurzel = Path(__file__).resolve().parent.parent
+    text = (wurzel / "CONCEPT.md").read_text(encoding="utf-8")
+    block = re.search(r"### Admin-CLI \(vollständig\)\n```\n(.*?)```", text, re.S)
+    assert block, "Der Admin-CLI-Block in CONCEPT.md §8 ist verschwunden oder umbenannt"
+
+    dokumentiert: set[str] = set()
+    for zeile in block.group(1).splitlines():
+        if not zeile.strip():
+            continue
+        felder = [f.strip() for f in zeile.split("|") if f.strip()]
+        if len(felder) > 1 and all(" " not in f for f in felder):
+            # Sammelzeile 'ddb-pruefe | ddb-import | ...' - jedes Feld ist ein Kommando.
+            # Die Bedingung 'jedes Feld ein einzelnes Wort' trennt sie von der
+            # import-Zeile, deren Pipes ARGUMENT-Alternativen sind, keine Kommandos.
+            dokumentiert |= set(felder)
+        else:
+            # Sonst: erstes Wort = Kommando, der Rest ist die Beschreibungsspalte.
+            dokumentiert.add(zeile.split()[0])
+
+    import argparse
+
+    echte = {name for a in admin.baue_parser()._actions
+             if isinstance(a, argparse._SubParsersAction) for name in a.choices}
+
+    assert dokumentiert == echte, (
+        f"CONCEPT.md §8 und app/admin.py driften: "
+        f"nur in der Doku {sorted(dokumentiert - echte)}, "
+        f"nur im Code {sorted(echte - dokumentiert)}")
+
+
 def test_quelle_kuerzel_wird_im_strukturpfad_nicht_still_verworfen(bestand):
     """Befund 30.07.2026: foliant_suche_bestand reichte `quelle_kuerzel` nur in den
     VOLLTEXT-Pfad weiter. _struktur_filter nahm den Parameter gar nicht erst entgegen -

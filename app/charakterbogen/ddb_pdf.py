@@ -1,7 +1,7 @@
 """DDB-PDF-Extractor (deterministisch) -> neutrales Charaktermodell.
 
 D&D-Beyond-Exporte (PDFsharp) tragen ihre Werte in verwaisten /Widget-Annotationen
-OHNE Catalog-/AcroForm (KONZEPT §4.1). `page.widgets()` von PyMuPDF liest sie dennoch
+OHNE Catalog-/AcroForm (CONCEPT.md §7). `page.widgets()` von PyMuPDF liest sie dennoch
 (am Golden-Sample verifiziert: 874 Widgets, 169 befuellt). Fallback auf /Contents, falls
 ein Wert nicht in /V liegt.
 
@@ -73,7 +73,7 @@ def lese_widgets(doc: fitz.Document) -> tuple[list[RohFeld], list[str]]:
                 alle_namen.append(name)
             wert = w.field_value
             if wert in (None, ""):
-                # Fallback /Contents (KONZEPT §4.1: Wert in /V ODER /Contents)
+                # Fallback /Contents (CONCEPT.md §7: Wert in /V ODER /Contents)
                 try:
                     typ, val = doc.xref_get_key(w.xref, "Contents")
                     if typ == "string":
@@ -149,7 +149,7 @@ def _setze_pfad(wurzel, pfad: str, wert) -> None:
 
 
 def _wandle(art: str, wert: str, warnungen: list[str], feld: str):
-    """Rohwert -> Modellwert je nach `art` (KONZEPT §5/§8: Zahlen roh, Text als UeText)."""
+    """Rohwert -> Modellwert je nach `art` (CONCEPT.md §7: Zahlen roh, Text als UeText)."""
     if art in ("name", "roh"):
         return wert
     if art == "zahl":
@@ -552,7 +552,7 @@ def _leite_unterklasse_ab(char: Charakter) -> None:
 
 
 def _erfasse_unerwartete(char: Charakter, idx: dict, feldkarte: dict) -> None:
-    """Jedes belegte Feld ohne bekanntes Ziel -> raw (nie verwerfen, KONZEPT §4.1)."""
+    """Jedes belegte Feld ohne bekanntes Ziel -> raw (nie verwerfen, CONCEPT.md §7)."""
     bekannt: set[str] = set()
     bekannt |= set(feldkarte["skalar"].keys())
     for felder in feldkarte["attribute"].values():

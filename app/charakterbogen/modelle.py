@@ -1,4 +1,4 @@
-"""Neutrales, rendererunabhaengiges Charaktermodell (Auftrag §7.3, KONZEPT §8).
+"""Neutrales, rendererunabhaengiges Charaktermodell (Auftrag §7.3, CONCEPT.md §7).
 
 Zwischenstufe zwischen DDB-Extraktion (EN) und DE-Rendering. Zwei Prinzipien:
 
@@ -10,7 +10,7 @@ Zwischenstufe zwischen DDB-Extraktion (EN) und DE-Rendering. Zwei Prinzipien:
    rohe Strings/Ints/Bools - sie laufen NIE durch das Sprachmodell (Auftrag §7.3, §8.3).
 
 Feldnamen sind bewusst deutsch (Repo-Konvention, Deutsch-first). Die englischen
-"canonical keys" aus KONZEPT §7.1 (identity.name, abilities.str.score ...) beschreiben
+"canonical keys" aus CONCEPT.md §7 (identity.name, abilities.str.score ...) beschreiben
 die Mapping-STRUKTUR, nicht die Bezeichner-Sprache; die DDB-Feldkarte bildet exakt auf
 die hier definierten deutschen Pfade ab.
 

@@ -1,6 +1,6 @@
 """Exportiert NUR die Glossar-Tabelle in eine eigene SQLite-DB für den Web-Container.
 
-Sicherheit (AUFTRAG §10): der Web-Container darf die volle Foliant-DB (mit privaten
+Sicherheit (SPEC.md §14): der Web-Container darf die volle Foliant-DB (mit privaten
 Buchinhalten) NICHT sehen. Er braucht aber die Begriffs-Terminologie. Diese kleine DB
 enthält ausschließlich die `glossar`-Tabelle (öffentliche Begriffspaare) — read-only ins
 Web gemountet.

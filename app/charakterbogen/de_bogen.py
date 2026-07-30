@@ -2,10 +2,10 @@
 
 Zeichnet Werte per Koordinaten (layout_map) mit Auto-Fit auf eine Kopie der offiziellen
 DE-Vorlage; der Vektor-Hintergrund (Logo, Rahmen, Illustrationen, rechtliche Fußzeile)
-bleibt unverändert - es wird nur Text/Marken HINZUGEFÜGT (KONZEPT §9/§10). Bei echtem
+bleibt unverändert - es wird nur Text/Marken HINZUGEFÜGT (CONCEPT.md §7). Bei echtem
 Überlauf einer bereits im Quellbogen vorhandenen Sektion wird die LEERE Vorlagenseite
 kopiert, direkt hinter der Ursprungsseite eingefügt und der Rest fließt dort in DIESELBE
-Box weiter (KONZEPT §9) - nichts wird still abgeschnitten.
+Box weiter (CONCEPT.md §7) - nichts wird still abgeschnitten.
 
 Phase 2: rendert das neutrale Modell OHNE Übersetzung (UeText -> .de falls vorhanden,
 sonst .en) - der "sieht aus wie Original"-Beweis. Die deutsche Übersetzung kommt in Phase 3.
@@ -683,7 +683,7 @@ def _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap, 
     der Ursprungsseite (Überlauf entsteht nur bei minsize -> die Kopie rendert fest mit
     minsize, statt größer zu fitten; Befund: Schriftgrad-Sprung zwischen den Seiten).
     Zauber-Überlauf setzt die Zaubertabelle der Seite-2-Kopie fort - mit allen Spalten und
-    K/R/M-Marken. KONZEPT §9: überträgt vorhandenen Inhalt, fügt keinen hinzu."""
+    K/R/M-Marken. CONCEPT.md §7: überträgt vorhandenen Inhalt, fügt keinen hinzu."""
     zauber_seite = layout["zauber_tabelle"]["s"]
     quellseiten = set(reste) | ({zauber_seite} if zauber_rest else set())
     if not quellseiten:
@@ -726,7 +726,7 @@ def _seitenzahlen(doc, ink) -> None:
     """Nummeriert alle Seiten ('Seite N von M') rechts unten - nur wenn das Dokument über die
     Original-Vorlage hinaus gewachsen ist (Fortsetzungsseiten eingefügt), damit lose Blätter
     beim Ausdrucken wieder in der richtigen Reihenfolge liegen. Der unveränderte 2-Seiten-
-    Bogen ohne Überlauf bleibt am Fuß frei - nichts Zusätzliches ohne Anlass (KONZEPT §9)."""
+    Bogen ohne Überlauf bleibt am Fuß frei - nichts Zusätzliches ohne Anlass (CONCEPT.md §7)."""
     gesamt = doc.page_count
     for i, seite in enumerate(doc):
         text = f"Seite {i + 1} von {gesamt}"
@@ -830,7 +830,7 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
         rm = layout["ruestung_marken"]
         _ruestungs_marken(seiten[rm["s"]], rm, charakter.uebungen.ruestung, ink)
 
-        # 6) Fortsetzungsseiten (KONZEPT §9): Kopien der leeren Vorlagenseite direkt hinter
+        # 6) Fortsetzungsseiten (CONCEPT.md §7): Kopien der leeren Vorlagenseite direkt hinter
         #    der Ursprungsseite; Reste fliessen in dieselben Boxen/Tabellen weiter
         gewachsen = _fortsetzungsseiten(doc, vorlage_pfad, reste, zauber_rest, layout, codemap,
                                         ink, charakter)
@@ -846,7 +846,7 @@ def rendere(charakter: Charakter, template_pfad: Path | None = None,
 
 
 def _kalibriere(seiten, layout) -> None:
-    """Zeichnet alle Ziel-Rechtecke als rote Umrisse + Schlüssel (Feinjustage, KONZEPT §7.2)."""
+    """Zeichnet alle Ziel-Rechtecke als rote Umrisse + Schlüssel (Feinjustage, CONCEPT.md §7)."""
     rot = (0.85, 0.1, 0.1)
     def kasten(p, rect, name):
         p.draw_rect(fitz.Rect(rect), color=rot, width=0.4)

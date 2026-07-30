@@ -1,6 +1,6 @@
 """Übersetzer (LLM-basiert, klar isoliert): füllt `.de` im neutralen Charaktermodell.
 
-Strategie (KONZEPT §6, AUFTRAG §8):
+Strategie (CONCEPT.md §7, SPEC.md §14):
 - FESTE Begriffe/Namen (art="term"): deterministisch über `terminologie.aufloesen` (die
   bestehende Foliant-Glossar-Logik). Exakter Treffer -> §5-Form ohne LLM.
 - ZWEI LLM-Stufen: erst die unbelegten Begriffe (Stufe 1, kurz), dann die Fließtexte
@@ -314,7 +314,7 @@ def _mit_wiederholung(provider: Uebersetzungsprovider, ids: dict[str, str],
                       vorgaben: dict[str, str] | None = None,
                       ) -> tuple[dict[str, str], set[str]]:
     """Ein gebündelter Aufruf; bei ungültigem/unvollständigem Ergebnis genau EINMAL erneut,
-    danach kontrolliert scheitern (AUFTRAG §8.3). (Der frühere Listen-Anzahl-Guard ist
+    danach kontrolliert scheitern (SPEC.md §14). (Der frühere Listen-Anzahl-Guard ist
     obsolet: Listen laufen seit 17.07.2026 gar nicht mehr durchs Sprachmodell.)"""
     letzter: Exception | None = None
     for versuch in range(2):

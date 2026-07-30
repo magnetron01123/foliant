@@ -3,6 +3,7 @@ Mock-Transport und synthetischen Daten; keine echten Secrets, Texte oder API-Ant
 
 Laufen in der Haupt-Suite, mit Ausnahme der DB3-Leser-Tests (brauchen apsw-sqlite3mc
 aus .venv-ddb und werden sonst uebersprungen)."""
+import inspect
 import io
 import json
 import zipfile
@@ -371,3 +372,26 @@ def test_edition_autoritativ_aus_buch_db(tmp_path):
 
     p4 = tmp_path / "d.db3"; _mach_db(p4, "Hidden Sources", "4/30/2025")
     assert lies_edition(Path(p4), "k", 99) is None            # mehrdeutig -> nicht raten
+
+
+def test_sync_ueberlebt_netzfehler_eines_einzelnen_buchs():
+    """Befund 30.07.2026: Der Kommentar ueber der except-Liste in cmd_sync sagt "Ein
+    einzelnes Buch darf den Gesamtlauf NIE abbrechen" - gefangen wurden aber nur
+    SystemExit, DdbFehler, ArchivFehler und ValueError. Die Transportfehler von httpx
+    (ReadTimeout, ConnectError, RemoteProtocolError) stammen aus keiner dieser Familien.
+
+    Ein einziges haengendes Buch riss damit den ganzen sync-Lauf ab - und zwar genau im
+    langlaufenden Fall (viele Buecher, Minuten bis Stunden), fuer den die Schleife
+    gebaut wurde."""
+    import httpx
+
+    from importer.ddb_exporter import cli
+
+    # httpx.HTTPError ist die gemeinsame Basis aller Transportfehler - genau sie muss in
+    # der except-Liste stehen, nicht die einzelnen Unterklassen.
+    for fehlerart in (httpx.ReadTimeout, httpx.ConnectError, httpx.RemoteProtocolError):
+        assert issubclass(fehlerart, httpx.HTTPError)
+
+    quelle = inspect.getsource(cli.cmd_sync)
+    assert "httpx.HTTPError" in quelle, \
+        "cmd_sync faengt die Transportfehler wieder nicht - ein Timeout reisst den Lauf ab"

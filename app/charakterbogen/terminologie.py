@@ -1,5 +1,5 @@
 """In-Prozess-Terminologie: löst feste D&D-Begriffe über die BESTEHENDE Foliant-Glossar-
-Logik auf (app.glossar) - KEIN zweites Glossar (AUFTRAG §8.1, KONZEPT §6).
+Logik auf (app.glossar) - KEIN zweites Glossar (SPEC.md §14, CONCEPT.md §7).
 
 Liefert die EINE §5-Anzeigeform:  'Deutsch (English)'  bzw.  'Deutsch* (English)'.
 Nur EXAKTE Glossar-Treffer gelten (Fuzzy zählt nie, SYN-P0-001) - genau wie

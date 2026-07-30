@@ -1,5 +1,8 @@
 # Foliant - Beispiel-Konfiguration. Kopieren nach config/foliant.toml (gitignored).
-# KEINE Secrets hier ablegen (Cobalt-Cookie via Umgebungsvariable FOLIANT_COBALT).
+# KEINE Secrets hier ablegen. Das DDB-Cobalt-Secret kommt aus einer DATEI
+# (FOLIANT_COBALT_DATEI, Standard /run/secrets/ddb_cobalt), aus der macOS-Keychain
+# oder aus einer verdeckten Eingabe - NIE aus einer Umgebungsvariablen mit dem Wert
+# darin (CONCEPT.md §10: FOLIANT_COBALT ist bewusst aus allen Vorlagen entfernt).
 
 [db]
 pfad = "data/foliant.sqlite"

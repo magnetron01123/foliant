@@ -10,7 +10,7 @@ live** auf dem Pi (SSH-Ziel: `PI=` in der `.env`; Verzeichnis `~/foliant`).
 |---|---|---|
 | **`SPEC.md`** | das verbindliche „Was": Anforderungen, Sprach-/Versionsregeln, Verhalten, Abnahme | bei **jeder fachlichen Frage** zuerst |
 | **`CONCEPT.md`** | das „Wie": Architektur, Datenmodell, Pipelines, Betrieb, Entscheidungen, Gotchas | vor jeder technischen Änderung |
-| **`BACKLOG.md`** | was offen ist, Abnahme-Checkliste, erledigte Chronik | vor jeder Planung |
+| **`BACKLOG.md`** | was offen ist, Abnahme-Checkliste, Rest-Posten | vor jeder Planung |
 | **`README.md`** | Einstieg, Schnellstart, Nutzung, Recht | selten |
 
 Historisches (erledigte Aufträge, Review-Volltexte, abgelöste Statusberichte) steht **nur in
