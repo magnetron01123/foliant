@@ -55,6 +55,11 @@ def bestand(tmp_path, monkeypatch):
         # Reiner Body-Treffer: der NAME hat mit 'Domaene' nichts zu tun.
         (1, "regel", "Nebelwanderung", None, "de", "2024", "7",
          "*Kontext: Regeln*\n\nWer eine Domaene verlaesst, verliert die Orientierung."),
+        # Befund 30.07.2026: laengerer Name, dessen ANFANG ein eigenstaendiger Begriff
+        # ist. 'Elf' ist Praefix von 'Elfenruestung' - aber keine Anfrage danach.
+        (1, "gegenstand", "Elfenruestung", "Elven Chain", "de", "2024", "20",
+         "*Kontext: Magische Gegenstaende*\n\nEine Kettenruestung aus Mithral. Der "
+         "Begriff Mithral kommt hier NUR im Fliesstext vor, nie im Namen."),
     ]
     con.executemany(
         "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
@@ -167,3 +172,45 @@ def test_facettenpfad_meldet_die_gekuerzte_menge(bestand):
     assert len(r["treffer"]) == 8
     assert r["anzahl_gesamt"] == 11
     assert "mindestens 11" in r["hinweis_gekuerzt"]
+
+
+# ------------------------------------------------- Nachzug aus der Review 30.07.2026
+# A4 zog die Namensrelevanz in den SUCHpfad. Der DETAILpfad - der verbindlicher
+# antwortet, weil er einen einzelnen Eintrag als DIE Auskunft ausgibt - hatte sie nicht.
+
+def test_detailabruf_bestaetigt_keinen_kurzen_praefix_als_namenstreffer(bestand):
+    """_name_score gab JEDEM Praefix 100.0, ohne Mindestlaenge: 'Elf' war damit ein
+    voller Namenstreffer auf 'Elfenruestung'. Der Detailpfad lieferte den Fremdeintrag
+    als sauber zitierte Auskunft auf eine nicht gestellte Frage aus - genau die
+    Fehlerform, gegen die B1 antritt, nur schwerer zu bemerken als eine Fehlanzeige."""
+    d = ns.foliant_hol_gegenstand("Elf")
+    assert d.get("gefunden") is not True, \
+        f"Praefix als Treffer bestaetigt: {d.get('anzeige_name')}"
+
+
+def test_wortriss_bleibt_ein_namenstreffer(bestand):
+    """Gegenprobe und Grund, warum der Praefix-Kurzschluss NICHT durch eine Mindestlaenge
+    ersetzt wurde: die echten Faelle (Wortrisse, OCR-Verstuemmelung um ein bis zwei
+    Zeichen) traegt fuzz.ratio ohnehin - ein Praefix ab rund 82 % Namensdeckung liegt
+    ueber der Schwelle. Faellt dieser Test, war die Streichung zu grob."""
+    assert ns.foliant_hol_gegenstand("Elfenruestun")["gefunden"] is True
+    assert ns.foliant_hol_regel("Nebelwanderun")["gefunden"] is True
+
+
+def test_einzelner_kandidat_wird_nicht_ungeprueft_geliefert(bestand):
+    """Der Sonderzweig 'genau ein FTS-Kandidat -> liefern' umging das Relevanzgate
+    vollstaendig. Er ist gestrichen; ein Einzelkandidat muss dieselbe Schranke nehmen wie
+    jeder andere. 'Mithral' kommt nur im FLIESSTEXT der Elfenruestung vor."""
+    d = ns.foliant_hol_gegenstand("Mithral")
+    assert d.get("gefunden") is not True, \
+        f"Body-Erwaehnung als Treffer bestaetigt: {d.get('anzeige_name')}"
+
+
+def test_fuzzy_namenspfad_ersetzt_die_angefragte_edition_nicht(bestand):
+    """V5 galt nur im exakt-Zweig. Im Relevanz-Zweig darunter fehlte die Editionspruefung,
+    die eine Zeile hoeher stand: eine AUSDRUECKLICH angefragte Regelversion wurde still
+    durch die 2024-Fassung ersetzt - ohne 'hinweis_alter_stand', weil der gelieferte
+    Eintrag ja 2024 war. Der Nutzer bekam die falsche Regelversion ohne jedes Signal."""
+    d = ns.foliant_hol_regel("Nebelwanderun", edition="2014")
+    assert d.get("gefunden") is not True, \
+        f"2024-Fassung fuer eine 2014-Anfrage geliefert: {d.get('edition')}"

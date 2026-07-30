@@ -322,6 +322,44 @@ def test_hol_spezies_fuehrt_ddb_unterabschnitte_zusammen(tmp_path, monkeypatch):
     assert d.get("hinweis_zusammengefuehrt")
 
 
+def test_mehrdeutige_klasse_ist_keine_fehlanzeige(tmp_path, monkeypatch):
+    """Befund 30.07.2026: Die Pruefung wertete nur `gefunden` aus. Lieferte der
+    Detailabruf eine MEHRDEUTIGKEITS-Absage, behandelte sie das wie 'gar nicht vorhanden'
+    und meldete woertlich "ist nicht im 2024-Bestand - evtl. fehlt ein Buch (B2)".
+
+    Der Inhalt IST im Bestand, nur die Angabe war unscharf. Fuer den Nutzer ist das von
+    einer echten Bestandsluecke nicht zu unterscheiden - genau die Antwortklasse, gegen
+    die SYN-P0-006 angetreten ist, nur eine Ebene hoeher als damals."""
+    pfad = tmp_path / "foliant-mehrdeutig.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(_SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,"
+                "prioritaet) VALUES ('srd-de','SRD 5.2.1 (Deutsch)','de','2024','pdf',"
+                "'CC-BY-4.0',10)")
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (1,'klasse',?,NULL,'de','2024','10',?)",
+        [("Flammenklinge", "*Kontext: Klassen*\n\nDie Flammenklinge fuehrt Feuer."),
+         ("Flammenklingen", "*Kontext: Klassen*\n\nDie Flammenklingen fuehren Feuer.")])
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit(); con.close()
+    from app import db as adb
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+
+    # Vorbedingung: der Detailabruf muss den Fall wirklich als mehrdeutig einstufen -
+    # sonst prueft der Test unten etwas anderes, als er behauptet.
+    assert ch._finde("klasse", "Flammenklinge*").get("mehrdeutig"), \
+        "Fixture erzeugt keine Mehrdeutigkeit"
+
+    r = ch.foliant_pruefe_build(klasse="Flammenklinge*", stufe=1)
+    befund = next(p for p in r["pruefungen"] if p["pruefung"] == "klasse")
+    assert befund["status"] == "nicht_pruefbar"
+    assert "MEHRDEUTIG" in befund["detail"], befund["detail"]
+    assert "fehlt ein Buch" not in befund["detail"], \
+        "Mehrdeutigkeit als Bestandsluecke gemeldet"
+
+
 def test_c2_pointbuy_beleg_umfang_und_widerspruch(bestand, tmp_path, monkeypatch):
     """SYN-P2-003 C2-Abnahme: der Point-Buy-Beleg unterscheidet 'Tabelle verifiziert' von
     'nur Budget belegt'; eine Quelle, deren Kostentabelle den Konstanten WIDERSPRICHT,
