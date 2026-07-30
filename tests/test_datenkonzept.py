@@ -3,6 +3,8 @@
 #2 idempotenter Schema-Sicherstellungs-Schritt in db.connect() (inhaltsart + ehrliche user_version),
 #3 zauber_meta/monster_meta aus Open5es nativen Feldern (Facetten-Seitenwagen) + Detail-Ausgabe.
 """
+import inspect
+import re
 import sqlite3
 import types
 from pathlib import Path
@@ -247,3 +249,45 @@ def test_fehlende_konfig_ist_kein_fehler(tmp_path, monkeypatch):
     monkeypatch.setattr(adb, "_KONFIG", tmp_path / "gibtsnicht.toml")
     monkeypatch.setattr(adb, "_KONFIG_CACHE", None)
     assert adb.lade_konfig() == {}
+
+
+def test_standard_pfad_nutzt_den_konfig_cache():
+    """Befund 30.07.2026: standard_pfad parste config/foliant.toml bei JEDEM Aufruf frisch,
+    obwohl der Cache elf Zeilen tiefer steht - und lade_konfig nennt `standard_pfad` im
+    eigenen Docstring als einen der Aufrufer, die er entlasten sollte. Eine halb gelandete
+    Aenderung, deren Kommentar 100 % behauptete.
+
+    Geprueft wird die KOPPLUNG, nicht die Laufzeit: eine Zeitmessung waere auf fremder
+    Hardware flatterig. Faellt der Cache-Aufruf wieder weg, zaehlt der Zaehler nicht mehr
+    mit und der Test schlaegt an."""
+    from app import db as adb
+
+    aufrufe = []
+    echt = adb.lade_konfig
+    try:
+        adb.lade_konfig = lambda: (aufrufe.append(1), echt())[1]
+        adb.standard_pfad()
+    finally:
+        adb.lade_konfig = echt
+    assert aufrufe, "standard_pfad liest die TOML wieder am Cache vorbei"
+
+
+def test_ranking_faltet_diakritika_wie_die_gruppierung():
+    """Der Gruppenschluessel in _dedupe_und_sortiere faltet Diakritika (norm_begriff), der
+    Exakt-Namens-Boost daneben tat es nicht (eigene .lower()-Kopie db._norm). Eine Anfrage
+    OHNE Umlaut verlor dadurch die Namensgleichheit und damit den Boost.
+
+    Gemessen am echten Bestand ueber 120 Namen mit Diakritika: 6 rankten anders, 3 mit
+    einem ANDEREN Top-Treffer ('Fluche' -> 'Fluch' statt 'Flueche'). Das ist der
+    Alltagsfall, nicht der Sonderfall - auf einer Handy-Tastatur schreibt niemand Umlaute.
+    norm_begriff sagt genau das in seinem eigenen Docstring (A3)."""
+    from app import db as adb
+    from app.glossar import norm_begriff
+
+    # Die Vergleichspfade muessen DIESELBE Funktion benutzen, nicht nur dasselbe Ergebnis.
+    # Wortgrenze davor, sonst trifft das Muster auch das gewollte '_gl_norm('.
+    quelle = inspect.getsource(adb._dedupe_und_sortiere)
+    rueckfaelle = re.findall(r"(?<![\w.])_norm\(", quelle)
+    assert not rueckfaelle, \
+        f"{len(rueckfaelle)}x die ungefaltete Kopie db._norm statt norm_begriff"
+    assert norm_begriff("Flüche") == norm_begriff("Fluche")

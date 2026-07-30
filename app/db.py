@@ -66,11 +66,17 @@ def projekt_pfad(pfad: str | Path) -> Path:
 
 
 def standard_pfad() -> Path:
-    """DB-Pfad aus config/foliant.toml ([db].pfad), sonst data/foliant.sqlite."""
-    pfad = "data/foliant.sqlite"
-    if _KONFIG.exists():
-        pfad = tomllib.loads(_KONFIG.read_text(encoding="utf-8")).get("db", {}).get("pfad", pfad)
-    return projekt_pfad(pfad)
+    """DB-Pfad aus config/foliant.toml ([db].pfad), sonst data/foliant.sqlite.
+
+    Liest ueber lade_konfig() (Befund 30.07.2026): Diese Funktion parste die TOML bei
+    JEDEM Aufruf frisch - obwohl der Cache elf Zeilen tiefer steht und sein eigener
+    Docstring `standard_pfad` ausdruecklich als einen der Aufrufer nennt, die er
+    entlasten sollte. Eine halb gelandete Aenderung; der Kommentar behauptete 100 %.
+    Gemessen: 0,24 ms ungecacht gegen 0,03 ms gecacht, also Faktor 8 - je Tool-Aufruf
+    mindestens einmal, und weil TOML-Parsen reine Python-Arbeit ist, serialisiert es
+    die Threads zusaetzlich am GIL (dieselbe Klasse, die BACKLOG §M3 als Saettigung
+    bei ~26 Aufrufen/s beschreibt)."""
+    return projekt_pfad(lade_konfig().get("db", {}).get("pfad", "data/foliant.sqlite"))
 
 
 _KONFIG_CACHE: tuple[tuple, dict] | None = None
@@ -501,7 +507,14 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
     und Kategorien mischen nie. Danach Exact-Name-Boost VOR Prefix VOR Lauf-Ordinal
     (BP #3/A6). suchbegriffe enthaelt Original UND Glossar-Aufloesungen - so gewinnt bei
     'Fireball' der deutsche 'Feuerball'-Eintrag (S10: deutscher Regeltext primaer)."""
-    begriffe = {_norm(s) for s in suchbegriffe if s}
+    # _gl_norm statt _norm (Befund 30.07.2026): Der Gruppenschluessel unten faltet
+    # Diakritika (Zeile mit _gl_norm), der Exakt-Boost hier tat es nicht. Eine Anfrage
+    # ohne Umlaut verlor dadurch die Namensgleichheit und damit den Boost - gemessen an
+    # 120 Namen mit Diakritika: 6 ranken anders, 3 bekommen einen ANDEREN Top-Treffer
+    # ('Fluche' -> 'Fluch' statt 'Flueche', 'Anfalligkeit' -> 'Resistenzen und
+    # Anfaelligkeiten'). Genau das meint norm_begriff mit 'alle Vergleichspfade
+    # DIESELBE Semantik statt eigener .lower()-Kopien (A3)'.
+    begriffe = {_gl_norm(s) for s in suchbegriffe if s}
     bruecke = _brueckennamen(con) if treffer else {}
 
     gruppen: list[dict] = []                 # {"schluessel": set, "mitglieder": [t, ...]}
@@ -549,7 +562,7 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
             continue
         mitglieder = sorted(g["mitglieder"],
                             key=lambda m: (m["prioritaet"], m.get("lauf_rang", 0),
-                                           _norm(m["name_de"]) or _norm(m["name_en"])))
+                                           _gl_norm(m["name_de"]) or _gl_norm(m["name_en"])))
         t = dict(mitglieder[0])              # kanonischer Text = kleinste prioritaet (A3)
         t["name_de"] = next((m["name_de"] for m in mitglieder if m["name_de"]), None)
         t["name_en"] = next((m["name_en"] for m in mitglieder if m["name_en"]), None)
@@ -567,7 +580,7 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
         kanonisch.append(t)
 
     def rang(t: dict) -> tuple:
-        nd, ne = _norm(t["name_de"]), _norm(t["name_en"])
+        nd, ne = _gl_norm(t["name_de"]), _gl_norm(t["name_en"])
         namen = {nd, ne}
         # srd-de-Unterklassenschema: 'Kämpfer-Unterklasse: Champion' zaehlt auch als
         # exakter 'Champion'-Treffer - sonst verliert der deutsche Eintrag gegen Open5e.
@@ -585,7 +598,7 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
         # SYN-P1-006 (claude DND-011): Praefix auf den ORIGINAL-Suchbegriff rankt vor
         # Praefix auf eine Glossar-Alternative ('Verstecken' -> erst die Aktion, nicht
         # 'Hide Armor' ueber die 'Hide'-Alternative).
-        o = _norm(original) if original else ""
+        o = _gl_norm(original) if original else ""
         prefix_orig = 0 if o and any(n.startswith(o) for n in namen) else 1
         # A6: bm25-/Fuzzy-Scores verschiedener Laeufe sind unvergleichbar -> das Ordinal
         # im eigenen Lauf (lauf_rang) vergleicht fair; der Name macht Gleichstaende

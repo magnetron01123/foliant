@@ -79,10 +79,17 @@ lasttest-pi: _pi-ziel
 # API-Tokens (~15 Faelle x 3-5 Runden). Der Key wird NUR fuer den Einmal-Exec injiziert -
 # der Serving-Container traegt dauerhaft keinen (bewusst, docker-compose.yml). Aufruf:
 #   ANTHROPIC_API_KEY=sk-... make eval-verhalten-pi
+#
+# Der Key geht ueber STDIN, nicht ueber die Kommandozeile (Befund 30.07.2026): vorher
+# stand er als '-e ANTHROPIC_API_KEY=sk-...' im ssh-Aufruf, damit im lokalen `ps`, in der
+# Shell-History UND im `ps` des Pi. Das ist dieselbe Regel, die evals/verhaltens_eval.py
+# selbst formuliert und die Cobalt und der Discord-Token bereits einhalten.
+# 'docker compose exec -e VAR' OHNE '=wert' reicht die Variable aus der Remote-Shell
+# durch - sie taucht in keiner Prozessliste auf.
 .PHONY: eval-verhalten-pi
 eval-verhalten-pi: _pi-ziel
 	@test -n "$$ANTHROPIC_API_KEY" || { echo "FEHLER: ANTHROPIC_API_KEY fehlt."; exit 1; }
-	ssh $(PI) "cd ~/foliant && docker compose exec -T -e ANTHROPIC_API_KEY=$$ANTHROPIC_API_KEY -w /app foliant python -m evals.verhaltens_eval $(EVAL_ARGS)"
+	@printf '%s\n' "$$ANTHROPIC_API_KEY" | ssh $(PI) 'read -r ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY && cd ~/foliant && docker compose exec -T -e ANTHROPIC_API_KEY -w /app foliant python -m evals.verhaltens_eval $(EVAL_ARGS)'
 
 # Glossar-Tabelle vom Pi (voller Bestand) in die lokale Dev-DB uebernehmen: macht lokale
 # Abnahmen belastbar - die Mac-DB ist nur ein Subset, ihre '*'-Sterne sind sonst nicht

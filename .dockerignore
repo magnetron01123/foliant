@@ -13,3 +13,7 @@ data/
 *.sqlite-*
 quellen/
 .env
+# ECHTE Charakterdaten (gitignored, aber .gitignore wirkt nicht auf den Docker-Build):
+# Dockerfile:19 ist ein `COPY . .`, damit landete das DDB-Beispiel-PDF in JEDEM Image.
+# Gebraucht wird es nur von zwei lokalen Golden-Tests, nie zur Laufzeit.
+vorlagen/charakterboegen/ddb-beispiele/
