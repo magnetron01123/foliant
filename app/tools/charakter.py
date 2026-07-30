@@ -265,6 +265,12 @@ def foliant_liste_optionen(
     foliant_hol_eintrag. Zeigt NUR waehlbare Optionen, nicht die Unterabschnitte
     (Klassenmerkmale, Zauberlisten, Merkmalsbeschreibungen).
 
+    BEI 'HILF MIR, EINEN CHARAKTER ZU ERSTELLEN' ist der erste Aufruf
+    kategorie='klasse' - SOFORT, ohne vorher zu fragen, ob der Nutzer schon eine
+    Klasse im Kopf hat. Zeig die Auswahl, dann kann er waehlen. Nenne NIE
+    Beispielklassen aus dem Gedaechtnis: welche es gibt, sagt der Bestand, und
+    fehlende Optionen heissen fehlendes Buch (B1/B2).
+
     kategorie in der Reihenfolge der 2024-Charaktererstellung (B7):
       klasse       Schritt 1 - inkl. der Unterklassen je Klasse
       hintergrund  Schritt 2 - liefert Attributserhoehungen und das Ursprungstalent
