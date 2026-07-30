@@ -155,3 +155,42 @@ def test_monster_typ_de_en_wortgrenze():
     assert f.typ_schluessel("Feenwesen") == "feenwesen"
     assert f.typ_schluessel("Quatschwesen") is None
     assert f.typ_anzeige("untoter") == "Untoter"
+
+
+def test_facettenschluessel_biegen_ungueltige_eingaben_nicht_um():
+    """Befund 30.07.2026: schule_schluessel und schadensart_schluessel liefen exakt und
+    tolerant in EINER Schleife, und die tolerante Bedingung enthielt die Richtung
+    'Eingabe ist Teil eines Synonyms'. Damit entschied die DICT-Reihenfolge statt der
+    Treffergenauigkeit - eine ungueltige Facette wurde still auf eine GUELTIGE umgebogen,
+    und die Suche lieferte eine sauber zitierte Antwort auf eine nicht gestellte Frage
+    (SYN-P0-006, nur im Facetten-Pfad statt im Parameter-Pfad).
+
+    typ_schluessel war schon immer streng - genau deshalb ist es der Massstab."""
+    # Muell muss None ergeben, damit die Suche ihren strukturierten 'fehler' mit der
+    # Liste der gueltigen Werte ausgibt, statt zu filtern.
+    for muell in ("o", "n", "a", "er", "ung", "Zauberei"):
+        assert f.schule_schluessel(muell) is None, f"{muell!r} zu einer Schule umgebogen"
+    for muell in ("s", "schaden", "damage", "x"):
+        assert f.schadensart_schluessel(muell) is None, \
+            f"{muell!r} zu einer Schadensart umgebogen"
+
+
+def test_wuchtschaden_bleibt_wuchtschaden():
+    """Der teuerste Einzelfall des Befunds, weil die Eingabe GUELTIG ist: 'wucht' schlug
+    gegen die Form 'wuchtschaden der kraft' an, und 'kraft' steht im Dict davor. Wer nach
+    Wuchtschaden (bludgeoning) filterte, bekam Kraftschaden (force) - sauber zitiert und
+    ohne jeden Hinweis darauf, dass eine andere Frage beantwortet wurde."""
+    assert f.schadensart_schluessel("wucht") == "wucht"
+    assert f.schadensart_schluessel("Wuchtschaden") == "wucht"
+    assert f.schadensart_schluessel("bludgeoning damage") == "wucht"
+    assert f.schadensart_schluessel("kraft") == "kraft"
+    assert f.schadensart_schluessel("force damage") == "kraft"
+
+
+def test_echte_toleranz_bleibt_erhalten():
+    """Gegenprobe: die Streichung darf nur die falsche Richtung treffen. Ein Synonym, das
+    in einer LAENGEREN Eingabe steckt, muss weiter greifen - sonst waere der Fix zu grob."""
+    assert f.schule_schluessel("Hervorrufungszauber") == "hervorrufung"
+    assert f.schule_schluessel("Evocation") == "hervorrufung"
+    assert f.schadensart_schluessel("fire") == "feuer"
+    assert f.schadensart_schluessel("Feuer") == "feuer"

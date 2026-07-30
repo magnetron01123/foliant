@@ -352,16 +352,28 @@ def _vorfilter_sql(con, kategorie: str, werte: dict) -> tuple[str, str, list]:
 
 
 def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25,
-                     vorfilter=None) -> dict:
+                     vorfilter=None, quelle_kuerzel=None) -> dict:
     """Reiner Struktur-Filter (kein Suchbegriff): scannt eine Kategorie und filtert per
-    Praedikat aus dem Body. Deutsch-first-Dedup, knappe Treffer mit 'kurzinfo'."""
+    Praedikat aus dem Body. Deutsch-first-Dedup, knappe Treffer mit 'kurzinfo'.
+
+    quelle_kuerzel (Befund 30.07.2026): Der Parameter wurde hier gar nicht erst
+    entgegengenommen - foliant_suche_bestand reichte ihn nur in den VOLLTEXT-Pfad weiter.
+    Eine Struktur-Anfrage mit Quellen-Einschraenkung lieferte deshalb still den GESAMTEN
+    Bestand, und ein Tippfehler im Kuerzel blieb ebenso still: gemessen ergab
+    quelle_kuerzel='GIBTESNICHT' 25 Treffer statt eines Fehlers. Beides ist gefaehrlich,
+    weil die Antwort plausibel aussieht - die Filterzeile 'gefiltert_nach' behauptete
+    sogar, die Quelle sei beruecksichtigt."""
     try:
         edition = _db.normalisiere_edition(edition)
         _db._pruefe_edition(con, edition)
+        _db._pruefe_quelle(con, quelle_kuerzel)
     except ValueError as fehler:
         return {"treffer": [], "fehler": str(fehler),
                 "hinweis": "Ungueltiger PARAMETER - KEIN 'nicht im Bestand' (B1/B4)."}
     join, zusatz, vor_params = _vorfilter_sql(con, kategorie, vorfilter or {})
+    if quelle_kuerzel:
+        zusatz += " AND q.kuerzel = ?"
+        vor_params = (*vor_params, quelle_kuerzel)
     roh: list[dict] = []
     for r in con.execute(
             f"""SELECT e.id, e.kategorie, e.name_de, e.name_en, e.sprache, e.edition,
@@ -444,7 +456,8 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
         if not hat_suchbegriff:
             return _struktur_filter(
                 con, kat_filter, edition, praedikat, echo,
-                vorfilter=_meta_vorfilter(kat_filter, grad, schule, hg, typ))
+                vorfilter=_meta_vorfilter(kat_filter, grad, schule, hg, typ),
+                quelle_kuerzel=quelle_kuerzel)
         try:
             # A1-Fix (Review 28.07.2026): Mit aktivem Struktur-Filter MEHR Kandidaten holen.
             # Vorher lief die Nachfilterung auf den bereits auf 8 gekappten Treffern - fielen
