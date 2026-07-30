@@ -21,6 +21,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
+
 from app import db as _db
 from importer.ddb_exporter import artifact, book_archive, katalog
 from importer.ddb_exporter.ddb_client import DdbClient, DdbFehler
@@ -99,7 +101,6 @@ def _buch(kuerzel: str) -> dict:
 
 
 def _transport():
-    import httpx
     return httpx.Client(timeout=httpx.Timeout(30.0, connect=10.0), follow_redirects=True)
 
 
@@ -266,10 +267,16 @@ def cmd_sync(args) -> None:
             print(f"\n[{r['kuerzel']}] {r['titel']} (Edition {r['edition']})")
             # Ein einzelnes Buch darf den Gesamtlauf NIE abbrechen: manche Buecher liefern
             # keinen Content-Text (leer), andere sind ueber die Mobile-API nicht ladbar.
+            # httpx.HTTPError gehoert dazu (Befund 30.07.2026): Timeouts und
+            # Verbindungsabbrueche kommen aus dem Transport und wurden hier NICHT gefangen -
+            # ein einziges haengendes Buch riss den ganzen sync-Lauf ab, entgegen genau
+            # diesem Kommentar. Das trifft den langlaufenden Fall (viele Buecher, Minuten
+            # bis Stunden) am haertesten.
             try:
                 if _exportiere_buch(transport, client, buch, dry_run=args.dry_run):
                     exportiert.append(r["kuerzel"])
-            except (SystemExit, DdbFehler, book_archive.ArchivFehler, ValueError) as fehler:
+            except (SystemExit, DdbFehler, book_archive.ArchivFehler, ValueError,
+                    httpx.HTTPError) as fehler:
                 print(f"  uebersprungen: {str(fehler).strip()}")
                 leer_oder_fehler.append(r["kuerzel"])
     print(f"\nFertig: {len(exportiert)} exportiert, {len(uebergangen)} bereits vorhanden, "
