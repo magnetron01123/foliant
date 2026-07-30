@@ -11,6 +11,7 @@ import pytest
 from app import db as adb
 from app.tools import charakter as ch
 from app.tools import nachschlagen as ns
+from app.tools import suche as su
 
 _SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 
@@ -36,21 +37,21 @@ def bestand(tmp_path, monkeypatch):
 
 def test_ungueltige_kategorie_ist_kein_leerer_bestand(bestand):
     """Der Realfall der Synthese: englischer Kategoriewert fuer vorhandenen Inhalt."""
-    s = ns.foliant_suche_bestand("Feuerball", kategorie="spell")
+    s = su.foliant_suche_bestand("Feuerball", kategorie="spell")
     assert s["treffer"] == [] and "fehler" in s
     assert "spell" in s["fehler"] and "zauber" in s["fehler"]      # gueltige Werte genannt
     assert "KEIN 'nicht im Bestand'" in s["hinweis"]
     assert "Nichts im Bestand" not in s.get("hinweis", "")         # nie der B1-Leerhinweis
     # Gueltige Kategorie liefert den Treffer weiterhin:
-    assert ns.foliant_suche_bestand("Feuerball", kategorie="zauber")["treffer"]
+    assert su.foliant_suche_bestand("Feuerball", kategorie="zauber")["treffer"]
 
 
 def test_quellen_titel_statt_kuerzel_wird_erklaert(bestand):
     """Haeufigster Fehlaufruf: der Treffer-TITEL als quelle-Filter (SYN-P1-002-Nachbar)."""
-    s = ns.foliant_suche_bestand("Feuerball", quelle_kuerzel="SRD 5.2.1 (Deutsch)")
+    s = su.foliant_suche_bestand("Feuerball", quelle_kuerzel="SRD 5.2.1 (Deutsch)")
     assert s["treffer"] == [] and "fehler" in s
     assert "srd-de" in s["fehler"] and "Titel" in s["fehler"]
-    assert ns.foliant_suche_bestand("Feuerball", quelle_kuerzel="srd-de")["treffer"]
+    assert su.foliant_suche_bestand("Feuerball", quelle_kuerzel="srd-de")["treffer"]
 
 
 def test_ungueltige_talent_kategorie(bestand):
@@ -69,7 +70,7 @@ def test_p2_grenzen_gegen_ueberlast(bestand):
     """SYN-P2-004 (codex TECH-013): ueberlange Query wird gekappt (kein Crash, kein
     ausuferndes Fuzzy), limit ueber der Obergrenze wird gedeckelt."""
     from app import db as adb
-    r = ns.foliant_suche_bestand("Feuerball " + "z" * 5000)
+    r = su.foliant_suche_bestand("Feuerball " + "z" * 5000)
     assert isinstance(r["treffer"], list)                 # kein Crash, echte Antwort
     con = adb.connect(str(adb.standard_pfad()))
     try:
@@ -216,7 +217,7 @@ def test_quelle_kuerzel_wird_im_strukturpfad_nicht_still_verworfen(bestand):
     ungueltiger Parameter eine falsche Fehlanzeige, hier erzeugt er ein falsches
     ERGEBNIS - und das ist schwerer zu bemerken, weil die Antwort plausibel aussieht.
     'gefiltert_nach' behauptete sogar, die Quelle sei beruecksichtigt."""
-    r = ns.foliant_suche_bestand(kategorie="zauber", grad=3, quelle_kuerzel="GIBTESNICHT")
+    r = su.foliant_suche_bestand(kategorie="zauber", grad=3, quelle_kuerzel="GIBTESNICHT")
     assert "fehler" in r, f"ungueltiges Kuerzel stillschweigend ignoriert: {r}"
     assert "GIBTESNICHT" in r["fehler"]
     assert r["treffer"] == []
@@ -257,9 +258,9 @@ def test_herausforderungsgrad_wird_validiert(bestand):
     schadensart und typ einen strukturierten Fehler liefern. 'abc' erzeugte deshalb keinen
     Parameterfehler, sondern einen ehrlich klingenden Nulltreffer - genau die
     Antwortklasse, gegen die SYN-P0-006 angetreten ist."""
-    r = ns.foliant_suche_bestand(kategorie="monster", hg="abc")
+    r = su.foliant_suche_bestand(kategorie="monster", hg="abc")
     assert "fehler" in r and r["treffer"] == []
     assert "KEIN 'nicht im Bestand'" in r["hinweis"]
     # Die echten Schreibweisen der Statbloecke bleiben gueltig:
     for gueltig in ("0", "1", "1/4", "1/2"):
-        assert "fehler" not in ns.foliant_suche_bestand(kategorie="monster", hg=gueltig), gueltig
+        assert "fehler" not in su.foliant_suche_bestand(kategorie="monster", hg=gueltig), gueltig

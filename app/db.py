@@ -22,6 +22,7 @@ import re
 import sqlite3
 import tomllib
 from pathlib import Path
+from typing import Literal
 
 from rapidfuzz import fuzz, process
 
@@ -53,6 +54,16 @@ def normalisiere_edition(edition: str | None) -> str | None:
 # B1-Ehrlichkeitshinweis - die schaedlichste Antwortklasse nach der Halluzination.
 KATEGORIEN = ("regel", "zauber", "monster", "gegenstand", "spezies", "klasse",
               "hintergrund", "talent")
+
+# SYN-P1-003: geschlossene Wertemengen als Literal -> FastMCP generiert daraus
+# enum-Schemas, der Client faengt Fehlaufrufe VOR dem Server ab. Die
+# Laufzeitvalidierung (SYN-P0-006) bleibt als zweite Leitplanke bestehen.
+Kategorie = Literal["regel", "zauber", "monster", "gegenstand", "spezies", "klasse",
+                    "hintergrund", "talent"]
+# Am 30.07.2026 aus app/tools/nachschlagen.py hierher gezogen: der Literal-Zwilling
+# von KATEGORIEN gehoert neben seine Quelle, und erst dadurch konnten Such- und
+# Detailpfad in getrennte Module - vorher haette suche.py das Werkzeug-Modul
+# importieren muessen, aus dem es gerade herausgeloest wurde.
 
 _PROJEKT = Path(__file__).resolve().parent.parent
 _KONFIG = _PROJEKT / "config" / "foliant.toml"

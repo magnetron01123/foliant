@@ -22,6 +22,7 @@ import pytest
 
 from app import db as adb
 from app.tools import nachschlagen as ns
+from app.tools import suche as su
 from importer.facetten_seeder import seed_facetten
 
 _SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
@@ -65,12 +66,12 @@ def _db(tmp_path, seeden=True):
 
 def _vergleiche(con, **kw):
     """(ohne Vorfilter, mit Vorfilter) - dieselbe Anfrage auf beiden Wegen."""
-    prae, kat, echo, fehler = ns._facetten_vorbereiten(
+    prae, kat, echo, fehler = su._facetten_vorbereiten(
         "zauber", kw.get("grad"), kw.get("schule"), kw.get("klasse"), None, None, None)
     assert fehler is None, fehler
-    vf = ns._meta_vorfilter(kat, kw.get("grad"), kw.get("schule"), None, None)
-    ohne = ns._struktur_filter(con, kat, "2024", prae, echo, 50)
-    mit = ns._struktur_filter(con, kat, "2024", prae, echo, 50, vorfilter=vf)
+    vf = su._meta_vorfilter(kat, kw.get("grad"), kw.get("schule"), None, None)
+    ohne = su._struktur_filter(con, kat, "2024", prae, echo, 50)
+    mit = su._struktur_filter(con, kat, "2024", prae, echo, 50, vorfilter=vf)
     return ohne, mit
 
 
@@ -105,7 +106,7 @@ def test_eintrag_ohne_metazeile_wird_geprueft_statt_verworfen(tmp_path):
                              (eid,)).fetchone()[0] == 0
         pruef.close()
         # Die SQL-Bedingung darf ihn nicht ausschliessen (der LEFT JOIN liefert NULL).
-        join, zusatz, params = ns._vorfilter_sql(con, "zauber", {"grad": 3})
+        join, zusatz, params = su._vorfilter_sql(con, "zauber", {"grad": 3})
         assert "IS NULL" in zusatz
         ids = {r[0] for r in con.execute(
             f"SELECT e.id FROM eintraege e JOIN quellen q ON q.id=e.quelle_id{join} "
@@ -119,7 +120,7 @@ def test_ungeseedete_db_filtert_nicht_vor_und_findet_trotzdem(tmp_path):
     """Selbsttragend: ohne jede Meta-Zeile faellt der Filter auf den Textweg zurueck."""
     con = adb.connect_readonly(str(_db(tmp_path, seeden=False)))
     try:
-        assert ns._vorfilter_sql(con, "zauber", {"grad": 3})[0] == ""
+        assert su._vorfilter_sql(con, "zauber", {"grad": 3})[0] == ""
         ohne, mit = _vergleiche(con, grad=3)
         assert [t["name_de"] for t in mit["treffer"]] == ["Blitz", "Feuerball"]
         assert ohne["anzahl_gesamt"] == mit["anzahl_gesamt"] == 2
@@ -141,7 +142,7 @@ def test_alter_wertraum_schaltet_den_vorfilter_ab(tmp_path):
 
     lese = adb.connect_readonly(str(pfad))
     try:
-        assert ns._vorfilter_sql(lese, "zauber", {"schule": "hervorrufung"})[0] == "", \
+        assert su._vorfilter_sql(lese, "zauber", {"schule": "hervorrufung"})[0] == "", \
             "Vorfilter greift auf einem fremden Wertraum"
         ohne, mit = _vergleiche(lese, schule="Hervorrufung")
         assert [t["name_de"] for t in mit["treffer"]] == ["Blitz", "Feuerball"]

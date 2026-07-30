@@ -89,8 +89,9 @@ async def ready(_: Request) -> JSONResponse:
 # Gegenstand statt des Zaubers.
 from app.tools import charakter as _charakter
 from app.tools import nachschlagen as _nachschlagen
+from app.tools import suche as _suche
 
-mcp.tool(_nachschlagen.foliant_suche_bestand, annotations=_NUR_LESEND)
+mcp.tool(_suche.foliant_suche_bestand, annotations=_NUR_LESEND)
 mcp.tool(_nachschlagen.foliant_hol_eintrag, annotations=_NUR_LESEND)
 mcp.tool(_nachschlagen.foliant_uebersetze_begriff, annotations=_NUR_LESEND)
 mcp.tool(_charakter.foliant_liste_optionen, annotations=_NUR_LESEND)

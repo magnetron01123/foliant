@@ -240,6 +240,24 @@ Gemessen: 13 910 → 9 239 Byte Schema, rund 1 170 Token weniger je Verbindung.
 
 - **Status:** `/health` (offen), `/ready` (prüft DB + FTS, 503 bei kaputtem Bestand)
 
+**Wo der Code liegt** (Stand 30.07.2026 — `app/tools/` war vorher zwei Dateien mit
+1429 und 1124 Zeilen):
+
+| Datei | Inhalt |
+|---|---|
+| `ausgabe.py` | WIE ein Treffer beim Modell ankommt: knappe/volle Form, Deutsch-first-Anzeigename, Zitat, Spoiler-Kennzeichnung — und die **Grounding-Hinweise** (Kanal 3) |
+| `suche.py` | `foliant_suche_bestand` samt Facetten-Validierung und SQL-Vorfilter |
+| `nachschlagen.py` | Detailabruf (`foliant_hol_eintrag`) und das Glossar-Werkzeug |
+| `charakter.py` | Optionslisten, Attributsregeln, Build-Prüfung |
+
+Die Richtung ist eine Regel, kein Zufall: **`ausgabe.py` kennt die Werkzeuge nicht.**
+Vorher griff `charakter.py` über sieben Zugriffe in `nachschlagen.py`-Interna hinein
+(`_ns.HINWEIS_LEER`, `_ns._anzeige_name` …); jetzt importieren beide dieselbe Schicht.
+Die **Namensrelevanz** (`_name_score`, `_eintrag_namen`) liegt in
+[`app/glossar.py`](app/glossar.py) — dort, wo auch ihre Schwelle `FUZZY_NAME` und die
+Normalisierung wohnen; sie war die einzige Stelle, an der sich Such- und Detailpfad
+berührten. `Kategorie` liegt neben `KATEGORIEN` in [`app/db.py`](app/db.py).
+
 Alle Tools sind als `readOnlyHint` deklariert, haben `Literal`-Enums und Bounds und liefern
 diskriminierte Ergebnisformen (`gefunden|mehrdeutig|fehler|verfuegbar`). Suchtreffer
 tragen eine stabile `eintrag_id`, über die der Detailabruf denselben Eintrag exakt nachlädt.

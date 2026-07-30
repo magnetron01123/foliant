@@ -26,6 +26,7 @@ from typing import Literal
 
 from app import db as _db
 from app import glossar as _glossar
+from app.tools import ausgabe as _aus
 from app.tools import nachschlagen as _ns
 
 STANDARD_ARRAY = [15, 14, 13, 12, 10, 8]
@@ -201,7 +202,7 @@ def _zeile(con, g: dict, **extra) -> dict:
     elif name_de and name_en:
         anzeige = _glossar.markiere(name_de, name_en, offiziell=True)
     else:
-        anzeige = _ns._anzeige_name(con, {"name_de": name_de, "name_en": name_en,
+        anzeige = _aus._anzeige_name(con, {"name_de": name_de, "name_en": name_en,
                                           "sprache": "de" if name_de else "en"})
     # eintrag_id/quelle_kuerzel (Review 30.07.2026): Die Listen brachen zwei Zusagen,
     # die der Suchpfad einhaelt. Ohne eintrag_id war der Rundlauf Liste->Detail nicht
@@ -224,9 +225,9 @@ def _zeile(con, g: dict, **extra) -> dict:
 
 def _liste(kategorie: str, schluessel: str, schritt_hinweis: str) -> dict:
     """Gemeinsame Listen-Maschine fuer Spezies/Hintergruende/Talente."""
-    con = _ns._verbinde()
+    con = _aus._verbinde()
     if con is None:
-        return {schluessel: [], "hinweis": _ns.HINWEIS_DB_FEHLT}
+        return {schluessel: [], "hinweis": _aus.HINWEIS_DB_FEHLT}
     try:
         optionen = [e for e in _eintraege(con, kategorie) if _ist_option(e, kategorie)]
         zeilen = []
@@ -248,9 +249,9 @@ def _liste(kategorie: str, schluessel: str, schritt_hinweis: str) -> dict:
         zeilen.sort(key=lambda z: _norm(z["name_de"] or z["name_en"]))
         antwort = {schluessel: zeilen, "hinweis_reihenfolge": schritt_hinweis,
                    "hinweis": _HINWEIS_BESTAND}
-        _ns._markiere_abenteuer(con, antwort, zeilen)
+        _aus._markiere_abenteuer(con, antwort, zeilen)
         if not zeilen:
-            antwort["hinweis"] = _ns.HINWEIS_LEER
+            antwort["hinweis"] = _aus.HINWEIS_LEER
         return antwort
     finally:
         con.close()
@@ -334,16 +335,16 @@ def _liste_talente(kategorie: Literal["herkunft", "allgemein",
             antwort["ohne_kategorie"] = uebrig  # ehrlich: Kategorie unbekannt, nicht raten
         if not gefiltert:
             antwort["hinweis"] = (f"Keine Talente der Kategorie '{kategorie}' im Bestand. "
-                                  + _ns.HINWEIS_LEER)
+                                  + _aus.HINWEIS_LEER)
     return antwort
 
 
 def _liste_klassen() -> dict:
     """Klassen mit ihren Unterklassen. Eigene Maschine statt _liste, weil die Kategorie
     'klasse' BEIDES fuehrt und die Zuordnung ueber drei Quellen-Schreibweisen laeuft."""
-    con = _ns._verbinde()
+    con = _aus._verbinde()
     if con is None:
-        return {"klassen": [], "hinweis": _ns.HINWEIS_DB_FEHLT}
+        return {"klassen": [], "hinweis": _aus.HINWEIS_DB_FEHLT}
     try:
         alle = _eintraege(con, "klasse")
         klassen_eintraege, unterklassen_eintraege = [], []
@@ -412,10 +413,10 @@ def _liste_klassen() -> dict:
                    "hinweis": _HINWEIS_BESTAND}
         # Auch die geschachtelten Unterklassen kennzeichnen - sie tragen dieselbe
         # Herkunft und sind fuer den Spoiler-Schutz kein Sonderfall.
-        _ns._markiere_abenteuer(con, antwort, klassen,
+        _aus._markiere_abenteuer(con, antwort, klassen,
                                 *[k.get("unterklassen") or [] for k in klassen])
         if not klassen:
-            antwort["hinweis"] = _ns.HINWEIS_LEER
+            antwort["hinweis"] = _aus.HINWEIS_LEER
         return antwort
     finally:
         con.close()
@@ -432,7 +433,7 @@ def foliant_hol_attributswerte(attributsmethode: Literal["standard_array",
     if attributsmethode not in ("standard_array", "point_buy"):
         return {"fehler": f"Unbekannte attributsmethode {attributsmethode!r} - gueltig: "
                           f"'standard_array', 'point_buy'.",
-                "hinweis": _ns._HINWEIS_PARAMETER}
+                "hinweis": _aus._HINWEIS_PARAMETER}
     beleg, kosten_geprueft = _attributsregel_beleg(attributsmethode)
     if beleg is None:
         return {"verfuegbar": False, "methode": attributsmethode,
@@ -524,7 +525,7 @@ def _entsprechungen(*namen: str | None) -> set[str]:
     """Normalisierte Namen plus deren EXAKTE Glossar-Entsprechungen (A4: eine deutsch
     gewaehlte Klasse muss eine nur englisch vorhandene Unterklasse matchen)."""
     menge = {_glossar.norm_begriff(n) for n in namen if n} - {""}
-    con = _ns._verbinde()
+    con = _aus._verbinde()
     if con is None:
         return menge
     try:
@@ -677,7 +678,7 @@ def _klassenmerkmale_body(name_de: str) -> str | None:
     gleich - beim Schurken steht die Stufentabelle im Abschnitt 'Ein Schurke werden ...'
     (Befund 17.07.2026: unterklasse_stufe war dort faelschlich 'nicht_pruefbar'). Das
     tragfaehige Kriterium ist der Kontext plus eine tatsaechlich parsebare Tabelle."""
-    con = _ns._verbinde()
+    con = _aus._verbinde()
     if con is None:
         return None
     try:

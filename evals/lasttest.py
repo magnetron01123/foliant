@@ -31,13 +31,14 @@ def _mix() -> list[tuple[str, callable]]:
     ueber die Last, nicht der guenstigste Fall."""
     from app.tools import charakter as ch
     from app.tools import nachschlagen as ns
+from app.tools import suche as su
     return [
-        ("suche_regel", lambda: ns.foliant_suche_bestand("Gelegenheitsangriff")),
-        ("suche_zauber", lambda: ns.foliant_suche_bestand("Feuerball")),
+        ("suche_regel", lambda: su.foliant_suche_bestand("Gelegenheitsangriff")),
+        ("suche_zauber", lambda: su.foliant_suche_bestand("Feuerball")),
         ("detail_zauber", lambda: ns.foliant_hol_eintrag("zauber", "Feuerball")),
         ("detail_monster", lambda: ns.foliant_hol_eintrag("monster", "Vampirbrut")),
         ("uebersetzung", lambda: ns.foliant_uebersetze_begriff("Fireball")),
-        ("facettenfilter", lambda: ns.foliant_suche_bestand(kategorie="zauber", grad=3)),
+        ("facettenfilter", lambda: su.foliant_suche_bestand(kategorie="zauber", grad=3)),
         ("klasse", lambda: ns.foliant_hol_eintrag("klasse", "Kämpfer")),
     ]
 
