@@ -427,7 +427,8 @@ def foliant_hol_attributswerte(attributsmethode: Literal["standard_array",
     'point_buy' (Punktkosten). Die Werte werden am BESTAND belegt ('Schritt 3:
     Attributswerte') - fehlt die importierte Regelquelle, gibt es KEINE Werte aus
     Allgemeinwissen (B1/A5). Die Zuteilung auf Attribute macht Claude im Gespraech;
-    danach foliant_pruefe_build aufrufen. KERNREGELN: nur Bestand; Deutsch-first."""
+    danach foliant_pruefe_build aufrufen.
+    KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen; Deutsch-first."""
     if attributsmethode not in ("standard_array", "point_buy"):
         return {"fehler": "attributsmethode muss 'standard_array' oder 'point_buy' sein"}
     beleg, kosten_geprueft = _attributsregel_beleg(attributsmethode)
