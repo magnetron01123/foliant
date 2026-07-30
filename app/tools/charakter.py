@@ -34,6 +34,17 @@ POINT_BUY_BUDGET = 27
 
 _SUBCLASS = re.compile(r"^\*Subclass of:\s*(.+?)\*", re.MULTILINE)
 _UNTERKLASSE_DE = re.compile(r"^(.+)-Unterklasse:\s*(.+)$")
+# Kapitel-Header der Klassen-/Unterklassen-Gruppen, am LETZTEN Kontext-Segment geprueft -
+# dieselbe Mechanik wie _OPTION_KONTEXT, nur fuer die Kategorie 'klasse', die Klassen UND
+# Unterklassen in einem Topf fuehrt. Befund 30.07.2026: Die Weiche kannte vorher nur
+# kontext == 'Klassen' und das deutsche Namensschema; damit fielen 13 Unterklassen aus den
+# englischen Druckquellen lautlos aus BEIDEN Listen ('ALCHEMIST' & Co. unter
+# 'THE ARTIFICER > ARTIFICER SUBCLASSES', 'BLADESINGER (WIZARD)' & Co. unter 'SUBCLASSES') -
+# obwohl foliant_hol_klasse sie sehr wohl liefert. IGNORECASE, weil Druck-PDFs ihre
+# Kapitel-Header in Grossbuchstaben liefern. Fuer neue Quellen hier ergaenzen.
+_KLASSEN_KONTEXT = re.compile(r"^(?:Klassen|Classes)$", re.IGNORECASE)
+_UNTERKLASSEN_KONTEXT = re.compile(r"^(?:\S+\s+)*(?:Unterklassen|Subclasses)$", re.IGNORECASE)
+_UNTERKLASSE_KLAMMER = re.compile(r"^(.+?)\s*\(([^)]+)\)\s*$")
 _HG_ATTRIBUTE = re.compile(r"\*\*Attributswerte:\*\*\s*([^\n*]+)")
 _HG_TALENT = re.compile(r"\*\*Talent:\*\*\s*([^\n(]+)")
 
@@ -140,7 +151,8 @@ def _eintraege(con, kategorie: str) -> list[dict]:
     2024-Optionen; aeltere Staende mischen nie mit), prioritaets-sortiert (Q2)."""
     return [dict(r) for r in con.execute(
         """SELECT e.id, e.kategorie, e.name_de, e.name_en, e.sprache, e.edition, e.seite,
-                  e.body_md, q.titel AS quelle_titel, q.prioritaet
+                  e.body_md, q.titel AS quelle_titel, q.kuerzel AS quelle_kuerzel,
+                  q.prioritaet
            FROM eintraege e JOIN quellen q ON q.id = e.quelle_id
            WHERE e.kategorie = ? AND e.edition = ? ORDER BY q.prioritaet, e.id""",
         (kategorie, _EDITION))]
@@ -210,8 +222,20 @@ def _zeile(con, g: dict, **extra) -> dict:
     else:
         anzeige = _ns._anzeige_name(con, {"name_de": name_de, "name_en": name_en,
                                           "sprache": "de" if name_de else "en"})
-    z = {"anzeige": anzeige, "name_de": name_de, "name_en": name_en,
-         "edition": fuehrend["edition"],
+    # eintrag_id/quelle_kuerzel (Review 30.07.2026): Die Listen brachen zwei Zusagen,
+    # die der Suchpfad einhaelt. Ohne eintrag_id war der Rundlauf Liste->Detail nicht
+    # moeglich (SYN-P1-002 sichert genau das zu, _knapp setzt es seit jeher). Ohne
+    # quelle_kuerzel konnte _markiere_abenteuer nicht greifen - die Optionslisten
+    # lieferten Abenteuer-/Setting-Inhalte voellig unmarkiert aus, obwohl der
+    # Spoiler-Schutz die OBERSTE Regel ist (belegt: 'Aberrantes Drachenmal' aus
+    # Eberron stand ununterscheidbar zwischen den SRD-Talenten).
+    # Das Kuerzel stammt vom FUEHRENDEN Eintrag der Gruppe, wie bei _knapp. Bei
+    # gemischten Gruppen fuehrt wegen ORDER BY q.prioritaet die Regelwerksquelle - dann
+    # ist die Option auch wirklich im Regelwerk enthalten und keine Spoilergefahr;
+    # 'quellen' zeigt die uebrigen Baende weiterhin an.
+    z = {"eintrag_id": fuehrend["id"], "anzeige": anzeige,
+         "name_de": name_de, "name_en": name_en,
+         "edition": fuehrend["edition"], "quelle_kuerzel": fuehrend["quelle_kuerzel"],
          "quellen": sorted({e["quelle_titel"] for e in g["eintraege"]})}
     z.update({k: v for k, v in extra.items() if v is not None})
     return z
@@ -243,6 +267,7 @@ def _liste(kategorie: str, schluessel: str, schritt_hinweis: str) -> dict:
         zeilen.sort(key=lambda z: _norm(z["name_de"] or z["name_en"]))
         antwort = {schluessel: zeilen, "hinweis_reihenfolge": schritt_hinweis,
                    "hinweis": _HINWEIS_BESTAND}
+        _ns._markiere_abenteuer(con, antwort, zeilen)
         if not zeilen:
             antwort["hinweis"] = _ns.HINWEIS_LEER
         return antwort
@@ -313,10 +338,15 @@ def foliant_liste_klassen() -> dict:
         for e in alle:
             kontext = _kontext(e)
             if kontext:
-                if kontext == "Klassen":
+                letztes_segment = kontext.split(" > ")[-1].strip()
+                if _KLASSEN_KONTEXT.match(letztes_segment):
                     klassen_eintraege.append(e)
-                elif _UNTERKLASSE_DE.match(e["name_de"] or ""):
+                elif (_UNTERKLASSEN_KONTEXT.match(letztes_segment)
+                      or _UNTERKLASSE_DE.match(e["name_de"] or "")):
                     unterklassen_eintraege.append(e)
+                # Alles Uebrige ist Unterabschnitt (Klassenmerkmale, Zauberliste,
+                # 'Ein Barde werden ...') und gehoert bewusst in keine der Listen -
+                # foliant_hol_klasse weist sie als 'verwandte_abschnitte' aus.
             else:
                 (unterklassen_eintraege if _SUBCLASS.search(e["body_md"] or "")
                  else klassen_eintraege).append(e)
@@ -335,6 +365,12 @@ def foliant_liste_klassen() -> dict:
                 m = _SUBCLASS.search(e["body_md"] or "")
                 if m:
                     referenzen.add(_norm(m.group(1)))
+                # Dritte Schreibweise, aus den englischen Druckquellen: die Klasse steht
+                # als Klammer-Suffix am NAMEN ('BLADESINGER (WIZARD)'), nicht im Kontext
+                # und nicht im Body.
+                km = _UNTERKLASSE_KLAMMER.match(e["name_de"] or e["name_en"] or "")
+                if km:
+                    referenzen.add(_norm(km.group(2)))
             uz = _zeile(con, ug)
             # Anzeige-/Abrufname der Unterklasse ohne das 'X-Unterklasse:'-Praefix:
             m = _UNTERKLASSE_DE.match(uz["name_de"] or "")
@@ -342,9 +378,18 @@ def foliant_liste_klassen() -> dict:
                 uz["name_de"] = m.group(2).strip()
                 en = f" ({uz['name_en']})" if uz.get("name_en") else ""
                 uz["anzeige"] = f"{uz['name_de']}{en}"
+            elif not uz.get("name_de") and (km := _UNTERKLASSE_KLAMMER.match(
+                    uz.get("name_en") or "")):
+                # Ohne diese Kuerzung liest sich 'BLADESINGER (WIZARD)' wie das
+                # Deutsch-first-Format 'Deutsch (English)' - der Klassenname saehe aus
+                # wie die englische Entsprechung der Unterklasse (S3/S4).
+                uz["name_en"] = km.group(1).strip()
+                uz["anzeige"] = uz["name_en"]
             ziel = next((z for g, z in zeilen if g["varianten"] & referenzen), None)
             if ziel is not None:
-                ziel["unterklassen"].append(uz)
+                # setdefault: eine Waisen-Zeile (unten, ohne 'unterklassen') kann selbst
+                # zum Ziel einer spaeteren Unterklasse werden - das war ein KeyError.
+                ziel.setdefault("unterklassen", []).append(uz)
             else:
                 zeilen.append(({"varianten": referenzen},
                                {**uz, "hinweis": "Zugehoerige Klasse nicht im Bestand."}))
@@ -353,6 +398,10 @@ def foliant_liste_klassen() -> dict:
         antwort = {"klassen": klassen,
                    "hinweis_reihenfolge": "Klasse ist SCHRITT 1 von 4. " + _HINWEIS_REIHENFOLGE,
                    "hinweis": _HINWEIS_BESTAND}
+        # Auch die geschachtelten Unterklassen kennzeichnen - sie tragen dieselbe
+        # Herkunft und sind fuer den Spoiler-Schutz kein Sonderfall.
+        _ns._markiere_abenteuer(con, antwort, klassen,
+                                *[k.get("unterklassen") or [] for k in klassen])
         if not klassen:
             antwort["hinweis"] = _ns.HINWEIS_LEER
         return antwort
