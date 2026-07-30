@@ -145,10 +145,50 @@ def _bestand_lesen(glossar_pfad: str | None) -> list[dict]:
         con.close()
 
 
+# Klammer-Zusätze, die NUR wiederholen, was auf der Seite ohnehin als eigene Angabe
+# neben dem Titel steht: Sprache, Regelversion, Bezugsweg. Sie sind der Grund für die
+# uneinheitliche Liste - jeder Importweg hängt einen anderen an denselben Werktitel
+# ("SRD 5.2.1 (Deutsch)", "Basic Rules (2014) (D&D Beyond)", "... (Druck)"). Die
+# Positivliste ist bewusst eng: was hier nicht steht, bleibt am Titel. Lieber ein
+# ungekürzter Titel als ein abgeschnittener Werkname.
+_TITEL_ZUSATZ = {
+    "deutsch", "englisch", "english", "de", "en",
+    "d&d beyond", "dnd beyond", "ddb", "open5e", "druck", "pdf", "scan",
+    "2014", "2024", "2014er regeln", "2024er regeln",
+}
+_KLAMMER_AM_ENDE = re.compile(r"\s*\(([^()]*)\)\s*$")
+
+
+def _titel_schlicht(titel: str) -> str:
+    """Werktitel ohne die Klammer-Zusätze, die Sprache/Regelversion/Bezugsweg doppeln.
+
+    Nur am ENDE und nur, wenn JEDER kommagetrennte Teil in der Positivliste steht -
+    "Curse of Strahd: Character Options (D&D Beyond)" verliert die Herkunft,
+    "Monstrous Compendium Vol. 1 (Spelljammer Creatures)" behielte seinen Zusatz.
+    Mehrfach angewandt, weil manche Titel zwei Klammern tragen ("(2014) (D&D Beyond)").
+    """
+    rest = (titel or "").strip()
+    while True:
+        treffer = _KLAMMER_AM_ENDE.search(rest)
+        if not treffer:
+            return rest.strip()
+        teile = [t.strip().lower() for t in treffer.group(1).split(",")]
+        if not teile or not all(t in _TITEL_ZUSATZ for t in teile):
+            return rest.strip()
+        gekuerzt = rest[:treffer.start()].strip()
+        if not gekuerzt:                 # Titel BESTEHT nur aus dem Zusatz -> unangetastet
+            return rest.strip()
+        rest = gekuerzt
+
+
 def _bestand_html(quellen: list[dict]) -> str:
     """Zwei Gruppen: Regelwerke und Abenteuer/Setting. Die Trennung ist nicht Kosmetik -
     aus Abenteuerbänden gibt Foliant Regelwerte heraus, aber keine Handlung (Spoiler-Schutz
-    ist die oberste Verhaltensregel), und genau das soll die Runde hier sehen."""
+    ist die oberste Verhaltensregel), und genau das soll die Runde hier sehen.
+
+    Jede Zeile zeigt dieselben drei Angaben in derselben Form: Titel, Sprache,
+    Regelversion. Die Regelversion trägt ihr Wort mit ("Regeln 2024") - eine nackte
+    Jahreszahl neben einem Buchtitel liest sich wie ein Erscheinungsjahr."""
     if not quellen:
         return ""
     groesste = max(q["eintraege"] or 0 for q in quellen) or 1
@@ -159,12 +199,14 @@ def _bestand_html(quellen: list[dict]) -> str:
             n = q["eintraege"] or 0
             breite = max(2, round(100 * n / groesste))
             sprache = "Deutsch" if (q["sprache"] or "").startswith("de") else "Englisch"
+            edition = str(q["edition"] or "").strip()
+            regeln = f"Regeln {edition}" if edition else "Regelversion offen"
             teile.append(
                 f'<li class="buch">'
-                f'<span class="buch-titel">{_escape(q["titel"] or "?")}</span>'
+                f'<span class="buch-titel">{_escape(_titel_schlicht(q["titel"]) or "?")}</span>'
                 f'<span class="marken">'
                 f'<span class="marke-klein">{sprache}</span>'
-                f'<span class="marke-klein jahr">{_escape(str(q["edition"] or "?"))}</span>'
+                f'<span class="marke-klein jahr">{_escape(regeln)}</span>'
                 f'</span>'
                 f'<span class="balken" aria-hidden="true">'
                 f'<span style="width:{breite}%"></span></span>'
