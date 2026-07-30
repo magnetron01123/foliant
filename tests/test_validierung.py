@@ -159,3 +159,21 @@ def test_ddb_editionsnamen_stimmen_mit_den_aliassen():
     # Praefix-Ordnung ist Semantik, nicht Kosmetik: '5e' zuerst wuerde '5.5e' schlucken.
     laengen = [len(p) for p, _ in _EDITION_PREFIX]
     assert laengen == sorted(laengen, reverse=True), "laengster Praefix muss zuerst stehen"
+
+
+def test_quelle_kuerzel_wird_im_strukturpfad_nicht_still_verworfen(bestand):
+    """Befund 30.07.2026: foliant_suche_bestand reichte `quelle_kuerzel` nur in den
+    VOLLTEXT-Pfad weiter. _struktur_filter nahm den Parameter gar nicht erst entgegen -
+    eine reine Struktur-Anfrage mit Quellen-Einschraenkung durchsuchte still den GESAMTEN
+    Bestand, und ein Tippfehler im Kuerzel blieb ebenso still.
+
+    Das ist derselbe Fehlermodus wie SYN-P0-006, nur umgekehrt: dort erzeugte ein
+    ungueltiger Parameter eine falsche Fehlanzeige, hier erzeugt er ein falsches
+    ERGEBNIS - und das ist schwerer zu bemerken, weil die Antwort plausibel aussieht.
+    'gefiltert_nach' behauptete sogar, die Quelle sei beruecksichtigt."""
+    r = ns.foliant_suche_bestand(kategorie="zauber", grad=3, quelle_kuerzel="GIBTESNICHT")
+    assert "fehler" in r, f"ungueltiges Kuerzel stillschweigend ignoriert: {r}"
+    assert "GIBTESNICHT" in r["fehler"]
+    assert r["treffer"] == []
+    # Und der Hinweis muss klarstellen, dass das KEINE Bestandsluecke ist:
+    assert "KEIN 'nicht im Bestand'" in r["hinweis"]
