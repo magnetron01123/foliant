@@ -857,7 +857,11 @@ def cmd_backup(args) -> None:
             print(f"Aufbewahrung: {entfernt} aeltere Backup(s) entfernt (behalte {args.behalten}).")
 
 
-def main(argv=None) -> None:
+def baue_parser() -> argparse.ArgumentParser:
+    """Der argparse-Baum, getrennt vom Lauf. Reine Extraktion aus main() - noetig, damit
+    tests/test_validierung.py die Kommandoliste gegen den 'Admin-CLI (vollstaendig)'-Block
+    in CONCEPT.md par. 8 pruefen kann, ohne die CLI auszufuehren. Der Block war am
+    30.07.2026 unvollstaendig und nannte ein Flag, das es nie gab."""
     p = argparse.ArgumentParser(prog="foliant-admin", description="Foliant Admin-CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status", help="Bestand zusammenfassen (Import-Kontrolle)").set_defaults(func=cmd_status)
@@ -924,7 +928,9 @@ def main(argv=None) -> None:
     pp.add_argument("--artefakt", required=True, help="Artefakt-Verzeichnis")
     pp.set_defaults(func=cmd_ddb_pruefe)
     pd = sub.add_parser("ddb-import",
-                        help="EIN DDB-Artefakt in die PRIVATE DB importieren")
+                        help="EIN DDB-Artefakt in die DDB-Ziel-DB importieren (Standard: private DB; "
+                             "[ddb].ins_hauptbestand bzw. ziel_db koennen auf den "
+                             "bedienten Bestand zeigen)")
     pd.add_argument("--artefakt", required=True, help="Artefakt-Verzeichnis")
     pd.add_argument("--dry-run", action="store_true",
                     help="alles pruefen, nichts aktivieren")
@@ -932,14 +938,19 @@ def main(argv=None) -> None:
                     help="Schrumpf-Schutz (importer/schwellen.py) bewusst uebergehen")
     pd.set_defaults(func=cmd_ddb_import)
     pa = sub.add_parser("ddb-import-all",
-                        help="ALLE vorhandenen DDB-Artefakte in die PRIVATE DB importieren")
+                        help="ALLE vorhandenen DDB-Artefakte in die DDB-Ziel-DB importieren (Standard: "
+                             "private DB; siehe ddb-import)")
     pa.add_argument("--dry-run", action="store_true", help="pruefen, nichts aktivieren")
     pa.add_argument("--force", action="store_true", help="Schrumpf-Schutz uebergehen")
     pa.set_defaults(func=cmd_ddb_import_all)
     pr = sub.add_parser("ddb-remove", help="eine DDB-Quelle aus der bedienten DB entfernen")
     pr.add_argument("--quelle", required=True, help="kuerzel der DDB-Quelle")
     pr.set_defaults(func=cmd_ddb_remove)
-    args = p.parse_args(argv)
+    return p
+
+
+def main(argv=None) -> None:
+    args = baue_parser().parse_args(argv)
     args.func(args)
 
 

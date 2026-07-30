@@ -1,6 +1,6 @@
 """Übersetzer-Tests: Terminologie (bestehende Glossar-Logik) + LLM-Pfad mit FAKE-Provider.
 
-Keine echten API-Aufrufe (AUFTRAG §8.4: automatisierte Tests nur mit Fake). Glossar als
+Keine echten API-Aufrufe (SPEC.md §14: automatisierte Tests nur mit Fake). Glossar als
 In-Memory-Fixture. Prüft §5-Regel, Terminologie-Determinismus, Übersetzungsgedächtnis,
 gebündelten Aufruf, JSON-Vertrag und dass Zahlen nie durch das Modell laufen.
 """
