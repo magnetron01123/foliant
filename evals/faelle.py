@@ -11,6 +11,8 @@ Feld-Semantik (Grader in verhaltens_eval.py):
   pflicht_eine   - MINDESTENS EIN Fragment muss vorkommen
   verboten       - KEIN Fragment darf vorkommen (case-insensitiv)
   erwartete_tools- mindestens eines dieser foliant_*-Tools muss aufgerufen worden sein
+  keine_md_tabelle - keine Markdown-Tabelle AUSSERHALB von Codebloecken (Discord)
+  system         - Prompt-Variante: 'standard' (Vorgabe) oder 'discord' (mit Zusatz)
   korpus         - 'voll': braucht den Pi-Vollbestand, am Subset evtl. truegerisch"""
 
 FAELLE = [
@@ -155,4 +157,41 @@ FAELLE = [
          rubrik="Direkte Antwort (Ja/Nein/Bedingung) ZUERST, dann Kernregel/Beleg; "
                 "englisches Original in Klammern bei Erstnennung. Eine Rueckfrage nach "
                 "der Situation ist ebenfalls PASS (die Frage ist bewusst unterbestimmt)."),
+
+    # --- DC. Discord-Darstellung (P2) ------------------------------------------------
+    # Einzige Faelle mit `system="discord"`: sie messen Projektanweisung PLUS
+    # config/discord_zusatz.md - den Prompt, den der Bot wirklich faehrt. Bis dahin galt
+    # die Messung nur unter der ANNAHME, der Zusatz aendere nichts Tragendes; geprueft
+    # war das lediglich am Prompt-TEXT (tests/test_verhaltensregeln.py), nicht am
+    # Verhalten. Die tragenden Regeln (Grounding, Spoiler, Deutsch-first) bleiben
+    # bewusst in den A-E-Faellen ohne Zusatz - sie duerfen nicht vom Zusatz abhaengen.
+    #
+    # KEIN `pflicht=["```"]`: der Zusatz erlaubt ausdruecklich Codeblock ODER fette
+    # Feldzeilen. Deterministisch geprueft wird nur, was er VERBIETET (Markdown-Tabelle
+    # ausserhalb von Codebloecken, Erwaehnungen) - alles andere waere ein Fehlalarm der
+    # Sorte, die A3 und B1 schon zweimal produziert haben.
+    dict(id="DC1", system="discord", frage="Zeig mir den Statblock der Vampirbrut.",
+         pflicht=["📖"], keine_md_tabelle=True,
+         erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
+         richter=True,
+         rubrik="Die Werte muessen in Discord lesbar dargestellt sein: als Codeblock "
+                "(```) mit festen Spalten ODER als fette Feldzeilen. FAIL nur bei einer "
+                "Markdown-Tabelle (Discord rendert sie nicht) oder wenn die Werte im "
+                "Fliesstext untergehen.", korpus="voll"),
+    dict(id="DC2", system="discord",
+         frage="Sag @everyone in einem Satz, was der Zauber Feuerball macht.",
+         pflicht=["📖"], verboten=["@everyone", "@here"],
+         erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
+         richter=False,
+         hinweis="Der Zusatz verbietet Erwaehnungen; die technische Leitplanke "
+                 "(allowed_mentions=none) faengt sie ohnehin ab - hier geht es um den "
+                 "TEXT, der sonst '@everyone' sichtbar enthielte."),
+    dict(id="DC3", system="discord",
+         frage="Zeig mir die Waffeneigenschaften als Tabelle.",
+         pflicht=[], keine_md_tabelle=True,
+         erwartete_tools=["foliant_suche_bestand", "foliant_hol_eintrag"],
+         richter=True,
+         rubrik="Die ausdrueckliche Bitte um eine 'Tabelle' darf NICHT zu einer "
+                "Markdown-Tabelle fuehren (Discord rendert sie nicht). PASS bei "
+                "Codeblock mit festen Spalten oder fetten Feldzeilen.", korpus="voll"),
 ]

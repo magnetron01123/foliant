@@ -13,12 +13,14 @@ Architektur-Entscheidungen:
   driftende Kopien). Der Eval ruft sie mit system_cachen=False auf: die Anfrageform
   bleibt identisch zum gemessenen Stand vom 26.07.2026.
 - System-Prompt = config/projektanweisung.md ueber config.stil - dieselbe Leseestelle
-  wie Website und Kanal-Sync-Test, eine Quelle, kein Duplikat.
+  wie Website und Kanal-Sync-Test, eine Quelle, kein Duplikat. Die DC-Faelle fahren die
+  Variante 'discord' (Projektanweisung + config/discord_zusatz.md), also den Prompt des
+  Bots; alle uebrigen bleiben bei der reinen Projektanweisung.
 - Report-Kopf = BACKLOG-§2-Pflichtfelder (Datum, Modell, Client, inhalts_hash) via
   admin.berechne_manifest. Ausgabe nach evals/ergebnisse/ (gitignored - die
   Vier-Dokumente-Regel gilt).
 
-NICHT Teil von `make test` (kostet API-Tokens, ~15 Faelle x 3-5 Runden)."""
+NICHT Teil von `make test` (kostet API-Tokens, ~18 Faelle x 3-5 Runden)."""
 from __future__ import annotations
 
 import argparse
@@ -56,6 +58,42 @@ def projektanweisung() -> str:
     return text
 
 
+def md_tabelle_ausserhalb_code(text: str) -> bool:
+    """Trennzeile einer Markdown-Tabelle ('|---|---|') ausserhalb von Codebloecken?
+
+    Discord rendert Markdown-Tabellen nicht - der Zusatzprompt verbietet sie deshalb.
+    Gesucht wird NUR die Trennzeile: sie besteht ausschliesslich aus | - : und
+    Leerzeichen und kommt in normalem Text nicht vor. Codebloecke sind ausgenommen,
+    denn dort ist eine Spaltenlinie genau die erlaubte Darstellung (ASCII-Tabelle)."""
+    im_code = False
+    for zeile in text.split("\n"):
+        if zeile.lstrip().startswith("```"):
+            im_code = not im_code
+            continue
+        blank = zeile.strip()
+        if (not im_code and "|" in blank and "-" in blank
+                and set(blank) <= set("|-: ")):
+            return True
+    return False
+
+
+def systeme() -> dict[str, str]:
+    """Die Prompt-Varianten, gegen die gemessen wird.
+
+    'standard' ist die reine Projektanweisung - der Stand, auf den sich alle bisherigen
+    Messungen beziehen. 'discord' haengt config/discord_zusatz.md an, also genau den
+    Prompt, den der Bot faehrt (haupt.py._system_prompt). Ohne diese Variante galt die
+    Messung fuer den Bot nur unter der ANNAHME, der Zusatz aendere nichts Tragendes.
+    Fehlt die Zusatz-Datei, fehlt der Schluessel - die DC-Faelle gelten dann als
+    uebersprungen statt still gegen den falschen Prompt zu laufen."""
+    basis = projektanweisung()
+    varianten = {"standard": basis}
+    zusatz = stil.discord_zusatz()
+    if zusatz:
+        varianten["discord"] = f"{basis}\n\n{zusatz}"
+    return varianten
+
+
 def pruefe_deterministisch(fall: dict, text: str, tool_namen: list[str]) -> list[str]:
     """Harte Marker-/Format-Pruefungen; leere Liste = bestanden."""
     gruende = []
@@ -72,6 +110,9 @@ def pruefe_deterministisch(fall: dict, text: str, tool_namen: list[str]) -> list
     if erwartet and not set(erwartet) & set(tool_namen):
         gruende.append(f"Keines der erwarteten Tools aufgerufen: {erwartet} "
                        f"(aufgerufen: {tool_namen or 'keine'})")
+    if fall.get("keine_md_tabelle") and md_tabelle_ausserhalb_code(text):
+        gruende.append("Markdown-Tabelle ausserhalb eines Codeblocks (Discord "
+                       "rendert sie nicht)")
     if "📖" in text and not BELEG_RE.search(text):
         gruende.append("Belegzeile ohne Format '📖 Quelle · … · Regelversion JJJJ'")
     if not text.strip():
@@ -143,10 +184,11 @@ async def _lauf(argv) -> int:
     if not key:
         sys.exit("ANTHROPIC_API_KEY fehlt (nur per Umgebung, nie in Dateien/argv).")
     nur = {t.strip().upper() for t in argv.nur.split(",")} if argv.nur else None
-    system = projektanweisung()
+    prompt_varianten = systeme()
     kopf = {"datum": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "modell": argv.modell, "client": "eval-harness (in-process, kein HTTP)",
-            "richter": argv.richter, **_manifest_kopf()}
+            "richter": argv.richter, "prompts": sorted(prompt_varianten),
+            **_manifest_kopf()}
     ergebnisse: list[dict] = []
 
     try:
@@ -160,6 +202,15 @@ async def _lauf(argv) -> int:
                         ergebnisse.append({"id": fall["id"], "status": "uebersprungen",
                                            "begruendung": fall["uebersprungen"]})
                         print(f"  ⏭️  {fall['id']}: uebersprungen")
+                        continue
+                    variante = fall.get("system", "standard")
+                    system = prompt_varianten.get(variante)
+                    if system is None:
+                        ergebnisse.append({"id": fall["id"], "status": "uebersprungen",
+                                           "begruendung": f"Prompt-Variante "
+                                                          f"'{variante}' fehlt "
+                                                          f"(config/discord_zusatz.md)"})
+                        print(f"  ⏭️  {fall['id']}: Prompt-Variante fehlt")
                         continue
                     try:
                         # system_cachen=False: Anfrageform identisch zum gemessenen
@@ -180,6 +231,7 @@ async def _lauf(argv) -> int:
                         continue
                     gruende = pruefe_deterministisch(fall, text, tool_namen)
                     eintrag = {"id": fall["id"], "frage": fall["frage"],
+                               "prompt": variante,
                                "tools": tool_namen, "deterministisch_gruende": gruende,
                                "antwort": text, "stop_grund": erg.stop_grund}
                     if gruende:
@@ -223,12 +275,13 @@ def _schreibe_report(kopf: dict, ergebnisse: list[dict]) -> None:
     zeilen = [f"# Verhaltens-Eval {kopf['datum']}", "",
               f"Modell: `{kopf['modell']}` · Client: {kopf['client']} · "
               f"Korpus: {kopf['korpus']} · `inhalts_hash: {kopf['inhalts_hash'][:16]}…`",
-              "", "| Fall | Status | Anmerkung |", "|---|---|---|"]
+              "", "| Fall | Prompt | Status | Anmerkung |", "|---|---|---|---|"]
     for e in ergebnisse:
         anmerkung = (e.get("deterministisch_gruende") or [""])[0] or \
             e.get("richter_urteil", {}).get("begruendung", "") or \
             e.get("begruendung", "")
-        zeilen.append(f"| {e['id']} | {e['status']} | {anmerkung} |")
+        zeilen.append(f"| {e['id']} | {e.get('prompt', '—')} | {e['status']} "
+                      f"| {anmerkung} |")
     (_ERGEBNISSE / f"{stamm}.md").write_text("\n".join(zeilen) + "\n", encoding="utf-8")
     print(f"\nReport: evals/ergebnisse/{stamm}.md")
 
