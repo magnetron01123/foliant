@@ -546,6 +546,26 @@ def _finde(kategorie: str, name: str) -> dict:
     return d
 
 
+def _fehlbefund(detail: dict, was: str, name: str) -> str:
+    """Warum eine Option nicht verwertbar ist. 'Nicht im Bestand' ist nur EINER der
+    moeglichen Gruende - der andere ist MEHRDEUTIGKEIT (Befund 30.07.2026).
+
+    Die Pruefung wertete nur `gefunden` aus. Lieferte der Detailabruf eine
+    Mehrdeutigkeits-Absage ('Schild' = Zauber ODER Ruestung), behandelte sie das wie
+    'gar nicht vorhanden' und meldete woertlich "ist nicht im 2024-Bestand - evtl. fehlt
+    ein Buch". Der Inhalt IST da, nur die Angabe war unscharf: genau die Antwortklasse,
+    gegen die SYN-P0-006 angetreten ist, und fuer den Nutzer nicht von einer echten
+    Bestandsluecke zu unterscheiden."""
+    if detail.get("mehrdeutig"):
+        namen = [k.get("anzeige_name") or k.get("name_de") or k.get("name_en") or "?"
+                 for k in (detail.get("kandidaten") or [])][:5]
+        return (f"{was} '{name}' ist im Bestand MEHRDEUTIG"
+                + (f" ({', '.join(namen)})" if namen else "")
+                + " - das ist KEINE Fehlanzeige, sondern eine unscharfe Angabe. "
+                  "Bitte praezisieren und erneut pruefen (B4).")
+    return f"{was} '{name}' ist nicht im 2024-Bestand - evtl. fehlt ein Buch (B2)."
+
+
 def _entsprechungen(*namen: str | None) -> set[str]:
     """Normalisierte Namen plus deren EXAKTE Glossar-Entsprechungen (A4: eine deutsch
     gewaehlte Klasse muss eine nur englisch vorhandene Unterklasse matchen)."""
@@ -781,10 +801,12 @@ def foliant_pruefe_build(klasse: str, stufe: int = 1, unterklasse: str | None = 
                     klasse_detail.get("zitat_altstand"))
             klasse_detail = {}
         else:
-            fehlende_angaben.append("klasse (nicht im 2024-Bestand)")
+            mehrdeutig = bool(klasse_detail.get("mehrdeutig"))
+            fehlende_angaben.append(
+                f"klasse ({'mehrdeutig' if mehrdeutig else 'nicht im 2024-Bestand'})")
             _befund(pruefungen, "klasse", "nicht_pruefbar",
-                    f"Klasse '{klasse}' ist nicht im 2024-Bestand - evtl. fehlt ein "
-                    f"Buch (B2). Alle klassenabhaengigen Pruefungen entfallen.")
+                    _fehlbefund(klasse_detail, "Klasse", klasse)
+                    + " Alle klassenabhaengigen Pruefungen entfallen.")
             klasse_detail = {}
 
     # --- Unterklasse ---------------------------------------------------------
@@ -814,7 +836,7 @@ def foliant_pruefe_build(klasse: str, stufe: int = 1, unterklasse: str | None = 
                         f"pruefbar (A4/V5).", u_detail.get("zitat_altstand"))
             else:
                 _befund(pruefungen, "unterklasse", "nicht_pruefbar",
-                        f"Unterklasse '{unterklasse}' ist nicht im 2024-Bestand (B2).")
+                        _fehlbefund(u_detail, "Unterklasse", unterklasse))
         else:
             datenbasis.add(u_detail["zitat"])
             # Zugehoerigkeit: srd-de-Name '<Klasse>...-Unterklasse: <Name>' bzw.
@@ -874,8 +896,7 @@ def foliant_pruefe_build(klasse: str, stufe: int = 1, unterklasse: str | None = 
                     s_detail.get("zitat_altstand"))
         else:
             _befund(pruefungen, "spezies", "nicht_pruefbar",
-                    f"Spezies '{spezies}' ist nicht im 2024-Bestand - evtl. fehlt ein "
-                    f"Buch (B2).")
+                    _fehlbefund(s_detail, "Spezies", spezies))
     else:
         fehlende_angaben.append("spezies")
 
@@ -946,7 +967,7 @@ def foliant_pruefe_build(klasse: str, stufe: int = 1, unterklasse: str | None = 
                         f"pruefbar (A4/V5).", h_detail.get("zitat_altstand"))
             else:
                 _befund(pruefungen, "hintergrund", "nicht_pruefbar",
-                        f"Hintergrund '{hintergrund}' ist nicht im 2024-Bestand (B2).")
+                        _fehlbefund(h_detail, "Hintergrund", hintergrund))
         else:
             datenbasis.add(h_detail["zitat"])
             _befund(pruefungen, "hintergrund", "ok",
@@ -1042,7 +1063,7 @@ def foliant_pruefe_build(klasse: str, stufe: int = 1, unterklasse: str | None = 
         t_detail = _finde("talent", talent)
         if not t_detail.get("gefunden"):
             _befund(pruefungen, f"talent:{talent}", "nicht_pruefbar",
-                    f"Talent '{talent}' ist nicht im Bestand (B2).")
+                    _fehlbefund(t_detail, "Talent", talent))
             continue
         datenbasis.add(t_detail["zitat"])
         m_typ = _TALENT_TYPZEILE.search(t_detail.get("regeltext_md") or "")
