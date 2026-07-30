@@ -75,12 +75,26 @@ _SCHULE_ANZEIGE = {
 
 
 def schule_schluessel(eingabe: str | None) -> str | None:
-    """Nutzereingabe ('Hervorrufung', 'Evocation') -> kanonischer Schluessel; None unbekannt."""
+    """Nutzereingabe ('Hervorrufung', 'Evocation') -> kanonischer Schluessel; None unbekannt.
+
+    ZWEI Runden, exakt vor tolerant (Befund 30.07.2026). Vorher lief beides in einer
+    Schleife, und die enthielt mit `n in s` die Richtung 'Eingabe ist Teil eines Synonyms'.
+    Damit gewann die DICT-Reihenfolge statt der Treffergenauigkeit: 'o' wurde zu
+    'bannzauber' (steckt in 'abjuration'), 'ung' zu 'beschwoerung'. Eine ungueltige Facette
+    wurde so still auf eine GUELTIGE umgebogen, und die Suche lieferte eine sauber
+    zitierte Antwort auf eine nicht gestellte Frage - dieselbe Fehlerklasse, gegen die
+    SYN-P0-006 angetreten ist, nur im Facetten-Pfad. None loest jetzt den strukturierten
+    'fehler' mit der Liste der gueltigen Werte aus, wie bei jedem anderen Enum."""
     if not eingabe:
         return None
     n = _n(eingabe)
     for key, syns in _SCHULEN.items():
-        if n == key or n in syns or any(n in s or s in n for s in syns):
+        if n == key or n in syns:
+            return key
+    # Tolerant nur in EINER Richtung: das Synonym steckt in einer laengeren Eingabe
+    # ('Hervorrufungszauber' -> hervorrufung). Die Gegenrichtung war der Fehler.
+    for key, syns in _SCHULEN.items():
+        if any(s in n for s in syns):
             return key
     return None
 
@@ -180,11 +194,22 @@ _SCHADEN_SYN: dict[str, tuple[str, ...]] = {
 
 
 def schadensart_schluessel(eingabe: str | None) -> str | None:
+    """Nutzereingabe ('Feuer', 'fire', 'Wuchtschaden') -> kanonischer Schluessel.
+
+    Exakt vor tolerant, aus demselben Grund wie bei schule_schluessel - hier hatte die
+    Reihenfolge sogar auf einer GUELTIGEN Eingabe Folgen: 'wucht' lieferte 'kraft',
+    weil `n in f` gegen die Form 'wuchtschaden der kraft' anschlug und 'kraft' im Dict
+    vor 'wucht' steht. Wer nach Wuchtschaden filterte, bekam Kraftschaden - sauber
+    zitiert und ohne jeden Hinweis. 'schaden' und 'damage' wurden zu 'feuer'."""
     if not eingabe:
         return None
     n = _n(eingabe)
     for key, formen in _SCHADEN_SYN.items():
-        if n == key or any(n in f or f.split()[0] == n for f in formen):
+        if n == key or n in formen:
+            return key
+    # Tolerant: das erste Wort einer Form ('fire damage' -> 'fire').
+    for key, formen in _SCHADEN_SYN.items():
+        if any(f.split()[0] == n for f in formen):
             return key
     return None
 
