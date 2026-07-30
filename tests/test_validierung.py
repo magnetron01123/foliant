@@ -222,3 +222,44 @@ def test_quelle_kuerzel_wird_im_strukturpfad_nicht_still_verworfen(bestand):
     assert r["treffer"] == []
     # Und der Hinweis muss klarstellen, dass das KEINE Bestandsluecke ist:
     assert "KEIN 'nicht im Bestand'" in r["hinweis"]
+
+
+def test_detailabruf_meldet_ungueltige_kategorie_strukturiert(bestand):
+    """Regression der Tool-Zusammenlegung (30.07.2026): Bis dahin steckte die Kategorie im
+    WERKZEUGNAMEN (foliant_hol_zauber) und konnte gar nicht ungueltig sein. Seit
+    foliant_hol_eintrag ist sie ein Parameter - und ein ungueltiger Wert flog als
+    ungefangene ValueError aus _pruefe_kategorie heraus, statt als 'fehler'
+    zurueckzukommen. Der SUCH-Pfad faengt sie seit SYN-P0-006; der Detailpfad hatte die
+    Stelle nie gebraucht.
+
+    Beide Wege muessen sie nehmen - auch der ueber eintrag_id, der sonst 'Referenz
+    veraltet' meldet und damit den falschen Grund nennt."""
+    for aufruf in (dict(name="Feuerball"), dict(eintrag_id=1)):
+        r = ns.foliant_hol_eintrag("spell", **aufruf)          # englischer Wert statt 'zauber'
+        assert "fehler" in r, f"{aufruf}: keine strukturierte Meldung, {r}"
+        assert "spell" in r["fehler"] and "zauber" in r["fehler"]
+        assert "KEIN 'nicht im Bestand'" in r["hinweis"]
+
+
+def test_kategorie_mismatch_nennt_den_richtigen_wert(bestand):
+    """Ein Aufruf mit gueltiger, aber FALSCHER Kategorie zu einer eintrag_id ist bis auf
+    ein Feld richtig - die Meldung muss deshalb den Wert nennen, der dort hingehoert,
+    statt auf ein 'passendes foliant_hol_*' zu verweisen, das es nicht mehr gibt."""
+    eid = ns.foliant_hol_eintrag("zauber", "Feuerball")["eintrag_id"]
+    r = ns.foliant_hol_eintrag("monster", eintrag_id=eid)
+    assert "fehler" in r
+    assert "kategorie='zauber'" in r["fehler"], r["fehler"]
+    assert "foliant_hol_*" not in r["fehler"]
+
+
+def test_herausforderungsgrad_wird_validiert(bestand):
+    """hg ging als EINZIGER Facetten-Parameter ungeprueft durch, waehrend schule,
+    schadensart und typ einen strukturierten Fehler liefern. 'abc' erzeugte deshalb keinen
+    Parameterfehler, sondern einen ehrlich klingenden Nulltreffer - genau die
+    Antwortklasse, gegen die SYN-P0-006 angetreten ist."""
+    r = ns.foliant_suche_bestand(kategorie="monster", hg="abc")
+    assert "fehler" in r and r["treffer"] == []
+    assert "KEIN 'nicht im Bestand'" in r["hinweis"]
+    # Die echten Schreibweisen der Statbloecke bleiben gueltig:
+    for gueltig in ("0", "1", "1/4", "1/2"):
+        assert "fehler" not in ns.foliant_suche_bestand(kategorie="monster", hg=gueltig), gueltig

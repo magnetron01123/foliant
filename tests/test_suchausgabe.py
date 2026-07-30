@@ -141,7 +141,7 @@ def test_detail_traegt_eintrag_id_und_quelle_kuerzel(bestand):
 # Suchpfad, A5 im Facetten-Pfad gar nicht.
 
 def test_kandidatenliste_des_detailpfads_ist_markiert_und_deutsch(bestand):
-    """A2/A6 — der schwerste der drei. Bei Mehrdeutigkeit liefert foliant_hol_* eine
+    """A2/A6 — der schwerste der drei. Bei Mehrdeutigkeit liefert foliant_hol_eintrag eine
     `kandidaten`-Liste MIT Auszug aus dem Bestand; die trug weder die Abenteuer-
     Kennzeichnung noch den Deutsch-first-Namen. Gemessen am echten Bestand kamen so
     Auszuege aus Abenteuerbaenden voellig unmarkiert beim Modell an - genau der
