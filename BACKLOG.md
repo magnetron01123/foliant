@@ -17,6 +17,7 @@ David**, nicht an Code:
 | **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — derzeit liegen Bestand *und* alle Sicherungen auf derselben SD-Karte |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
 | **M6** Discord-Bot | Token im Entwicklerportal, Erst-Test in der Guild |
+| **M7** Discord-Ausbau | Eval-Lauf mit den DC-Fällen, Echttest nach einem Neustart |
 | **M2** Abnahme: A4 (Websuche), E1 (Injektion) | A4 nur im echten Chat prüfbar; E1-Fixture ist baubar |
 | **M1** dt. PHB 2024 | die PDFs |
 | **M5** Kurationsschleife | läuft — braucht aber echte Anfragen, um Signal zu liefern |
@@ -165,6 +166,39 @@ Gesprächskontext (in-memory), voller Bestand mit Guild-Sperre (SPEC §12 Nr. 6)
 
 **Gate:** ein Mitspieler stellt eine Regelfrage in Discord und bekommt eine belegte
 Antwort; `admin suchbericht` zeigt die Anfrage.
+
+### M7 — Discord-Ausbau · *neu 30.07.2026*
+Der Bot bleibt ein **Nachschlagewerk im Gespräch** und wird kein zweites Avrae. Die
+Abgrenzung ist inhaltlich, nicht technisch: Avrae automatisiert den Spieltisch (Würfeln,
+Initiative, Kampf, Charakterbögen aus D&D Beyond, Alias-Scripting) und schlägt englische
+Einträge nach. Foliant *erklärt* Regeln auf Deutsch, geerdet im eigenen Bestand, mit
+Belegzeile und Regelversion — und lehnt Spoiler ab. Beide können nebeneinander im selben
+Server laufen, ohne sich zu überschneiden.
+
+**Nicht-Ziele** (bewusst, damit künftige Feature-Ideen daran gemessen werden): kein
+Würfeln, keine Initiative- oder Kampfverwaltung, kein Charakter-Speichern, kein
+Alias-Scripting, kein Homebrew, keine Direktbefehl-Nachschlager (`/zauber`, `/monster`) —
+die Antwort ist die Erklärung, nicht der Datenbank-Auszug —, kein Charakterbogen-Upload
+(der Übersetzer bleibt auf der Website).
+
+- ✅ **Thread-Rebuild** (`app/discord_bot/rebuild.py`): Nach einem Neustart liest der Bot
+  den Thread aus der Discord-Historie zurück, statt das Gespräch aufzugeben. **Kein neuer
+  State** — die Historie *ist* die Persistenz. Der Vergessen-Hinweis bleibt für den Fall,
+  dass dort nichts Verwertbares steht.
+- ✅ **`/regel … privat:True`**: ephemere Antwort nur für den Fragenden. Ohne Thread —
+  ephemere Nachrichten können keinen tragen; der Bot sagt es dazu.
+- ✅ **`DISCORD_COOLDOWN_S`** konfigurierbar; ungültige Werte fallen fail-soft auf den
+  Standard zurück, damit eine Schranke nie still ausfällt.
+- ✅ **DC1–DC3 im Eval**: die ersten Fälle, die den Prompt messen, den der Bot wirklich
+  fährt (Projektanweisung **plus** `config/discord_zusatz.md`). Bisher war nur der
+  Prompt-*Text* geprüft, nicht das Verhalten.
+- ⬜ Eval-Lauf der DC-Fälle gegen den Pi-Vollbestand:
+  `make eval-verhalten-pi EVAL_ARGS="--nur DC1,DC2,DC3"` (kostet Tokens, deshalb gezielt)
+- ⬜ Echttest in der Guild: Frage stellen → `docker compose restart discord` → Folgefrage
+  im Thread wird **mit** Kontext beantwortet
+
+**Gate:** eine Folgefrage nach einem Neustart wird mit Kontext beantwortet, und der
+DC-Lauf steht im Eval-Report.
 
 ### Offene Anforderungen im Überblick
 Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11, V1–V6/V8, NF1–NF3/NF5–NF7,
@@ -328,8 +362,6 @@ offen — sie sitzen in Parsern, die **nicht** in die Meta-Tabellen schreiben:
 | **Regelbeziehungsgraph** (`exception_to`, `overrides`, Trigger/Dauer/Stapelung) | SYN-P3-002 |
 | **Errata-/Revisionstracking** + Autoritätsklassen | SYN-P3-003 |
 | **Wissensmodell-Ausbau** (`concept`/`variant`/`relation`, Revisions-Provenienz) | SYN-P2-002 |
-| Discord: Thread-Rebuild aus der Kanal-Historie nach Neustart | Komfort |
-| Discord-spezifische Eval-Fälle (Darstellungs-Zusatz messen) | Qualität |
 | Universelle Quersuche über alle Kategorien | Komfort |
 | OAuth-Identität statt Geheimpfad | erst ab mehr Nutzern sinnvoll |
 
