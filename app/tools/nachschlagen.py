@@ -167,9 +167,18 @@ _NAME_MIN = _glossar.FUZZY_NAME
 
 
 def _name_score(k: dict, ziele: set[str]) -> float:
-    """Relevanz des Kandidatennamens zur Anfrage (0-100): exakt/Praefix = 100, sonst der
-    beste rapidfuzz.ratio gegen die (normalisierten) Anfrage-Varianten `ziele`. Trennt
-    echte Namenstreffer von blossen Body-Erwaehnungen (deren Name gar nicht passt)."""
+    """Relevanz des Kandidatennamens zur Anfrage (0-100): exakt = 100, sonst der beste
+    rapidfuzz.ratio gegen die (normalisierten) Anfrage-Varianten `ziele`. Trennt echte
+    Namenstreffer von blossen Body-Erwaehnungen (deren Name gar nicht passt).
+
+    KEIN Praefix-Kurzschluss (Befund 30.07.2026): 'n.startswith(z) or z.startswith(n)'
+    gab JEDEM Praefix 100.0, ohne Mindestlaenge - 'Elf' war damit ein voller Namenstreffer
+    auf 'Elfenruestung', und der Detailpfad lieferte den Fremdeintrag als belegte Antwort
+    aus (Verstoss gegen B1, die Anti-Halluzinations-Regel). Die abgedeckten ECHTEN Faelle
+    - Wortrisse und OCR-Verstuemmelungen um ein bis zwei Zeichen - traegt fuzz.ratio
+    ohnehin: ein echter Praefix erreicht 2*len(kurz)/(len(kurz)+len(lang))*100, liegt also
+    ab rund 82 % Namensdeckung ueber der Schwelle von 90. Genau die kurzen, unspezifischen
+    Praefixe fallen heraus, und nur die."""
     namen = _eintrag_namen(k)
     if namen & ziele:
         return 100.0
@@ -178,8 +187,6 @@ def _name_score(k: dict, ziele: set[str]) -> float:
         for z in ziele:
             if not n or not z:
                 continue
-            if n.startswith(z) or z.startswith(n):
-                return 100.0
             best = max(best, fuzz.ratio(n, z))
     return best
 
@@ -965,20 +972,26 @@ def _waehle_kandidat(con, name: str, kategorie: str, edition: str,
         _markiere_abenteuer(con, absage, fassungen)
         return _Auswahl(None, None, [], exakt, absage)
 
-    if len(kandidaten) == 1 and (edition == _db.STANDARD_EDITION
-                                 or kandidaten[0]["edition"] == edition):
-        return _Auswahl(kandidaten[0], None, [], exakt, None)
-
     # #1: reine Body-Erwaehnungen (deren Name gar nicht zur Anfrage passt, z. B.
     # 'Schild'/'Zauberplaetze' bei der Suche nach 'Magic Missile') aus der Kandidatenliste
     # draengen. Bleibt genau EIN starker Namenstreffer der gewuenschten Edition (auch
     # vertippt: 'Missle'->'Missile'), ihn direkt liefern statt rueckzufragen. Sonst die
     # BEREINIGTE Kandidatenliste zeigen.
+    #
+    # Befund 30.07.2026: Hier stand davor ein Sonderzweig, der einen EINZELNEN
+    # FTS-Kandidaten ungeprueft als Treffer auslieferte - ohne _NAME_MIN. Der Suchpfad
+    # hat fuer genau diese Fehlerform seit A4 die Namensrelevanz; der Detailpfad, der
+    # verbindlicher antwortet, hatte sie nicht. Der Zweig ist ersatzlos gestrichen: die
+    # Zeilen darunter behandeln den Einzelkandidaten bereits, nur eben mit Relevanzgate.
+    # Seine Editionsbedingung war das einzig Tragende daran - sie steht jetzt unten.
     relevante = [k for k in kandidaten if _name_score(k, varianten) >= _NAME_MIN]
     rel_std = [k for k in relevante if k["edition"] == edition]
     if len(rel_std) == 1:
         return _Auswahl(rel_std[0], None, [], exakt, None)
-    if len(relevante) == 1:
+    # Nur beim Standard greift der B5-Rueckfall auf eine andere Fassung. Eine
+    # AUSDRUECKLICH angefragte Regelversion wird nie still ersetzt (V5) - dieselbe
+    # Unterscheidung, die der exakt-Zweig oben schon trifft.
+    if len(relevante) == 1 and edition == _db.STANDARD_EDITION:
         return _Auswahl(relevante[0], None, [], exakt, None)
     gezeigt = [_knapp(k, con) for k in (relevante or kandidaten)[:6]]
     absage = {"gefunden": False, "mehrdeutig": True,
