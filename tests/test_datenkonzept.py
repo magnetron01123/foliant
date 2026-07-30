@@ -162,7 +162,7 @@ def test_facetten_cascade_beim_reimport(tmp_path):
 def test_facetten_im_zauber_detail(tmp_path, monkeypatch):
     pfad = _baue_db(tmp_path)
     monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
-    d = ns.foliant_hol_zauber("Fireball")
+    d = ns.foliant_hol_eintrag("zauber", "Fireball")
     assert d["gefunden"] is True
     assert d["facetten"] == {"grad": 3, "schule": "Hervorrufung", "klassen": "Wizard, Sorcerer"}
     assert "**Level:** 3" in d["regeltext_md"]           # Facetten ERGAENZEN, ersetzen body_md nie
@@ -171,7 +171,7 @@ def test_facetten_im_zauber_detail(tmp_path, monkeypatch):
 def test_kein_facetten_feld_ohne_meta_zeile(tmp_path, monkeypatch):
     pfad = _baue_db(tmp_path)
     monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
-    d = ns.foliant_hol_monster("Goblin")                 # kein monster_meta-Eintrag angelegt
+    d = ns.foliant_hol_eintrag("monster", "Goblin")                 # kein monster_meta-Eintrag angelegt
     assert d["gefunden"] is True
     assert "facetten" not in d                            # ehrlich: kein Feld statt leeres/geratenes
 

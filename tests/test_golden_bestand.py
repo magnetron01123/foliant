@@ -31,37 +31,37 @@ def test_golden_meisterschaften_vollstaendig():
                 "Stoßen": "wegstoßen", "Streifen": "Attributsmodifikator",
                 "Umstoßen": "Konstitutionsrettungswurf", "Verlangsamen": "Bewegungsrate"}
     for name, klausel in erwartet.items():
-        t = _text(ns.foliant_hol_gegenstand(name))
+        t = _text(ns.foliant_hol_eintrag("gegenstand", name))
         assert klausel in t, (name, t[:200])
-    z = _text(ns.foliant_hol_gegenstand("Zweihändig"))
+    z = _text(ns.foliant_hol_eintrag("gegenstand", "Zweihändig"))
     assert "zwei Händen" in z and "Rettungswurf" not in z
 
 
 def test_golden_zauber_steckbriefe_repariert():
     """Eissturm/Göttliche Gunst/Symbol/Windwall waren Fragmente bzw. kreuzkontaminiert
     (codex DND-003)."""
-    e = _text(ns.foliant_hol_zauber("Eissturm"))
+    e = _text(ns.foliant_hol_eintrag("zauber", "Eissturm"))
     assert "Hagel" in e and "2W10" in e and "Fausthandschuh" in e
-    g = _text(ns.foliant_hol_zauber("Göttliche Gunst"))
+    g = _text(ns.foliant_hol_eintrag("zauber", "Göttliche Gunst"))
     assert "1W4" in g and "gleißenden Schaden" in g
     assert "Wunsch" not in g and "Konzentration" not in g      # 2024: KEINE Konzentration
-    sy = _text(ns.foliant_hol_zauber("Symbol"))
+    sy = _text(ns.foliant_hol_eintrag("zauber", "Symbol"))
     assert "Diamantpulver" in sy and "Glyphe" in sy
-    ww = _text(ns.foliant_hol_zauber("Windwall"))
+    ww = _text(ns.foliant_hol_eintrag("zauber", "Windwall"))
     assert "36 Meter" in ww and "Belagerungsmaschinen" in ww
 
 
 def test_golden_monster_statbloecke_vollstaendig():
     """Solar/Vampirbrut lieferten Fragmente bzw. fremde Aktionen (codex TECH-002/DND-003);
     Aboleth-Kopf hatte Zellrisse (claude DND-004)."""
-    s = _text(ns.foliant_hol_monster("Solar"))
+    s = _text(ns.foliant_hol_eintrag("monster", "Solar"))
     assert "297" in s and "RK" in s and "Bogen des Tötens" in s
-    vb = _text(ns.foliant_hol_monster("Vampirbrut"))
+    vb = _text(ns.foliant_hol_eintrag("monster", "Vampirbrut"))
     assert "90 (12W8+36)" in vb and "Spinnenklettern" in vb
     assert "Windstreich" not in vb                             # Pirscher-Aktionen raus
-    pi = _text(ns.foliant_hol_monster("Unsichtbarer Pirscher"))
+    pi = _text(ns.foliant_hol_eintrag("monster", "Unsichtbarer Pirscher"))
     assert "Windstreich" in pi and "Wirbel" in pi
-    ab = _text(ns.foliant_hol_monster("Aboleth"))
+    ab = _text(ns.foliant_hol_eintrag("monster", "Aboleth"))
     assert "20W10+40" in ab
 
 
@@ -71,7 +71,7 @@ def test_golden_zustaende_und_aktionen_direkt():
     for begriff, klausel in (("Erschöpfung", "W20-Prüfungen"),
                              ("Verstecken", "SG-15"),
                              ("Gepackt", "Bewegungsrate beträgt 0")):
-        d = ns.foliant_hol_regel(begriff)
+        d = ns.foliant_hol_eintrag("regel", begriff)
         t = _text(d)
         assert klausel.replace("SG-15", "SG") in t, (begriff, t[:150])
         assert d["edition"] == "2024"
@@ -82,7 +82,7 @@ def test_golden_aktionen_ist_nie_reaktionen():
     'Reaktionen' landen."""
     u = ns.foliant_uebersetze_begriff("Aktionen")
     assert not any(b.get("term_de") == "Reaktionen" for b in u.get("begriffe", []))
-    d = ns.foliant_hol_regel("Aktionen")
+    d = ns.foliant_hol_eintrag("regel", "Aktionen")
     if d.get("gefunden"):
         assert "Reaktion" not in (d.get("name_de") or "")
     else:                                                       # ehrliche Kandidaten ok
@@ -93,9 +93,9 @@ def test_golden_aktionen_ist_nie_reaktionen():
 def test_golden_beeinflussen_und_attributswurf_getrennt():
     """codex DND-004: der Beeinflussen-SG (15/Intelligenzwert) darf nicht im
     allgemeinen Attributswurf-Glossareintrag stehen."""
-    aw = _text(ns.foliant_hol_regel("Attributswurf"))
+    aw = _text(ns.foliant_hol_eintrag("regel", "Attributswurf"))
     assert "bereitwillig" not in aw
-    be = _text(ns.foliant_hol_regel("Beeinflussen (Aktion)"))
+    be = _text(ns.foliant_hol_eintrag("regel", "Beeinflussen (Aktion)"))
     assert "Nicht bereitwillig" in be and "Zögerlich" in be
 
 
@@ -109,7 +109,7 @@ def test_golden_open5e_trigger_und_referenzlauf():
     """SYN-P1-008 + SYN-P1-002 kombiniert: die Open5e-Fassung eines Reaktionszaubers
     traegt nach dem Formatter-Fix ihren Trigger UND ist vom kanonischen deutschen
     Treffer aus per eintrag_id gezielt nachladbar."""
-    d = ns.foliant_hol_zauber("Counterspell")
+    d = ns.foliant_hol_eintrag("zauber", "Counterspell")
     assert d["gefunden"] and d["quelle"] == "SRD 5.2.1 (Deutsch)"   # kanonisch: Deutsch
     fremde = d.get("fremdsprachige_fassungen") or []
     assert fremde, "Open5e-Fassung nicht als Referenz ausgewiesen"
@@ -118,7 +118,7 @@ def test_golden_open5e_trigger_und_referenzlauf():
     # fremde[0] anzunehmen (das galt nur am Mac-Subset ohne DDB, korpusabhaengig).
     open5e = next((f for f in fremde if "Open5e" in (f.get("quelle") or "")), None)
     assert open5e, ("Open5e-Fassung nicht unter den Fremdfassungen", fremde)
-    en = ns.foliant_hol_zauber("egal", eintrag_id=open5e["eintrag_id"])
+    en = ns.foliant_hol_eintrag("zauber", "egal", eintrag_id=open5e["eintrag_id"])
     assert en["gefunden"] and "Open5e" in en["quelle"]
     assert "reaction" in en["regeltext_md"].lower()
     assert "you see" in en["regeltext_md"] or "which you take" in en["regeltext_md"], \
@@ -133,7 +133,7 @@ def test_golden_gleichnamige_regelabschnitte_liefern_kernabschnitt():
     for name, klausel in (("Bonusaktionen", "Bonusaktion"),
                           ("Reaktionen", "Reaktion"),
                           ("Temporäre Trefferpunkte", "Trefferpunkte")):
-        d = ns.foliant_hol_regel(name)
+        d = ns.foliant_hol_eintrag("regel", name)
         assert d.get("gefunden"), (name, d.get("kandidaten"))
         assert klausel in d["regeltext_md"]
         # der Spielregel-Kernabschnitt, nicht die kurze Wertekasten-Meta-Erklaerung:
@@ -145,7 +145,7 @@ def test_golden_gleichnamige_regelabschnitte_liefern_kernabschnitt():
     # sein (RAW-treu: das Glossar verweist mit 'Siehe auch').
     treffer = {t["name_de"] for t in ns.foliant_suche_bestand("Todesrettungswurf")["treffer"]}
     assert "Auf 0 Trefferpunkte sinken" in treffer
-    voll = ns.foliant_hol_regel("Auf 0 Trefferpunkte sinken")
+    voll = ns.foliant_hol_eintrag("regel", "Auf 0 Trefferpunkte sinken")
     assert "10" in voll["regeltext_md"] and "drei" in voll["regeltext_md"]
 
 
@@ -158,11 +158,11 @@ def test_golden_deutsch_first_schlaegt_laengeren_fremdeintrag():
     vergleicht nur gleichnamige Abschnitte DERSELBEN Quelle; verschiedene QUELLEN entscheidet
     die Quellen-Prioritaet (Q2/S10). Am Mac-Subset (ohne DDB) haelt der Fall trivial - er
     beisst erst am vollen Korpus (Pi-Container-Golden-Lauf, s. CONCEPT.md §11)."""
-    faelle = ((ns.foliant_hol_regel, "Reaktionen", "Reaktionen"),
-              (ns.foliant_hol_regel, "Bonusaktionen", "Bonusaktionen"),
-              (ns.foliant_hol_zauber, "Counterspell", "Gegenzauber"))
-    for hol, begriff, name_de in faelle:
-        d = hol(begriff)
+    faelle = (("regel", "Reaktionen", "Reaktionen"),
+              ("regel", "Bonusaktionen", "Bonusaktionen"),
+              ("zauber", "Counterspell", "Gegenzauber"))
+    for kategorie, begriff, name_de in faelle:
+        d = ns.foliant_hol_eintrag(kategorie, begriff)
         assert d.get("gefunden"), (begriff, d.get("kandidaten"))
         # Der gewaehlte Haupttreffer ist die deutsche Quelle - nie der laengere Fremdeintrag.
         assert d["sprache"] == "de", (begriff, d["quelle"], d.get("name_en"))
@@ -174,7 +174,7 @@ def test_golden_deutsch_first_schlaegt_laengeren_fremdeintrag():
         for f in d.get("fremdsprachige_fassungen") or []:
             assert f.get("sprache") != "de", (begriff, f)
     # Konkret 'Reaktionen': der srd-de-Spielregel-Kernabschnitt, nicht der engl. DDB-Text.
-    r = ns.foliant_hol_regel("Reaktionen")
+    r = ns.foliant_hol_eintrag("regel", "Reaktionen")
     assert "Certain special abilities" not in r["regeltext_md"], r["regeltext_md"][:120]
     assert "Bestimmte Spezialfähigkeiten" in r["regeltext_md"]
 
@@ -208,7 +208,7 @@ def test_golden_alle_15_zustaende_klammerlos_2024():
                  "Verängstigt", "Bezaubert", "Unsichtbar", "Vergiftet", "Versteinert",
                  "Festgesetzt", "Blind", "Taub", "Liegend", "Kampfunfähig"]
     for z in zustaende:
-        d = ns.foliant_hol_regel(z)
+        d = ns.foliant_hol_eintrag("regel", z)
         assert d.get("gefunden") and d["edition"] == "2024", (z, d.get("kandidaten"))
         assert "hinweis_alter_stand" not in d, z
 
@@ -239,7 +239,7 @@ def test_golden_tippfehler_direkttreffer_statt_rauschen():
     """#1 (Finetuning 13.07.2026): ein eindeutiger (auch vertippter) Namenstreffer wird
     direkt geliefert - nicht als Mehrdeutigkeit mit blossen Body-Erwaehnungen (Schild,
     Zauberplaetze) verrauscht. Deutsch-first bleibt gewahrt."""
-    d = ns.foliant_hol_zauber("Magic Missle")                  # Tippfehler: Missle
+    d = ns.foliant_hol_eintrag("zauber", "Magic Missle")                  # Tippfehler: Missle
     assert d.get("gefunden") and not d.get("mehrdeutig"), d.get("kandidaten")
     assert d["quelle"] == "SRD 5.2.1 (Deutsch)"
     assert "Magic Missile" in d["anzeige_name"] and "Magisches Geschoss" in d["anzeige_name"]

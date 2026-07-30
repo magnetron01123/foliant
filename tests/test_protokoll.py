@@ -70,7 +70,7 @@ def test_suche_schreibt_zeile_mit_suchweg(bestand):
 
 
 def test_detail_und_uebersetzung_werden_geloggt(bestand):
-    ns.foliant_hol_monster("Nachtmahr")
+    ns.foliant_hol_eintrag("monster", "Nachtmahr")
     ns.foliant_uebersetze_begriff("Nightmare")
     ns.foliant_uebersetze_begriff("Totally Unknown Term")
     z = _zeilen()

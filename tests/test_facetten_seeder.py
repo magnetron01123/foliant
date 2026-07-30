@@ -364,7 +364,7 @@ def test_facetten_geben_null_werte_und_wahrheitswerte_ehrlich_aus(tmp_path, monk
     finally:
         con.close()
     monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
-    d = ns.foliant_hol_zauber("Flammenhand")
+    d = ns.foliant_hol_eintrag("zauber", "Flammenhand")
     assert d["gefunden"] is True
     fac = d["facetten"]
     assert fac["grad"] == 0                       # Zaubertrick - NICHT weggefiltert

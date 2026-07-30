@@ -34,11 +34,11 @@ def _mix() -> list[tuple[str, callable]]:
     return [
         ("suche_regel", lambda: ns.foliant_suche_bestand("Gelegenheitsangriff")),
         ("suche_zauber", lambda: ns.foliant_suche_bestand("Feuerball")),
-        ("detail_zauber", lambda: ns.foliant_hol_zauber("Feuerball")),
-        ("detail_monster", lambda: ns.foliant_hol_monster("Vampirbrut")),
+        ("detail_zauber", lambda: ns.foliant_hol_eintrag("zauber", "Feuerball")),
+        ("detail_monster", lambda: ns.foliant_hol_eintrag("monster", "Vampirbrut")),
         ("uebersetzung", lambda: ns.foliant_uebersetze_begriff("Fireball")),
         ("facettenfilter", lambda: ns.foliant_suche_bestand(kategorie="zauber", grad=3)),
-        ("klasse", lambda: ch.foliant_hol_klasse("Kämpfer")),
+        ("klasse", lambda: ns.foliant_hol_eintrag("klasse", "Kämpfer")),
     ]
 
 

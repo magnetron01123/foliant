@@ -135,7 +135,7 @@ def test_uebersetzung_erfindet_keine_identitaet(bestand):
 
 def test_detailabruf_waehlt_keinen_fremden_eintrag(bestand):
     """hol_regel('Aktionen') liefert den Aktionen-Eintrag - nicht die Monster-Reaktionen."""
-    d = ns.foliant_hol_regel("Aktionen")
+    d = ns.foliant_hol_eintrag("regel", "Aktionen")
     assert d["gefunden"] is True and d["name_de"] == "Aktionen", d
     assert "Reaktionen" not in (d.get("anzeige_name") or "")
     # Anzeige haengt kein fuzzy-fremdes Original an ('Aktionen (Reactions)' waere falsch):

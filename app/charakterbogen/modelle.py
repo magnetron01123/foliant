@@ -146,7 +146,7 @@ class Merkmal:
 @dataclass
 class Zauber:
     grad: int | None = None                       # aus spellHeader (0 = Zaubertrick)
-    name: UeText | None = None                    # spellName (term -> foliant_hol_zauber)
+    name: UeText | None = None                    # spellName (term -> foliant_hol_eintrag)
     quelle: UeText | None = None                  # spellSource, z.B. "Living Shadow"
     vorbereitet: bool = False                     # spellPrepared == "O"
     rettung_treffer: str | None = None            # spellSaveHit, z.B. "--" (roh)

@@ -36,7 +36,7 @@ _DDB_PRIORITAET = 40        # unter deutschen Buchquellen (10-30), ueber Open5e 
 # eigene Eintraege in Options-Kategorien lecken: 'Species Descriptions' als Spezies, 'Feats'
 # als Talent, 'Equipment' als Klasse, 'Magic Items' als Gegenstand. Es sind NIE echte
 # Optionen (nur Kapitel-Vorspann) -> beim Import verwerfen, sonst verschmutzen sie die
-# Charaktererstellungs-Listen (foliant_liste_spezies etc.) und die Suche. Exakter, klein-
+# Charaktererstellungs-Listen (foliant_liste_optionen etc.) und die Suche. Exakter, klein-
 # geschriebener Namensabgleich = keine False-Positives (keine echte Spezies heisst 'Species',
 # kein Zauber 'Spells'). QS-Fund 2026-07-11: 45 solcher Stubs ueber alle Kategorien.
 _KAPITEL_HEADER = frozenset({

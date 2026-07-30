@@ -67,33 +67,33 @@ def test_p1_rundlauf_per_eintrag_id(bestand):
     t = s["treffer"][0]
     assert t["eintrag_id"] and t["quelle_kuerzel"] == "srd-de"   # kanonisch: Prio 10
     # Open5e-Fassung gezielt: ueber fremdsprachige_fassungen/Konflikt-Referenz laden.
-    d_kanon = ns.foliant_hol_monster("Nightmare")
+    d_kanon = ns.foliant_hol_eintrag("monster", "Nightmare")
     fremde = d_kanon.get("fremdsprachige_fassungen") or []
     assert fremde, d_kanon
-    d_en = ns.foliant_hol_monster("egal", eintrag_id=fremde[0]["eintrag_id"])
+    d_en = ns.foliant_hol_eintrag("monster", "egal", eintrag_id=fremde[0]["eintrag_id"])
     assert d_en["gefunden"] and d_en["quelle"] == "SRD 5.2 (Open5e)"
     assert "unaware" in d_en["regeltext_md"]
     # Referenz OHNE name (Befund Eval-Erstlauf 26.07.2026: das Modell ruft natuerlich
     # nur mit eintrag_id auf - ein Pflicht-name erzwang sonst einen Dummy und der
     # Aufruf scheiterte an der Schema-Validierung, bevor der Server ihn je sah):
-    d_ohne_name = ns.foliant_hol_monster(eintrag_id=fremde[0]["eintrag_id"])
+    d_ohne_name = ns.foliant_hol_eintrag("monster", eintrag_id=fremde[0]["eintrag_id"])
     assert d_ohne_name["gefunden"] and d_ohne_name["quelle"] == "SRD 5.2 (Open5e)"
     # Weder name noch eintrag_id -> PARAMETER-Fehler, ausdruecklich kein Leerbefund:
-    leer = ns.foliant_hol_monster()
+    leer = ns.foliant_hol_eintrag("monster")
     assert leer["gefunden"] is False and leer["fehler"] == "kein_kriterium"
     assert "KEIN 'nicht im Bestand'" in leer["hinweis"]
     # Falsche Kategorie zur Referenz -> strukturierter Fehler, kein stilles Umbiegen:
-    falsch = ns.foliant_hol_zauber("egal", eintrag_id=fremde[0]["eintrag_id"])
+    falsch = ns.foliant_hol_eintrag("zauber", "egal", eintrag_id=fremde[0]["eintrag_id"])
     assert falsch["gefunden"] is False and "fehler" in falsch
     # Veraltete Referenz -> ehrlicher Fehler:
-    weg = ns.foliant_hol_monster("egal", eintrag_id=999999)
+    weg = ns.foliant_hol_eintrag("monster", "egal", eintrag_id=999999)
     assert weg["gefunden"] is False and "existiert nicht" in weg["fehler"]
 
 
 def test_p1_fremdfassung_wird_ausgewiesen(bestand):
     """SYN-P1-009 (Vampir-Muster): die anderssprachige Fassung gleicher Edition wird als
     nachladbare Referenz ausgewiesen statt still von der Prioritaet verdeckt."""
-    d = ns.foliant_hol_monster("Nachtmahr")
+    d = ns.foliant_hol_eintrag("monster", "Nachtmahr")
     assert d["gefunden"] and d["quelle"] == "SRD 5.2.1 (Deutsch)"
     fremde = d.get("fremdsprachige_fassungen")
     assert fremde and fremde[0]["sprache"] == "en"
@@ -105,7 +105,7 @@ def test_p1_gleichsprachiger_konflikt_wird_markiert(bestand):
     wesentlich abweichendem Text. Der Detailabruf liefert den ausfuehrlichsten
     (Errata-)Abschnitt UND weist die abweichende Zweitfassung transparent aus -
     entweder als weitere_abschnitte oder als konflikt_quellen (nie still verdeckt)."""
-    d = ns.foliant_hol_zauber("Konfliktzauber")
+    d = ns.foliant_hol_eintrag("zauber", "Konfliktzauber")
     assert d["gefunden"] is True
     assert "10W6" in d["regeltext_md"]                      # die laengere Errata-Fassung
     ausgewiesen = d.get("weitere_abschnitte") or d.get("konflikt_quellen")
@@ -127,30 +127,46 @@ def test_volltext_kuerzung_wird_ausgewiesen(bestand):
 
 
 def test_p1_schemas_tragen_enums_und_annotations(bestand):
-    """SYN-P1-003: kategorie/richtung/methoden sind enums im JSON-Schema; alle 16 Tools
-    tragen readOnlyHint/idempotentHint."""
+    """SYN-P1-003: kategorie/richtung/methoden sind enums im JSON-Schema; alle Tools
+    tragen readOnlyHint/idempotentHint.
+
+    Die Zahl steht hier bewusst als harte Zusicherung: die Tool-Oberflaeche ist ein
+    Vertrag nach aussen, und ein zusaetzliches Werkzeug soll eine BEWUSSTE Entscheidung
+    sein, keine Nebenwirkung. Am 30.07.2026 von 16 auf 6 gesenkt - zwoelf der sechzehn
+    waren Kopien voneinander (acht hol_<typ> mit identischer Signatur, vier liste_<typ>
+    ohne Parameter), deren unterscheidendes Merkmal ein fest verdrahteter
+    Kategorie-String war."""
     from app.server import mcp
 
     async def hole():
         return await mcp.get_tools()
 
     tools = asyncio.run(hole())
-    assert len(tools) == 16
+    assert set(tools) == {
+        "foliant_suche_bestand", "foliant_hol_eintrag", "foliant_uebersetze_begriff",
+        "foliant_liste_optionen", "foliant_hol_attributswerte", "foliant_pruefe_build",
+    }, sorted(tools)
+
     def enum_von(tool, feld):
         prop = tools[tool].parameters["properties"][feld]
         for variante in [prop, *prop.get("anyOf", [])]:
             if "enum" in variante:
                 return set(variante["enum"])
         return set()
-    # Alle acht Detail-Tools duerfen OHNE name aufrufbar sein (eintrag_id-Weg):
-    for tool in ("foliant_hol_zauber", "foliant_hol_monster", "foliant_hol_gegenstand",
-                 "foliant_hol_regel", "foliant_hol_spezies", "foliant_hol_hintergrund",
-                 "foliant_hol_talent", "foliant_hol_klasse"):
-        assert "name" not in tools[tool].parameters.get("required", []), tool
+
+    # Der Detailabruf muss OHNE name aufrufbar bleiben (eintrag_id-Weg, SYN-P1-002) -
+    # aber NICHT ohne kategorie: der Werkzeugname war bis zur Zusammenlegung der
+    # Disambiguator, und ohne Kategorie liefert der Detailpfad bei 'Schild' still den
+    # Gegenstand statt des Zaubers. Deshalb ist sie das einzige Pflichtfeld.
+    erforderlich = set(tools["foliant_hol_eintrag"].parameters.get("required", []))
+    assert erforderlich == {"kategorie"}, erforderlich
+    assert enum_von("foliant_hol_eintrag", "kategorie") == set(adb.KATEGORIEN)
     assert "zauber" in enum_von("foliant_suche_bestand", "kategorie")
     assert enum_von("foliant_uebersetze_begriff", "richtung") == {"en_de", "de_en", "auto"}
     assert enum_von("foliant_hol_attributswerte", "attributsmethode") == {"standard_array", "point_buy"}
-    assert "herkunft" in enum_von("foliant_liste_talente", "kategorie")
+    assert "herkunft" in enum_von("foliant_liste_optionen", "talent_kategorie")
+    assert enum_von("foliant_liste_optionen", "kategorie") == {
+        "klasse", "hintergrund", "spezies", "talent"}
     for name, t in tools.items():
         ann = t.annotations
         assert ann is not None and ann.readOnlyHint is True, name

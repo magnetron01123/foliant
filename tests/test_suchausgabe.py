@@ -128,12 +128,12 @@ def test_detail_traegt_eintrag_id_und_quelle_kuerzel(bestand):
     """A7 — der Rundlauf war einseitig: ohne eintrag_id konnte das Modell den gelieferten
     Eintrag nicht erneut referenzieren, ohne quelle_kuerzel nicht in derselben Quelle
     weitersuchen (die Suche verlangt dort das Kuerzel, nicht den Titel)."""
-    d = ns.foliant_hol_zauber("Pruefflamme 12")
+    d = ns.foliant_hol_eintrag("zauber", "Pruefflamme 12")
     assert d["gefunden"] is True
     assert isinstance(d["eintrag_id"], int)
     assert d["quelle_kuerzel"] == "srd-de"
     # Die ID muss den Eintrag auch wirklich wieder aufloesen:
-    assert ns.foliant_hol_zauber(eintrag_id=d["eintrag_id"])["name_de"] == "Pruefflamme 12"
+    assert ns.foliant_hol_eintrag("zauber", eintrag_id=d["eintrag_id"])["name_de"] == "Pruefflamme 12"
 
 
 # --------------------------------------------------- Nachzug aus dem Audit 28.07.2026
@@ -146,7 +146,7 @@ def test_kandidatenliste_des_detailpfads_ist_markiert_und_deutsch(bestand):
     Kennzeichnung noch den Deutsch-first-Namen. Gemessen am echten Bestand kamen so
     Auszuege aus Abenteuerbaenden voellig unmarkiert beim Modell an - genau der
     Fehlermodus, den A2 beseitigen sollte, nur eine Tuer weiter."""
-    d = ns.foliant_hol_regel("Domaene")
+    d = ns.foliant_hol_eintrag("regel", "Domaene")
     kandidaten = d.get("kandidaten") or d.get("vorhandene_fassungen") or []
     assert kandidaten, f"kein mehrdeutiger Fall erzeugt: {d.get('gefunden')}"
     aus_abenteuer = [k for k in kandidaten if k.get("inhaltsart") == "abenteuer_setting"]
@@ -158,7 +158,7 @@ def test_kandidatenliste_des_detailpfads_ist_markiert_und_deutsch(bestand):
 def test_detail_hinweis_wird_nicht_von_der_zaehlung_ueberschrieben(bestand):
     """Der Sammelhinweis ('N Treffer stammen aus...') darf den spezifischeren Hinweis des
     gelieferten Eintrags ('DIESER Eintrag stammt aus...') nicht verdraengen."""
-    d = ns.foliant_hol_regel("Domain Secrets")
+    d = ns.foliant_hol_eintrag("regel", "Domain Secrets")
     assert d["gefunden"] is True
     assert d.get("inhaltsart") == "abenteuer_setting"
     assert "Dieser Eintrag" in d["hinweis_inhaltsart"]
@@ -183,7 +183,7 @@ def test_detailabruf_bestaetigt_keinen_kurzen_praefix_als_namenstreffer(bestand)
     voller Namenstreffer auf 'Elfenruestung'. Der Detailpfad lieferte den Fremdeintrag
     als sauber zitierte Auskunft auf eine nicht gestellte Frage aus - genau die
     Fehlerform, gegen die B1 antritt, nur schwerer zu bemerken als eine Fehlanzeige."""
-    d = ns.foliant_hol_gegenstand("Elf")
+    d = ns.foliant_hol_eintrag("gegenstand", "Elf")
     assert d.get("gefunden") is not True, \
         f"Praefix als Treffer bestaetigt: {d.get('anzeige_name')}"
 
@@ -193,15 +193,15 @@ def test_wortriss_bleibt_ein_namenstreffer(bestand):
     ersetzt wurde: die echten Faelle (Wortrisse, OCR-Verstuemmelung um ein bis zwei
     Zeichen) traegt fuzz.ratio ohnehin - ein Praefix ab rund 82 % Namensdeckung liegt
     ueber der Schwelle. Faellt dieser Test, war die Streichung zu grob."""
-    assert ns.foliant_hol_gegenstand("Elfenruestun")["gefunden"] is True
-    assert ns.foliant_hol_regel("Nebelwanderun")["gefunden"] is True
+    assert ns.foliant_hol_eintrag("gegenstand", "Elfenruestun")["gefunden"] is True
+    assert ns.foliant_hol_eintrag("regel", "Nebelwanderun")["gefunden"] is True
 
 
 def test_einzelner_kandidat_wird_nicht_ungeprueft_geliefert(bestand):
     """Der Sonderzweig 'genau ein FTS-Kandidat -> liefern' umging das Relevanzgate
     vollstaendig. Er ist gestrichen; ein Einzelkandidat muss dieselbe Schranke nehmen wie
     jeder andere. 'Mithral' kommt nur im FLIESSTEXT der Elfenruestung vor."""
-    d = ns.foliant_hol_gegenstand("Mithral")
+    d = ns.foliant_hol_eintrag("gegenstand", "Mithral")
     assert d.get("gefunden") is not True, \
         f"Body-Erwaehnung als Treffer bestaetigt: {d.get('anzeige_name')}"
 
@@ -211,6 +211,6 @@ def test_fuzzy_namenspfad_ersetzt_die_angefragte_edition_nicht(bestand):
     die eine Zeile hoeher stand: eine AUSDRUECKLICH angefragte Regelversion wurde still
     durch die 2024-Fassung ersetzt - ohne 'hinweis_alter_stand', weil der gelieferte
     Eintrag ja 2024 war. Der Nutzer bekam die falsche Regelversion ohne jedes Signal."""
-    d = ns.foliant_hol_regel("Nebelwanderun", edition="2014")
+    d = ns.foliant_hol_eintrag("regel", "Nebelwanderun", edition="2014")
     assert d.get("gefunden") is not True, \
         f"2024-Fassung fuer eine 2014-Anfrage geliefert: {d.get('edition')}"

@@ -50,7 +50,7 @@ Zwei klar getrennte Ebenen:
 
 | Dienst | Rolle |
 |---|---|
-| `foliant` | MCP-Server (uvicorn), 16 Tools, **read-only** auf `data/foliant.sqlite` |
+| `foliant` | MCP-Server (uvicorn), 6 Tools, **read-only** auf `data/foliant.sqlite` |
 | `web` | Charakterbogen-Website (eigene Kennwort-Seite; `read_only`, `cap_drop: ALL`, 512 MB / 1 CPU) |
 | `gateway` | Caddy davor; routet nach Pfad. **Keine Access-Logs** — der MCP-Pfad enthält das Geheim-Token |
 | `cloudflared` | Named Tunnel → `dnd.magnetron.me`, Origin `http://gateway:8080` |
@@ -216,14 +216,28 @@ schreiben.
 
 ## 6. MCP-Tools
 
-Namensschema `foliant_<verb>_<nomen>` (kollisionsfrei neben anderen Connectoren). Such-Tools
-liefern **knappe** Treffer, Detail-Tools die volle Ausgabe — das hält die Kontextlast niedrig.
+Namensschema `foliant_<verb>_<nomen>` (kollisionsfrei neben anderen Connectoren). Die Suche
+liefert **knappe** Treffer, der Detailabruf die volle Ausgabe — das hält die Kontextlast
+niedrig. **Sechs Werkzeuge, sechs verschiedene Handlungen:**
 
-- **Nachschlagen (6):** `foliant_suche_bestand`, `foliant_hol_regel`, `foliant_hol_zauber`,
-  `foliant_hol_monster`, `foliant_hol_gegenstand`, `foliant_uebersetze_begriff`
-- **Charaktererstellung (10):** `foliant_liste_klassen|spezies|hintergruende|talente`,
-  `foliant_hol_klasse|spezies|hintergrund|talent`, `foliant_hol_attributswerte`,
-  `foliant_pruefe_build`
+| Werkzeug | Wofür |
+|---|---|
+| `foliant_suche_bestand` | Freitext ODER Struktur-Filter über den ganzen Bestand, knappe Treffer |
+| `foliant_hol_eintrag` | ein Eintrag vollständig; `kategorie` ist **Pflicht** (die acht aus dem Datenmodell) |
+| `foliant_liste_optionen` | wählbare Optionen einer Kategorie (Klasse/Hintergrund/Spezies/Talent) |
+| `foliant_uebersetze_begriff` | Glossar DE↔EN, auch Abkürzungen |
+| `foliant_hol_attributswerte` | Attributsvergabe 2024, am Bestand belegt |
+| `foliant_pruefe_build` | Build gegen den 2024-Bestand prüfen |
+
+**Warum `kategorie` Pflicht ist und nicht optional:** Bis zum 30.07.2026 gab es 16 Werkzeuge,
+davon zwölf Kopien voneinander — acht `foliant_hol_<typ>` mit identischer Signatur und vier
+`foliant_liste_<typ>` ohne jeden Parameter. Ihr unterscheidendes Merkmal war ein fest
+verdrahteter Kategorie-String, also genau der Wert, den `foliant_suche_bestand` seit jeher
+als Parameter führt. Der Werkzeugname **war** damit der Disambiguator: ohne Kategorie liefert
+der Detailpfad bei „Schild" still den Gegenstand statt des Zaubers. Deshalb ist sie das
+einzige Pflichtfeld — die Ersparnis liegt im Schema, nicht in der Genauigkeit.
+Gemessen: 13 910 → 9 239 Byte Schema, rund 1 170 Token weniger je Verbindung.
+
 - **Status:** `/health` (offen), `/ready` (prüft DB + FTS, 503 bei kaputtem Bestand)
 
 Alle Tools sind als `readOnlyHint` deklariert, haben `Literal`-Enums und Bounds und liefern
@@ -672,7 +686,7 @@ bestehende Pipeline den Inhaltsbedarf; DDB bliebe dann unerschlossen.
 - **Haupt-Suite** (`.venv`) inkl. Abnahme T1–T12 und der **Golden-Suite**
   (`tests/test_golden_bestand.py`), die Regel-**Semantik** am echten Bestand prüft
 - **DDB-Suite** in `.venv-ddb` — sonst bleibt sie **unsichtbar rot**
-- `admin check` + `tests/smoke_test.py` (deckt alle 16 Tools ab, prüft aktiv auf Header-Müll)
+- `admin check` + `tests/smoke_test.py` (deckt alle 6 Tools ab, prüft aktiv auf Header-Müll)
 
 **Grüne Strukturtests beweisen keine Inhalte** (Synthese-Fund 12.07.2026). Nach jedem
 srd-de-Re-Import ist die Golden-Suite Pflicht.
@@ -776,7 +790,7 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
 - **Zugang** (`app/zugriff.py`): geheimer Pfad-Token + IP-Allowlist auf `CF-Connecting-IP`.
   `/health` bleibt offen (nur Status, keine Inhalte — trägt das Monitoring).
 - **Read-only-Betrieb:** Der Server öffnet die SQLite-DB schreibgeschützt (`mode=ro`,
-  `query_only=ON`); alle 16 Tools sind `readOnlyHint`.
+  `query_only=ON`); alle 6 Tools sind `readOnlyHint`.
 - **Fail-fast:** Mit `FOLIANT_PRODUKTION=an` verweigert der Server den Start, wenn das
   Pfad-Token kürzer als 16 Zeichen ist.
 - **Eingabegrenzen:** Suchanfragen sind längenbegrenzt, `limit` wird gedeckelt (DoS-Schutz).

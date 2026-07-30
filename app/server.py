@@ -26,7 +26,7 @@ from app.db import lade_konfig
 from app.zugriff import ZugriffsFilter
 from config.stil import INSTRUCTIONS
 
-# SYN-P1-003 (codex TECH-020): alle 16 Tools sind strikt lesend/idempotent -
+# SYN-P1-003 (codex TECH-020): alle sechs Tools sind strikt lesend/idempotent -
 # die Annotations machen das fuer Clients maschinenlesbar (Planung, Caching,
 # Sicherheitsheuristiken); openWorldHint=False: geschlossener lokaler Bestand.
 _NUR_LESEND = {"readOnlyHint": True, "idempotentHint": True,
@@ -76,30 +76,24 @@ async def ready(_: Request) -> JSONResponse:
                              "grund": type(fehler).__name__}, status_code=503)
 
 
-# Phase 1: Nachschlage-Tools (F1/F2). Docstrings = Tool-Beschreibungen inkl. Kurzregeln
-# (Kanal 2); die Grounding-Hinweise stecken in den Tool-AUSGABEN (Kanal 3).
+# Die SECHS Werkzeuge. Docstrings = Tool-Beschreibungen inkl. Kurzregeln (Kanal 2, per
+# tests/test_verhaltensregeln.py geprueft); die Grounding-Hinweise stecken in den
+# Tool-AUSGABEN (Kanal 3). Reihenfolge = typischer Gespraechsverlauf.
+#
+# Bis zum 30.07.2026 waren es 16. Zwoelf davon waren Kopien voneinander: acht
+# foliant_hol_<typ> mit identischer Signatur, die alle dieselbe Funktion mit einer fest
+# verdrahteten Kategorie riefen, und vier foliant_liste_<typ> ohne jeden Parameter. Die
+# Kategorie ist jetzt ein PFLICHT-Enum - genau der Wert, den foliant_suche_bestand seit
+# jeher als Parameter fuehrt. Pflicht, nicht optional: der Werkzeugname WAR bisher der
+# Disambiguator, und ohne Kategorie liefert der Detailpfad bei 'Schild' still den
+# Gegenstand statt des Zaubers.
+from app.tools import charakter as _charakter
 from app.tools import nachschlagen as _nachschlagen
 
 mcp.tool(_nachschlagen.foliant_suche_bestand, annotations=_NUR_LESEND)
-mcp.tool(_nachschlagen.foliant_hol_regel, annotations=_NUR_LESEND)
-mcp.tool(_nachschlagen.foliant_hol_zauber, annotations=_NUR_LESEND)
-mcp.tool(_nachschlagen.foliant_hol_monster, annotations=_NUR_LESEND)
-mcp.tool(_nachschlagen.foliant_hol_gegenstand, annotations=_NUR_LESEND)
+mcp.tool(_nachschlagen.foliant_hol_eintrag, annotations=_NUR_LESEND)
 mcp.tool(_nachschlagen.foliant_uebersetze_begriff, annotations=_NUR_LESEND)
-
-# Phase 2: Charaktererstellung (F3/B7) - Listen KNAPP, Details voll, Build-Pruefung ehrlich
-# ueber ihre Grenzen (Q4). Reihenfolge-Fuehrung (Klasse -> Hintergrund -> Spezies -> Details)
-# steckt in den Tool-Ausgaben (Kanal 3).
-from app.tools import charakter as _charakter
-
-mcp.tool(_charakter.foliant_liste_klassen, annotations=_NUR_LESEND)
-mcp.tool(_charakter.foliant_liste_hintergruende, annotations=_NUR_LESEND)
-mcp.tool(_charakter.foliant_liste_spezies, annotations=_NUR_LESEND)
-mcp.tool(_charakter.foliant_liste_talente, annotations=_NUR_LESEND)
-mcp.tool(_charakter.foliant_hol_klasse, annotations=_NUR_LESEND)
-mcp.tool(_charakter.foliant_hol_hintergrund, annotations=_NUR_LESEND)
-mcp.tool(_charakter.foliant_hol_spezies, annotations=_NUR_LESEND)
-mcp.tool(_charakter.foliant_hol_talent, annotations=_NUR_LESEND)
+mcp.tool(_charakter.foliant_liste_optionen, annotations=_NUR_LESEND)
 mcp.tool(_charakter.foliant_hol_attributswerte, annotations=_NUR_LESEND)
 mcp.tool(_charakter.foliant_pruefe_build, annotations=_NUR_LESEND)
 

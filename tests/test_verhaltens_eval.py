@@ -58,6 +58,6 @@ def test_grader_leere_antwort_ist_fail():
 
 
 def test_grader_erwartete_tools_ist_oder_verknuepft():
-    fall = dict(id="X", erwartete_tools=["foliant_hol_zauber", "foliant_suche_bestand"])
+    fall = dict(id="X", erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"])
     assert pruefe_deterministisch(fall, "ok", ["foliant_suche_bestand"]) == []
-    assert pruefe_deterministisch(fall, "ok", ["foliant_hol_monster"]) != []
+    assert pruefe_deterministisch(fall, "ok", ["foliant_liste_optionen"]) != []
