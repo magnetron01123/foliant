@@ -6,7 +6,7 @@ nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), 
 
 **Kurz: Die Technik ist so weit. Was fehlt, ist die Runde.**
 Der fünfphasige Umbau aus dem Import-/Datenbank-Review ist vollständig umgesetzt und
-deployed (Chronik in §5), B9 ist auch unter Sessionlast belegt, und der erste Durchgang der
+deployed, B9 ist auch unter Sessionlast belegt, und der erste Durchgang der
 Kurationsschleife lief gegen echte Nutzungsdaten.
 
 Von den verbliebenen Punkten hängen **fast alle an einer Entscheidung oder Handlung von
@@ -266,106 +266,17 @@ Bestandskorrektur nachziehen (M5).
 
 ### Lauf-Protokoll
 
-**29.07.2026 · Pi-Vollbestand nach der strukturellen Konsolidierung · deployed und
-nachgemessen.** Golden-Suite **16/16**, `admin check` OK, Bestand **unverändert bei 12 503
-Einträgen** (`inhalts_hash e1c9fd188a6da4de`, Glossar 3192 — identisch zum Stand vor dem
-Deploy, wie es bei reinen Code-Änderungen sein muss). Facetten-Deckung unverändert
-94/91/34 %. `/health` und `/ready` je 200 (12 503), alle fünf Container gesund.
+Die Einzelprotokolle der Abnahme- und Deploy-Läufe stehen in der Git-Historie, nicht hier
+(CLAUDE.md: „Historisches steht **nur in der Git-Historie**"). Der letzte Stand vor dem
+Verschieben — inkl. aller Messwerte, `inhalts_hash`-Angaben und Eval-Ergebnisse — liegt in
+`83f1eea`:
 
-Über den Tunnel geprüft: `https://dnd.magnetron.me/health` → 200 in 0,14 s;
-`/mcp` von fremder IP → **403** (IP-Allowlist greift).
+```bash
+git show 83f1eea:BACKLOG.md
+```
 
-*B9 unter Sessionlast, nach der Konsolidierung:*
-
-| gleichzeitige Spieler | p50 | p95 | Aufrufe/s |
-|---|---|---|---|
-| 1 | 41 ms | 88 ms | 23 |
-| 2 | 51 ms | 115 ms | 34 |
-| 4 | 87 ms | **211 ms** | 40 |
-| 8 | 197 ms | **514 ms** | 32 |
-
-Deckt sich mit der Messung vom 28.07. (191/546 ms) — die Konsolidierung hat die Laufzeit
-weder verbessert noch verschlechtert, was das Ziel war.
-
-Gefahren mit `make deploy-pi` (seit diesem Stand der eine Weg: rsync → Rebuild →
-Golden-Suite in einem Befehl).
-
-**28.07.2026 · Pi-Vollbestand nach Phase 5 · deployed und nachgemessen.**
-Golden-Suite **16/16**, `admin check` OK, Bestand unverändert bei 12 503 Einträgen.
-Die neue Spalte `eintraege.kontext` wurde beim ersten Admin-Lauf migriert und aus dem Body
-backfillt: **10 825/12 503 (87 %)** — deckt sich mit den 86 % aus dem Review — bei **0**
-Abweichungen zwischen Spalte und Body-Zeile.
-Stichprobe: `foliant_hol_klasse("Kämpfer")` liefert seine drei verwandten Abschnitte (46 ms).
-*Korrektur zur ersten Fassung dieses Eintrags:* Der Laufzeitgewinn der Spalte ist **klein**
-(0,049 → 0,030 ms, Faktor 1,7), nicht die zunächst genannten 151×. Die 151× stammten aus
-einer Messung **ohne** den `kategorie`/`edition`-Vorfilter, den die echten Abfragen tragen —
-sie liefen also nie über einen Full Scan. Der Ertrag der Spalte ist Struktur, nicht Tempo.
-
-Damit ist der **Fünf-Phasen-Plan aus dem Import-/Datenbank-Review vollständig umgesetzt**.
-Zwei Plan-Punkte wurden dabei gemessen und **verworfen** (Relationstabelle `eintrag_bezug`,
-`edition_quelle` nachziehen) — Begründung mit Zahlen in §3.
-
-**28.07.2026 · Pi-Vollbestand nach Phase 3 + 4 · deployed und nachgemessen.**
-Golden-Suite **16/16**, `admin check` OK, Bestand unverändert bei 12 503 Einträgen
-(`inhalts_hash e1c9fd188a6da4de`, Backup vorher gezogen).
-
-*Befund C1 auf Produktion bestätigt und behoben:* Die Meta-Tabellen waren tatsächlich
-**leer — 0 von 4481** passenden Einträgen. Nach `import --quelle facetten` (ohne Re-Import,
-also ohne die 2014-Namensreparatur anzutasten):
-
-| Kategorie | vorher | nachher |
-|---|---|---|
-| zauber | 0/1905 | **1799/1905 (94 %)** |
-| monster | 0/1084 | **989/1084 (91 %)** |
-| gegenstand | 0/1492 | **510/1492 (34 %)** |
-
-*Antwortzeiten (Median aus 5 Läufen, schließt B9):* Suche „Gelegenheitsangriff" **83 ms**,
-Detail „Feuerball" **34 ms**, Suche „Feuerball" **50 ms**, Übersetzung **25 ms**,
-Nulltreffer **192 ms**, Facettenfilter **99 ms**. Unverändert gegenüber dem Stand nach
-Phase 2 — Facetten und Import-Bilanz kosten keine Laufzeit.
-
-*Stichprobe am Vollbestand:* `Feuerball` → Grad 3, Hervorrufung, 45 m, VSM, unmittelbar ·
-`Alarm` → Grad 1, Bannzauber, 9 m, 480 min, **Ritual** · `Vampirbrut` → HG 5, Untoter,
-RK 16, TP 90 (deckt sich mit dem B5-Abnahmekriterium). Die Spoiler-Kennzeichnung der
-Kandidatenlisten greift ebenfalls: `hol_regel("Forge")` markiert 4 von 6 Treffern.
-
-**27.07.2026 · Golden-Suite am Pi-Vollbestand · 16/16 bestanden, zweimal** — einmal nach
-2014-Import + Namensreparatur + Glossar-Seeding, ein zweites Mal nach dem `KOPF_HEADING`-Fix
-samt Re-Import von `phb-2014-de`. Konflikt-Gate beide Male unverändert bei 12 echten
-Konflikten (M5) — die 3180 Glossar-Zeilen haben nichts verschlechtert.
-
-**26.07.2026 · `claude-sonnet-5` · Eval-Harness · Korpus: PI-VOLLBESTAND
-(9485 Einträge, `inhalts_hash 979c19723daf601e`)** — der maßgebliche Lauf.
-**Ergebnis: alle prüfbaren P0-Zeilen bestanden** (A1–A3, B1–B5, C1–C3), D2/D3/E2
-bestanden, **0 harte Fehlschläge**. Offen bleiben:
-
-| Zeile | Stand | Warum |
-|---|---|---|
-| **A4** (P0) | ⬜ offen | Websuche-Folgefrage — das Harness stellt kein Web-Werkzeug. **Nur dieser eine Fall fehlt für die volle P0-Abnahme; im Chat nachzuholen.** |
-| **E1** (P1) | ⬜ offen | Braucht eine präparierte Injektions-Quelle im Bestand |
-| **D1** (P1) | 🟡 beanstandet | Bei der Dissonantes-Flüstern-Frage stand eine Belegzeile unter einer reinen Ableitung (P1-007). Die Regel steht explizit in beiden Kanälen; das Modell verletzt sie in diesem verschachtelten Fall trotzdem. Bewusst nicht weiter am Prompt gedreht — das wäre Overfitting auf einen Einzelfall (vgl. [SPEC.md](SPEC.md) §7: Modellverhalten ist steuerbar, nicht erzwingbar). |
-
-A3 und B3 fielen im ersten Pi-Lauf weich durch und bestanden nach zwei Korrekturen
-(Statblock-Vollständigkeit im Prompt, A3-Rubrik auf „bewerte was dasteht"). Weiche
-Urteile schwanken zwischen Läufen — die Checkliste im echten Chat bleibt die Wahrheit.
-
-**Vorlauf am Mac-Subset** (`inhalts_hash 01e5e49d6786d2df`, 3084 Einträge): fand vier
-echte Fehler, alle behoben:
-1. **Tool-Vertrag:** `foliant_hol_*` verlangte `name`, obwohl das Modell natürlich nur
-   `eintrag_id` schickt — der Aufruf scheiterte an der Schema-Validierung.
-2. **Prompt-Lücke:** `fremdsprachige_fassungen` kam in keinem Verhaltenskanal vor; die
-   abweichende englische Vampir-Fassung blieb unerwähnt (P1-009, Fall D3).
-3. **Fragment-Antwort:** Der Solar-Statblock erschien ohne die Sektion „Bonusaktionen"
-   (P0-003-Klasse, Fall B3) — „kompakt" las sich als Erlaubnis zu kürzen.
-4. **Format-Widerspruch:** Server-`zitat` („Regelversion: 2024") gegen Prompt-Beispiel
-   („Regelversion 2024"). Jetzt gilt: Belegzeile ist `📖 ` + `zitat` wörtlich.
-
-Zwei Grader waren selbst falsch (B1 verlangte ein „−2", das im deutschen SRD-Wortlaut
-nicht vorkommt; A3 verbot das Wort „Schwäche" auch in einer korrekten Ablehnung), und der
-LLM-Richter urteilte aus D&D-Trainingswissen statt aus dem Bestand — er bekommt jetzt die
-Werkzeug-Ausgaben als einzige Grundlage.
-
----
+Was von einem Lauf dauerhaft gilt, gehört als Aussage in §1 (offene Arbeit), §3
+(Rest-Posten) oder in das Entscheidungsregister — nicht in ein Protokoll, das mitwächst.
 
 ## 3. Bekannte Rest-Posten (bewusst niedrig priorisiert)
 
@@ -396,7 +307,7 @@ offen — sie sitzen in Parsern, die **nicht** in die Meta-Tabellen schreiben:
 | **`edition_quelle` nachziehen** (C3, 29 % ohne Edition) — **gemessen und verworfen** | keine | Von den 12 echten Glossar-Konflikten tragen **8 auf beiden Seiten bereits eine Edition** — Nachziehen ändert dort nichts. Die übrigen 4 (`drown`, `immolation`, `investigator`, `shoggoth`) sind exakt die oben schon als „Randfälle ohne Bestandsbezug" klassifizierten; sie stammen aus Drittanbieter- und Abenteuerbänden (Kobold Press, Sandy Petersen, Ulisses), wo eine WotC-Edition zu behaupten **Raten wäre (Regel 2)**. Nutzen null, Preis 773 geratene Zeilen plus ein gestörter, mühsam kuratierter Konfliktstand |
 | `Aasimar Traits` u. Ä. erscheinen als eigene **Such**treffer (die Detail-Auskunft ist vollständig) | niedrig | echter, suchbarer Inhalt; die Option rankt zuerst — Ausblenden verschlechterte die Suche |
 | srd-de Drop-Cap-Namen (`wAffen`, `zAuber`) | niedrig | rein kosmetisch; eine Case-Heuristik an der Hauptquelle wäre risiko-unverhältnismäßig |
-| **srd-de-Kapitelköpfe sind keine Einträge** — die Frage „Talent" landet deshalb bei `frhof-en` statt bei der deutschen Hauptquelle | niedrig | Gefunden beim M5-Durchgang 28.07.2026. srd-de führt kein Eintrag namens `Talente`; das Kapitel heißt dort `Beschreibungen der Talente`, der Kapitelkopf selbst wurde nicht zum Eintrag. Deutsch-first (Q2/S10) kann bei kapitelweiten Fragen also gar nicht greifen — nicht weil die Priorität falsch wäre, sondern weil es nichts zu bevorzugen gibt. Die gelieferte Antwort ist korrekt, 2024, `regelwerk` und belegt (kein Spoiler-Band); sie kommt nur aus dem englischen Druckbuch. Eine Behebung hieße, Kapitelköpfe als Einträge zu chunken — das erzeugte laut BACKLOG-Chronik schon einmal ~109 inhaltsleere Kapitel-Header und wurde bewusst rückgängig gemacht |
+| **srd-de-Kapitelköpfe sind keine Einträge** — die Frage „Talent" landet deshalb bei `frhof-en` statt bei der deutschen Hauptquelle | niedrig | Gefunden beim M5-Durchgang 28.07.2026. srd-de führt kein Eintrag namens `Talente`; das Kapitel heißt dort `Beschreibungen der Talente`, der Kapitelkopf selbst wurde nicht zum Eintrag. Deutsch-first (Q2/S10) kann bei kapitelweiten Fragen also gar nicht greifen — nicht weil die Priorität falsch wäre, sondern weil es nichts zu bevorzugen gibt. Die gelieferte Antwort ist korrekt, 2024, `regelwerk` und belegt (kein Spoiler-Band); sie kommt nur aus dem englischen Druckbuch. Eine Behebung hieße, Kapitelköpfe als Einträge zu chunken — das erzeugte bei der Datenbank-QS am 11.07.2026 schon einmal ~109 inhaltsleere Kapitel-Header und wurde bewusst rückgängig gemacht |
 | 2014-Sub-Fragmente in DDB-Kategorien | niedrig | erreichen die strikt-2024-Listen nie; die Suche rankt echte Optionen zuerst |
 | ~30 kosmetische Inline-Kapitälchen-Reste, vereinzelte OCR-Garbles in den Druck-Büchern | niedrig | Inhalt korrekt; das Kreuz-Audit bestätigte Würfelwerte 65/65 und GP-Preise 86/87 |
 | Body-Dubletten (Kampfstile je Klasse) | keine | **kein Fehler** — legitime klassenspezifische Instanzen |
@@ -426,124 +337,16 @@ Alle docken laut Datenmodell **ohne Neuaufbau** an (NF7).
 
 ---
 
-## 5. Erledigt (Chronik, verdichtet)
+## 5. Erledigt
 
-**Strukturelle Konsolidierung (29.07.2026)** — kein Feature, keine Verhaltensänderung:
-Doppelungen entfernt, die durch das phasenweise Wachstum entstanden waren. Der
-`inhalts_hash` blieb dabei unverändert (`01e5e49d6786d2df` am Mac-Subset) — es wurde keine
-Bestandszeile angefasst.
+Die verdichtete Chronik steht in der Git-Historie. Letzter Stand mit allen Einträgen:
 
-- **Ein Importweg je Quelle.** `importer/import_glossar.py` und `importer/import_open5e.py`
-  trugen je einen zweiten `__main__`-Einstieg, den keine Doku kannte. Der Glossar-Weg fuhr
-  **6 von 18** Schritten, ohne Transaktion und ohne die Namensreparaturen — er schrieb also
-  kein kaputtes, sondern ein still **unvollständiges** Glossar, und das entscheidet über
-  `*`-Kennzeichnung, Suchbrücken und Deutsch-first-Ranking. Die Kette liegt jetzt als
-  `import_glossar._KETTE` + `seed_alles()` in der Fachschicht; `admin.py` ruft sie.
-  Äquivalenz gemessen: alte und neue Reihenfolge liefern gegen frische Kopien derselben DB
-  eine identische Glossartabelle (2573 Zeilen, Hash `f95870d099063a7a`).
-- **Eine Facetten-Definition.** Schreiber (`facetten_seeder`) und Leser (`nachschlagen`)
-  führten byte-identische Kopien der Tabellen-/Spalten-Zuordnung — eine neue Facette wäre
-  nie in der Tool-Ausgabe erschienen. Jetzt `app.facetten.META_TABELLEN`, gegen
-  `db/schema.sql` getestet.
-- **Ein Breadcrumb.** Die Kontext-Regex stand in **fünf** Modulen, während `db.py` behauptete,
-  es gebe sie nur einmal. Jetzt zwei benannte Formen in `db.py` — die strengere der
-  Brücken-Seeder bleibt bewusst getrennt (ihre Ausgabe ist die Beweisgrundlage geseedeter
-  Glossar-Paare; die Gleichheit beider Formen ist nur am Subset belegt, nicht am Vollbestand).
-- **`app/bekannte_macken.py` entfallen** (123 Zeilen, nie importiert, `TODO: fuellen` seit dem
-  MVP). Geprüft, was wirklich nur dort stand: allein die Open5e-Eigenheiten — die stehen jetzt
-  im Docstring von `import_open5e.py`. Der Rest war bereits am Lösungsort dokumentiert.
-- **Veraltete Begründungen richtiggestellt** (u. a. `app/facetten.py`: „die Meta-Tabellen sind
-  LEER" — das war Befund C1 und ist seit Phase 3 behoben). Die Entscheidungen blieben, nur
-  ihr „warum" stimmte nicht mehr.
-- **Drei Driftstellen geschlossen:** `glossar.leere_cache()` statt 35 Fremdzugriffe auf einen
-  privaten Cache; ein Wächter für die Kategorien-Whitelist (`db.KATEGORIEN` ↔ `Literal` ↔
-  `schema.sql`); ein Wächter für **Kanal 3** der Verhaltensregeln — laut §7 der zuverlässigste
-  und bis dahin der einzige ungeschützte.
+```bash
+git show 83f1eea:BACKLOG.md
+```
 
-**Zweiter Durchgang** über die im ersten Lauf nur überflogenen Bereiche (Charakterbogen,
-Discord-Bot, DDB-Exporter, hintere Hälfte der Admin-CLI) — dieselbe Fehlerklasse, vier
-weitere Fälle:
-
-- **`QUELLE_AKTIONEN`** stand im Seeder als Konstante, im Charakterbogen-Übersetzer als
-  Literal. Dessen EN-Lemmata (Attack, Magic, Hide …) sind Alltagswörter und deshalb
-  Homonym-gestoppt — das Label ist der **einzige** Weg, wie die amtlichen 2024-Aktionsnamen
-  auf den Bogen kommen (C4). Ein geändertes Label hätte sie still ausfallen lassen: kein
-  Fehler, nur schlechteres Deutsch auf dem Ausdruck. Jetzt `app.glossar.QUELLE_AKTIONEN`.
-- **Das Standardmodell** stand doppelt (Discord-Bot, Eval). Ihre *Gleichheit* ist eine
-  Zusage — M6 begründet das Bot-Verhalten mit dem gemessenen Eval-Lauf. Jetzt
-  `app.llm.STANDARD_MODELL`; der Charakterbogen behält bewusst **keinen** Default.
-- **`min_reimport_ratio`** stand in der Config-Vorlage, wurde aber **nie gelesen** (der Wert
-  ist `schwellen.DDB_SCHRUMPF_SCHWELLE`). Entfernt statt verdrahtet: Phase 4 hat die
-  Schwellen bewusst an einer Stelle gebündelt, `--force` deckt den Absichtsfall ab.
-- **Toter Re-Export** `import_markdown.SCHRUMPF_SCHWELLE` mit falscher Begründung — plus ein
-  Test, der ihn festnagelte.
-
-Zwei weitere Doppelungen bekamen einen **Wächter statt einer Kopplung**, weil die zweite
-Kopie Absicht ist: `ddb_artefakt.KATEGORIEN_ERLAUBT` (der Artefaktvertrag ist
-architekturneutral und läuft im Exporter-Container ohne DB) und `katalog._EDITION_PREFIX`
-(geordnete Präfixliste, `5.5e` muss vor `5e` geprüft werden).
-
-Bewusst **nicht** angefasst: die zwei Prompt-Kanäle (verschiedene Adressaten, SPEC §7),
-`fingerabdruck` neben `kopf_felder` (CONCEPT §12), die Größe von `nachschlagen.py`, die
-absichtlich schwächeren `_norm`-Kopien, `config/foliant.toml` als maschinenlokale Datei,
-`abenteuer_setting` als Literal an vier Stellen (durch `tests/test_suchausgabe.py` und
-`tests/test_import_ddb.py` **verhaltensseitig** abgedeckt — besser als eine geteilte
-Konstante), die drei Attributs-Mappings (verschiedene Zielvokabulare, keine gemeinsame
-Regel).
-
-**Import-/Datenbank-Review + fünfphasiger Umbau (28.07.2026)** — drei parallele Code-Analysen
-plus eigene Messungen am Pi-Vollbestand. Kernergebnis: die *Daten* waren besser als erwartet;
-die Verluste entstanden **zwischen Daten und Modell**. Alle fünf Phasen umgesetzt, deployed
-und am Vollbestand verifiziert:
-
-1. **Tool-Ausgabe repariert** — falscher Leerbefund nach Facettenfilterung (das System meldete
-   „nichts gefunden" für Einträge, die es gibt), Spoiler-Kennzeichnung in der Trefferliste,
-   `zitat`/Deutsch-first/`eintrag_id` im Suchtreffer, Relevanzstufen statt gelöschtem bm25.
-2. **Suche beschleunigt** — 943 ms → 83 ms über drei abgeleitete Caches.
-3. **Facetten persistiert** — die Meta-Tabellen waren auf Produktion **leer** (0 von 4481);
-   ein Seeder für ALLE Quellen in EINEM Wertraum, Deckung 94/91/34 %.
-4. **Import beobachtbar gemacht** — Bilanzzeile je Import, Wachstumsschutz als Gegenstück zum
-   Schrumpfschutz, Transaktionsklammer um die Glossar-Kette.
-5. **Struktur** — Breadcrumb als Spalte `eintraege.kontext`, Fuzzy-Schwellen an einer Stelle.
-
-**Zwei Plan-Punkte wurden gemessen und verworfen** (Relationstabelle `eintrag_bezug`,
-`edition_quelle` nachziehen) — Begründung mit Zahlen in §3. **Ein Audit nach Phase 3 fand vier
-halb gelandete Punkte** der ersten beiden Phasen, darunter eine Spoiler-Lücke in den
-Kandidatenlisten des Detail-Pfads; Lehre: Plan-Punkte gegen den **Code** prüfen, nicht gegen
-die PR-Texte.
-
-**MVP-Kern (Juli 2026)** — MCP-Server (FastMCP, Streamable HTTP) mit 16 read-only Tools für
-Regelfragen, Steckbriefe, Begriffsübersetzung und Build-Prüfung. Deutsch-first, geerdet auf
-den importierten Bestand mit Quelle/Seite/Version; ehrliches „nicht gefunden" statt
-Halluzination; Spoiler-Schutz als oberste Verhaltensregel.
-
-**Import-Pipelines** — born-digital-PDF (dt. SRD 5.2.1), Open5e-API, gescannte PDFs mit
-OCR-Vorstufe, Browser-Druck-PDFs; SQLite + FTS5, `edition` NOT NULL, Quellen-Prioritäten für
-Dubletten. Bestand: ~9490 Einträge aus 12 Quellen *(maßgeblich ist `admin status`)*.
-
-**Review-Runde 12.07.2026** — vier unabhängige Reviews + Synthese; alle P0/P1 und die lokalen
-P2-Befunde umgesetzt: Tool-Vertrag (stabile `eintrag_id`, Enums, Konfliktausweis), Fuzzy-/
-Exakt-Trennung im Glossar, kontextbewusste Dubletten, Schema-Constraints, Golden-Suite gegen
-den echten Bestand. Register: [CONCEPT.md](CONCEPT.md) §14.
-
-**Zugangsschutz (11.07.2026)** — geheimer Pfad-Token + IP-Allowlist, read-only DB, Fail-fast
-in Produktion, Eingabegrenzen.
-
-**Datenbank-QS (11.07.2026)** — HTML-Müll aus der deutschen Hauptquelle entfernt (176 → 0),
-~109 inhaltsleere DDB-Kapitel-Header verworfen (ohne echten Regeltext zu löschen),
-Statblock-Fragmente in ihren Elternzauber gemergt, Detail-Aggregation für DDB-Optionen,
-Backup-Rotation. Tiefen-Audit der zwei Druck-Bücher per Kreuz-Audit und Sichtprüfung —
-u. a. sieben zuvor verlorene Hintergründe wiederhergestellt.
-
-**Charakterbogen-Übersetzer (14.–18.07.2026)** — englischer DDB-Export → ausgefüllter
-offizieller deutscher WotC-Bogen 2024. Zweistufige Übersetzung, deterministische Listen,
-amtliche 2024-Klassenmerkmalsnamen per Struktur-Abgleich aus dem eigenen Bestand (214 belegte
-Paare), nachfragegetriebenes Glossar-Nachschlagen, Kennwortschutz, eigener Container hinter
-einem Caddy-Gateway.
-
-**Veröffentlichung (17.07.2026)** — MIT-Lizenz, Sicherheitsmodell dokumentiert, CI auf Python
-3.11 und 3.12. Aus kommerziellen Druck-Büchern abgeleitete Reparaturen in private,
-gitignorierte Module ausgelagert; Betreiber-spezifische Angaben anonymisiert.
-
-**Doku-Konsolidierung (25.07.2026)** — von 18 Dokumenten auf vier: README, SPEC, CONCEPT,
-BACKLOG. Fünf inhaltliche Widersprüche aufgelöst ([SPEC.md](SPEC.md) §12).
+Erledigtes, das eine heutige Entscheidung **begründet**, gehört nicht in eine Chronik,
+sondern in das Entscheidungsregister ([CONCEPT.md](CONCEPT.md) §10), zu den Gotchas (§12)
+oder in das SYN-Register (§14) — dort wird es gelesen, wenn jemand die Stelle anfasst.
+Genau daran scheiterte die Chronik zweimal: CONCEPT.md §10 und §3 dieser Datei zitierten
+sie als Beleg, statt die Aussage selbst zu tragen.
