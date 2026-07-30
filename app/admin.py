@@ -165,6 +165,33 @@ def cmd_import(args) -> None:
                   "Stichprobe fahren, bevor der Bestand freigegeben wird.")
     finally:
         c.close()
+    _web_db_auffrischen(getattr(args, "db", None))
+
+
+def _web_db_auffrischen(db_override: str | None) -> None:
+    """Die Web-DB (Glossar + Quellen-Metadaten) nach jedem Import nachziehen.
+
+    Ohne das zeigt die Website einen Stand von gestern - und seit dem 30.07.2026 zeigt
+    sie die Buchliste, also faellt genau das auf. Der Aufruf ist bewusst NICHT scharf:
+    ein fehlgeschlagener Export darf einen gelungenen Import nicht nachtraeglich als
+    Fehler dastehen lassen. Er meldet sich, statt zu werfen.
+
+    Nur fuer den Hauptbestand: ein DDB-Import in die private DB hat auf der Website
+    nichts verloren (SPEC.md par. 14)."""
+    from app.charakterbogen.glossar_export import exportiere
+
+    korpus = Path(db_override) if db_override else _db.standard_pfad()
+    if korpus.resolve() != _db.standard_pfad().resolve():
+        return
+    ziel = _db.projekt_pfad("data/glossar_web.sqlite")
+    if not ziel.parent.exists():
+        return
+    try:
+        n_glossar, n_quellen = exportiere(str(korpus), str(ziel))
+        print(f"  Web-DB aufgefrischt: {n_quellen} Quellen, {n_glossar} Glossarzeilen.")
+    except Exception as fehler:                      # noqa: BLE001 - Beiwerk, nie fatal
+        print(f"  WARNUNG: Web-DB nicht aufgefrischt ({type(fehler).__name__}: {fehler}). "
+              f"Die Website zeigt bis zum naechsten Lauf den alten Stand.")
 
 
 def cmd_ddb_pruefe(args) -> None:

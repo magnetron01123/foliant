@@ -100,6 +100,8 @@ def _mit_fehler(vorlage: str, fehler: str | None) -> str:
     return vorlage.replace("</form>", banner + "</form>", 1)
 
 
+_BESTAND_START = "<!--BESTAND-START-->"
+_BESTAND_ENDE = "<!--BESTAND-ENDE-->"
 _MCP_START = "<!--MCP-LINK-START-->"
 _MCP_ENDE = "<!--MCP-LINK-ENDE-->"
 MCP_FEHLT = ("Der Foliant-Link ist auf diesem Server noch nicht hinterlegt — "
@@ -116,7 +118,82 @@ def _schneide_heraus(seite: str, start: str, ende: str, ersatz: str = "") -> str
     return f"{vor}{ersatz}{nach}"
 
 
-def _bereite_index(mcp_url: str | None) -> str:
+# --- Bestandsübersicht ("welche Bücher stecken drin?") -----------------------------
+# Die Runde soll nachschauen können, statt zu raten - und statt die Zahl im Template zu
+# pflegen, die am 30.07.2026 bei "rund 9.500" stand, während es 12.503 waren.
+# Gelesen wird aus der Web-DB (glossar_web.sqlite), die NUR Metadaten trägt: Titel,
+# Sprache, Regelversion, Herkunft, Lizenz, Inhaltsart und die Eintragszahl - keinen
+# Buchtext, keine Dateipfade (app/charakterbogen/glossar_export.py).
+
+def _bestand_lesen(glossar_pfad: str | None) -> list[dict]:
+    """Quellen aus der Web-DB. Leer, wenn die Tabelle fehlt (ältere Web-DB) - dann fällt
+    der Abschnitt weg, statt die Seite kaputtzumachen."""
+    if not glossar_pfad:
+        return []
+    try:
+        con = sqlite3.connect(f"file:{glossar_pfad}?mode=ro&immutable=1", uri=True)
+    except sqlite3.Error:
+        return []
+    try:
+        con.row_factory = sqlite3.Row
+        return [dict(r) for r in con.execute(
+            "SELECT titel, sprache, edition, inhaltsart, eintraege FROM quellen "
+            "ORDER BY eintraege DESC")]
+    except sqlite3.Error:
+        return []
+    finally:
+        con.close()
+
+
+def _bestand_html(quellen: list[dict]) -> str:
+    """Zwei Gruppen: Regelwerke und Abenteuer/Setting. Die Trennung ist nicht Kosmetik -
+    aus Abenteuerbänden gibt Foliant Regelwerte heraus, aber keine Handlung (Spoiler-Schutz
+    ist die oberste Verhaltensregel), und genau das soll die Runde hier sehen."""
+    if not quellen:
+        return ""
+    groesste = max(q["eintraege"] or 0 for q in quellen) or 1
+
+    def zeilen(gruppe: list[dict]) -> str:
+        teile = []
+        for q in gruppe:
+            n = q["eintraege"] or 0
+            breite = max(2, round(100 * n / groesste))
+            sprache = "Deutsch" if (q["sprache"] or "").startswith("de") else "Englisch"
+            teile.append(
+                f'<li class="buch">'
+                f'<span class="buch-titel">{_escape(q["titel"] or "?")}</span>'
+                f'<span class="marken">'
+                f'<span class="marke-klein">{sprache}</span>'
+                f'<span class="marke-klein jahr">{_escape(str(q["edition"] or "?"))}</span>'
+                f'</span>'
+                f'<span class="balken" aria-hidden="true">'
+                f'<span style="width:{breite}%"></span></span>'
+                f'<span class="zahl">{n:,}</span>'
+                f'</li>'.replace(",", "."))
+        return "".join(teile)
+
+    regel = [q for q in quellen if q["inhaltsart"] != "abenteuer_setting"]
+    abenteuer = [q for q in quellen if q["inhaltsart"] == "abenteuer_setting"]
+    gesamt = sum(q["eintraege"] or 0 for q in quellen)
+
+    html = [f'<p class="unter">Foliant schlägt in <strong>{len(quellen)} Büchern</strong> '
+            f'mit zusammen <strong>{gesamt:,} Einträgen</strong> nach. '
+            f'Diese Liste kommt direkt aus dem Bestand — sie ist immer aktuell.'
+            f'</p>'.replace(",", ".")]
+    if regel:
+        html.append('<h3>Regelwerke</h3>'
+                    f'<ul class="buecher">{zeilen(regel)}</ul>')
+    if abenteuer:
+        html.append(
+            '<h3>Abenteuer &amp; Settings</h3>'
+            '<p class="mini">Daraus nennt Foliant <em>Regelwerte</em> — Werte einer '
+            'Kreatur, ein Zauber, eine Option. Handlung, Orte, Geheimnisse und Taktiken '
+            'gibt es nicht, auch nicht auf Nachfrage.</p>'
+            f'<ul class="buecher">{zeilen(abenteuer)}</ul>')
+    return "".join(html)
+
+
+def _bereite_index(mcp_url: str | None, glossar_pfad: str | None = None) -> str:
     """Setzt MCP-Link und Projektanweisung in die Seite ein.
 
     Die Projektanweisung ist der GEMEINSAME Ort für die Runde: mehrere Spieler richten je
@@ -124,6 +201,9 @@ def _bereite_index(mcp_url: str | None) -> str:
     deshalb zur Laufzeit aus config/projektanweisung.md (config.stil) statt als Kopie im
     Template - so verteilt die Seite nie eine veraltete Fassung."""
     seite = _INDEX
+    bestand = _bestand_html(_bestand_lesen(glossar_pfad))
+    seite = (seite.replace("{{BESTAND}}", bestand) if bestand
+             else _schneide_heraus(seite, _BESTAND_START, _BESTAND_ENDE, ""))
     anweisung = stil.projektanweisung() if mcp_url else None
     if mcp_url:
         seite = seite.replace("{{MCP_URL}}", mcp_url)
@@ -253,7 +333,7 @@ def erstelle_app(provider=None, glossar_pfad: str | None = None,
     `nachschlager_factory` (z.B. `DnddeutschNachschlager`) wird PRO Konvertierung
     aufgerufen (frisches Zeitbudget); Default None = netzfrei (Tests)."""
     sem = asyncio.Semaphore(1)
-    index_html = _bereite_index(mcp_url)
+    index_html = _bereite_index(mcp_url, glossar_pfad)
 
     def _seite(fehler: str | None = None) -> str:
         return _mit_fehler(index_html, fehler)
