@@ -405,13 +405,27 @@ der Ort, an dem man es zurückdreht.
 #### Errata & Regelauslegung — Rest-Posten · *31.07.2026*
 
 Der Revisions-Layer steht (Schema, Kennzeichnung, Dedupe-Schutz, Chunking, Config, Tests;
-SYN-P3-003 damit **teilweise erledigt**). Was noch fehlt:
+SYN-P3-003 damit **teilweise erledigt**).
+
+*Adversarialer Review am 31.07.2026 über fünf Dimensionen (Dedupe, Ausgabe/Spoilerschutz,
+Schema/Migration, Bänder/Config, Errata-Chunking): 13 Befunde, davon **5 bestätigt und
+behoben**, 8 in der Gegenprobe widerlegt. Die tragenden waren: der Errata-Hinweis
+verdrängte den 🚫-Spoilerhinweis der Nebenlisten; ein Erratum kam als „fremdsprachige
+Fassung" heraus, also als bloße Übersetzungsvariante statt als geltende Korrektur; das
+Chunking-Muster verfehlte eine der beiden realen Fettformen und meldete Teiltreffer nicht;
+und es schrieb bei einem Kopf mit Querverweis die falsche Buchseite. Jeder Fall ist als
+Regressionstest verankert.*
+
+Was noch fehlt:
 
 - ⬜ **Die drei Errata-PDFs ablegen und importieren** (PHB 2024, DMG 2024, MM 2025). Die
   `[[quelle]]`-Blöcke stehen fertig in `config/foliant.toml`, die Dateien fehlen. Beim
   ersten Import die **Bilanzzeile lesen**: das Chunking-Muster (`_errata_headings`) ist aus
-  dem veröffentlichten Aufbau abgeleitet, aber nie an den echten Dateien justiert — meldet
-  die Bilanz `WIRKUNGSLOS`, passt es nicht zur Datei.
+  dem veröffentlichten Aufbau abgeleitet, aber nie an den echten Dateien justiert. Die
+  Bilanz meldet zwei Fälle — `kein Korrektur-Kopf mit Seitenangabe` (Muster passt gar
+  nicht) und `N von M fetten Koepfen ohne erkennbare Seitenangabe` (Teiltreffer, der
+  gefährlichere Fall: der Import läuft durch, ein Teil der Korrekturen hängt stumm am
+  Vorgänger).
 - ⬜ **Sage Advice Compendium** einbinden. Der `[[ddb.buch]]`-Block liegt auskommentiert in
   der Config; ungeklärt ist, ob der DDB-Account den Band führt (`ddb-exporter list-owned`).
   Wenn nicht: freies PDF über den `[[quelle]]`-Weg mit `inhaltsart = "regelauslegung"`.

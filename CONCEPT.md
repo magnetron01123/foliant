@@ -928,6 +928,12 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Schema-Zuwachs v3 brach `tests/test_quellen_beschriftung.py` an einer abgetippten
   `CREATE TABLE quellen (...)` — einem stillen Zweitschema. Fixtures speisen sich aus
   `db/schema.sql` (`_db.SCHEMA_DATEI`), dann kann das nicht wieder passieren.
+- **Eine Kennzeichnung, die eine andere unterdrückt, ist kein Schutz mehr.** Der
+  Sammelhinweis für die Nebenlisten (`_markiere_inhaltsart`) brach ab, sobald irgendein
+  `hinweis_inhaltsart` stand — folgenlos, solange nur Abenteuerbände markiert wurden (es
+  war derselbe Text). Mit Errata nicht mehr: 📌 im Detail plus Abenteuerband in
+  `andere_fassungen` liess den 🚫-Satz lautlos wegfallen. Wer eine zweite Marker-Art
+  einführt, muss jede Stelle prüfen, die „es steht ja schon ein Hinweis da" annimmt.
 - **Ein CHECK auf einem Wertraum, der noch wachsen kann, ist eine Migrationsfalle.**
   SQLite ändert eine Constraint nur über einen Tabellen-Neuaufbau (CREATE + COPY + DROP +
   RENAME) — `CREATE TABLE IF NOT EXISTS` erneuert nichts, `ALTER TABLE` erzeugt nichts.
