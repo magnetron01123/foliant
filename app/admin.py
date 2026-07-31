@@ -441,9 +441,17 @@ def cmd_reindex(_args) -> None:
 # Woerter, die einen Abenteuer-/Kampagnenband verraten - in Kuerzel ODER Titel, deutsch
 # und englisch. Bewusst eine WARNUNG und kein Fehler: die Liste kann nur Verdacht
 # aeussern, entscheiden muss der Betreiber (Regel 1 - nichts wird geraten).
+#
+# Die Weltnamen kamen am 31.07.2026 dazu. Vorher fehlte "Forgotten Realms: Heroes of
+# Faerûn" in der Liste - der Band lief als 'regelwerk', und der Verdacht schlug nie an,
+# weil kein einziges Wort passte. Seit `inhaltsart` Pflicht ist, kann kein Band den Wert
+# mehr AUSLASSEN; diese Liste faengt nur noch den falsch GESETZTEN Wert, und dafuer sind
+# die grossen Settings die lohnendsten Eintraege.
 _SPOILER_WOERTER = ("abenteuer", "adventure", "kampagne", "campaign", "setting",
                     "fluch des", "curse of", "descent", "vecna", "strahd", "ravenloft",
-                    "waterdeep", "avernus", "wildemount", "eberron", "spelljammer")
+                    "waterdeep", "avernus", "wildemount", "eberron", "spelljammer",
+                    "faerûn", "faerun", "realms", "dragonlance", "krynn", "greyhawk",
+                    "planescape", "ravnica", "theros", "strixhaven")
 
 
 def _spoilerverdacht(c: sqlite3.Connection) -> list[tuple[str, str]]:

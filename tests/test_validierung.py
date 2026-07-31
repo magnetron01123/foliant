@@ -287,11 +287,17 @@ def test_admin_check_meldet_ungekennzeichnete_abenteuerbaende(tmp_path):
          ("cos-de", "Der Fluch des Strahd", "de", "2014", "pdf", "privat", 30,
           "regelwerk"),                                  # <- vergessen
          ("wdh-de", "Waterdeep: Dragon Heist", "de", "2014", "pdf", "privat", 30,
-          "abenteuer_setting")])                         # <- korrekt gekennzeichnet
+          "abenteuer_setting"),                          # <- korrekt gekennzeichnet
+         # Real uebersehen (31.07.2026): der Band lief auf dem Pi als 'regelwerk', und
+         # der Verdacht schlug nie an, weil kein Wort der Liste passte. Ein Setting-Band
+         # ohne Kennzeichnung ist genau der Fall, den diese Warnung faengt.
+         ("frhof-en", "Forgotten Realms: Heroes of Faerûn", "en", "2024", "pdf",
+          "privat", 45, "regelwerk")])                   # <- vergessen
     con.commit()
 
     verdaechtig = {k for k, _ in _spoilerverdacht(con)}
     assert "cos-de" in verdaechtig, "ungekennzeichneter Abenteuerband nicht erkannt"
+    assert "frhof-en" in verdaechtig, "Setting-Band am Weltnamen nicht erkannt"
     assert "srd-de" not in verdaechtig, "Regelwerk faelschlich als Abenteuerband gemeldet"
     assert "wdh-de" not in verdaechtig, "korrekt gekennzeichneter Band darf nicht warnen"
 
