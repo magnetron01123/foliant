@@ -375,10 +375,21 @@ def erstelle_app(provider=None, glossar_pfad: str | None = None,
     `nachschlager_factory` (z.B. `DnddeutschNachschlager`) wird PRO Konvertierung
     aufgerufen (frisches Zeitbudget); Default None = netzfrei (Tests)."""
     sem = asyncio.Semaphore(1)
-    index_html = _bereite_index(mcp_url, glossar_pfad)
 
     def _seite(fehler: str | None = None) -> str:
-        return _mit_fehler(index_html, fehler)
+        """Die Seite wird JE ANFRAGE gebaut, nicht einmal beim Containerstart.
+
+        Sie behauptet ueber der Buchliste woertlich "sie ist immer aktuell" - beim
+        Containerstart eingebacken war das schlicht falsch: `admin import` frischt zwar
+        die Web-DB auf, der laufende Container las sie aber erst nach
+        `docker compose restart web` wieder. Dasselbe galt fuer die Projektanweisung, die
+        laut CONCEPT.md par. 8 der GEMEINSAME Text der Runde sein soll.
+
+        Der Preis ist eine kleine SQLite-Abfrage plus ein Dateizugriff je Seitenaufruf
+        (gemessen 31.07.2026: 0,15 ms). Die Seite liegt hinter einem Kennwort und wird von
+        einer Handvoll Spielern aufgerufen - das ist billiger als ein Neustart-Hinweis,
+        den jemand befolgen muss."""
+        return _mit_fehler(_bereite_index(mcp_url, glossar_pfad), fehler)
 
     def angemeldet(request) -> bool:
         return _keks_gueltig(passwort, request.cookies.get(KEKS))
