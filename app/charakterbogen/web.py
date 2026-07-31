@@ -137,9 +137,15 @@ def _bestand_lesen(glossar_pfad: str | None) -> list[dict]:
         return []
     try:
         con.row_factory = sqlite3.Row
+        # Bewusst SELECT *: dieselbe Lage wie beim Facetten-Lesen in app/tools/ausgabe.py
+        # - die Web-DB wird von aussen erneuert und migriert NICHT mit dem Code. Eine
+        # feste Spaltenliste sprengt hier die ganze Abfrage, sobald EINE Spalte fehlt, und
+        # der Rueckfall unten verschluckt dann die KOMPLETTE Buchliste statt nur des neuen
+        # Feldes (beim Zuwachs um `versions_stand` real passiert - der Test
+        # test_buchliste_folgt_der_web_db_ohne_neustart hat es gefangen). So fehlt
+        # schlimmstenfalls ein Feld, und `_quellzeile` liest es ohnehin mit .get().
         return [dict(r) for r in con.execute(
-            "SELECT titel, sprache, edition, inhaltsart, eintraege FROM quellen "
-            "ORDER BY eintraege DESC")]
+            "SELECT * FROM quellen ORDER BY eintraege DESC")]
     except sqlite3.Error:
         return []
     finally:
@@ -225,12 +231,20 @@ _SPRACHNAMEN = {"de": "Deutsch", "en": "Englisch"}
 def _quellzeile(q: dict) -> dict:
     """Eine Bestandsquelle als Tabellenzeile: Titel, Sprache, Regelstand, Eintragszahl.
     Die Regelversion trägt ihr Wort mit ("Regeln 2024") - eine nackte Jahreszahl neben
-    einem Buchtitel liest sich wie ein Erscheinungsjahr."""
+    einem Buchtitel liest sich wie ein Erscheinungsjahr.
+
+    Steht ein `versions_stand` dabei, gehört er an dieselbe Marke: er präzisiert genau
+    diese Angabe ("Regeln 2024 · Errata Version 1.0"). An den Titel dürfte er nicht -
+    der trägt nach dem Beschriftungs-Standard nur den Werktitel."""
     edition = str(q["edition"] or "").strip()
     code = (q["sprache"] or "").strip().lower()[:2]
+    stand = str(q.get("versions_stand") or "").strip()
+    marke_b = f"Regeln {edition}" if edition else "Regelversion offen"
+    if stand:
+        marke_b += f" · {stand}"
     return {"titel": q["titel"],
             "marke_a": _SPRACHNAMEN.get(code, code.upper() or "Sprache offen"),
-            "marke_b": f"Regeln {edition}" if edition else "Regelversion offen",
+            "marke_b": marke_b,
             "zahl": q["eintraege"] or 0}
 
 

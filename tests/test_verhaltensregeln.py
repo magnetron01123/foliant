@@ -94,11 +94,13 @@ def test_instruktion_bleibt_kompakt():
     Loest der Test aus, ist die Frage nicht "Grenze anheben", sondern welche Regel dafuer
     raus kann oder in die Tool-Ausgabe gehoert (der zuverlaessigere Kanal, SPEC.md §7).
 
-    ACHTUNG, das Budget ist AUFGEBRAUCHT: hier stand bis zum 31.07.2026 "ein Budget mit
-    Luft ... der Stand liegt bei ~6000". Gemessen waren es zu diesem Zeitpunkt 7398 - die
-    Instruktion war seit dem Schreiben dieses Satzes um rund 1400 Zeichen gewachsen, ohne
-    dass jemand nachsah. Die naechste Regel, die hinzukommt, loest den Test aus, und dann
-    ist eine Entscheidung faellig statt einer Zahl."""
+    Wie eng es wirklich war (31.07.2026): Hier stand "ein Budget mit Luft ... der Stand
+    liegt bei ~6000" - gemessen waren es 7398. Die Instruktion war seit dem Schreiben
+    dieses Satzes um rund 1400 Zeichen gewachsen, ohne dass jemand nachsah. Der dritte
+    Weg loeste es ohne Regelverlust: ENTDOPPELN. Der Abschnitt "QUELLEN & VERSION" sagte
+    dasselbe wie die Belegzeilen- und die Altstand-Regel darueber (und fehlte im zweiten
+    Kanal ganz), die "erste Nennung" stand zweimal da. Danach: 7154. Wer den Stand hier
+    kuenftig als Zahl liest, misst ihn besser selbst nach - dieser Satz veraltet."""
     assert len(INSTRUCTIONS) < 7500, (
         f"stil.py INSTRUCTIONS: {len(INSTRUCTIONS)} Zeichen - erst kuerzen, dann anheben")
 

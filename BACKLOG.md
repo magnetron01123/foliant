@@ -423,11 +423,13 @@ SYN-P3-003 damit **teilweise erledigt**). Was noch fehlt:
   Umbenennungen offiziell und wäre damit ein stärkerer Beleg als die eigene Auszählung am
   Bestand. Bewusst **keine** Relationstabelle daraus — die wurde gemessen und verworfen
   (§3), der bewährte Weg sind kuratierte Paare mit Beleg im Kommentar.
-- ⬜ **Kontextbudget der Instruktion.** `config/stil.py` liegt bei 7486 von 7500 Zeichen.
-  Der Test-Docstring behauptete „~6000" — gemessen waren es schon 7398, die Instruktion war
-  seit dem Schreiben des Satzes um ~1400 Zeichen gewachsen. Die nächste Verhaltensregel
-  löst den Wächter aus; dann ist eine Entscheidung fällig (welche Regel raus kann oder in
-  die Tool-Ausgabe wandert), keine höhere Zahl.
+- ✅ **Kontextbudget der Instruktion** — *erledigt 31.07.2026.* `config/stil.py` lag bei
+  7486 von 7500 Zeichen (der Test-Docstring behauptete „~6000"; gemessen waren es schon
+  vor dem Fokus-Paket 7398). Gelöst ohne Regelverlust durch **Entdoppeln**: Der Abschnitt
+  „QUELLEN & VERSION" wiederholte die Belegzeilen- und die Altstand-Regel darüber und
+  fehlte im zweiten Kanal ohnehin ganz; die Vorgabe zur „ersten Nennung" stand zweimal da.
+  Stand jetzt 7154, also 346 Zeichen Luft. Jede gestrichene Aussage steht weiter oben
+  wörtlich — geprüft.
 
 ---
 
