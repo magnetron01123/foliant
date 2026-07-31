@@ -250,6 +250,17 @@ schreiben.
   und ausgerechnet der MCP-Server hatte **keine** Regel, deutsch abzukürzen: im Glossar
   standen `XP`, `CR`, `PB`, während das deutsche Buch 388-mal `EP`, 356-mal `HG` und
   341-mal `ÜB` schreibt.
+  **Durchsetzung über alle drei Kanäle** — bewusst, weil die Projektanweisung jede Person
+  selbst einrichten muss und genau das nicht jede tut: `hinweis_abkuerzungen` hängt an
+  jeder Such- und Detailantwort, die Tool-Beschreibungen tragen die Kurzform (der Server
+  liefert sie mit dem Schema aus, ohne Zutun des Clients), und die Instruktion nennt sie
+  ebenfalls. Der Hinweis wird **aus dem Register gebaut**, nicht abgeschrieben — sonst
+  liefe er der Liste beim ersten Zuwachs davon.
+  Dazu die Auflösung im Text: `begriffe_im_text` nimmt Abkürzungen von der
+  `_MIN_LEMMA`-Schwelle aus (sie sind keine Alltagswörter) und matcht sie **schreibungs­-
+  genau**. Das ist die Sicherung, nicht ein Detail: `PP` ist die Platinmünze, `pp.` die
+  Seitenangabe in jedem Errata-Kopf. An einem echten Aboleth-Statblock löst das AC, HP,
+  CR, DC, XP und die sechs Attributskürzel auf.
 - **Dubletten/Präzedenz** über `quellen.prioritaet` (dt. Quellen < DDB < Open5e; die
   Bänder stehen in `importer/quellen.py`, s. u.). Echte **Quellkonflikte gleicher
   Edition** werden nicht still entschieden, sondern ausgewiesen (SYN-P1-009).

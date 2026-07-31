@@ -358,6 +358,20 @@ def markiere(begriff_de: str, term_en: str, offiziell: bool) -> str:
 # Rauschen erzeugen.
 _MIN_LEMMA = 4
 
+# Die eine Ausnahme davon: ABKUERZUNGEN (Glossar-Zeilen aus `config/abkuerzungen.py`,
+# quelle='abkuerzung'). Der Grund fuer die Schwelle greift bei ihnen nicht - 'AC', 'DC',
+# 'HP' sind keine Alltagswoerter, sondern Grossbuchstaben-Kuerzel, die typisch vor einer
+# Zahl stehen. Und sie sind die Stelle, an der eine deutsche Antwort am leisesten
+# englisch bleibt: "AC 15", "DC 14", "8d6" liest sich unauffaellig und ist doch die
+# englische Notation.
+#
+# Sie matchen deshalb GROSS-/KLEINSCHREIBUNGSGENAU, anders als alle anderen Lemmata. Das
+# ist hier kein Detail, sondern die ganze Sicherung: 'PP' ist die Platinmuenze, 'pp.' die
+# Seitenangabe in einem Errata-Kopf; 'CP' die Kupfermuenze, 'cp' irgendein Wortstueck.
+# Ohne diese Unterscheidung produzierte die Ausnahme genau das Rauschen, das die Schwelle
+# oben verhindern soll.
+_ABKUERZUNGS_QUELLE = "abkuerzung"
+
 # Englische Lemmata, die als Alltagswort im Fliesstext viel haeufiger vorkommen als der
 # gleichnamige Spielbegriff - kontextfreies Matching mappt sie sonst falsch (beobachtet:
 # 'chest' [Brustkorb] -> 'Kiste'; 'ready' [bereit] -> 'Vorbereiten'). Als reines
@@ -408,14 +422,25 @@ def begriffe_im_text(con: sqlite3.Connection, text: str, *,
         return []
     text_low = text.lower()
     beste: dict[str, dict] = {}
+    genau: dict[str, dict] = {}                       # Abkuerzungen, schreibungsgenau
     for z in _alle_zeilen(con):                      # SYN-P2-004: gecacht
         en = z["term_en"]
-        if not en or len(en) < _MIN_LEMMA or en.lower() in _HOMONYM_STOP:
+        if not en:
+            continue
+        ist_abk = (z["quelle"] or "") == _ABKUERZUNGS_QUELLE
+        if not ist_abk and (len(en) < _MIN_LEMMA or en.lower() in _HOMONYM_STOP):
             continue
         if nur_offiziell and not z["offiziell"]:
             continue
         if not z["term_de"] or norm_begriff(en) == norm_begriff(z["term_de"]):
             continue                                  # keine echte Uebersetzung -> uninteressant
+        if ist_abk:
+            if en not in text:                        # case-sensitiver Vortest
+                continue
+            vorher = genau.get(en)
+            if vorher is None or auswahlschluessel(z) < auswahlschluessel(vorher):
+                genau[en] = z
+            continue
         enl = en.lower()
         if enl not in text_low:                       # schneller C-Vortest vor dem Regex
             continue
@@ -424,6 +449,8 @@ def begriffe_im_text(con: sqlite3.Connection, text: str, *,
             beste[enl] = z
     treffer = [z for z in beste.values()
                if re.search(r"\b" + re.escape(z["term_en"]) + r"\b", text, re.IGNORECASE)]
+    treffer += [z for z in genau.values()
+                if re.search(r"\b" + re.escape(z["term_en"]) + r"\b", text)]
     treffer.sort(key=lambda z: z["term_en"].lower())
     return treffer[:max_treffer]
 

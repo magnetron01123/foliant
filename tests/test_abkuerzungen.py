@@ -139,3 +139,79 @@ def test_kein_englisches_kuerzel_schleicht_sich_als_deutsches_ein():
         n_de = len(re.findall(rf"\b{deutsches_gegenstueck}\b", text))
         assert n_de > n_en, (
             f"'{englisch}' steht {n_en}x, '{deutsches_gegenstueck}' {n_de}x im dt. SRD")
+
+
+# --------------------------------------------------------------- Alle drei Kanäle
+# Davids Einwand (31.07.2026): "Ich gehe davon aus, dass leider nicht alle die
+# Projektanweisung nutzen." Genau richtig - Kanal 2 muss jede Person selbst in ihr
+# Claude-Projekt kopieren. Deshalb traegt die Regel auf allen drei Wegen, und der
+# WICHTIGSTE davon ist der, den niemand einrichten muss: die Tool-Ausgabe.
+
+def test_hinweis_kommt_bei_jeder_regelauskunft_mit():
+    """Kanal 3, der einzige, den JEDE Antwort mitfuehrt (SPEC.md §7). Faellt er weg, haengt
+    die Abkuerzungsregel daran, dass jemand die Projektanweisung eingerichtet hat."""
+    from app.tools import ausgabe as aus
+
+    hinweis = aus.HINWEIS_ABKUERZUNGEN
+    for kurz in ("RK", "TP", "SG", "HG", "EP", "ÜB", "STÄ", "W20"):
+        assert kurz in hinweis, f"{kurz} fehlt im Ausgabe-Hinweis"
+    for englisch in ("AC", "HP", "DC", "d20"):
+        assert englisch in hinweis, f"{englisch} fehlt (muss als 'nicht schreiben' dastehen)"
+    assert "S12" in hinweis
+
+
+def test_hinweis_wird_aus_dem_register_gebaut():
+    """Nicht abgeschrieben: kommt eine Abkuerzung ins Register, steht sie auch im Hinweis.
+    Eine Kopie liefe der Liste beim ersten Zuwachs davon."""
+    from app.tools import ausgabe as aus
+
+    quelltext = (aus._baue_abkuerzungs_hinweis.__code__.co_consts,)
+    gebaut = aus._baue_abkuerzungs_hinweis()
+    assert gebaut == aus.HINWEIS_ABKUERZUNGEN
+    assert abk.EMPFOHLEN[0][0] in gebaut and abk.ATTRIBUTE[0][0] in gebaut
+
+
+def test_tool_beschreibungen_nennen_die_regel():
+    """Kanal 2 im MCP-Sinn: Die Tool-Beschreibungen liefert der Server mit dem Schema aus -
+    jeder Client bekommt sie, ohne dass jemand etwas einrichtet."""
+    from tests.test_verhaltensregeln import _tool_beschreibungen
+
+    beschreibungen = _tool_beschreibungen()
+    for werkzeug in ("foliant_suche_bestand", "foliant_hol_eintrag"):
+        text = beschreibungen[werkzeug]
+        assert "DEUTSCH" in text and "RK" in text, f"{werkzeug} nennt die Regel nicht"
+    assert "Abkuerzungen" in beschreibungen["foliant_uebersetze_begriff"]
+
+
+def test_englische_abkuerzung_im_regeltext_wird_aufgeloest():
+    """Der praktische Fall: ein englischer Statblock ('AC 17', 'CR 10', '150 HP'). Ohne
+    Aufloesung uebernimmt eine Antwort die englischen Kuerzel woertlich - sie fallen in
+    einem deutschen Satz nicht auf.
+
+    Die Erkennung ist schreibungsGENAU, und das ist die Sicherung: 'pp.' in einem
+    Errata-Kopf darf nicht zur Platinmuenze werden."""
+    from app import glossar as g
+    from importer.import_glossar import seed_abkuerzungen
+
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row          # wie die echten Verbindungen (app/db.connect)
+    con.execute("CREATE TABLE glossar (id INTEGER PRIMARY KEY, term_en TEXT NOT NULL, "
+                "term_de TEXT NOT NULL, offiziell INTEGER NOT NULL, quelle TEXT, "
+                "edition_quelle TEXT, seite TEXT)")
+    con.execute("CREATE UNIQUE INDEX idx ON glossar(term_en, term_de)")
+    seed_abkuerzungen(con)
+    con.commit()
+    g.leere_cache()                        # sonst liest der Test einen fremden Bestand
+
+    text = "Aboleth: AC 17, HP 150, CR 10 (5900 XP). Make a DC 14 STR save."
+    treffer = {z["term_en"]: z["term_de"] for z in g.begriffe_im_text(con, text)}
+    for kurz, erwartet in (("AC", "Rüstungsklasse"), ("HP", "Trefferpunkte"),
+                           ("CR", "Herausforderungsgrad"), ("DC", "Schwierigkeitsgrad"),
+                           ("XP", "Erfahrungspunkte"), ("STR", "Stärke")):
+        assert treffer.get(kurz) == erwartet, (kurz, treffer.get(kurz))
+
+    # Gegenprobe: kleingeschrieben darf NICHT anschlagen (ausser 'gp', s. ZUSATZ_ALIASSE)
+    falle = "The backpack (pp. 27-28) has a clasp; accepting cp is fine."
+    tr = {z["term_en"] for z in g.begriffe_im_text(con, falle)}
+    assert "PP" not in tr and "CP" not in tr, tr
+    con.close()

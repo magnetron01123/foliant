@@ -46,6 +46,23 @@ HINWEIS_DB_FEHLT = ("Der Regelbestand ist noch leer (keine Datenbank/keine Impor
 
 _HINWEIS_STERN = "* = keine offizielle deutsche Uebersetzung (einmal erlaeutern, S5)"
 
+# S12: aus dem EINEN Register (config/abkuerzungen.py) gebaut, nicht abgeschrieben - sonst
+# liefe der Hinweis der Liste davon, sobald eine Abkuerzung dazukommt.
+def _baue_abkuerzungs_hinweis() -> str:
+    from config import abkuerzungen as _abk
+
+    deutsch = " · ".join(f"{k} ({lang})" for k, lang, _en, _n in _abk.EMPFOHLEN[:6])
+    attribute = ", ".join(k for k, _lang, _en in _abk.ATTRIBUTE)
+    englisch = ", ".join(en for _k, _lang, en, _n in _abk.EMPFOHLEN[:6] if en)
+    return (f"Wenn du abkuerzt, nimm die OFFIZIELLE DEUTSCHE Form: {deutsch}. "
+            f"Attribute: {attribute}. Wuerfel deutsch (8W6, W20 - nie 8d6/d20). "
+            f"Die englischen Kuerzel ({englisch}, gp) musst du VERSTEHEN, aber nie "
+            f"schreiben. Kennst du die deutsche Abkuerzung nicht, schreib den Begriff aus - "
+            f"eine erfundene Abkuerzung ist schlimmer als keine (S12).")
+
+
+HINWEIS_ABKUERZUNGEN = _baue_abkuerzungs_hinweis()
+
 def _verbinde() -> sqlite3.Connection | None:
     # SYN-P1-005/TECH-020: Serving-Verbindungen sind READ-ONLY - die Tools schreiben nie,
     # und so kann auch eine kompromittierte Laufzeit den Bestand nicht veraendern.
@@ -352,6 +369,17 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
                     "*-System NICHT durch Prosa wie 'sinngemaess uebertragen' ersetzen und "
                     "nichts unuebersetzt englisch stehen lassen (S3/S5).")
         d["hinweis_uebersetzung"] = hinweis
+    # S12: Abkuerzungen sind die leiseste Stelle, an der eine deutsche Antwort englisch
+    # bleibt - "AC 15", "DC 14", "8d6" fallen in einem deutschen Satz nicht auf. Der
+    # Hinweis haengt NICHT am englischen Text: auch eine Antwort aus deutscher Quelle
+    # kann englisch abkuerzen, wenn das Modell die Kuerzel aus seinem Training nimmt.
+    #
+    # Bewusst hier und nicht nur in der Instruktion: Von den drei Verhaltenskanaelen ist
+    # dieser der einzige, den JEDE Antwort mitfuehrt. Die Projektanweisung muss jede
+    # Person selbst in ihr Claude-Projekt kopieren - wer das nicht tut, hatte bis zum
+    # 31.07.2026 keine Abkuerzungsregel (SPEC.md §7: die Grounding-Hinweise sind der
+    # zuverlaessigste Kanal).
+    d["hinweis_abkuerzungen"] = HINWEIS_ABKUERZUNGEN
     fac = _facetten_von(con, e)
     if fac:
         d["facetten"] = fac

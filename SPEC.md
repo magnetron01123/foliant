@@ -106,6 +106,13 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
   muss dagegen verstanden werden und zum deutschen Eintrag führen. Das Register steht in
   `config/abkuerzungen.py`; jede empfohlene Form ist im deutschen SRD 5.2.1 belegt und
   wird dagegen getestet — erfunden wird keine (Regel 1).
+  Die Regel läuft über **alle drei Kanäle** (§7), und das ist hier nicht Redundanz,
+  sondern die eigentliche Zusage: Die Projektanweisung muss jede Person selbst
+  einrichten — wer das nicht tut, bekäme sonst keine. Deshalb trägt sie erstens jede
+  Tool-Ausgabe (`hinweis_abkuerzungen`), zweitens die Tool-Beschreibungen, die der Server
+  mit dem Schema ausliefert, und drittens die Instruktion. Zusätzlich löst die Ausgabe
+  englische Kürzel, die im Regeltext stehen, in `begriffe_deutsch` auf — aus „AC 17,
+  CR 10" wird die Zuordnung mitgeliefert, statt sie nur anzumahnen.
 
 > **Beispiel:** Inhalt aus „Ravenloft: Horrors Within" (EN, nicht übersetzt) → der Regeltext
 > bleibt englisch mit seiner Regelversion. Die deutschen Begriffe kommen aus „Van Richtens

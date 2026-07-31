@@ -25,7 +25,7 @@ from app import facetten as _facetten
 from app import glossar as _glossar
 from app import protokoll as _protokoll
 from app.tools.ausgabe import (
-    _HINWEIS_PARAMETER, HINWEIS_ALT, HINWEIS_DB_FEHLT, HINWEIS_LEER, _knapp, _markiere_inhaltsart, _reichere_facetten_an,
+    _HINWEIS_PARAMETER, HINWEIS_ABKUERZUNGEN, HINWEIS_ALT, HINWEIS_DB_FEHLT, HINWEIS_LEER, _knapp, _markiere_inhaltsart, _reichere_facetten_an,
     _verbinde,
 )
 
@@ -273,6 +273,8 @@ def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25,
     # Spoiler-Kennzeichnung auch im reinen Struktur-Pfad (A2) - hier gibt es keinen
     # Suchbegriff, also auch keine Namensrelevanz zu bewerten.
     _markiere_inhaltsart(con, antwort, treffer)
+    if treffer:
+        antwort["hinweis_abkuerzungen"] = HINWEIS_ABKUERZUNGEN
     if not treffer:
         antwort["hinweis"] = ("Kein Eintrag im Bestand passt auf ALLE Filter - ehrlicher "
                               "Nulltreffer (nicht raten, nichts aus Allgemeinwissen ergaenzen); "
@@ -433,6 +435,10 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
                 "im Bestand ist (z. B. nicht SRD-lizenziert). Treffer kritisch pruefen und "
                 "im Zweifel ehrlich 'nicht gefunden' sagen, statt Unpassendes auszugeben (B1).")
         _markiere_inhaltsart(con, antwort, *listen)
+        # S12: Die Auszuege tragen englische Kuerzel ('AC 17', '8d6') in die Antwort -
+        # wer aus ihnen formuliert, braucht die Regel hier, nicht nur im Detailabruf.
+        if antwort.get("treffer"):
+            antwort["hinweis_abkuerzungen"] = HINWEIS_ABKUERZUNGEN
         _reichere_facetten_an(con, *listen)
         return antwort
     finally:
@@ -460,7 +466,8 @@ def foliant_suche_bestand(suchbegriff: str | None = None, kategorie: Kategorie |
     Parameterwerte werden mit 'fehler' abgelehnt - das bedeutet NICHT 'nicht im Bestand'.
     Beim 2024-Standard kommen aeltere Staende getrennt als 'aeltere_staende'; bei explizit
     anderer Edition heissen weitere Fassungen neutral 'andere_fassungen'. KERNREGELN: nur
-    aus dem Bestand; Quelle + Regelversion nennen; Deutsch-first (Original in Klammern)."""
+    aus dem Bestand; Quelle + Regelversion nennen; Deutsch-first (Original in Klammern);
+    Abkuerzungen DEUTSCH (RK/TP/SG/HG, W20 - nie AC/HP/DC/d20)."""
     start = time.monotonic()
     antwort = _suche_bestand_impl(suchbegriff, kategorie, edition, quelle_kuerzel,
                                   grad, schule, klasse, schadensart, hg, typ)

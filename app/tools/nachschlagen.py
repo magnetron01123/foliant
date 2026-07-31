@@ -556,7 +556,8 @@ def foliant_hol_eintrag(kategorie: Kategorie, name: str | None = None,
     laesst sich gezielt anfordern und wird nie still ersetzt. Bei Mehrdeutigkeit kommen
     Kandidaten zurueck - dann rueckfragen statt raten.
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
-    Deutsch-first (Original in Klammern)."""
+    Deutsch-first (Original in Klammern); Abkuerzungen DEUTSCH (RK/TP/SG/HG, W20 -
+    nie AC/HP/DC/d20)."""
     start = time.monotonic()
     d = _hole_detail(kategorie, name, edition, eintrag_id=eintrag_id,
                      aggregiere_kinder=kategorie in _KINDER_AGGREGATION)
@@ -586,8 +587,10 @@ def foliant_uebersetze_begriff(begriff: str,
     samt Herkunft; offiziell=false bedeutet: mit '*' kennzeichnen ('* keine offizielle
     deutsche Uebersetzung', S5). Ohne EXAKTEN Eintrag kommen hoechstens
     'aehnliche_begriffe' (Schreibvarianten) zurueck - die sind KEINE bestaetigte
-    Uebersetzung des angefragten Begriffs. KERNREGELN: englisches Original immer in
-    Klammern; nichts erfinden - kein Treffer heisst kein offizieller Begriff."""
+    Uebersetzung des angefragten Begriffs. Versteht auch Abkuerzungen in BEIDEN Sprachen
+    (AC/DC/CR/d20/STR ebenso wie RK/SG/HG/W20/STAE) - ausgegeben wird die deutsche Form.
+    KERNREGELN: englisches Original immer in Klammern; nichts erfinden - kein Treffer
+    heisst kein offizieller Begriff."""
     start = time.monotonic()
     antwort = _uebersetze_begriff_impl(begriff, richtung)
     if "fehler" in antwort:

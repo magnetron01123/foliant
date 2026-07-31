@@ -74,6 +74,14 @@ ZUSATZ_ALIASSE: list[tuple[str, str]] = [
     ("AoO", "Gelegenheitsangriff"), ("THP", "Temporäre Trefferpunkte"),
     ("ASI", "Attributswerterhöhung"),
     ("Armor Class", "RK"), ("Difficulty Class", "SG"), ("Hit Points", "TP"),
+    # Kleingeschrieben, weil die englischen Buecher es so setzen ('Cost: 25.00 gp') und
+    # die Abkuerzungs-Erkennung schreibungsGENAU arbeitet. NUR 'gp': es ist mit 456
+    # Treffern die einzige haeufige Muenzform im englischen Bestand und kollidiert mit
+    # keinem Wort. 'sp' kommt dort kein einziges Mal vor, 'cp' und 'pp' je einmal - und
+    # 'pp' waere geradezu gefaehrlich, weil es als Seitenangabe in jedem Errata-Kopf
+    # steht ('(pp. 27-28)'). Ein Alias, der Seitenzahlen zu Platinmuenzen macht, waere
+    # schlimmer als der fehlende Treffer.
+    ("gp", "Goldmünze"),
 ]
 
 # Begriffspaare, die dnddeutsch (noch) nicht kennt, die aber aus den BEIDEN SRD-Bestaenden
