@@ -55,6 +55,12 @@ _TRAGENDE_REGELN = [
     ("Gegenprobe vor dem Leerbefund", "foliant_suche_bestand"),
     ("gekuerzte Trefferliste", "hinweis_gekuerzt"),
     ("Spoiler-Kennzeichnung der Quelle", "abenteuer_setting"),
+    # Schema v3: Errata und Regelauslegung stehen als eigene Quellen NEBEN dem Grundtext
+    # (nie in ihm). Damit das Modell sie richtig behandelt, muss in beiden Kanaelen
+    # stehen, was sie sind - sonst zitiert es eine Korrektur wie eine eigene Regel oder
+    # verschweigt sie, wenn es die korrigierte Stelle wiedergibt.
+    ("Errata sind Korrektur, kein Regeltext", "errata"),
+    ("Regelauslegung ist kein Regelwortlaut", "regelauslegung"),
     # Eval-Volllauf 26.07.2026 (Fall D3): der Server wies die abweichende englische
     # Vampir-Fassung als 'fremdsprachige_fassungen' aus, aber KEIN Kanal sagte dem
     # Modell, was es damit tun soll - es gab still nur die deutsche Fassung aus.
@@ -85,9 +91,21 @@ def test_instruktion_bleibt_kompakt():
     """Die Instruktion liegt bei JEDER Verbindung im Kontext. Waechst sie unbegrenzt,
     verduennt sie sich selbst: je mehr Regeln, desto weniger Gewicht je Regel.
 
-    7500 ist ein Budget mit Luft, keine Klippe - der Stand liegt bei ~6000. Loest der
-    Test aus, ist die Frage nicht "Grenze anheben", sondern welche Regel dafuer raus
-    kann oder in die Tool-Ausgabe gehoert (der zuverlaessigere Kanal, SPEC.md §7)."""
+    Loest der Test aus, ist die Frage nicht "Grenze anheben", sondern welche Regel dafuer
+    raus kann oder in die Tool-Ausgabe gehoert (der zuverlaessigere Kanal, SPEC.md §7).
+
+    Wie eng es wirklich war (31.07.2026): Hier stand "ein Budget mit Luft ... der Stand
+    liegt bei ~6000" - gemessen waren es 7398. Die Instruktion war seit dem Schreiben
+    dieses Satzes um rund 1400 Zeichen gewachsen, ohne dass jemand nachsah. Der dritte
+    Weg loeste es ohne Regelverlust: ENTDOPPELN. Der Abschnitt "QUELLEN & VERSION" sagte
+    dasselbe wie die Belegzeilen- und die Altstand-Regel darueber (und fehlte im zweiten
+    Kanal ganz), die "erste Nennung" stand zweimal da.
+
+    Der so gewonnene Platz ging noch am selben Tag fuer die Abkuerzungsregel (S12) drauf -
+    weshalb hier bewusst KEINE aktuelle Zahl mehr steht. Sie veraltet schneller, als
+    jemand sie nachtraegt, und eine falsche Zahl im Docstring ist genau das, was diesen
+    Test ueberhaupt noetig machte. Wer den Stand wissen will, misst ihn:
+    `len(config.stil.INSTRUCTIONS)`."""
     assert len(INSTRUCTIONS) < 7500, (
         f"stil.py INSTRUCTIONS: {len(INSTRUCTIONS)} Zeichen - erst kuerzen, dann anheben")
 

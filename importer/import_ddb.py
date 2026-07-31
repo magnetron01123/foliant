@@ -28,11 +28,15 @@ from importer import schwellen as _schwellen
 from importer.ddb_artefakt import pruefe_artefakt
 from importer.facetten_seeder import seed_facetten
 from importer.import_markdown import _chunks
+from importer import quellen as _quellen
 from importer.quellen import registriere_quelle
 
 # DDB-Re-Importe duerfen nicht still schrumpfen; Schwelle in importer/schwellen.py
 MIN_REIMPORT_RATIO = _schwellen.DDB_SCHRUMPF_SCHWELLE
-_DDB_PRIORITAET = 40        # unter deutschen Buchquellen (10-30), ueber Open5e (60)
+# Band statt eigener Zahl (31.07.2026): die 40 stand hier ohne Bezug zu den 10/20/60 der
+# Config und der 60 des Open5e-Imports - vier Stellen, die dieselbe Rangfolge unabhaengig
+# voneinander behaupteten. Jetzt kommt sie aus importer/quellen.py, wo auch steht, warum.
+_DDB_PRIORITAET = _quellen.BAND_EN_KAUFBUCH
 
 # Generische Kapitel-/Abschnittstitel aus dem DDB-RenderedHTML (TOC-Landeseiten), die als
 # eigene Eintraege in Options-Kategorien lecken: 'Species Descriptions' als Spezies, 'Feats'
@@ -87,6 +91,11 @@ def buch_aus_manifest(artefakt: str | Path, prioritaet: int = _DDB_PRIORITAET) -
     # Feld gelten sonst als Regelwerk (nicht ablehnen).
     inhaltsart = ("abenteuer_setting" if kuerzel in _ABENTEUER_SETTING_KUERZEL
                   else m.get("inhaltsart", "regelwerk"))
+    # Errata und Regelauslegung stehen in ihrem eigenen Band, egal wie sie hereinkamen:
+    # sie ergaenzen den Grundtext und duerfen ihn nicht ueberholen. Ein Sage-Advice-Band
+    # aus DDB waere sonst mit 40 gleichauf mit dem Player's Handbook.
+    if inhaltsart in ("errata", "regelauslegung"):
+        prioritaet = _quellen.BAND_REVISION
     return {"id": m.get("ddb_source_id"), "kuerzel": kuerzel, "titel": m["title"],
             "sprache": m["language"], "edition": m["edition"],
             "lizenz": m.get("license", "privat"), "prioritaet": prioritaet,

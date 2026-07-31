@@ -163,6 +163,14 @@ SPLIT_REGELN: dict[str, list[tuple[str, int, str | None]]] = {
     "phb-2014-de": [(r"", 6, "regel")],
     "xgte-2014-de": [(r"", 6, "regel")],
     "scag-2014-de": [(r"", 6, "regel")],
+    # Errata-PDFs (WotC, offizielle Korrekturen). Ihre Eintragsebene entsteht erst durch
+    # _errata_headings unten, das aus den fetten Absatzkoepfen H3-Ueberschriften macht -
+    # deshalb Level 3. Kategorie durchgehend 'regel': ein Erratum ist keine Regel ihrer
+    # Kategorie, sondern eine AUSSAGE UEBER eine; es nach Zauber/Monster zu sortieren
+    # waere geraten, solange die Rubriken der PDFs nicht am echten Dokument geprueft sind.
+    "errata-phb-2024-en": [(r"", 3, "regel")],
+    "errata-dmg-2024-en": [(r"", 3, "regel")],
+    "errata-mm-2025-en": [(r"", 3, "regel")],
 }
 
 
@@ -320,7 +328,87 @@ def _srd_de_reparatur(markdown: str) -> str:
     return markdown
 
 
+# Ein fetter Absatzkopf am ZEILENANFANG - so leiten Errata-PDFs ihre Korrekturen ein.
+# Was dahinter kommt, entscheidet _errata_headings; hier wird nur der Kandidat gefasst.
+_ERRATA_FETTKOPF = re.compile(r"^\*\*(?P<fett>[^*\n]+?)\*\*(?P<rest>[^\n]*)", re.M)
+# Eine Seitenangabe in Klammern: '(p. 30)', '(pp. 27-28)', '(page 30)', '(pp. 12, 40)'.
+_ERRATA_SEITE = re.compile(r"\(\s*(?:pp?\.|page)\s*([\d–—,\s-]+?)\s*\)")
+
+
+def _errata_headings(markdown: str) -> str:
+    """Aus den fetten Absatzkoepfen eines Errata-PDFs echte Ueberschriften machen.
+
+    Warum ueberhaupt: Errata-PDFs haben keine Heading-Struktur, die pymupdf4llm erkennen
+    koennte - jede Korrektur ist ein Absatz. Ohne diesen Schritt entstuende EIN Riesen-
+    Chunk je Rubrik, in dem die Suche nichts findet (derselbe Fehler wie bei den
+    2014-Scans, Befund 27.07.2026).
+
+    Der Eintragsname wird der Name der BETROFFENEN REGEL - nur so findet das Erratum, wer
+    nach der Regel sucht. Genau darum kollidiert es im Bestand mit dem Grundtext, und
+    genau deshalb nimmt app/db._dedupe_und_sortiere Revisionsquellen aus der
+    Dublettengruppe heraus.
+
+    Die Seite im GRUNDBUCH wandert in den Body, nicht nach `eintraege.seite`: dort steht
+    die Fundstelle in DIESER Quelle (also im Errata-PDF selbst, aus den Seitenmarkern).
+    Eine Buchseite in dieses Feld zu schreiben hiesse zu behaupten, das Erratum stuende
+    dort - es sagt nur etwas UEBER diese Seite.
+
+    ZWEI Fettvarianten, beide real (Review-Befund 31.07.2026 - die zweite fehlte und liess
+    ihre Korrekturen lautlos im vorherigen Chunk verschwinden):
+      '**Jumping (p. 182).** Text'   - Seite INNERHALB der Fettung
+      '**Jumping** (p. 182). Text'   - nur der Name fett, Seite dahinter
+
+    Die ERSTE Seitenangabe gilt. Ein Kopf kann eine zweite als Querverweis fuehren
+    ('Jumping (p. 182). See also Long Jump (p. 27).'); der frueher einteilige Regex
+    backtrackte dort bis zur letzten und schrieb sowohl den falschen Namen als auch die
+    falsche Buchseite in den Eintrag.
+
+    ACHTUNG, an echten Daten noch nicht justiert (31.07.2026): Die drei Errata-PDFs lagen
+    bei der Umsetzung nicht vor, das Muster ist aus dem veroeffentlichten Aufbau
+    abgeleitet. Deshalb zaehlt die Bilanz KANDIDATEN gegen ERKANNTE: ein Kopf, der nicht
+    passt, faellt so auf, statt still im vorherigen Eintrag zu landen. Beim ersten echten
+    Import die Bilanzzeile lesen."""
+    erkannt = kandidaten = 0
+
+    def ersetze(m: re.Match) -> str:
+        nonlocal erkannt, kandidaten
+        kandidaten += 1
+        fett, rest = m.group("fett"), m.group("rest")
+        treffer = _ERRATA_SEITE.search(fett)
+        if treffer:                                   # Seite innerhalb der Fettung
+            name, seite = fett[:treffer.start()], treffer.group(1)
+            schwanz = fett[treffer.end():].lstrip(" .") + rest
+        else:                                         # Seite direkt hinter der Fettung
+            vorne = rest.lstrip()
+            treffer = _ERRATA_SEITE.match(vorne)
+            if not treffer:
+                return m.group(0)                     # kein Korrektur-Kopf -> unveraendert
+            name, seite = fett, treffer.group(1)
+            schwanz = vorne[treffer.end():].lstrip(" .")
+        erkannt += 1
+        # Auszeichnung aus dem NAMEN nehmen: die Errata setzen Zaubernamen teils kursiv
+        # ('**_Fireball_ (p. 275).**'), und die Unterstriche wanderten sonst in den
+        # Eintragsnamen - '_Fireball_' faende weder die Suche noch die Glossar-Bruecke.
+        name = name.strip().strip("_*").strip(" .")
+        return (f"### {name}\n\n**Offizielle Korrektur zu S. {seite.strip()} im "
+                f"Grundbuch.** {schwanz.strip()}")
+
+    ergebnis = _ERRATA_FETTKOPF.sub(ersetze, markdown)
+    if not erkannt:
+        _BILANZ.greift_nicht("_errata_headings (kein Korrektur-Kopf mit Seitenangabe)")
+    elif erkannt < kandidaten:
+        # Teiltreffer sind der gefaehrlichere Fall: der Import laeuft durch, ein Teil der
+        # Korrekturen hat aber keinen eigenen Eintrag und haengt am Vorgaenger.
+        _BILANZ.greift_nicht(
+            f"_errata_headings ({kandidaten - erkannt} von {kandidaten} fetten Koepfen "
+            f"ohne erkennbare Seitenangabe)")
+    return ergebnis
+
+
 BEREINIGUNG: dict[str, list] = {
+    "errata-phb-2024-en": [_errata_headings],
+    "errata-dmg-2024-en": [_errata_headings],
+    "errata-mm-2025-en": [_errata_headings],
     # srd-de (SYN-P0-004/P1-010, Synthese 2026-07-12): Strukturreparaturen als Callable,
     # danach Textpolitur. Reihenfolge: Struktur zuerst (Anker enthalten Laufkopf-freie
     # Absaetze nicht zwingend), dann Laufkopf/Risse.

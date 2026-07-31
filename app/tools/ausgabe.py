@@ -8,7 +8,7 @@ stehen.
 
 Warum eine eigene Datei (30.07.2026): Diese Schicht lag verstreut in nachschlagen.py,
 und app/tools/charakter.py borgte sie sich ueber sieben Zugriffe auf fremde
-Modul-Interna (_ns.HINWEIS_LEER, _ns._anzeige_name, _ns._markiere_abenteuer ...).
+Modul-Interna (_ns.HINWEIS_LEER, _ns._anzeige_name, _ns._markiere_inhaltsart ...).
 Beide Werkzeug-Module brauchen dieselbe Ausgabe - jetzt importieren sie sie, statt dass
 eines ins andere hineingreift. Der Zuschnitt ist am Code geprueft: keine Funktion hier
 ruft etwas aus dem Such- oder Detailpfad, die Schicht ist geschlossen.
@@ -45,6 +45,23 @@ HINWEIS_DB_FEHLT = ("Der Regelbestand ist noch leer (keine Datenbank/keine Impor
                     "dass noch keine Quellen importiert sind - erfinde keine Regeln (B1).")
 
 _HINWEIS_STERN = "* = keine offizielle deutsche Uebersetzung (einmal erlaeutern, S5)"
+
+# S12: aus dem EINEN Register (config/abkuerzungen.py) gebaut, nicht abgeschrieben - sonst
+# liefe der Hinweis der Liste davon, sobald eine Abkuerzung dazukommt.
+def _baue_abkuerzungs_hinweis() -> str:
+    from config import abkuerzungen as _abk
+
+    deutsch = " · ".join(f"{k} ({lang})" for k, lang, _en, _n in _abk.EMPFOHLEN[:6])
+    attribute = ", ".join(k for k, _lang, _en in _abk.ATTRIBUTE)
+    englisch = ", ".join(en for _k, _lang, en, _n in _abk.EMPFOHLEN[:6] if en)
+    return (f"Wenn du abkuerzt, nimm die OFFIZIELLE DEUTSCHE Form: {deutsch}. "
+            f"Attribute: {attribute}. Wuerfel deutsch (8W6, W20 - nie 8d6/d20). "
+            f"Die englischen Kuerzel ({englisch}, gp) musst du VERSTEHEN, aber nie "
+            f"schreiben. Kennst du die deutsche Abkuerzung nicht, schreib den Begriff aus - "
+            f"eine erfundene Abkuerzung ist schlimmer als keine (S12).")
+
+
+HINWEIS_ABKUERZUNGEN = _baue_abkuerzungs_hinweis()
 
 def _verbinde() -> sqlite3.Connection | None:
     # SYN-P1-005/TECH-020: Serving-Verbindungen sind READ-ONLY - die Tools schreiben nie,
@@ -91,41 +108,103 @@ def _knapp(t: dict, con: sqlite3.Connection | None = None) -> dict:
         k["weitere_quellen"] = t["weitere_quellen"]
     return k
 
-def _abenteuer_kuerzel(con: sqlite3.Connection) -> set[str]:
-    """Kuerzel aller Abenteuer-/Setting-Quellen - EIN Query ueber eine ~15-zeilige Tabelle.
+# Der Hinweis je Inhaltsart - EINMAL formuliert, in beiden Ausgabewegen (Trefferliste
+# ueber _markiere_inhaltsart, Einzelabruf ueber _detail) derselbe Wortlaut.
+#
+# Dreiteilig (Symbol, WORAUS der Treffer stammt, WAS daraus folgt), damit beide Wege
+# denselben Text tragen koennen: die Trefferliste sagt "N Treffer stammen aus <woraus>:
+# <folge>", der Einzelabruf "Dieser Eintrag stammt aus <woraus>: <folge>". Vorher stand
+# der Abenteuer-Satz zweimal ausgeschrieben da und lief in den Klammerzusaetzen bereits
+# auseinander.
+#
+# Warum drei getrennte Texte und nicht ein "Achtung, Sonderquelle": weil die drei Faelle
+# etwas voellig Verschiedenes verlangen. Beim Abenteuerband soll das Modell Inhalte
+# VERSCHWEIGEN, bei Errata soll es sie ZUSAETZLICH nennen (und die Korrektur gewinnen
+# lassen), bei einer Auslegung soll es sie als Auslegung KENNZEICHNEN statt als Regeltext
+# zu zitieren. Ein gemeinsamer Text muesste alles drei zugleich sagen und saegte damit am
+# Spoiler-Schutz, der obersten Regel.
+#
+# 'regelwerk' steht bewusst NICHT drin: der Normalfall traegt keine Kennzeichnung, sonst
+# verliert die Kennzeichnung ihre Bedeutung.
+INHALTSART_HINWEISE: dict[str, tuple[str, str, str]] = {
+    "abenteuer_setting": (
+        "🚫", "einem ABENTEUER-/SETTING-Band (nur fuer Terminologie/Werte geladen)",
+        "Handlung, Geheimnisse und Ortsdetails NIE wiedergeben (Spoiler-Schutz, oberste "
+        "Regel); reine Regel-/Wertangaben sind ok."),
+    "errata": (
+        "📌", "einer ERRATA-Quelle (offizielle Korrektur zum Grundtext)",
+        "KEIN eigenstaendiger Regeltext: Grundtext UND Korrektur zusammen wiedergeben und "
+        "sagen, dass die Korrektur gilt. Nie als eigene Regel zitieren - und nie "
+        "verschweigen, wenn du den korrigierten Text nennst."),
+    "regelauslegung": (
+        "⚖️", "einer OFFIZIELLEN REGELAUSLEGUNG (Sage Advice)",
+        "KEIN Regeltext: als Auslegung kennzeichnen ('offizielle Auslegung, kein "
+        "Regelwortlaut'), nie als Regelzitat ausgeben und nie mit dem Wortlaut des "
+        "Regeltexts vermischen."),
+}
+
+def _inhaltsart_je_kuerzel(con: sqlite3.Connection) -> dict[str, str]:
+    """Kuerzel -> inhaltsart fuer alle Quellen, die KEIN schlichtes Regelwerk sind -
+    EIN Query ueber eine ~15-zeilige Tabelle.
 
     Review 28.07.2026 (Spoiler-Schutz, oberste Regel): `hinweis_inhaltsart` sass nur im
     Detail-Abruf. Die Trefferliste liefert aber bereits Volltext-Auszuege - ein Modell
     konnte also aus einem Abenteuerband zitieren, ohne die Kennzeichnung je gesehen zu
     haben (belegt: Suche 'Beholder' lieferte 'Zombie March' aus Ravenloft, unmarkiert).
-    Defensiv gegen Bestands-DBs ohne die Spalte (vor der v2-Migration importiert)."""
-    try:
-        return {r[0] for r in con.execute(
-            "SELECT kuerzel FROM quellen WHERE inhaltsart = 'abenteuer_setting'")}
-    except sqlite3.OperationalError:
-        return set()
+    Dasselbe Argument gilt seit v3 fuer Errata und Regelauslegung, nur mit umgekehrtem
+    Vorzeichen: dort ist die Gefahr, dass eine Korrektur wie normaler Regeltext zitiert
+    wird.
 
-def _markiere_abenteuer(con: sqlite3.Connection, antwort: dict, *listen: list[dict]) -> None:
-    """Treffer aus Abenteuer-/Setting-Baenden kennzeichnen und einen Sammelhinweis setzen -
-    dieselbe Aussage wie HINWEIS_INHALTSART im Detail, nur schon in der Trefferliste."""
-    kuerzel = _abenteuer_kuerzel(con)
-    if not kuerzel:
+    `!= 'regelwerk'` statt einer Werte-Aufzaehlung: eine kuenftig ergaenzte Inhaltsart
+    faellt damit automatisch auf, statt still als Regelwerk durchzugehen. Unbekannte
+    Werte bekommen unten keinen Hinweistext, aber das Feld am Treffer - sichtbar statt
+    verschluckt. Defensiv gegen Bestands-DBs ohne die Spalte (vor der v2-Migration
+    importiert): der SERVING-Pfad migriert nicht."""
+    try:
+        return {r[0]: r[1] for r in con.execute(
+            "SELECT kuerzel, inhaltsart FROM quellen WHERE inhaltsart != 'regelwerk'")}
+    except sqlite3.OperationalError:
+        return {}
+
+def _markiere_inhaltsart(con: sqlite3.Connection, antwort: dict, *listen: list[dict]) -> None:
+    """Treffer aus Sonderquellen kennzeichnen und je Art einen Sammelhinweis setzen -
+    dieselbe Aussage wie im Detail, nur schon in der Trefferliste."""
+    je_kuerzel = _inhaltsart_je_kuerzel(con)
+    if not je_kuerzel:
         return
-    betroffen = 0
+    betroffen: dict[str, int] = {}
     for liste in listen:
         for k in liste:
-            if k.get("quelle_kuerzel") in kuerzel:
-                k["inhaltsart"] = "abenteuer_setting"
-                betroffen += 1
-    # Die Kennzeichnung am EINZELNEN Treffer wird immer gesetzt; der Sammelhinweis nur,
-    # wenn nicht schon ein spezifischerer dasteht. Im Detail-Pfad hat _detail bereits
-    # gesagt "DIESER Eintrag stammt aus einem Abenteuerband" - das ist die praezisere
-    # Aussage und darf nicht von der Zaehlung ueberschrieben werden.
-    if betroffen and "hinweis_inhaltsart" not in antwort:
-        antwort["hinweis_inhaltsart"] = (
-            f"🚫 {betroffen} Treffer stammen aus einem ABENTEUER-/SETTING-Band (Feld "
-            f"inhaltsart): Handlung, Geheimnisse und Ortsdetails NIE wiedergeben "
-            f"(Spoiler-Schutz, oberste Regel); reine Regel-/Wertangaben sind ok.")
+            art = je_kuerzel.get(k.get("quelle_kuerzel"))
+            if art:
+                k["inhaltsart"] = art
+                betroffen[art] = betroffen.get(art, 0) + 1
+    if not betroffen:
+        return
+    # Die Kennzeichnung am EINZELNEN Treffer wird immer gesetzt. Beim Sammelhinweis hat
+    # ein bereits vorhandener Vorrang: Im Detail-Pfad hat _detail schon gesagt "DIESER
+    # Eintrag stammt aus ..." - die praezisere Aussage, die keine Zaehlung ueberschreiben
+    # darf.
+    #
+    # Er darf sie aber auch nicht VERDRAENGEN. Bis dahin brach die Funktion hier ab, sobald
+    # irgendein Hinweis stand - solange nur Abenteuerbaende gekennzeichnet wurden, war das
+    # folgenlos (derselbe Text). Mit Errata und Auslegung nicht mehr: liefert der Detail-
+    # Pfad ein ERRATUM (📌) und steht in den Nebenlisten ein ABENTEUERBAND, fiel dessen
+    # 🚫-Hinweis lautlos weg - der Spoiler-Schutz, also die oberste Regel, verschwand
+    # hinter einer Korrektur-Meldung (Review-Befund 31.07.2026, reproduziert).
+    # Deshalb: nur die Arten ueberspringen, die der vorhandene Hinweis schon nennt.
+    schon = antwort.get("hinweis_inhaltsart")
+    if schon:
+        betroffen = {art: n for art, n in betroffen.items()
+                     if INHALTSART_HINWEISE.get(art, ("",))[0] not in schon}
+        if not betroffen:
+            return
+    teile = [f"{symbol} {betroffen[art]} Treffer "
+             f"{'stammt' if betroffen[art] == 1 else 'stammen'} aus {woraus}: {folge}"
+             for art, (symbol, woraus, folge) in INHALTSART_HINWEISE.items()
+             if art in betroffen]
+    if teile:
+        antwort["hinweis_inhaltsart"] = " | ".join(([schon] if schon else []) + teile)
 
 def _reichere_facetten_an(con: sqlite3.Connection, *treffer_listen: list[dict]) -> None:
     """#2: knappe Zauber-/Monster-Treffer um eine kompakte Facette ('Grad 3' bzw. 'HG 1')
@@ -252,23 +331,23 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
             d["attribution"] = ("Enthaelt Material aus dem System Reference Document "
                                 "5.2.1 von Wizards of the Coast LLC, lizenziert unter "
                                 "CC-BY-4.0.")
-    # SYN-P0-007: Abenteuer-/Setting-Quellen sind bewusst geladen (Terminologie), aber
-    # jede Antwort daraus traegt die Kennzeichnung - Spoiler-Schutz und 'kein finales
-    # Spieler-Regelwerk' duerfen nicht allein am Quellentitel haengen. Defensiv gegen
-    # Bestands-DBs ohne die Spalte (vor der Migration importiert).
+    # SYN-P0-007: Sonderquellen sind bewusst geladen - Abenteuerbaende wegen der
+    # Terminologie, Errata und Auslegungen wegen ihres Inhalts -, aber jede Antwort daraus
+    # traegt die Kennzeichnung. Spoiler-Schutz und 'kein Regeltext' duerfen nicht allein am
+    # Quellentitel haengen. Defensiv gegen Bestands-DBs ohne die Spalte (vor der Migration
+    # importiert).
     try:
         art = con.execute(
             "SELECT q.inhaltsart FROM quellen q JOIN eintraege e2 ON e2.quelle_id = q.id "
             "WHERE e2.id = ?", (e["id"],)).fetchone()
     except sqlite3.OperationalError:
         art = None
-    if art and art[0] == "abenteuer_setting":
+    if art and art[0] and art[0] != "regelwerk":
         d["inhaltsart"] = art[0]
-        d["hinweis_inhaltsart"] = (
-            "🚫 Dieser Eintrag stammt aus einem ABENTEUER-/SETTING-Band (nur fuer "
-            "Terminologie/Werte geladen): Handlung, Geheimnisse und Ortsdetails NIE "
-            "wiedergeben (Spoiler-Schutz, oberste Regel); reine Regel-/Wertangaben "
-            "sind ok.")
+        kennzeichen = INHALTSART_HINWEISE.get(art[0])
+        if kennzeichen:
+            symbol, woraus, folge = kennzeichen
+            d["hinweis_inhaltsart"] = f"{symbol} Dieser Eintrag stammt aus {woraus}: {folge}"
     if e["edition"] != _db.STANDARD_EDITION:
         d["hinweis_alter_stand"] = HINWEIS_ALT
     if e.get("sprache") == "en":
@@ -277,19 +356,42 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
         # (Warlock-Test 13.07.2026: Cloudkill/Bane/Greater Invisibility blieben englisch,
         # obwohl das Glossar Todeswolke/Verderben/Maechtige Unsichtbarkeit kennt).
         treffer = _glossar.begriffe_im_text(con, e.get("body_md") or "")
+        # Abkuerzungen getrennt ausweisen: Sie sind etwas anderes als ein Fachbegriff -
+        # 'AC' wird nicht "uebersetzt", sondern durch die deutsche Notation ERSETZT, und
+        # das Original gehoert dabei NICHT in Klammern dahinter ("RK (AC) 17" waere
+        # Unsinn). In einem Topf gaben beide dieselbe Anweisung, obwohl sie
+        # Verschiedenes verlangen.
+        begriffe = [z for z in treffer if (z["quelle"] or "") != "abkuerzung"]
+        kuerzel = [z for z in treffer if (z["quelle"] or "") == "abkuerzung"]
         hinweis = ("Regeltext liegt nur ENGLISCH vor. Antworte dennoch auf Deutsch und "
                    "uebersetze JEDEN englischen Fachbegriff: ")
-        if treffer:
-            d["begriffe_deutsch"] = {z["term_en"]: z["term_de"] for z in treffer}
+        if begriffe:
+            d["begriffe_deutsch"] = {z["term_en"]: z["term_de"] for z in begriffe}
             hinweis += ("die in 'begriffe_deutsch' aufgefuehrten Begriffe tragen die "
                         "OFFIZIELLE deutsche Form - diese verwenden (Original in Klammern, "
                         "KEIN *). ")
+        if kuerzel:
+            d["abkuerzungen_deutsch"] = {z["term_en"]: z["term_de"] for z in kuerzel}
+            hinweis += ("Die in 'abkuerzungen_deutsch' aufgefuehrten KUERZEL durch ihre "
+                        "deutsche Form ersetzen ('AC 17' -> 'RK 17') - hier gehoert das "
+                        "englische Kuerzel NICHT in Klammern dahinter. ")
         hinweis += ("Jeden weiteren englischen Fachbegriff (Merkmals-/Zaubernamen), der dort "
                     "nicht steht, konsistent deutsch wiedergeben und mit * markieren "
                     "('* keine offizielle deutsche Uebersetzung', einmal erlaeutern). Das "
                     "*-System NICHT durch Prosa wie 'sinngemaess uebertragen' ersetzen und "
                     "nichts unuebersetzt englisch stehen lassen (S3/S5).")
         d["hinweis_uebersetzung"] = hinweis
+    # S12: Abkuerzungen sind die leiseste Stelle, an der eine deutsche Antwort englisch
+    # bleibt - "AC 15", "DC 14", "8d6" fallen in einem deutschen Satz nicht auf. Der
+    # Hinweis haengt NICHT am englischen Text: auch eine Antwort aus deutscher Quelle
+    # kann englisch abkuerzen, wenn das Modell die Kuerzel aus seinem Training nimmt.
+    #
+    # Bewusst hier und nicht nur in der Instruktion: Von den drei Verhaltenskanaelen ist
+    # dieser der einzige, den JEDE Antwort mitfuehrt. Die Projektanweisung muss jede
+    # Person selbst in ihr Claude-Projekt kopieren - wer das nicht tut, hatte bis zum
+    # 31.07.2026 keine Abkuerzungsregel (SPEC.md §7: die Grounding-Hinweise sind der
+    # zuverlaessigste Kanal).
+    d["hinweis_abkuerzungen"] = HINWEIS_ABKUERZUNGEN
     fac = _facetten_von(con, e)
     if fac:
         d["facetten"] = fac

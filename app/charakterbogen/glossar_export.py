@@ -30,8 +30,12 @@ import sys
 
 # Die Quellen-Spalten, die ins Web dürfen - als Positivliste, nicht als Ausschluss:
 # eine neue interne Spalte in `quellen` landet damit NICHT versehentlich im Web.
+# `versions_stand` ist dabei, weil er die Frage beantwortet, die die Seite sonst offen
+# laesst: WELCHE Fassung eines Buches steht im Bestand (Druckauflage, Errata-Stand).
+# `importiert_am`, `quell_url` und `quell_hash` bleiben bewusst intern - sie sagen etwas
+# ueber den Betrieb, nicht ueber die Regelauskunft.
 QUELLEN_SPALTEN = ("kuerzel", "titel", "sprache", "edition", "herkunft", "lizenz",
-                   "inhaltsart")
+                   "inhaltsart", "versions_stand")
 
 
 def _kopiere_glossar(src: sqlite3.Connection, dst: sqlite3.Connection) -> int:

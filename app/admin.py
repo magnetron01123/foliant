@@ -9,11 +9,13 @@ Beispiele:
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import sqlite3
 import sys
 from pathlib import Path
 
 from app import db as _db
+from importer import quellen as _quellen
 from importer.quellen import STANDARD_PRIORITAET, registriere_quelle
 
 
@@ -50,6 +52,30 @@ def cmd_status(_args) -> None:
     off = c.execute("SELECT count(*) FROM glossar WHERE offiziell=1").fetchone()[0]
     print(f"\nGlossar: {g} Begriffe ({off} offiziell, {g - off} mit '*')")
     c.close()
+
+
+def _datei_hash(pfad) -> str | None:
+    """sha256 der Quelldatei zum Importzeitpunkt - oder None, wenn es keine EINE Datei
+    gibt (Verzeichnis-Import) oder sie nicht lesbar ist.
+
+    Wozu: Der Bestand konnte bisher nicht sagen, WELCHE Fassung eines Buches drinsteckt.
+    Der korpusweite `inhalts_hash` (admin manifest) beantwortet eine andere Frage - er
+    aendert sich bei jedem Import irgendeiner Quelle. Kommt spaeter eine korrigierte
+    Auflage derselben PDF, faellt der Unterschied hier auf, statt unbemerkt zu bleiben.
+
+    Ein Fehlschlag ist bewusst kein Importabbruch: die Provenienz ist eine Zugabe, ihr
+    Fehlen macht den Regeltext nicht falsch. Lieber eine Quelle ohne Hash als ein
+    verweigerter Import wegen einer Nebensache."""
+    try:
+        if not pfad or not pfad.is_file():
+            return None
+        h = hashlib.sha256()
+        with open(pfad, "rb") as f:
+            for block in iter(lambda: f.read(1 << 20), b""):
+                h.update(block)
+        return h.hexdigest()
+    except OSError:
+        return None
 
 
 def cmd_import(args) -> None:
@@ -148,10 +174,14 @@ def cmd_import(args) -> None:
                 sys.exit(
                     f"Quelle '{kuerzel}': inhaltsart fehlt in der config - Import "
                     f"abgelehnt (SYN-P0-007). Trage im [[quelle]]-Block genau eine der "
-                    f"beiden Zeilen ein:\n"
+                    f"folgenden Zeilen ein:\n"
                     f"  inhaltsart = \"regelwerk\"            # Regelband\n"
                     f"  inhaltsart = \"abenteuer_setting\"    # Abenteuer-/Kampagnenband "
-                    f"-> Spoiler-Schutz")
+                    f"-> Spoiler-Schutz\n"
+                    f"  inhaltsart = \"errata\"               # offizielle Korrektur zum "
+                    f"Grundtext\n"
+                    f"  inhaltsart = \"regelauslegung\"       # offizielle Auslegung "
+                    f"(Sage Advice), kein Regeltext")
             # A7: Quellen-Upsert + Ersetzen + FTS-Rebuild in EINER Transaktion - sonst
             # koennte ein fehlgeschlagener Import geaenderte Quellen-Metadaten (z. B.
             # edition) neben alten Eintraegen zuruecklassen (A8-Konsistenz).
@@ -162,7 +192,10 @@ def cmd_import(args) -> None:
                     herkunft=eintrag.get("herkunft", "pdf"), lizenz=eintrag.get("lizenz"),
                     prioritaet=eintrag.get("prioritaet", STANDARD_PRIORITAET),
                     dateipfad=eintrag.get("dateipfad"),
-                    inhaltsart=eintrag["inhaltsart"])   # oben als Pflicht geprueft
+                    inhaltsart=eintrag["inhaltsart"],   # oben als Pflicht geprueft
+                    versions_stand=eintrag.get("versions_stand"),
+                    quell_url=eintrag.get("quell_url"),
+                    quell_hash=_datei_hash(p))
                 n = importiere_markdown(c, kuerzel, markdown, edition=eintrag["edition"],
                                         kategorie=eintrag.get("kategorie", "regel"),
                                         erlaube_schrumpfen=force)
@@ -365,7 +398,11 @@ def cmd_ocr_pdf(args) -> None:
 
 
 _METADATEN = ("titel", "sprache", "edition", "herkunft", "lizenz", "prioritaet",
-              "inhaltsart")
+              "inhaltsart", "versions_stand", "quell_url")
+# `quell_hash` und `importiert_am` stehen bewusst NICHT hier: beide sind Aussagen ueber
+# einen tatsaechlichen IMPORTVORGANG, nicht ueber die Config. Sie hier mitzuziehen hiesse,
+# einen Hash fortzuschreiben, dessen Datei niemand gelesen hat - eine Provenienz, die
+# nichts belegt, ist schlimmer als keine.
 
 
 def cmd_quellen_auffrischen(args) -> None:
@@ -392,7 +429,7 @@ def cmd_quellen_auffrischen(args) -> None:
     c = _con(getattr(args, "db", None))
     try:
         vorher = {r["kuerzel"]: dict(r) for r in c.execute(
-            f"SELECT kuerzel, dateipfad, {', '.join(_METADATEN)} FROM quellen")}
+            f"SELECT kuerzel, dateipfad, quell_hash, {', '.join(_METADATEN)} FROM quellen")}
         bloecke = [q for q in _db.lade_konfig().get("quelle", [])
                    if q.get("kuerzel") in vorher]
         aenderungen: list[str] = []
@@ -413,7 +450,14 @@ def cmd_quellen_auffrischen(args) -> None:
                     c, kuerzel=kuerzel, titel=wert("titel"), sprache=wert("sprache"),
                     edition=wert("edition"), herkunft=wert("herkunft"),
                     lizenz=wert("lizenz"), prioritaet=wert("prioritaet"),
-                    dateipfad=wert("dateipfad"), inhaltsart=wert("inhaltsart"))
+                    dateipfad=wert("dateipfad"), inhaltsart=wert("inhaltsart"),
+                    versions_stand=wert("versions_stand"), quell_url=wert("quell_url"),
+                    # Hash und Importzeit gehoeren zu einem IMPORT, nicht zu einer
+                    # Metadaten-Pflege: hier wurde keine Datei gelesen. Beide bleiben
+                    # deshalb stehen, statt geleert oder auf "jetzt" gesetzt zu werden -
+                    # A8 gilt fuer die Config-Felder, nicht fuer Belege eines frueheren
+                    # Laufs.
+                    quell_hash=steht.get("quell_hash"), setze_importzeit=False)
                 nachher = dict(c.execute(
                     f"SELECT kuerzel, {', '.join(_METADATEN)} FROM quellen "
                     f"WHERE kuerzel = ?", (kuerzel,)).fetchone())
@@ -470,6 +514,70 @@ def _spoilerverdacht(c: sqlite3.Connection) -> list[tuple[str, str]]:
         if any(w in f"{r[0]} {r[1]}".lower() for w in _SPOILER_WOERTER)]
 
 
+def _pruefe_inhaltsarten(c: sqlite3.Connection) -> int:
+    """Meldet Quellen mit einem inhaltsart-Wert ausserhalb von `INHALTSARTEN`.
+
+    Das ist die Haelfte, die ein CHECK NICHT leisten kann: Er verhindert neue falsche
+    Werte, findet aber keine vorhandenen - und auf einer Datenbank, deren Spalte per
+    ALTER TABLE entstand, gibt es ihn gar nicht (der Pi hat keinen). Seit v3 traegt das
+    Schema deshalb bewusst keinen CHECK mehr auf diese Spalte, und diese Pruefung ist die
+    Gegenprobe zum Validator in `registriere_quelle`.
+
+    FEHLER, nicht Warnung: ein verschriebenes 'abenteur_setting' nimmt einem Band den
+    Spoiler-Schutz - die oberste Verhaltensregel -, und zwar lautlos: alles, was nicht
+    exakt 'abenteuer_setting' heisst, gilt der Ausgabe als unmarkiert."""
+    unbekannt = [(r[0], r[1], r[2]) for r in c.execute(
+        "SELECT kuerzel, titel, inhaltsart FROM quellen")
+        if r[2] not in _quellen.INHALTSARTEN]
+    for kuerzel, titel, wert in unbekannt:
+        print(f"UNBEKANNTE inhaltsart: '{kuerzel}' ({titel}) traegt {wert!r} - erlaubt ist "
+              f"{' oder '.join(sorted(_quellen.INHALTSARTEN))}  FEHLER")
+
+    # Gegenrichtung: eine Datenbank, die den ALTEN v2-CHECK noch traegt, LEHNT die neuen
+    # Werte ab - der erste Errata-Import bricht dort mit 'IntegrityError: CHECK constraint
+    # failed' ab. Der Schema-Nachzug kann das nicht heilen: einen CHECK aendert SQLite nur
+    # ueber einen Tabellen-Neuaufbau, und der gehoert nicht automatisch in einen
+    # Migrationspunkt, der bei jedem Verbindungsaufbau laeuft (DROP TABLE auf dem
+    # Produktionsbestand). Deshalb hier gemeldet statt still gemacht - mit dem Weg dazu.
+    tabelle = c.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='quellen'").fetchone()
+    definition = (tabelle[0] if tabelle else "") or ""
+    if "inhaltsart IN" in definition and "errata" not in definition:
+        print("VERALTETER CHECK auf quellen.inhaltsart (Stand v2): diese Datenbank nimmt "
+              "'errata'/'regelauslegung' NICHT an - der Import braeche mit IntegrityError "
+              "ab. Beheben: Bestand sichern ('admin backup'), dann quellen einmalig neu "
+              "aufbauen (CREATE ohne CHECK, INSERT SELECT, DROP, RENAME) oder die "
+              "Datenbank frisch importieren.  FEHLER")
+        return len(unbekannt) + 1
+    return len(unbekannt)
+
+
+def _pruefe_prioritaetsbaender(c: sqlite3.Connection) -> None:
+    """Meldet Quellen, deren `prioritaet` nicht im Band ihrer Klasse liegt
+    (importer/quellen.band_fuer).
+
+    WARNUNG, kein Fehler: die Baender sind eine Konvention, keine Invariante. Innerhalb
+    einer Klasse ist Feinsortierung ausdruecklich erlaubt (Open5e legt einen Laufindex
+    drauf), und eine bewusste Ausnahme soll man setzen koennen, ohne dass `check` rot
+    wird. Was die Meldung verhindert, ist der andere Fall: eine Zahl, die niemand mehr
+    begruenden kann, weil sie aus einer Zeit stammt, als vier Stellen unabhaengig
+    vergaben - genau der Zustand vor dem 31.07.2026.
+
+    Der Nutzen ist die VERGLEICHBARKEIT: steht ein deutsches Kernregelwerk ploetzlich bei
+    60, ist das keine Feinsortierung mehr, sondern eine vertauschte Rangfolge - und die
+    entscheidet, welcher Text bei einer Dublette gewinnt."""
+    zeilen = c.execute(
+        "SELECT kuerzel, titel, sprache, edition, herkunft, inhaltsart, lizenz, prioritaet "
+        "FROM quellen ORDER BY prioritaet, kuerzel").fetchall()
+    for q in zeilen:
+        band = _quellen.band_fuer(sprache=q["sprache"], edition=q["edition"],
+                                  herkunft=q["herkunft"], inhaltsart=q["inhaltsart"],
+                                  lizenz=q["lizenz"])
+        if not _quellen.band_passt(q["prioritaet"], band):
+            print(f"Prioritaets-Band pruefen: '{q['kuerzel']}' ({q['titel']}) hat "
+                  f"prioritaet={q['prioritaet']}, erwartet {band}-{band + 9}  WARNUNG")
+
+
 def cmd_check(_args) -> None:
     """Konsistenz- und Mini-Qualitaetschecks (O3-Unterstuetzung); ausfuehrlicher:
     tests/smoke_test.py gegen echte Daten."""
@@ -498,6 +606,8 @@ def cmd_check(_args) -> None:
     for kuerzel, titel in _spoilerverdacht(c):
         print(f"Spoiler-Kennzeichnung pruefen: '{kuerzel}' ({titel}) traegt "
               f"inhaltsart='regelwerk'  WARNUNG")
+    fehler += _pruefe_inhaltsarten(c)
+    _pruefe_prioritaetsbaender(c)
 
     # --- QS-Pruefungen (11.07.2026): Struktur + Textqualitaet automatisch ueberwachen ---
     # PRAGMA integrity/foreign_key: harte Strukturfehler.

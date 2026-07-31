@@ -304,3 +304,126 @@ def test_2014_scans_ueberspringen_endlose_anhaenge():
     namen = [c["name"] for c in chunks]
     assert "KAVALIER" in namen
     assert not any(n.startswith("ANHANG E") for n in namen), namen
+
+
+# --------------------------------------------------------------------------- Errata
+
+# Aufbau eines offiziellen WotC-Errata-PDFs: keine Heading-Struktur, die der Konverter
+# erkennen koennte - jede Korrektur ist ein Absatz mit fettem Kopf aus betroffener Regel
+# und Seite im Grundbuch. Ohne Vorverarbeitung entstuende EIN Riesen-Chunk je Rubrik.
+_ERRATA_MD = """\
+# Player's Handbook Errata
+
+## Chapter 1: Playing the Game
+
+**Jumping (p. 30).** The rules for jumping clarify that your Speed is halved.
+
+**Difficulty Class (pp. 27-28).** The DC table replaces the old one.
+
+## Chapter 7: Spells
+
+**Fireball (p. 275).** The spell's damage is 8d6, not 6d6.
+"""
+
+
+def test_errata_werden_je_korrektur_ein_eintrag():
+    """Der Eintragsname ist die BETROFFENE REGEL - nur so findet das Erratum, wer nach
+    der Regel sucht. Und die Seite im Grundbuch steht im BODY, nicht in `eintraege.seite`:
+    dort steht die Fundstelle in DIESER Quelle, und das Erratum steht nicht auf S. 275,
+    es sagt nur etwas ueber sie."""
+    from importer.import_markdown import BEREINIGUNG, SPLIT_REGELN, _chunks
+
+    md = _ERRATA_MD
+    for schritt in BEREINIGUNG["errata-phb-2024-en"]:
+        md = schritt(md)
+    chunks = _chunks(md, kategorie_standard="regel",
+                     split_regeln=SPLIT_REGELN["errata-phb-2024-en"])
+    namen = [c["name"] for c in chunks]
+    assert "Jumping" in namen and "Difficulty Class" in namen and "Fireball" in namen, namen
+    feuerball = next(c for c in chunks if c["name"] == "Fireball")
+    assert "8d6" in feuerball["body"]
+    assert "S. 275" in feuerball["body"]          # Buchseite als Aussage IM Text
+    assert feuerball["kategorie"] == "regel"
+    # Gegenprobe: ohne die Vorverarbeitung bleibt nur das Kapitel uebrig
+    ohne = [c["name"] for c in _chunks(_ERRATA_MD, kategorie_standard="regel",
+                                       split_regeln=SPLIT_REGELN["errata-phb-2024-en"])]
+    assert "Fireball" not in ohne, ohne
+
+
+def test_errata_kopf_deckt_die_realen_schreibweisen_ab():
+    """Die veroeffentlichten Errata schreiben ihre Koepfe nicht einheitlich. Geprueft an
+    den Varianten, die real vorkommen - jede verfehlte Form waere ein Absatz, der ohne
+    eigenen Eintrag im Riesen-Chunk verschwindet.
+
+    Der kursive Fall ist der Grund fuer die Namensbereinigung: '**_Fireball_ (p. 275).**'
+    haette sonst einen Eintrag namens '_Fireball_' erzeugt - den findet weder die Suche
+    noch die Glossar-Bruecke."""
+    from importer.import_markdown import _errata_headings
+
+    faelle = {
+        "**Jumping (p. 30).** Text.": "### Jumping",
+        "**Difficulty Class (pp. 27-28).** Text.": "### Difficulty Class",
+        "**Cover (page 30).** Text.": "### Cover",
+        "**Jumping (p. 30)**. Text.": "### Jumping",          # Punkt ausserhalb der Sterne
+        "**Rules (pp. 27\u201328).** Text.": "### Rules",         # Gedankenstrich
+        "**Grappled (pp. 12, 40).** Text.": "### Grappled",   # mehrere Seiten
+        "**_Fireball_ (p. 275).** Text.": "### Fireball",     # kursiv -> Name bereinigt
+        "**Oil (flask) (p. 30).** Text.": "### Oil (flask)",  # Klammer IM Namen bleibt
+    }
+    for probe, erwartet in faelle.items():
+        assert _errata_headings(probe).split("\n")[0] == erwartet, probe
+    # Nicht zu gierig: Buchstaben gehoeren nicht in eine Seitenangabe.
+    ungreifbar = "**Weapons (p. 12 and see also 40).** Text."
+    assert not _errata_headings(ungreifbar).startswith("###")
+
+
+def test_errata_erste_seitenangabe_gilt():
+    """Review-Befund 31.07.2026: Ein Kopf kann eine ZWEITE Seitenangabe als Querverweis
+    fuehren. Der frueher einteilige Regex backtrackte bis zur letzten und schrieb beides
+    falsch - den Namen ('Jumping (p. 182). See also Long Jump') und die Buchseite (27
+    statt 182). Eine falsche Fundstelle ist schlimmer als keine: sie sieht belegt aus."""
+    from importer.import_markdown import _errata_headings
+
+    aus = _errata_headings(
+        "**Jumping (p. 182). See also Long Jump (p. 27).** Your jump distance ...")
+    assert aus.split("\n")[0] == "### Jumping", aus.split("\n")[0]
+    assert "S. 182" in aus and "S. 27 im Grundbuch" not in aus, aus
+
+
+def test_errata_erkennt_beide_fettformen():
+    """Zwei reale Schreibweisen, und die zweite fehlte (Review-Befund 31.07.2026):
+    '**Jumping (p. 182).**' hat die Seite INNERHALB der Fettung, '**Jumping** (p. 182).'
+    dahinter. Nicht erkannte Koepfe bekommen keinen eigenen Eintrag - ihre Korrektur
+    haengt dann stumm am Vorgaenger."""
+    from importer.import_markdown import _errata_headings
+
+    aus = _errata_headings(
+        "**Cover (p. 30).** Erste.\n\n**Jumping** (p. 182). Zweite.\n")
+    assert "### Cover" in aus and "### Jumping" in aus, aus
+    assert "S. 30" in aus and "S. 182" in aus, aus
+
+
+def test_errata_meldet_auch_einen_TEILtreffer():
+    """Der gefaehrlichere Fall als 'gar nichts erkannt': der Import laeuft durch, ein Teil
+    der Korrekturen hat aber keinen eigenen Eintrag. Ohne Zaehlung faellt das niemandem
+    auf - die Bilanz meldete frueher nur, wenn KEIN Kopf passte."""
+    from importer.import_markdown import _errata_headings, letzte_bilanz
+
+    letzte_bilanz().wirkungslos.clear()
+    _errata_headings("**Cover (p. 30).** Erste.\n\n**Kapitel 2**\n\n**Ohne Seite** Text.")
+    meldung = " ".join(letzte_bilanz().wirkungslos)
+    assert "_errata_headings" in meldung and "2 von 3" in meldung, meldung
+    letzte_bilanz().wirkungslos.clear()
+
+
+def test_errata_muster_meldet_sich_wenn_es_nicht_greift():
+    """Das Muster ist an den veroeffentlichten PDFs abgeleitet, aber nie an ihnen
+    JUSTIERT worden (sie lagen bei der Umsetzung nicht vor). Fuehrt eine kuenftige
+    Fassung einen anderen Kopf, darf das nicht still einen Riesen-Chunk erzeugen -
+    dann muss die Bilanz es als WIRKUNGSLOS ausweisen (D1)."""
+    from importer.import_markdown import _errata_headings, letzte_bilanz
+
+    letzte_bilanz().wirkungslos.clear()
+    _errata_headings("## Chapter 1\n\nEine Korrektur ganz ohne fetten Kopf.\n")
+    assert any("_errata_headings" in w for w in letzte_bilanz().wirkungslos)
+    letzte_bilanz().wirkungslos.clear()

@@ -506,3 +506,36 @@ def test_die_csp_erlaubt_keine_inline_stile():
 
     csp = _HTML_HEADER["Content-Security-Policy"]
     assert "style-src 'self'" in csp and "unsafe-inline" not in csp
+
+
+def test_buchliste_ueberlebt_eine_aeltere_web_db(tmp_path):
+    """Die Web-DB wird von aussen erneuert und migriert NICHT mit dem Code: nach einem
+    Deploy kann der neue Code auf eine alte Datei treffen.
+
+    Beim Zuwachs um `versions_stand` (31.07.2026) sprengte eine feste Spaltenliste im
+    SELECT genau dort die Abfrage - und der Rueckfall verschluckte daraufhin die
+    KOMPLETTE Buchliste statt nur des fehlenden Feldes. Die Seite behauptet ueber dieser
+    Liste woertlich, sie sei "immer aktuell"; sie stattdessen ganz wegfallen zu lassen,
+    ist der schlechteste aller Ausgaenge."""
+    from starlette.testclient import TestClient
+    from app.charakterbogen import web as w
+
+    web_db = tmp_path / "alt_glossar_web.sqlite"
+    con = sqlite3.connect(web_db)
+    con.executescript(
+        "CREATE TABLE glossar (term_en TEXT, term_de TEXT, offiziell INT, quelle TEXT,"
+        " edition_quelle TEXT, seite TEXT);"
+        # Ohne `versions_stand` - der Stand VOR dem Schema-Zuwachs.
+        "CREATE TABLE quellen (kuerzel TEXT, titel TEXT, sprache TEXT, edition TEXT,"
+        " herkunft TEXT, lizenz TEXT, inhaltsart TEXT, eintraege INTEGER);")
+    con.execute("INSERT INTO quellen VALUES ('srd-de','SRD 5.2.1','de','2024',"
+                "'pdf','CC-BY-4.0','regelwerk',3000)")
+    con.commit()
+    con.close()
+
+    app = w.erstelle_app(glossar_pfad=str(web_db), passwort="geheim")
+    client = TestClient(app)
+    client.post("/anmeldung", data={"kennwort": "geheim"})
+    seite = client.get("/").text
+    assert "SRD 5.2.1" in seite            # die Liste steht, trotz fehlender Spalte
+    assert "Regeln 2024" in seite          # und die Regelstand-Marke auch

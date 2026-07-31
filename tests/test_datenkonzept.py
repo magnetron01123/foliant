@@ -47,7 +47,12 @@ def _baue_db(tmp_path, name="foliant.sqlite"):
 # --------------------------------------------------------------------------- #2
 
 def test_schema_ensure_zieht_inhaltsart_nach_und_setzt_version(tmp_path):
-    """Alt-DB (v0, quellen OHNE inhaltsart) -> connect() zieht Spalte nach + user_version=2."""
+    """Alt-DB (v0, quellen OHNE inhaltsart) -> connect() zieht Spalte nach + user_version=3.
+
+    Seit v3 gehoeren die vier Provenienz-Spalten dazu. Sie werden mitgeprueft, weil sie
+    denselben Weg gehen und derselbe Fehler sie treffen wuerde: `CREATE TABLE IF NOT
+    EXISTS` in schema.sql legt einer BESTEHENDEN Tabelle keine Spalte an - ohne den
+    ALTER-Nachzug bekaeme der Pi sie erst bei einem Neuaufbau der Datenbank."""
     pfad = tmp_path / "alt.sqlite"
     con = sqlite3.connect(pfad)
     con.execute("CREATE TABLE quellen (id INTEGER PRIMARY KEY, kuerzel TEXT UNIQUE NOT NULL, "
@@ -63,24 +68,26 @@ def test_schema_ensure_zieht_inhaltsart_nach_und_setzt_version(tmp_path):
 
     c = adb.connect(str(pfad))                           # der Migrationspunkt
     try:
-        assert "inhaltsart" in {r[1] for r in c.execute("PRAGMA table_info(quellen)")}
-        assert c.execute("PRAGMA user_version").fetchone()[0] == 2
+        spalten = {r[1] for r in c.execute("PRAGMA table_info(quellen)")}
+        assert "inhaltsart" in spalten
+        assert {"importiert_am", "versions_stand", "quell_url", "quell_hash"} <= spalten
+        assert c.execute("PRAGMA user_version").fetchone()[0] == 3
     finally:
         c.close()
     adb.connect(str(pfad)).close()                       # idempotent: zweiter Aufruf kein Fehler
 
 
 def test_schema_ensure_senkt_hoehere_version_nicht(tmp_path):
-    """Eine kuenftige v3 darf NICHT auf 2 zurueckgesetzt werden (nur anheben)."""
-    pfad = tmp_path / "v3.sqlite"
+    """Eine kuenftige v4 darf NICHT auf 3 zurueckgesetzt werden (nur anheben)."""
+    pfad = tmp_path / "v4.sqlite"
     con = sqlite3.connect(pfad)
     con.execute("CREATE TABLE quellen (id INTEGER PRIMARY KEY, inhaltsart TEXT)")
-    con.execute("PRAGMA user_version = 3")
+    con.execute("PRAGMA user_version = 4")
     con.commit()
     con.close()
     c = adb.connect(str(pfad))
     try:
-        assert c.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert c.execute("PRAGMA user_version").fetchone()[0] == 4
     finally:
         c.close()
 
@@ -296,3 +303,72 @@ def test_ranking_faltet_diakritika_wie_die_gruppierung():
     assert not rueckfaelle, \
         f"{len(rueckfaelle)}x die ungefaltete Kopie db._norm statt norm_begriff"
     assert norm_begriff("Flüche") == norm_begriff("Fluche")
+
+
+def test_neue_db_nimmt_alle_inhaltsarten_an(tmp_path):
+    """Eine frisch angelegte Datenbank muss alle vier inhaltsart-Werte annehmen.
+
+    Vorgeschichte (31.07.2026): Das Schema trug einen CHECK auf diese Spalte. Beim Zuwachs
+    um 'errata'/'regelauslegung' zeigte sich, dass er eine Migrationsfalle ist - `CREATE
+    TABLE IF NOT EXISTS` erneuert eine BESTEHENDE Tabelle nicht, `ALTER TABLE` erzeugt
+    keine Constraint, und der alte CHECK quittierte den ersten Errata-Import mit
+    'IntegrityError'. Der Wertraum steht seither allein in `importer/quellen.INHALTSARTEN`,
+    und dieser Test haelt fest, dass das Schema ihn nicht wieder einschraenkt."""
+    import pytest
+    from importer.quellen import INHALTSARTEN, registriere_quelle
+
+    pfad = tmp_path / "frisch.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(_SCHEMA.read_text(encoding="utf-8"))
+    con.commit()
+    con.close()
+
+    c = adb.connect(str(pfad))
+    try:
+        for art in sorted(INHALTSARTEN):
+            registriere_quelle(c, kuerzel=f"q-{art}", titel="T", sprache="en",
+                               edition="2024", herkunft="pdf", inhaltsart=art)
+        c.commit()
+        assert {r[0] for r in c.execute("SELECT inhaltsart FROM quellen")} == INHALTSARTEN
+        # Der Validator bleibt die Leitplanke - ein Tippfehler kommt weiterhin nicht durch,
+        # und zwar auf JEDER Datenbank, auch ohne CHECK (SPEC.md par. 7: alles ausser
+        # 'abenteuer_setting' gilt der Ausgabe als unmarkiert).
+        with pytest.raises(ValueError, match="inhaltsart"):
+            registriere_quelle(c, kuerzel="q-tippfehler", titel="T", sprache="en",
+                               edition="2024", herkunft="pdf", inhaltsart="abenteur_setting")
+    finally:
+        c.close()
+
+
+def test_check_meldet_eine_datenbank_mit_veraltetem_check(tmp_path, capsys):
+    """Eine Datenbank, die den alten v2-CHECK noch traegt, kann der Schema-Nachzug NICHT
+    heilen (einen CHECK aendert SQLite nur ueber einen Tabellen-Neuaufbau, und ein
+    automatischer DROP TABLE auf dem Produktionsbestand ist kein Migrationsschritt).
+
+    Also muss sie wenigstens AUFFALLEN, bevor der erste Errata-Import mit einem
+    IntegrityError abbricht - mit dem Weg dazu in der Meldung."""
+    from app.admin import _pruefe_inhaltsarten
+
+    pfad = tmp_path / "v2-mit-check.sqlite"
+    con = sqlite3.connect(pfad)
+    con.execute("CREATE TABLE quellen (id INTEGER PRIMARY KEY, kuerzel TEXT UNIQUE NOT NULL, "
+                "titel TEXT NOT NULL, sprache TEXT NOT NULL, edition TEXT NOT NULL, "
+                "herkunft TEXT NOT NULL, lizenz TEXT, prioritaet INTEGER NOT NULL DEFAULT 100, "
+                "inhaltsart TEXT NOT NULL DEFAULT 'regelwerk' "
+                "  CHECK (inhaltsart IN ('regelwerk','abenteuer_setting')), "
+                "dateipfad TEXT)")
+    con.commit()
+
+    assert _pruefe_inhaltsarten(con) == 1
+    ausgabe = capsys.readouterr().out
+    assert "VERALTETER CHECK" in ausgabe
+    assert "admin backup" in ausgabe          # der Weg steht in der Meldung
+    con.close()
+
+    # Gegenprobe: die aktuelle Schema-Datei loest die Meldung NICHT aus.
+    sauber = tmp_path / "aktuell.sqlite"
+    c2 = sqlite3.connect(sauber)
+    c2.executescript(_SCHEMA.read_text(encoding="utf-8"))
+    c2.commit()
+    assert _pruefe_inhaltsarten(c2) == 0
+    c2.close()

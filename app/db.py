@@ -135,6 +135,15 @@ FACETTEN_SPALTEN: dict[str, dict[str, str]] = {
     "gegenstand_meta": {"preis_cent": "INTEGER"},
 }
 
+# Provenienz der Quelle (Schema v3) - dieselbe Mechanik wie FACETTEN_SPALTEN, weil
+# `CREATE TABLE IF NOT EXISTS` einer BESTEHENDEN Tabelle keine Spalte hinzufuegt: ohne
+# diesen Nachzug bekaeme der Pi die Felder erst bei einem Neuaufbau der Datenbank.
+# Alle vier sind NULL-bar, also ist die Nachruestung folgenlos fuer vorhandene Zeilen.
+QUELLEN_PROVENIENZ_SPALTEN: dict[str, str] = {
+    "importiert_am": "TEXT", "versions_stand": "TEXT",
+    "quell_url": "TEXT", "quell_hash": "TEXT",
+}
+
 # Das Schema steht AUSSCHLIESSLICH in db/schema.sql. Hier lag bis zum 31.07.2026 eine
 # zweite Liste (`NUTZINDIZES`) mit denselben fuenf Indizes, damit Bestands-DBs sie ueber
 # den Migrationspunkt bekommen - obwohl der Kommentar daneben "hier EINMAL definiert"
@@ -211,7 +220,8 @@ def stelle_schema_sicher(con: sqlite3.Connection) -> None:
     """Idempotenter Schema-Sicherstellungs-Schritt fuer den READ-WRITE-Pfad (Import/Admin):
     zieht die inhaltsart-Spalte defensiv nach (Bestands-DBs vor der v2-Migration kennen sie
     nicht - das tat frueher NUR der DDB-Import, der Markdown/PDF/Open5e-Weg ueber connect()
-    NICHT) und setzt PRAGMA user_version ehrlich auf 2. So teilen sich alle connect()-Nutzer
+    NICHT), ergaenzt die Provenienz-Spalten aus v3 und setzt PRAGMA user_version ehrlich
+    auf 3. So teilen sich alle connect()-Nutzer
     EINEN Migrationspunkt und die Versionsnummer luegt nicht mehr (sie stand faktisch auf 0).
     Nie vom Serving-Pfad (connect_readonly) aufrufen - dort ist Schreiben verboten und unnoetig.
     Auf uninitialisierten DBs (noch keine quellen-Tabelle) tut die Funktion nichts - das Schema
@@ -225,6 +235,7 @@ def stelle_schema_sicher(con: sqlite3.Connection) -> None:
         if "inhaltsart" not in spalten:
             con.execute("ALTER TABLE quellen ADD COLUMN inhaltsart TEXT NOT NULL "
                         "DEFAULT 'regelwerk'")
+        _ergaenze_spalten(con, "quellen", QUELLEN_PROVENIENZ_SPALTEN)
         for tabelle, neue in FACETTEN_SPALTEN.items():
             _ergaenze_spalten(con, tabelle, neue)
         _ruest_kontext_nach(con)
@@ -241,8 +252,8 @@ def stelle_schema_sicher(con: sqlite3.Connection) -> None:
         # bindet - der Serving-Pfad ruft diese Funktion nie.
         from importer.quellen import normalisiere_titel
         normalisiere_titel(con)
-        if con.execute("PRAGMA user_version").fetchone()[0] < 2:
-            con.execute("PRAGMA user_version = 2")     # nur anheben, nie eine hoehere Version senken
+        if con.execute("PRAGMA user_version").fetchone()[0] < 3:
+            con.execute("PRAGMA user_version = 3")     # nur anheben, nie eine hoehere Version senken
         con.commit()
     except sqlite3.OperationalError as fehler:
         # Meist harmlos (read-only geoeffnet), aber nicht immer: der Sammel-except
@@ -543,6 +554,30 @@ def _brueckennamen(con: sqlite3.Connection) -> dict[str, set[str]]:
     return bruecke
 
 
+def _fundstelle(m: dict) -> str:
+    """Quelle mit Seite, wo es eine gibt ('Spielerhandbuch, S. 112') - sonst nur der
+    Titel. Nie eine geratene Seitenzahl (Regel 1)."""
+    return f"{m['quelle_titel']}, S. {m['seite']}" if m.get("seite") else m["quelle_titel"]
+
+
+def _revisions_kuerzel(con: sqlite3.Connection) -> set[str]:
+    """Kuerzel der Quellen, die den Grundtext ERGAENZEN statt ihn zu sein (Errata,
+    offizielle Regelauslegung).
+
+    Bewusst ungecacht: die Tabelle hat ~15 Zeilen, der Query laeuft ein- bis zweimal je
+    Suche. Ein Cache an der Glossar-Signatur (wie bei _brueckennamen) haette hier den
+    falschen Ausloeser - er faellt an der Glossar-ZEILENZAHL, und eine neu registrierte
+    Errata-Quelle aendert die nicht. In einer In-Memory-Fixture waere die Menge damit
+    stale, und der Schutz unten liefe still ins Leere.
+
+    Defensiv gegen Bestands-DBs ohne die Spalte: der Serving-Pfad migriert nicht."""
+    try:
+        return {r[0] for r in con.execute(
+            "SELECT kuerzel FROM quellen WHERE inhaltsart IN ('errata','regelauslegung')")}
+    except sqlite3.OperationalError:
+        return set()
+
+
 def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
                          suchbegriffe: set[str], original: str | None = None) -> list[dict]:
     """Q2/A3: DE- und EN-Eintraege desselben Inhalts in derselben Edition+Kategorie sind
@@ -561,10 +596,33 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
     # DIESELBE Semantik statt eigener .lower()-Kopien (A3)'.
     begriffe = {_gl_norm(s) for s in suchbegriffe if s}
     bruecke = _brueckennamen(con) if treffer else {}
+    revision = _revisions_kuerzel(con) if treffer else set()
 
     gruppen: list[dict] = []                 # {"schluessel": set, "mitglieder": [t, ...]}
     index: dict[tuple, dict] = {}            # (namensvariante, edition, kategorie) -> Gruppe
+    eigenstaendig: list[dict] = []           # Errata/Auslegung - nie Teil einer Gruppe
     for t in treffer:
+        # Ein Erratum zu 'Fireball' HEISST 'Fireball' und traegt dieselbe Edition und
+        # Kategorie - es liefe damit unweigerlich in die Gruppe des Grundtexts. Dort
+        # passierte genau das Falsche: als Gruppenmitglied verschwaende es in
+        # `weitere_fassungen`, also aus der Trefferliste, und ein Modell saehe die
+        # Korrektur nie. Ein Namenszusatz wuerde nicht helfen - die Klammer-Suffix-Logik
+        # unten zieht ihn ab und die Glossar-Bruecke fuehrt trotzdem in die Gruppe.
+        #
+        # Deshalb gar nicht erst gruppieren: Errata und Auslegung stehen NEBEN dem
+        # Grundtext, nicht statt seiner.
+        #
+        # Zur Reihenfolge, praezise (Review 31.07.2026): Bei einem EXAKTEN Namenstreffer
+        # entscheidet `rang()` zuerst nach `prioritaet` - dort haelt das Revisionsband
+        # (70, hinter jedem Regelwerk) das Erratum zuverlaessig hinter dem Grundtext. Bei
+        # unscharfen Volltext-Treffern kommt dagegen das Lauf-Ordinal ZUERST (A6: Relevanz
+        # vor Quellenpraezedenz), ein Erratum kann dort also vorn stehen. Das ist gewollt -
+        # wer im Volltext sucht, will den relevantesten Abschnitt -, und es ist
+        # unschaedlich, weil der Treffer seine Kennzeichnung mitfuehrt (📌 verlangt
+        # ausdruecklich, Grundtext UND Korrektur zusammen wiederzugeben).
+        if t.get("quelle") in revision:
+            eigenstaendig.append(dict(t))
+            continue
         namen = {_gl_norm(t["name_de"]), _gl_norm(t["name_en"])} - {""}
         erweitert = set(namen)
         for n in namen:
@@ -611,18 +669,33 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
         t = dict(mitglieder[0])              # kanonischer Text = kleinste prioritaet (A3)
         t["name_de"] = next((m["name_de"] for m in mitglieder if m["name_de"]), None)
         t["name_en"] = next((m["name_en"] for m in mitglieder if m["name_en"]), None)
-        weitere = sorted({m["quelle_titel"] for m in mitglieder[1:]}
-                         - {mitglieder[0]["quelle_titel"]})
+        # Mit FUNDSTELLE, wo die unterlegene Quelle eine hat (Befund 30.07.2026): Die
+        # Seite lag in `eintraege.seite` und fiel hier heraus, also konnte eine Auskunft
+        # nicht "steht auch im Spielerhandbuch, S. 112" sagen - obwohl genau das der
+        # Grund ist, warum ein gedrucktes Buch im Bestand mehr wert ist als eine
+        # Netzquelle: man kann es aufschlagen.
+        #
+        # Die harte Grenze aus Regel 1 haelt dabei von selbst: `seite` stammt aus der
+        # Zeile GENAU DIESES Eintrags in GENAU DIESER Quelle. Fuehrt die Quelle keine
+        # Seite, steht nur der Titel da - eine Seitenzahl wird nie geschaetzt.
+        sieger_titel = mitglieder[0]["quelle_titel"]
+        weitere = sorted({_fundstelle(m) for m in mitglieder[1:]
+                          if m["quelle_titel"] != sieger_titel})
         if weitere:
             t["weitere_quellen"] = weitere
         if len(mitglieder) > 1:
             # SYN-P1-009: die IDs der weggemergten Fassungen mitfuehren - nur so kann
             # die Detail-Schicht Textabweichungen erkennen (Konflikt-/Fremdfassungs-
             # Ausweis) und das Modell eine bestimmte Fassung per eintrag_id nachladen.
+            # `quelle_kuerzel` heisst hier so wie ueberall in der Ausgabeschicht (_knapp):
+            # nur unter diesem Namen findet die Inhaltsart-Kennzeichnung den Eintrag - und
+            # eine weggemergte Fassung kann aus einem Abenteuerband stammen.
             t["weitere_fassungen"] = [
                 {"id": m["id"], "quelle_titel": m["quelle_titel"],
+                 "quelle_kuerzel": m["quelle"], "seite": m.get("seite"),
                  "sprache": m["sprache"]} for m in mitglieder[1:]]
         kanonisch.append(t)
+    kanonisch.extend(eigenstaendig)
 
     def rang(t: dict) -> tuple:
         nd, ne = _gl_norm(t["name_de"]), _gl_norm(t["name_en"])

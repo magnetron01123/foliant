@@ -93,12 +93,33 @@ Python 3.11+ (Container: 3.12).
 
 ## 3. Datenmodell
 
-Schema: `db/schema.sql` (getestet, `user_version = 2`). Kernprinzip: **Datenshape über alle
+Schema: `db/schema.sql` (getestet, `user_version = 3`). Kernprinzip: **Datenshape über alle
 Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
 
 - **`quellen`** — Register aller Quellen: `edition` (2024/2014, **NOT NULL**), `sprache`,
   `herkunft` (pdf/ddb/srd-md/open5e/manuell), `lizenz`, `prioritaet` (Dubletten-Präzedenz;
-  **kleiner = Vorrang**), `inhaltsart` (u. a. `abenteuer_setting` → Spoiler-Hinweis).
+  **kleiner = Vorrang**, Bänder s. u.), `inhaltsart`.
+  **`inhaltsart` (vier Werte)** entscheidet, welchen Hinweis eine Antwort daraus trägt:
+  `regelwerk` (keiner) · `abenteuer_setting` (🚫 Spoiler-Schutz) · `errata` (📌 offizielle
+  Korrektur zum Grundtext) · `regelauslegung` (⚖️ Sage Advice, kein Regeltext). Der
+  Wertraum steht **allein in `importer/quellen.INHALTSARTEN`**, nicht als CHECK im Schema.
+  Der CHECK ist am 31.07.2026 bewusst gefallen: Er hätte den ersten Errata-Import auf jeder
+  mit v2 angelegten Datenbank mit `IntegrityError` abgebrochen, weil
+  `CREATE TABLE IF NOT EXISTS` eine bestehende Tabelle nicht erneuert und `ALTER TABLE`
+  keine Constraint erzeugt (real reproduziert, bevor es jemanden traf — Pi und Dev-DB
+  tragen den CHECK nicht). Dieselbe Überlegung wie bei `edition`, die aus demselben Grund
+  nur auf `length > 0` prüft. Die Validierung sitzt stattdessen in `registriere_quelle` —
+  dem **einen** Schreibweg, also greift sie auf jeder Datenbank —, und `admin check` meldet
+  zusätzlich unbekannte Werte **im Bestand** sowie eine Datenbank mit veraltetem CHECK.
+  Beides kann ein CHECK nicht: er verhindert nur neue Werte, findet keine vorhandenen.
+  **Provenienz (v3, 31.07.2026):** `importiert_am` (ISO-8601 UTC, setzt
+  `registriere_quelle` selbst), `versions_stand` (Errata-/Druckstand als Freitext),
+  `quell_url`, `quell_hash` (sha256 der Quelldatei beim Import). Alle vier optional —
+  eine Quelle ohne sie bleibt gültig, sie kann nur weniger über sich sagen. Sie
+  beantworten die Frage, die der korpusweite `inhalts_hash` **nicht** beantwortet:
+  *welche Fassung dieses einen Buches steckt im Bestand?* `admin quellen-auffrischen`
+  lässt `importiert_am` und `quell_hash` bewusst stehen (`setze_importzeit=False`) — dort
+  wurde keine Datei gelesen, und ein fortgeschriebener Hash belegte nichts.
   **Beschriftungs-Standard (31.07.2026):** `titel` trägt **nur den Werktitel** — kein
   „(Deutsch)", „(2014)", „(D&D Beyond)", „(Druck)". Sprache, Regelstand und Bezugsweg
   stehen in `sprache`, `edition` und `herkunft` und werden **daraus** angezeigt. Vorher
@@ -219,9 +240,49 @@ schreiben.
 - **Begriffs-Leiter (Deutsch):** aktuelles offizielles Deutsch 2024 → offizielles Deutsch aus
   Altbüchern + Ulisses-Glossar → inoffiziell (`*`) → keins (`*`). Englisches Original **immer**
   in Klammern.
-- **Dubletten/Präzedenz** über `quellen.prioritaet` (dt. Quellen < DDB < Open5e). Echte
-  **Quellkonflikte gleicher Edition** werden nicht still entschieden, sondern ausgewiesen
-  (SYN-P1-009).
+- **Abkürzungen (S12, 31.07.2026):** Das Register `config/abkuerzungen.py` ist die eine
+  Definition — der Glossar-Seeder, die Verhaltensregel und der Charakterbogen-Übersetzer
+  lesen dieselbe Liste. Zwei Richtungen mit verschiedenen Zusagen: **Ausgabe** deutsch
+  (RK, TP, SG, HG, EP, ÜB, W20, STÄ/GES/KON/INT/WEI/CHA), **Eingabe** versteht auch
+  englisch (AC, DC, CR, d20, STR → derselbe Eintrag). Jede empfohlene Form ist im
+  deutschen SRD 5.2.1 ausgezählt belegt (`tests/test_abkuerzungen.py` prüft das gegen den
+  echten Bestand). Vorher lag das Wissen an drei Stellen, die nichts voneinander wussten —
+  und ausgerechnet der MCP-Server hatte **keine** Regel, deutsch abzukürzen: im Glossar
+  standen `XP`, `CR`, `PB`, während das deutsche Buch 388-mal `EP`, 356-mal `HG` und
+  341-mal `ÜB` schreibt.
+  **Durchsetzung über alle drei Kanäle** — bewusst, weil die Projektanweisung jede Person
+  selbst einrichten muss und genau das nicht jede tut: `hinweis_abkuerzungen` hängt an
+  jeder Such- und Detailantwort, die Tool-Beschreibungen tragen die Kurzform (der Server
+  liefert sie mit dem Schema aus, ohne Zutun des Clients), und die Instruktion nennt sie
+  ebenfalls. Der Hinweis wird **aus dem Register gebaut**, nicht abgeschrieben — sonst
+  liefe er der Liste beim ersten Zuwachs davon.
+  Dazu die Auflösung im Text: `begriffe_im_text` nimmt Abkürzungen von der
+  `_MIN_LEMMA`-Schwelle aus (sie sind keine Alltagswörter) und matcht sie **schreibungs­-
+  genau**. Das ist die Sicherung, nicht ein Detail: `PP` ist die Platinmünze, `pp.` die
+  Seitenangabe in jedem Errata-Kopf. An einem echten Aboleth-Statblock löst das AC, HP,
+  CR, DC, XP und die sechs Attributskürzel auf.
+- **Dubletten/Präzedenz** über `quellen.prioritaet` (dt. Quellen < DDB < Open5e; die
+  Bänder stehen in `importer/quellen.py`, s. u.). Echte **Quellkonflikte gleicher
+  Edition** werden nicht still entschieden, sondern ausgewiesen (SYN-P1-009).
+- **Fundstelle der unterlegenen Fassung bleibt erhalten** (31.07.2026): `weitere_quellen`
+  nennt sie als `"Player's Handbook, S. 241"`, `weitere_fassungen`/`weitere_fundstellen`
+  führen `seite` und `quelle` als eigene Felder. Vorher lag die Seite in der DB und fiel
+  aus der Antwort — eine Auskunft konnte nicht sagen, wo man die Regel *aufschlägt*,
+  obwohl genau das ein gedrucktes Buch wertvoll macht. Regel 1 hält dabei von selbst: die
+  Seite stammt aus der Zeile genau dieses Eintrags in genau dieser Quelle; führt die
+  Quelle keine (Open5e), steht nur der Titel da.
+- **Revisionsquellen nehmen am Dedupe NICHT teil.** Treffer aus `errata`- und
+  `regelauslegung`-Quellen werden vor der Gruppenbildung ausgesondert und als eigene
+  Treffer angehängt. Grund: Ein Erratum zu „Fireball" *heißt* „Fireball" und trägt
+  dieselbe Edition und Kategorie — es liefe damit in die Gruppe des Grundtexts und
+  verschwände dort in `weitere_fassungen`, also aus der Trefferliste. Ein Namenszusatz
+  hülfe nicht (die Klammer-Suffix-Logik zieht ihn ab, und die Glossar-Brücke führt
+  trotzdem in die Gruppe). Bei einem **exakten Namenstreffer** hält ihr Prioritätsband
+  (70, hinter jedem Regelwerk) sie zuverlässig hinter dem Grundtext; bei unscharfen
+  Volltext-Treffern entscheidet dagegen zuerst die Relevanz (A6), dort kann ein Erratum
+  also vorn stehen. Das ist gewollt und unschädlich — der Treffer trägt seine
+  Kennzeichnung mit, und die verlangt ausdrücklich, Grundtext und Korrektur zusammen
+  wiederzugeben.
 
 ---
 
@@ -462,11 +523,11 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
 status        Bestand je Quelle/Edition/Kategorie + Glossar
 manifest      Korpus-Fingerabdruck (inhalts_hash) - nach jedem Import festhalten
 import        --quelle <kuerzel> | glossar | facetten (Facetten ohne Re-Import nachziehen)
-quellen-auffrischen  Quellen-METADATEN (Titel, Prioritaet, Lizenz, inhaltsart) aus der config nachziehen - ohne Re-Import, Eintraege bleiben unberuehrt
+quellen-auffrischen  Quellen-METADATEN (Titel, Prioritaet, Lizenz, inhaltsart, versions_stand, quell_url) aus der config nachziehen - ohne Re-Import, Eintraege bleiben unberuehrt
 pdf-triage    welche PDFs haben keine Textschicht?
 ocr-pdf       --datei <pfad> [--redo] [--voll]
 reindex-fts   FTS neu aufbauen
-check         Integritaet, FK, FTS-Suchbarkeit, Editionen, Textqualitaet, Facetten-Deckung
+check         Integritaet, FK, FTS-Suchbarkeit, Editionen, Textqualitaet, Facetten-Deckung, Prioritaets-Baender
 glossar-audit Glossar-Stand und -Herkunft pruefen
 glossar-paare Kandidaten fuer neue Glossar-Paare zeigen [--nur-neue] [--json]
 suchbericht   Auswertung des Abfrage-Protokolls: Nulltreffer, Fuzzy, Mehrdeutigkeiten
@@ -480,6 +541,49 @@ Angriffsfläche. Der grafische Blick läuft über Datasette an `127.0.0.1` per S
 docker compose --profile admin up -d datasette
 ssh -L 8001:localhost:8001 <nutzer>@<pi-ip>     # dann http://localhost:8001
 ```
+
+### Errata importieren (offizielle Korrekturen)
+
+Die drei Errata-PDFs (PHB 2024, DMG 2024, MM 2025) bietet WotC frei zum Herunterladen an;
+die `[[quelle]]`-Blöcke stehen fertig in `config/foliant.toml` (`errata-*`, `inhaltsart =
+"errata"`, Band 70). Ablauf: PDF nach `quellen/errata/` legen, dann
+
+```
+.venv/bin/python -m app.admin import --quelle errata-phb-2024-en
+```
+
+**Beim ERSTEN Import die Bilanzzeile lesen.** Errata-PDFs haben keine Heading-Struktur,
+die der Konverter erkennen könnte — jede Korrektur ist ein Absatz mit fettem Kopf
+(`**Jumping (p. 30).** …`). `_errata_headings` in `importer/import_markdown.py` macht
+daraus `### Jumping`; ohne diesen Schritt entstünde **ein Riesen-Chunk je Rubrik**, in dem
+die Suche nichts findet (derselbe Fehler wie bei den 2014-Scans, 27.07.2026). Das Muster
+ist aus dem veröffentlichten Aufbau abgeleitet, aber **nie an den echten Dateien
+justiert** (sie lagen bei der Umsetzung nicht vor). Greift es nicht, meldet die Bilanz das
+als `WIRKUNGSLOS` — dann das Muster nachziehen, statt den Riesen-Chunk zu importieren.
+
+Zwei Dinge, die dabei bewusst so sind: Der **Eintragsname ist die betroffene Regel**
+(„Fireball") — nur so findet das Erratum, wer nach der Regel sucht; die Kollision mit dem
+Grundtext löst die Dedupe-Ausnahme (§5). Und `eintraege.seite` trägt die Seite **im
+Errata-PDF**, nicht die Buchseite: Letztere steht im Body („Offizielle Korrektur zu
+S. 275 im Grundbuch"), denn das Erratum *steht* nicht auf S. 275, es sagt nur etwas
+darüber.
+
+### Glossar-Lücken kuratieren (M5)
+
+`admin suchbericht` weist Begriffe aus, für die `foliant_uebersetze_begriff` **keinen
+exakten Eintrag** fand — der Abschnitt „Uebersetzungs-Luecken". Das sind genau die
+Stellen, an denen ein Modell sonst selbst eine `*`-Wiedergabe bildet, und zwar je Gespräch
+eine andere (real belegt: „Heldenhafte Inspiration" direkt neben dem Vordruck „Heldische
+Inspiration"). Gefüllt wird **messwertgetrieben** — was gefragt wurde, nicht was denkbar
+ist.
+
+**Verbindlich dabei:** Eine Community-Übersetzung (Foundry-Sprachpakete, Forenfassungen,
+maschinelle Vorschläge) darf als Nachschlagehilfe dienen, wird aber **nie `offiziell = 1`**
+— sie kommt mit `offiziell = 0` und einer Herkunftsmarke in `glossar.quelle` herein und
+trägt in der Ausgabe ihren `*`. Offiziell ist nur, was in einer offiziellen Quelle belegt
+ist (S3-Leiter). Bulk-Importe ganzer Community-Sprachpakete sind bewusst **nicht** der
+Weg: sie fluten Fuzzy-Suche und Konflikt-Gate mit ungeprüften Zeilen und erzeugen laufende
+Pflege für Begriffe, nach denen nie jemand fragt.
 
 ---
 
@@ -708,6 +812,41 @@ läuft ohne Änderung weiter.
 | **Kein Runtime-Cache** | lokales FTS5 ist schneller als jeder Cache-Layer drumherum |
 | **Seite optional, Quelle Pflicht** | API-Quellen (Open5e) haben keine Seiten; entlastet auch das PDF-Parsing |
 | **meta-Tabellen nur additiv** | spart Importer-Aufwand, streicht kein Feature |
+| **Errata/Auslegung als `inhaltsart`-Werte, nicht als neue Spalte** (31.07.2026) | Die Pipeline gibt es schon: Config-Pflichtfeld → Validator in `registriere_quelle` → DB → Web-Export → Tool-Ausgabe (SYN-P0-007). Eine eigene Spalte hätte jede dieser Stationen neu verkabeln müssen, und semantisch ist es dieselbe Achse: *was für eine Art Inhalt ist diese Quelle?* Der Spoiler-Schutz bleibt unberührt, weil alle Auswerter auf `== 'abenteuer_setting'` prüfen — die eine Ausnahme (`web.py`, `!= 'abenteuer_setting'`) wurde auf eine Positivliste umgestellt |
+| **Sage Advice trägt `edition = "2014"`** | Das Compendium legt ausschließlich die 2014er Regeln aus; für 2024 gibt es keinen Nachfolger. Gewollte Folge: bei der Standardsuche erscheinen seine Treffer unter `andere_editionen` statt als vermeintliches 2024-Ruling. Der Auto-Import lehnt den Band weiter ab (seine DDB-Kategorie trägt kein 5e/5.5e-Präfix) — der explizite `[[ddb.buch]]`-Block ist der Weg, weil dort die Edition **gesetzt** und nicht geraten wird |
+| **Errata-Lizenz nicht „CC-BY…"** | Die Errata-PDFs sind frei verteilt, aber nicht frei lizenziert. Der Präfix `CC-BY` löst in `app/tools/ausgabe.py` automatisch die SRD-Attribution aus — sie hier anzuhängen wäre eine falsche Rechtsaussage |
+
+### Entscheidung: Prioritätsbänder statt vier unabhängiger Zahlen (31.07.2026)
+
+Die Frage aus BACKLOG §4 („Quellen-Wertigkeit explizit machen") ist beantwortet. Vorher
+vergaben **vier Stellen** unabhängig Prioritäten — Config-Vorlage 10/20/60, DDB fest 40,
+Open5e 60+Laufindex, Admin-Rückfall 100 —, ohne dass irgendwo stand, warum eine Zahl so
+ausfällt. Jetzt belegt jede **Quellenklasse** einen Zehnerbereich, definiert in
+`importer/quellen.py` (`band_fuer`), von den Importern bezogen und von `admin check`
+überwacht:
+
+| Band | Quellenklasse |
+|---|---|
+| 10 | deutsches Kernregelwerk 2024 (Kaufbuch) |
+| 20 | deutsches SRD / freie deutsche Quellen |
+| 30 | deutsche Altbücher 2014 (Scans) |
+| 40 | englische Kaufbücher (DDB/PDF) |
+| 60 | englische freie API-/SRD-Quellen |
+| 70 | Errata & offizielle Regelauslegung |
+| 100 | unklassifiziert (`STANDARD_PRIORITAET`) |
+
+Ein Band ist **zehn breit**, damit ein Import innerhalb seiner Klasse feinsortieren darf
+(Open5e legt je Dokument einen Laufindex drauf). `admin check` **warnt** bei Abweichung,
+bricht aber nicht ab: die Bänder ordnen Klassen, sie sind keine Invariante.
+
+**Das gekaufte deutsche Vollbuch rankt vor dem deutschen SRD** (Band 10 gegen 20) — es ist
+die Obermenge und das Buch, das am Tisch aufgeschlagen wird. Das Gegenargument steht
+bewusst dabei: kommt das PHB als OCR-Scan herein, ist das SRD der sauberere Text. Die
+Entscheidung ist eine Config-Zeile plus `admin quellen-auffrischen`, also jederzeit
+umkehrbar; solange `phb-2024-de` nicht importiert ist, ändert sie ohnehin nichts (die
+relative Ordnung aller vorhandenen Quellen bleibt gleich). Entschärft wird sie zusätzlich
+dadurch, dass die unterlegene Fassung ihre Fundstelle behält (§5) und Wortlaut-Abweichungen
+als Quellkonflikt ausgewiesen werden (SYN-P1-009).
 
 ### ADR: DDB-Buchimport über eigenen Exporter, nicht `ddb-proxy` (10.07.2026)
 
@@ -798,6 +937,33 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   startet den Live-MCP durch → immer **`--no-deps`**.
 - **Die glossar-nur-DB muss existieren, BEVOR `web` startet** — sonst legt Docker ein
   Verzeichnis statt der Datei an.
+- **Eine neue Spalte in `quellen` braucht DREI Stellen, nicht eine.** `db/schema.sql` legt
+  sie nur in **frisch angelegten** DBs an (`CREATE TABLE IF NOT EXISTS` fügt einer
+  bestehenden Tabelle nichts hinzu) → zusätzlich `QUELLEN_PROVENIENZ_SPALTEN` in
+  `app/db.py` für den ALTER-Nachzug **und** `_AKTUALISIERT` plus die INSERT-Spaltenliste in
+  `importer/quellen.registriere_quelle`, sonst frischt der Upsert sie nie auf. Wer eine Spalte
+  ins Web durchreichen will, trägt sie außerdem in `QUELLEN_SPALTEN`
+  (`app/charakterbogen/glossar_export.py`) ein — eine Positivliste, damit interne Felder
+  nicht versehentlich öffentlich werden.
+- **Handgeschriebene Tabellen-Definitionen in Fixtures laufen dem Schema davon.** Beim
+  Schema-Zuwachs v3 brach `tests/test_quellen_beschriftung.py` an einer abgetippten
+  `CREATE TABLE quellen (...)` — einem stillen Zweitschema. Fixtures speisen sich aus
+  `db/schema.sql` (`_db.SCHEMA_DATEI`), dann kann das nicht wieder passieren.
+- **Eine Kennzeichnung, die eine andere unterdrückt, ist kein Schutz mehr.** Der
+  Sammelhinweis für die Nebenlisten (`_markiere_inhaltsart`) brach ab, sobald irgendein
+  `hinweis_inhaltsart` stand — folgenlos, solange nur Abenteuerbände markiert wurden (es
+  war derselbe Text). Mit Errata nicht mehr: 📌 im Detail plus Abenteuerband in
+  `andere_fassungen` liess den 🚫-Satz lautlos wegfallen. Wer eine zweite Marker-Art
+  einführt, muss jede Stelle prüfen, die „es steht ja schon ein Hinweis da" annimmt.
+- **Ein CHECK auf einem Wertraum, der noch wachsen kann, ist eine Migrationsfalle.**
+  SQLite ändert eine Constraint nur über einen Tabellen-Neuaufbau (CREATE + COPY + DROP +
+  RENAME) — `CREATE TABLE IF NOT EXISTS` erneuert nichts, `ALTER TABLE` erzeugt nichts.
+  Beim Zuwachs von `inhaltsart` um `errata`/`regelauslegung` hätte der alte CHECK jede mit
+  v2 angelegte Datenbank beim ersten Errata-Import mit `IntegrityError` abbrechen lassen
+  (real reproduziert). Deshalb: **geschlossene Wertlisten gehören in den Python-Validator
+  am einen Schreibweg**, nicht ins Schema — dort greifen sie auch auf Datenbanken, die den
+  CHECK nie hatten. Was das Schema nicht kann, macht `admin check`: vorhandene Fehlwerte
+  finden. Gilt genauso für `edition` (nur `length > 0`, seit jeher aus demselben Grund).
 - **`srd_zauberbruecken.fingerabdruck` ist die Beweisgrundlage der 106 geseedeten
   Zauber-Brücken — seine Regexe bleiben roh.** Sie sind nachweislich zu streng
   (`**Komponenten:** V, G, M` läuft ins Leere, weil die zwei Sterne zwischen Label und Wert
@@ -921,5 +1087,8 @@ P2-008 Agentenrechte eingedampft · P2-009 meta-Tabellen + CHECK-Constraints.
 
 ### P3 — bewusste Ausbaustufen (offen, nicht rundenblockierend)
 P3-001 strukturelle Rollen-/Spoiler-Isolation · P3-002 Regelbeziehungsgraph ·
-P3-003 Errata-/Revisionstracking · P3-004 Hausregeln-Overlay. Siehe
-[BACKLOG.md](BACKLOG.md) §4.
+**P3-003 Errata-/Revisionstracking — Grundlage seit 31.07.2026 umgesetzt** (eigene
+`inhaltsart`-Werte `errata`/`regelauslegung`, Kennzeichnung 📌/⚖️ in beiden Ausgabewegen,
+Dedupe-Schutz gegen Verdrängung des Grundtexts, Prioritätsband 70, Chunking und
+Config-Blöcke; es fehlen die PDFs selbst — [BACKLOG.md](BACKLOG.md) §4) ·
+P3-004 Hausregeln-Overlay. Siehe [BACKLOG.md](BACKLOG.md) §4.

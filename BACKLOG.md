@@ -109,8 +109,10 @@ Zauberkapitels (`Dauer`, `Effekte`, `Verbalkomponente (V)` — siehe §3). Damit
 Übersetzungslücke bei den echten Zaubern geschlossen.
 
 **Gate:** dt. Kernbegriffe/Optionen (z. B. Aasimar) kommen **deutsch** aus dem Bestand;
-die deutsche Quelle rankt vor DDB-Englisch. *Mit welcher `prioritaet` das Buch einrangiert,
-ist unentschieden — §4 „Quellen-Wertigkeit".*
+die deutsche Quelle rankt vor DDB-Englisch. *Die `prioritaet` steht seit dem 31.07.2026 fest:
+Band 10 (dt. Kernregelwerk 2024), also vor dem dt. SRD — siehe §4 und
+[CONCEPT.md](CONCEPT.md) §10. Kommt das Buch als OCR-Scan herein, ist das der Fall, in dem
+die Entscheidung noch einmal zu prüfen ist.*
 
 ### M5 — Feedback & Iteration · *laufend, kein Gate*
 
@@ -362,7 +364,7 @@ offen — sie sitzen in Parsern, die **nicht** in die Meta-Tabellen schreiben:
 | **Rollen SL/Spieler + strukturelle Spoiler-Isolation** (getrennte Korpora und Zugänge) | A3 / SYN-P3-001 |
 | **Hausregeln-Overlay** — Tischregeln überlagern die RAW-Antwort sichtbar | A4 / SYN-P3-004 |
 | **Regelbeziehungsgraph** (`exception_to`, `overrides`, Trigger/Dauer/Stapelung) | SYN-P3-002 |
-| **Errata-/Revisionstracking** + Autoritätsklassen | SYN-P3-003 |
+| **Errata-/Revisionstracking** + Autoritätsklassen · *Grundlage steht seit 31.07.2026, siehe §4 Rest-Posten* | SYN-P3-003 |
 | **Wissensmodell-Ausbau** (`concept`/`variant`/`relation`, Revisions-Provenienz) | SYN-P2-002 |
 | Universelle Quersuche über alle Kategorien | Komfort |
 | OAuth-Identität statt Geheimpfad | erst ab mehr Nutzern sinnvoll |
@@ -373,72 +375,75 @@ Alle docken laut Datenmodell **ohne Neuaufbau** an (NF7).
 
 Vorgemerkt, aber noch nicht als Arbeit beschlossen — hier steht die Frage, nicht die Antwort.
 
-#### Quellen-Wertigkeit explizit machen · *David, 30.07.2026*
+#### Quellen-Wertigkeit explizit machen · *entschieden 31.07.2026*
 
-**Die Mechanik gibt es schon, die Regel dahinter nicht.** Dubletten löst `quellen.prioritaet`
-auf (Q2, kleiner = Vorrang; [CONCEPT.md](CONCEPT.md) §5). Die *Zahl* wird aber an vier Stellen
-unabhängig vergeben, ohne dass irgendwo stünde, warum sie so ausfällt:
+**Erledigt.** Die Rangfolge heißt jetzt PRIORITÄTSBÄNDER und steht an einer Stelle:
+`importer/quellen.py` (`band_fuer`/`band_passt`). Die Importer beziehen ihre Zahlen daraus,
+`admin check` meldet Ausreißer, `tests/test_prioritaetsbaender.py` prüft die Bänder und die
+echte Config. Tabelle und Begründung: [CONCEPT.md](CONCEPT.md) §10 („Prioritätsbänder statt
+vier unabhängiger Zahlen").
 
-| Stelle | Wert |
-|---|---|
-| [`config/foliant.example.toml`](config/foliant.example.toml) | `srd-de` 10 · dt. Druckbuch 20 · Open5e 60 |
-| [`importer/import_ddb.py`](importer/import_ddb.py) | 40, fest |
-| [`importer/import_open5e.py`](importer/import_open5e.py) | 60 + Laufindex je Dokument |
-| [`app/admin.py`](app/admin.py) | 100 als Rückfall, wenn nichts angegeben ist |
+Die drei offenen Fragen von damals sind so beantwortet:
 
-Wer die nächste Quelle einpflegt — spätestens M1 mit dem dt. PHB 2024 — **rät die Zahl**.
-Gewünscht ist eine benannte Rangfolge: welche Quelle ist am meisten wert, welche am wenigsten,
-und aus welchem Grund.
+- **Eine Rangfolge oder zwei?** Eine. Begriffsautorität läuft weiter über den eigenen
+  Glossar-Weg (S7/S8) und nicht über `prioritaet` — eine zweite Zahl hätte dieselbe Regel
+  ein zweites Mal behauptet.
+- **Vollbuch oder SRD zuerst?** Das gekaufte deutsche Vollbuch (Band 10) vor dem deutschen
+  SRD (Band 20): es ist die Obermenge und das Buch, das am Tisch aufgeschlagen wird. Das
+  Gegenargument (OCR-Scan gegen sauberes PDF) steht in CONCEPT §10 dabei; die Entscheidung
+  ist eine Config-Zeile plus `admin quellen-auffrischen`. Solange `phb-2024-de` nicht
+  importiert ist, ändert sie nichts.
+- **Dritte Rangfolge für die Zitierautorität?** Nein — der Empfehlung gefolgt und
+  stattdessen den **Beleg ergänzt**: `weitere_quellen` nennt jetzt „Player's Handbook,
+  S. 241", `weitere_fundstellen` führt `seite` und `quelle` als eigene Felder. Damit bleibt
+  der beste Text kanonisch und der Spieler bekommt trotzdem die Seite im Buch.
 
-**Die Achsen, die heute in der einen Zahl verschmelzen:**
+**Offen geblieben:** Ob Band 10 vor 20 richtig ist, zeigt sich erst mit dem realen
+PHB-Import (M1) — kommt das Buch als OCR-Scan herein, ist die Zeile in `config/foliant.toml`
+der Ort, an dem man es zurückdreht.
 
-1. **Offizialität** — Kernregelwerk (WotC/Ulisses) > Ergänzungsband > SRD-Auszug >
-   Drittanbieter/Community.
-2. **Sprache** — Deutsch vor Englisch (S10).
-3. **Texttreue** — sauberer Markdown-/API-Import vor OCR-Scan. Die 2014-Scans zeigen, dass das
-   eine echte Dimension ist: dieselbe Autorität, messbar schlechterer Text.
-4. **Edition** — läuft **nicht** über `prioritaet`, sondern über `edition` + Q1. Eine Logik
-   muss sagen, dass sie das *nicht* mitregelt, sonst wird sie doppelt eingebaut.
+#### Errata & Regelauslegung — Rest-Posten · *31.07.2026*
 
-**Der Fall, an dem sich die Logik beweisen muss: Deutsch-2014 gegen Englisch-2024.** Nach S7
-ist Terminologie editionsübergreifend (der deutsche Begriff aus dem Altbuch gilt), nach Q1 und
-Regel 2 ist der *Regelinhalt* 2024-first. Beides gleichzeitig kann eine einzelne Zahl nicht —
-möglicherweise braucht es **zwei Rangfolgen: Inhaltsautorität und Begriffsautorität.** Heute
-ist das implizit gelöst (2014-Bücher tragen die niedrigste Priorität, die Begriffe kommen über
-den eigenen Glossar-Weg); die Idee wäre, es explizit zu machen.
+Der Revisions-Layer steht (Schema, Kennzeichnung, Dedupe-Schutz, Chunking, Config, Tests;
+SYN-P3-003 damit **teilweise erledigt**).
 
-**Zweiter offener Punkt, konkret am Bestand:** `srd-de` steht heute auf 10, ein gekauftes
-deutsches Grundregelwerk auf 20 — der Auszug rankt also vor dem Vollbuch desselben Textes. Das
-kann richtig sein (CC-BY, sauberes PDF, verlässliche Struktur) oder falsch (das Vollbuch ist
-vollständiger und ebenso offiziell). Entschieden wurde es nie.
+*Adversarialer Review am 31.07.2026 über fünf Dimensionen (Dedupe, Ausgabe/Spoilerschutz,
+Schema/Migration, Bänder/Config, Errata-Chunking): 13 Befunde, davon **5 bestätigt und
+behoben**, 8 in der Gegenprobe widerlegt. Die tragenden waren: der Errata-Hinweis
+verdrängte den 🚫-Spoilerhinweis der Nebenlisten; ein Erratum kam als „fremdsprachige
+Fassung" heraus, also als bloße Übersetzungsvariante statt als geltende Korrektur; das
+Chunking-Muster verfehlte eine der beiden realen Fettformen und meldete Teiltreffer nicht;
+und es schrieb bei einem Kopf mit Querverweis die falsche Buchseite. Jeder Fall ist als
+Regressionstest verankert.*
 
-**Dritter Strang — Zitierautorität: was die Runde am Tisch aufschlägt.** F7 verlangt bei jeder
-Auskunft die Quelle. Nützlich ist dabei das **Buch**, nicht der Auszug: „Spielerhandbuch 2024,
-S. 112" kann ein Spieler nachschlagen, „SRD 5.2.1" liegt niemandem auf dem Tisch. Das ist eine
-*andere* Frage als die nach dem besten Text — der sauberste Text und der nachschlagbarste
-Beleg können auseinanderfallen (Buch = OCR-Scan, SRD = sauberes PDF).
+Was noch fehlt:
 
-*Der Befund dazu, am Code geprüft (30.07.2026):* Die Dublettenauflösung führt die unterlegenen
-Fassungen bereits mit — `weitere_quellen` (Titel) und `weitere_fassungen` (`id`, `quelle_titel`,
-`sprache`) in [`app/db.py`](app/db.py) `_dedupe_und_sortiere`. Was dort **fehlt, ist `seite`**:
-die Buchfundstelle steht in `eintraege.seite` in der Datenbank und fällt trotzdem aus der
-Antwort. Deshalb kann eine Auskunft heute gar nicht „steht auch im Spielerhandbuch, S. 112"
-sagen, selbst wenn beide Bücher im Bestand liegen.
-
-*Empfehlung:* **keine** dritte Rangfolge bauen. Der Beleg wird um die Buchfundstelle *ergänzt*,
-statt die Textpriorität umzubiegen — dann bleibt der beste Text kanonisch und der Spieler
-bekommt trotzdem die Seite im Buch. Das entschärft auch den zweiten Punkt oben: `srd-de` darf
-vorn bleiben, wenn der Beleg das Buch mitnennt. Grenze aus Regel 1: eine Seitenzahl darf **nur**
-genannt werden, wenn die Quelle im Bestand liegt und diesen Eintrag führt. Aus „das steht sicher
-auch im PHB" wird sonst eine erfundene Fundstelle.
-
-**Denkbare Form:** dokumentierte Prioritäts**bänder** statt freier Zahlen (z. B. 10er = dt.
-Kernregelwerk 2024, 20er = dt. SRD, 30er = dt. Altbücher, 40er = engl. Kaufbücher, 60er =
-Open5e/CC, 90+ = Drittanbieter/unklar), an *einer* Stelle definiert, aus den Achsen ableitbar,
-von `admin check` gegen den Bestand geprüft.
-
-**Entscheidungsbedarf David:** Reicht eine Rangfolge oder braucht es Inhalt und Begriff
-getrennt? Und wo steht das gekaufte dt. Vollbuch gegenüber dem dt. SRD?
+- ⬜ **Die drei Errata-PDFs ablegen und importieren** (PHB 2024, DMG 2024, MM 2025). Die
+  `[[quelle]]`-Blöcke stehen fertig in `config/foliant.toml`, die Dateien fehlen. Beim
+  ersten Import die **Bilanzzeile lesen**: das Chunking-Muster (`_errata_headings`) ist aus
+  dem veröffentlichten Aufbau abgeleitet, aber nie an den echten Dateien justiert. Die
+  Bilanz meldet zwei Fälle — `kein Korrektur-Kopf mit Seitenangabe` (Muster passt gar
+  nicht) und `N von M fetten Koepfen ohne erkennbare Seitenangabe` (Teiltreffer, der
+  gefährlichere Fall: der Import läuft durch, ein Teil der Korrekturen hängt stumm am
+  Vorgänger).
+- ⬜ **Sage Advice Compendium** einbinden. Der `[[ddb.buch]]`-Block liegt auskommentiert in
+  der Config; ungeklärt ist, ob der DDB-Account den Band führt (`ddb-exporter list-owned`).
+  Wenn nicht: freies PDF über den `[[quelle]]`-Weg mit `inhaltsart = "regelauslegung"`.
+- ⬜ **Errata-Kategorien verfeinern.** Alle Errata-Einträge tragen heute `kategorie =
+  "regel"`. Zeigen die PDFs saubere Rubriken („Spells", „Monsters"), lässt sich das über
+  `SPLIT_REGELN` schärfen — geraten wird es nicht.
+- ⬜ **Conversion Guide SRD 5.1→5.2.1** als Beleg für die kuratierten Begriffspaare
+  (`SRD_2024_BEGRIFFSPAARE` in `importer/import_glossar.py`). Er klassifiziert
+  Umbenennungen offiziell und wäre damit ein stärkerer Beleg als die eigene Auszählung am
+  Bestand. Bewusst **keine** Relationstabelle daraus — die wurde gemessen und verworfen
+  (§3), der bewährte Weg sind kuratierte Paare mit Beleg im Kommentar.
+- ✅ **Kontextbudget der Instruktion** — *erledigt 31.07.2026.* `config/stil.py` lag bei
+  7486 von 7500 Zeichen (der Test-Docstring behauptete „~6000"; gemessen waren es schon
+  vor dem Fokus-Paket 7398). Gelöst ohne Regelverlust durch **Entdoppeln**: Der Abschnitt
+  „QUELLEN & VERSION" wiederholte die Belegzeilen- und die Altstand-Regel darüber und
+  fehlte im zweiten Kanal ohnehin ganz; die Vorgabe zur „ersten Nennung" stand zweimal da.
+  Stand jetzt 7154, also 346 Zeichen Luft. Jede gestrichene Aussage steht weiter oben
+  wörtlich — geprüft.
 
 ---
 

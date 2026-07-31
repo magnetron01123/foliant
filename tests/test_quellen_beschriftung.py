@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from app import db as _db
 from importer.quellen import normalisiere_titel, registriere_quelle, werktitel
 
 
@@ -42,10 +43,15 @@ def test_werktitel_entfernt_nur_die_doppelten_angaben(roh, erwartet):
 
 
 def _leere_db() -> sqlite3.Connection:
+    """Leere DB aus dem ECHTEN Schema statt aus einer abgeschriebenen Spaltenliste.
+
+    Hier stand eine handgetippte `CREATE TABLE quellen (...)`. Sie war eine zweite,
+    stillschweigende Definition derselben Tabelle - und lief beim ersten Schema-Zuwachs
+    (v3, die Provenienz-Spalten) prompt auf einen Fehler, der mit der Beschriftung
+    nichts zu tun hatte. `registriere_quelle` nennt seine Spalten im INSERT ausdruecklich;
+    fehlt eine, bricht es. Aus der Schema-Datei gelesen kann das nicht mehr passieren."""
     con = sqlite3.connect(":memory:")
-    con.execute("CREATE TABLE quellen (id INTEGER PRIMARY KEY, kuerzel TEXT UNIQUE, "
-                "titel TEXT, sprache TEXT, edition TEXT, herkunft TEXT, lizenz TEXT, "
-                "prioritaet INTEGER, dateipfad TEXT, inhaltsart TEXT)")
+    con.executescript(_db.SCHEMA_DATEI.read_text(encoding="utf-8"))
     return con
 
 

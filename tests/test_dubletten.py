@@ -25,7 +25,12 @@ def bestand(tmp_path, monkeypatch):
         "VALUES (?,?,?,?,?,?,?)",
         [("srd-de", "SRD 5.2.1 (Deutsch)", "de", "2024", "pdf", "CC-BY-4.0", 10),
          ("open5e-srd-2024", "SRD 5.2 (Open5e)", "en", "2024", "open5e", "CC-BY-4.0", 60),
-         ("phb-2014-de", "Spielerhandbuch (2014)", "de", "2014", "pdf", "privat", 40)])
+         ("phb-2014-de", "Spielerhandbuch (2014)", "de", "2014", "pdf", "privat", 40),
+         # Ein gedrucktes Buch, das denselben Zauber fuehrt und eine SEITE hat - der Fall,
+         # an dem sich zeigt, ob die Fundstelle einer unterlegenen Quelle erhalten bleibt.
+         # Apostroph typografisch wie ihn registriere_quelle schreibt (Beschriftungs-
+         # Standard) - die Fixture soll den echten Bestand abbilden, nicht danebenliegen.
+         ("ddb-phb-2024-en", "Player’s Handbook", "en", "2024", "ddb", "privat", 40)])
     con.executemany(
         "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
         "body_md) VALUES (?,?,?,?,?,?,?,?)",
@@ -33,6 +38,9 @@ def bestand(tmp_path, monkeypatch):
          # + englischer Open5e-Eintrag; Bruecke NUR ueber die exakte Glossar-Zeile.
          (1, "zauber", "Feuerball", None, "de", "2024", "139", "8W6 Feuerschaden (deutsch)."),
          (2, "zauber", None, "Fireball", "en", "2024", None, "8d6 fire damage (english)."),
+         # Dritte Fassung desselben Zaubers, MIT Seite - unterliegt der deutschen Quelle,
+         # ihre Fundstelle soll trotzdem in der Antwort stehen.
+         (4, "zauber", None, "Fireball", "en", "2024", "241", "8d6 fire damage (print)."),
          # Aehnlich, aber ANDERER Inhalt - darf nie mitgemergt werden:
          (1, "zauber", "Verzögerter Feuerball", None, "de", "2024", "133", "Glimmender Ball."),
          (2, "zauber", None, "Delayed Blast Fireball", "en", "2024", None, "Glowing bead."),
@@ -86,6 +94,41 @@ def test_a3_genau_ein_kanonischer_feuerball(bestand):
         assert kanon["name_en"] == "Fireball"             # Provenienz beider Namen
         assert kanon["quelle"] == "SRD 5.2.1 (Deutsch)"
         assert any("Open5e" in q for q in kanon.get("weitere_quellen", [])), kanon
+
+
+def test_weitere_quellen_nennen_die_fundstelle(bestand):
+    """Befund 30.07.2026: Die Seite der weggemergten Fassung lag in der DB und fiel aus
+    der Antwort - eine Auskunft konnte nicht 'steht auch im Player's Handbook, S. 241'
+    sagen, obwohl genau das den Wert eines gedruckten Buches ausmacht.
+
+    Die harte Grenze aus Regel 1 wird mitgeprueft: Open5e fuehrt keine Seiten, also steht
+    dort NUR der Titel - keine erfundene Zahl."""
+    s = su.foliant_suche_bestand("Feuerball")
+    kanon = next(t for t in _zauber_2024(s) if t["name_de"] == "Feuerball")
+    weitere = kanon.get("weitere_quellen", [])
+    assert "Player’s Handbook, S. 241" in weitere, weitere
+    assert "SRD 5.2 (Open5e)" in weitere, weitere        # ohne Seite: nur der Titel
+    assert not any("S. None" in q or "S. ," in q for q in weitere), weitere
+
+
+def test_weitere_fassungen_fuehren_seite_und_kuerzel(bestand):
+    """Die nachladbaren Fassungen tragen die Fundstelle als eigene Felder mit (nicht nur
+    im Fliesstext): `seite` fuer den Beleg, `quelle` als Kuerzel fuer eine gezielte
+    Nachsuche - der Titel allein taugt dafuer nicht, foliant_suche_bestand verlangt das
+    Kuerzel.
+
+    Ueber den NAMEN abgerufen, nicht per eintrag_id: die Fundstellen entstehen aus der
+    Dublettengruppe, und die kennt nur dieser Weg. Ein Abruf per eintrag_id laedt bewusst
+    genau EINE Fassung - dort waere eine Gruppenaussage falsch.
+
+    Das Kuerzel heisst `quelle_kuerzel` wie ueberall in der Ausgabeschicht - nur unter
+    diesem Namen findet die Inhaltsart-Kennzeichnung den Eintrag, und eine weggemergte
+    Fassung kann aus einem Abenteuerband stammen (Review-Befund 31.07.2026)."""
+    d = ns.foliant_hol_eintrag("zauber", "Feuerball")
+    fassungen = {f["quelle_kuerzel"]: f for f in d.get("weitere_fundstellen", [])}
+    assert fassungen["ddb-phb-2024-en"]["seite"] == "241"
+    assert fassungen["open5e-srd-2024"]["seite"] is None   # keine geratene Seite
+    assert "S. 241" in d["hinweis_fundstellen"] or "Bestand" in d["hinweis_fundstellen"]
 
 
 def test_a3_aehnliche_zauber_bleiben_getrennt(bestand):

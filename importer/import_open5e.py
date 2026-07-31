@@ -37,11 +37,15 @@ import sys
 import time
 
 from app import db as _db
+from importer import quellen as _quellen
 from importer import schwellen as _schwellen
 
 API_BASE = "https://api.open5e.com/v2/"   # Default; [open5e].api_base gewinnt (A8)
 _PAUSE_S = 0.3           # hoefliche Drossel zwischen Requests (freies Community-Projekt)
-_PRIORITAET_BASIS = 60   # geringere Praezedenz als deutsche Quellen (Q2; kleiner = Vorrang)
+# Bandstart aus importer/quellen.py (31.07.2026): geringere Praezedenz als deutsche
+# Quellen (Q2; kleiner = Vorrang). Der Laufindex je Dokument bleibt - dafuer ist das Band
+# zehn breit, und genau solche Feinsortierung INNERHALB einer Klasse soll es erlauben.
+_PRIORITAET_BASIS = _quellen.BAND_EN_FREI
 _MAX_SEITEN = 500        # harte Obergrenze je Endpunkt (A10: keine endlose Pagination)
 
 
