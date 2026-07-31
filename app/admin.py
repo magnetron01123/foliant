@@ -135,13 +135,22 @@ def cmd_import(args) -> None:
                     sys.exit(f"Quelle '{kuerzel}': keine Markdown-Dateien unter {pfad} - "
                              f"Import abgebrochen, alter Bestand bleibt (A7).")
                 markdown = "\n\n".join(d.read_text(encoding="utf-8") for d in dateien)
+            # SYN-P0-007: Abenteuer-/Setting-Baende MUESSEN 'abenteuer_setting' tragen,
+            # sonst greift der Spoiler-Schutz nicht - und der ist die OBERSTE
+            # Verhaltensregel (SPEC.md par. 7). Der Default 'regelwerk' bleibt (ihn zur
+            # Pflicht zu machen hiesse, jeden bestehenden Config-Block zu brechen), aber
+            # er faellt nicht mehr STILL: bis zum 31.07.2026 stand hinterher nur
+            # "Import: N Eintraege", und ob dabei ein Abenteuerband ohne Kennzeichnung
+            # durchgelaufen war, sah man nirgends. `admin check` findet solche Faelle
+            # spaeter nur ueber eine Wortliste - die kennt den naechsten Bandtitel nicht.
+            if not eintrag.get("inhaltsart"):
+                print(f"  Hinweis: '{kuerzel}' fuehrt kein inhaltsart in der config -> "
+                      f"'regelwerk'. Bei einem Abenteuer-/Kampagnenband waere das ein "
+                      f"Band OHNE Spoiler-Schutz (SPEC.md par. 7).")
             # A7: Quellen-Upsert + Ersetzen + FTS-Rebuild in EINER Transaktion - sonst
             # koennte ein fehlgeschlagener Import geaenderte Quellen-Metadaten (z. B.
             # edition) neben alten Eintraegen zuruecklassen (A8-Konsistenz).
             with c:
-                # inhaltsart aus der Config honorieren (SYN-P0-007): Abenteuer-/Setting-
-                # Baende (z. B. Druck-Buecher efota/frhof) MUESSEN 'abenteuer_setting' tragen,
-                # sonst greift der Spoiler-Schutz nicht. Default 'regelwerk'.
                 registriere_quelle(
                     c, kuerzel=kuerzel, titel=eintrag.get("titel", kuerzel),
                     sprache=eintrag.get("sprache", "de"), edition=eintrag["edition"],

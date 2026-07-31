@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sqlite3
 import types
+from pathlib import Path
 
 import pytest
 
@@ -172,3 +173,63 @@ def test_auffrischen_nimmt_einem_setting_band_nicht_den_spoilerschutz(tmp_path,
     assert q["inhaltsart"] == "abenteuer_setting"               # ... aber nur, wo sie spricht
     assert q["lizenz"] == "privat" and q["prioritaet"] == 45
     assert q["dateipfad"] == "quellen/md/efota.md"
+
+
+def test_jede_seeder_marke_gilt_als_eigene_ableitung():
+    """Die Website weist getrennt aus, was von dnddeutsch.de uebernommen und was Foliant
+    selbst am Bestand belegt hat. Unterschieden wird an Marken in `glossar.quelle`, die
+    unsere eigenen Seeder setzen - und die stehen ueber mehrere Module verstreut. Kommt
+    ein Seeder dazu, dessen Marke `app.glossar.EIGENE_ABLEITUNG_MARKEN` nicht kennt,
+    zaehlen seine Zeilen still zu dnddeutsch.de: eine falsche Zuschreibung, die niemandem
+    auffiele, weil nur eine Zahl um ein paar Hundert danebenliegt.
+
+    Gesucht wird deshalb im QUELLTEXT aller Module, nicht in einer zweiten Liste - und
+    ueber `rglob`, weil ein kuenftiger Seeder weder 'srd_*' heissen noch in
+    import_glossar.py liegen muss."""
+    import re
+    from pathlib import Path
+
+    from app.glossar import ist_eigene_ableitung
+
+    marken = set()
+    for datei in sorted(Path("importer").rglob("*.py")) + sorted(Path("app").rglob("*.py")):
+        text = datei.read_text(encoding="utf-8")
+        marken |= set(re.findall(r'^\w*QUELLE\w* = "([^"]+)"', text, re.M))
+        marken |= set(re.findall(r'_upsert\([^)]*?,\s*[01],\s*"([^"]+)"', text, re.S))
+        marken |= set(re.findall(r"quelle = '([^']+)'", text))
+
+    assert len(marken) >= 8, f"Marken nicht gefunden - Regex pruefen: {sorted(marken)}"
+    unbekannt = sorted(m for m in marken if not ist_eigene_ableitung(m))
+    assert not unbekannt, (
+        f"Diese Seeder-Marken zaehlt die Website faelschlich zu dnddeutsch.de: "
+        f"{unbekannt} - app.glossar.EIGENE_ABLEITUNG_MARKEN ergaenzen.")
+
+
+def test_fehlendes_inhaltsart_faellt_beim_import_nicht_mehr_still_durch(tmp_path,
+                                                                        monkeypatch,
+                                                                        capsys):
+    """Die einzige Stelle, an der eine NEUE Quelle die oberste Verhaltensregel verlieren
+    kann: fehlt `inhaltsart` im [[quelle]]-Block, gilt 'regelwerk' - ein Abenteuerband
+    waere dann ohne Spoiler-Schutz im Bestand. Der Default bleibt (Pflicht zu machen
+    hiesse jeden bestehenden Block brechen), aber der Import sagt es jetzt.
+
+    `admin check` findet solche Faelle spaeter nur ueber eine Wortliste - die kennt den
+    Titel des naechsten Bandes nicht."""
+    from app import admin, db as _db
+    from tests.hilfen import neue_db
+
+    pfad = tmp_path / "bestand.sqlite"
+    neue_db(pfad).close()
+    md = tmp_path / "band.md"
+    md.write_text("# Ein Kapitel\n\nGenug Text fuer einen Eintrag im Bestand.\n",
+                  encoding="utf-8")
+
+    monkeypatch.setattr(_db, "lade_konfig", lambda: {"quelle": [
+        {"kuerzel": "neu-de", "titel": "Ein neuer Band", "sprache": "de",
+         "edition": "2024", "herkunft": "pdf", "dateipfad": str(md)}]})
+    monkeypatch.setattr(_db, "projekt_pfad", lambda p: Path(p))
+    monkeypatch.setattr(admin, "_web_db_auffrischen", lambda *_a, **_k: None)
+    admin.cmd_import(types.SimpleNamespace(quelle="neu-de", db=str(pfad), force=False))
+
+    ausgabe = capsys.readouterr().out
+    assert "kein inhaltsart" in ausgabe and "Spoiler-Schutz" in ausgabe, ausgabe

@@ -215,13 +215,21 @@ def _tabelle(zeilen: list[dict], kopf: tuple[str, str, str, str], groesste: int,
     return f'<ul class="buecher{klasse}">{"".join(teil)}</ul>'
 
 
+# Foliant führt heute nur deutsche und englische Quellen. Eine dritte Sprache wäre
+# deshalb nicht "unbekannt", sondern schlicht neu - und würde ohne diese Zuordnung als
+# "Englisch" ausgewiesen, weil alles Nicht-Deutsche vorher in den Englisch-Zweig fiel.
+# Ein falsches Etikett ist schlechter als ein ungewohntes: der Sprachcode ist ehrlich.
+_SPRACHNAMEN = {"de": "Deutsch", "en": "Englisch"}
+
+
 def _quellzeile(q: dict) -> dict:
     """Eine Bestandsquelle als Tabellenzeile: Titel, Sprache, Regelstand, Eintragszahl.
     Die Regelversion trägt ihr Wort mit ("Regeln 2024") - eine nackte Jahreszahl neben
     einem Buchtitel liest sich wie ein Erscheinungsjahr."""
     edition = str(q["edition"] or "").strip()
+    code = (q["sprache"] or "").strip().lower()[:2]
     return {"titel": q["titel"],
-            "marke_a": "Deutsch" if (q["sprache"] or "").startswith("de") else "Englisch",
+            "marke_a": _SPRACHNAMEN.get(code, code.upper() or "Sprache offen"),
             "marke_b": f"Regeln {edition}" if edition else "Regelversion offen",
             "zahl": q["eintraege"] or 0}
 
