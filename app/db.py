@@ -268,6 +268,19 @@ def connect_readonly(pfad: str) -> sqlite3.Connection:
 
 
 def _norm(text: str | None) -> str:
+    """Kleinschreibung OHNE Diakritika-Faltung - bewusst NICHT `glossar.norm_begriff`.
+
+    Diese Funktion bedient allein `_glossar_alternativen`, und dort ist sie der
+    Gesehen-Schluessel der Glossar-Hops: sie entscheidet, welche Alternative als schon
+    besucht gilt. Am 31.07.2026 gegen 1400 echte Anfragen (Abfrage-Protokoll +
+    Eintragsnamen) mit `norm_begriff` gemessen - genau EINE aendert sich, und zwar zum
+    Schlechteren: Die Anfrage 'Große' verliert die Alternative 'Größe', weil beide
+    gefaltet 'große' ergeben. Das sind zwei verschiedene deutsche Woerter, kein
+    Schreibvariantenpaar.
+
+    Die uebrigen Vergleichspfade dieses Moduls nutzen sehr wohl `norm_begriff` (als
+    `_gl_norm`): Gruppenschluessel, Exakt-Boost und Bruecken-Namen - dort ist die Faltung
+    richtig, weil sie GLEICHE Begriffe zusammenfuehren soll statt verschiedene zu trennen."""
     return (text or "").strip().lower()
 
 

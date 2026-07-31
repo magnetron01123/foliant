@@ -364,9 +364,13 @@ _ATTR_LABELS = (
 )
 
 
-def _falte(s: str) -> str:
-    return "".join(c for c in __import__("unicodedata").normalize("NFKD", s)
-                   if not __import__("unicodedata").combining(c)).lower()
+# Frueher stand hier eine eigene Faltung (inline `__import__("unicodedata")`), obwohl
+# dieses Modul `norm_begriff` oben schon importiert - und deren Docstring ausdruecklich
+# sagt, sie sei da, "damit alle Vergleichspfade DIESELBE Semantik nutzen statt eigener
+# .lower()-Kopien". Am Bestand nachgemessen (31.07.2026, 3084 Eintraege): die beiden
+# unterscheiden sich nur im Randwhitespace, den `norm_begriff` zusaetzlich abschneidet;
+# `monster_attribute` und `monster_statschluessel` liefern auf JEDEM Eintrag dasselbe.
+_falte = _n
 
 
 def monster_attribute(body: str | None) -> tuple | None:

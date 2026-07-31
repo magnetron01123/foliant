@@ -111,6 +111,20 @@ _HINWEIS_BESTAND = ("Nur Optionen aus dem Bestand. Fehlt eine erwartete Option (
 
 
 def _norm(text: str | None) -> str:
+    """Kleinschreibung OHNE Diakritika-Faltung - bewusst NICHT `glossar.norm_begriff`.
+
+    Am 31.07.2026 gemessen, weil hier drei Funktionen namens `_norm` mit zwei Bedeutungen
+    nebeneinander lebten und nirgends stand, warum. Ergebnis: Der Unterschied traegt an
+    GENAU EINER Stelle Gewicht, und zwar in beide Richtungen.
+
+    Faltung waere hier FALSCH: `_ATTRIBUTE` und die Werte von `_ATTR_ALIAS` sind die
+    deutschen Attributsnamen MIT Umlaut ('stärke'). Gefaltet ergaebe die Nutzereingabe
+    'stärke' den Schluessel 'starke', der in beiden Tabellen fehlt - die Build-Pruefung
+    lehnte das Attribut als unbekannt ab und meldete `nicht_pruefbar` statt zu pruefen.
+    Genau das brach beim Umstellen drei Tests (A4/A5/T9).
+
+    Faltung waere dort RICHTIG, wo Eintragsnamen SORTIERT werden - deshalb steht dort
+    ausdruecklich `_glossar.norm_begriff` (s. `_liste`)."""
     return (text or "").strip().lower()
 
 
@@ -246,7 +260,10 @@ def _liste(kategorie: str, schluessel: str, schritt_hinweis: str) -> dict:
                     if gruppe:
                         extra["kategorie"] = gruppe
             zeilen.append(_zeile(con, g, **extra))
-        zeilen.sort(key=lambda z: _norm(z["name_de"] or z["name_en"]))
+        # Deutsche Alphabetisierung (DIN 5007-1: ä = a), nicht Codepoint-Ordnung:
+        # ohne Faltung sortiert 'ä' (U+00E4) hinter 'z', und "Kämpfer" stand in der
+        # Klassenliste hinter "Kleriker". Ein Spieler liest diese Liste.
+        zeilen.sort(key=lambda z: _glossar.norm_begriff(z["name_de"] or z["name_en"]))
         antwort = {schluessel: zeilen, "hinweis_reihenfolge": schritt_hinweis,
                    "hinweis": _HINWEIS_BESTAND}
         _aus._markiere_abenteuer(con, antwort, zeilen)
@@ -399,7 +416,9 @@ def _liste_klassen() -> dict:
                 zeilen.append(({"varianten": referenzen},
                                {**uz, "hinweis": "Zugehoerige Klasse nicht im Bestand."}))
 
-        klassen = sorted((z for _g, z in zeilen), key=lambda z: _norm(z["name_de"] or z["name_en"]))
+        # Deutsche Alphabetisierung wie in `_liste` (s. dort).
+        klassen = sorted((z for _g, z in zeilen),
+                         key=lambda z: _glossar.norm_begriff(z["name_de"] or z["name_en"]))
         antwort = {"klassen": klassen,
                    "hinweis_reihenfolge": "Klasse ist SCHRITT 1 von 4. " + _HINWEIS_REIHENFOLGE,
                    "hinweis": _HINWEIS_BESTAND}
