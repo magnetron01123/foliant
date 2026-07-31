@@ -17,7 +17,7 @@ from rapidfuzz import fuzz, process
 # Vorher lagen sie in drei Modulen (glossar 88, db.py 86, nachschlagen 90), gewachsen statt
 # abgestimmt - niemand konnte sagen, warum sie sich unterscheiden. Sie stehen jetzt hier,
 # weil dieses Modul ohnehin die kanonische Namensvergleichs-Logik traegt (norm_begriff,
-# KLAMMER_SUFFIX); db.py und nachschlagen.py importieren von hier.
+# KLAMMER_SUFFIX); db.py und die Werkzeug-Module importieren von hier.
 #
 # Die WERTE sind bewusst unveraendert uebernommen: Sie sind an echten Faellen justiert, und
 # jede Verschiebung bewegt das Suchverhalten am gesamten Bestand. Die Aufgabe war, sie
@@ -69,6 +69,13 @@ _norm = norm_begriff
 # (Exakt-Auswahl, Such-Ranking) - SYN-P0-002: ohne die klammerlose Variante griff bei
 # gemischtem Bestand der Altstand-Fallback ('Erschöpfung' -> 2014-'Exhaustion').
 KLAMMER_SUFFIX = re.compile(r"\s*\([^()]{1,40}\)\s*$")
+
+# srd-de-Namensschema fuer Unterklassen: '<Klasse>-Unterklasse: <Name>'. EINE Definition
+# fuer alle Vergleichspfade - sie stand bis zum 31.07.2026 dreimal als eigenes Regex-Literal
+# (hier, app/db.py im Ranking, app/tools/charakter.py). group(1) ist die Klasse, group(2)
+# der blanke Unterklassenname; ohne diesen gewinnt bei foliant_hol_eintrag("klasse",
+# "Champion") der englische Open5e-Eintrag gegen den deutschen (S10).
+UNTERKLASSE_SCHEMA = re.compile(r"^(.+)-Unterklasse:\s*(.+)$", re.IGNORECASE)
 
 # Herkunfts-Label der 2024-Aktionszeilen (glossar.quelle). Es steht hier statt beim Seeder,
 # weil es SCHREIBER und LESER verbindet: `importer/import_glossar.seed_aktionen` setzt es,
@@ -192,7 +199,7 @@ def _exakt_index(con: sqlite3.Connection) -> dict[tuple[str, str], list[dict]]:
                 if n:
                     idx.setdefault((richtung, n), []).append(z)
         for zeilen in idx.values():
-            zeilen.sort(key=_auswahlschluessel)
+            zeilen.sort(key=auswahlschluessel)
         _INDEX_CACHE.clear()                 # nur die aktuelle Signatur halten
         _INDEX_CACHE[sig] = idx
     return idx
@@ -225,14 +232,22 @@ def exakte_entsprechungen(con: sqlite3.Connection, begriff: str) -> set[str]:
     return treffer
 
 
-def _auswahlschluessel(z: dict) -> tuple:
+def auswahlschluessel(z: dict) -> tuple:
     """A9 - dokumentierte KANONISCHE AUSWAHLREGEL (S3/S8), in dieser Reihenfolge:
       1. offizielle Begriffe vor inoffiziellen (S6),
       2. neuere belegte Edition vor aelterer, UNBEKANNTE Edition ganz hinten
          (S8: der neuere offizielle Begriff gewinnt; nichts wird als 2024 geraten),
       3. Begriffe mit konkretem Buch-/Glossar-Beleg vor blossen Community-Zeilen,
       4. alphabetisch NUR als letzter Determinismus-Anker.
-    Modulweit, damit lookup() und begriffe_im_text() DIESELBE Zeilenauswahl treffen."""
+    Modulweit, damit lookup() und begriffe_im_text() DIESELBE Zeilenauswahl treffen.
+
+    OEFFENTLICH seit dem 31.07.2026: Der Charakterbogen-Uebersetzer sortierte frisch
+    nachgeschlagene dnddeutsch-Zeilen mit einer EIGENEN Regel aus zwei Kriterien
+    (offiziell, Ulisses-Quelle) - ohne Stufe 2, also ohne S8. Bei editionsgetrennten
+    Formen (CONCEPT.md par. 5: 'Pouch' -> Tasche/2014 vs. Beutel/2024) entschied dort
+    die Sortierstabilitaet statt der Regel, und der gedruckte Bogen konnte eine andere
+    deutsche Fassung tragen als jede MCP-Auskunft. Wer diese Regel braucht, ruft sie -
+    er schreibt sie nicht neu."""
     quelle = z.get("quelle") or ""
     belegt = 0 if ("Ulisses" in quelle or "buch" in quelle.lower()
                    or (quelle and "Community" not in quelle
@@ -276,14 +291,24 @@ def lookup(con: sqlite3.Connection, begriff: str, richtung: str = "en_de") -> li
              for _n, score, i in passend for z in namen[schluessel[i]]
              if _norm(z[spalte]) != n]
 
-    return (sorted(exakt, key=_auswahlschluessel)
-            + sorted(fuzzy, key=_auswahlschluessel))
+    return (sorted(exakt, key=auswahlschluessel)
+            + sorted(fuzzy, key=auswahlschluessel))
 
 
-def term_de(con: sqlite3.Connection, term_en: str) -> tuple[str, bool]:
-    """Liefert (deutscher_begriff, offiziell). offiziell=False -> Aufrufer setzt '*' (S5).
-    Kein EXAKTER Glossar-Treffer -> (term_en, False): es gibt (noch) keine belegte deutsche
-    Entsprechung; der Aufrufer nutzt dann eine markierte deutsche Wiedergabe (S3 Stufe 4).
+def term_de(con: sqlite3.Connection, term_en: str) -> tuple[str, bool] | None:
+    """Liefert (deutscher_begriff, offiziell) - oder None, wenn es KEINEN belegten
+    deutschen Begriff gibt. offiziell=False -> Aufrufer setzt '*' (S5).
+
+    None statt eines In-Band-Signals (31.07.2026): Diese Funktion gab bei fehlendem
+    Treffer `(term_en, False)` zurueck, und die Aufrufer schlossen aus `de == en` auf
+    "kein Beleg". Das ist falsch, sobald der deutsche Begriff dem englischen GLEICHT -
+    und das tun im Bestand 111 Glossarzeilen, davon 110 OFFIZIELLE: Aasimar, Aboleth,
+    Alarm, Paladin, Elf, Initiative, Charisma, Basilisk ... Der Charakterbogen-Uebersetzer
+    stempelte ihnen deshalb einen Stern auf ("Aasimar* (Aasimar)"), obwohl der Begriff
+    amtlich belegt ist - ein direkter Verstoss gegen SPEC.md T3/C1 und Projektregel 3.
+    Ein Rueckgabewert, der zwei Dinge bedeutet, laesst sich nicht auseinanderhalten;
+    also bedeutet er jetzt nur noch eines.
+
     Fuzzy-Zeilen zaehlen hier NIE (SYN-P0-001: sonst wird ein aehnlicher FREMDER Begriff
     zur 'offiziellen' Uebersetzung - Aktionen -> Reaktionen)."""
     zeilen = lookup_exakt(con, term_en, richtung="en_de")
@@ -295,7 +320,7 @@ def term_de(con: sqlite3.Connection, term_en: str) -> tuple[str, bool]:
         if ohne and ohne != term_en:
             zeilen = lookup_exakt(con, ohne, richtung="en_de")
     if not zeilen:
-        return (term_en, False)
+        return None
     beste = zeilen[0]
     return (beste["term_de"], bool(beste["offiziell"]))
 
@@ -374,7 +399,7 @@ def begriffe_im_text(con: sqlite3.Connection, text: str, *,
         if enl not in text_low:                       # schneller C-Vortest vor dem Regex
             continue
         vorher = beste.get(enl)
-        if vorher is None or _auswahlschluessel(z) < _auswahlschluessel(vorher):
+        if vorher is None or auswahlschluessel(z) < auswahlschluessel(vorher):
             beste[enl] = z
     treffer = [z for z in beste.values()
                if re.search(r"\b" + re.escape(z["term_en"]) + r"\b", text, re.IGNORECASE)]
@@ -423,9 +448,9 @@ def _eintrag_namen(k: dict) -> set[str]:
     foliant_hol_eintrag("klasse", 'Champion') der englische Open5e-Eintrag (S10). Klammer-Suffixe
     zaehlen zusaetzlich OHNE Zusatz (SYN-P0-002)."""
     namen = {norm_begriff(k["name_de"]), norm_begriff(k["name_en"])}
-    m = re.match(r".+-unterklasse:\s*(.+)$", norm_begriff(k["name_de"]))
+    m = UNTERKLASSE_SCHEMA.match(norm_begriff(k["name_de"]))
     if m:
-        namen.add(m.group(1).strip())
+        namen.add(m.group(2).strip())
     for n in list(namen):
         ohne_zusatz = KLAMMER_SUFFIX.sub("", n).strip()
         if ohne_zusatz:

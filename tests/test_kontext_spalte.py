@@ -19,9 +19,9 @@ import pytest
 from app import db as adb
 from app.tools import charakter as ch
 from importer.import_markdown import _chunks, importiere_markdown
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
+_SCHEMA = SCHEMA
 _MARKDOWN = ("# Klassen\n\n## Kämpfer\n\nDer Kämpfer ist ein Krieger.\n\n"
              "### Kampfstile\n\nWähle einen Kampfstil.\n\n"
              "## Magier\n\nDer Magier wirkt Zauber.\n")

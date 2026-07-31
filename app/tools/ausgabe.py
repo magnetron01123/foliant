@@ -177,9 +177,15 @@ def _anzeige_name(con: sqlite3.Connection, e: dict) -> str:
             return _glossar.markiere(e["name_de"], name_en, offiziell=True)
         return e["name_de"]
     name_en = e.get("name_en") or e.get("name_de") or "?"
-    de, offiziell = _glossar.term_de(con, name_en)
-    if de and de != name_en:
-        return _glossar.markiere(de, name_en, offiziell)
+    # term_de liefert None, wenn es keinen belegten deutschen Begriff gibt (seit
+    # 31.07.2026 statt des mehrdeutigen (term_en, False)). Der `de != name_en`-Test
+    # bleibt trotzdem stehen - er unterdrueckt die sinnlose Klammer bei gleichlautenden
+    # Begriffen ("Aasimar (Aasimar)"), und genau das ist hier die richtige Anzeige.
+    treffer = _glossar.term_de(con, name_en)
+    if treffer:
+        de, offiziell = treffer
+        if de != name_en:
+            return _glossar.markiere(de, name_en, offiziell)
     return name_en
 
 def _facetten_von(con: sqlite3.Connection, e: dict) -> dict | None:

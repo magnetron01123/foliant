@@ -29,6 +29,7 @@ from rapidfuzz import fuzz, process
 from app.glossar import KLAMMER_SUFFIX as _KLAMMER_SUFFIX
 from app.glossar import FUZZY_SUCHE as _FUZZY_SUCHE
 from app.glossar import norm_begriff as _gl_norm
+from app.glossar import _eintrag_namen as _gl_eintrag_namen
 
 STANDARD_EDITION = "2024"
 # SYN-P2-001 (codex TECH-011/DND-017): 'unterstuetzt' und 'im Bestand vorhanden' sind
@@ -134,16 +135,13 @@ FACETTEN_SPALTEN: dict[str, dict[str, str]] = {
     "gegenstand_meta": {"preis_cent": "INTEGER"},
 }
 
-# Indizes auf eintraege ausser dem Initial-Index (kategorie, edition) - hier EINMAL neben
-# schema.sql gefuehrt, damit Bestands-DBs sie ueber denselben Migrationspunkt bekommen.
-# Jeder ist mit EXPLAIN QUERY PLAN belegt (SCAN -> SEARCH), Begruendung in schema.sql.
-NUTZINDIZES: dict[str, str] = {
-    "idx_eintraege_quelle": "quelle_id",
-    "idx_eintraege_sprache_kat": "sprache, kategorie",
-    "idx_eintraege_name_de": "name_de",
-    "idx_eintraege_name_en": "name_en",
-    "idx_eintraege_kontext": "kontext",
-}
+# Das Schema steht AUSSCHLIESSLICH in db/schema.sql. Hier lag bis zum 31.07.2026 eine
+# zweite Liste (`NUTZINDIZES`) mit denselben fuenf Indizes, damit Bestands-DBs sie ueber
+# den Migrationspunkt bekommen - obwohl der Kommentar daneben "hier EINMAL definiert"
+# behauptete. Zwei Listen, die von Hand synchron gehalten werden mussten, plus ein Test,
+# der genau das ueberwachte. Da jede Anweisung in schema.sql `IF NOT EXISTS` traegt,
+# genuegt es, die Datei auf einer Bestands-DB einfach auszufuehren.
+SCHEMA_DATEI = _PROJEKT / "db" / "schema.sql"
 
 # Der Breadcrumb steht als erste Zeile im body_md ('*Kontext: Zauber > Zaubertricks*').
 # Hier stehen BEIDE Formen, in denen das Projekt ihn liest - vorher hatte jedes der fuenf
@@ -230,17 +228,20 @@ def stelle_schema_sicher(con: sqlite3.Connection) -> None:
         for tabelle, neue in FACETTEN_SPALTEN.items():
             _ergaenze_spalten(con, tabelle, neue)
         _ruest_kontext_nach(con)
-        # Nur wenn die Tabelle da ist: sonst wirft CREATE INDEX, der Sammel-except unten
-        # schluckt es - und die user_version bliebe still auf ihrem alten Stand stehen.
-        if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND "
-                       "name='eintraege'").fetchone():
-            for name, spalten in NUTZINDIZES.items():
-                con.execute(f"CREATE INDEX IF NOT EXISTS {name} ON eintraege({spalten})")
+        # Fehlende Tabellen, Indizes und Trigger aus der EINEN Schema-Datei nachziehen.
+        # Alles darin ist `IF NOT EXISTS`, also folgenlos fuer alles, was schon steht -
+        # und eine neue Zeile in schema.sql erreicht Bestands-DBs damit von selbst,
+        # statt in einer zweiten Python-Liste nachgetragen werden zu muessen.
+        con.executescript(SCHEMA_DATEI.read_text(encoding="utf-8"))
         if con.execute("PRAGMA user_version").fetchone()[0] < 2:
             con.execute("PRAGMA user_version = 2")     # nur anheben, nie eine hoehere Version senken
         con.commit()
-    except sqlite3.OperationalError:
-        pass                                            # z. B. read-only geoeffnet - hier bewusst folgenlos
+    except sqlite3.OperationalError as fehler:
+        # Meist harmlos (read-only geoeffnet), aber nicht immer: der Sammel-except
+        # bricht den REST der Nachruestung ebenfalls ab. Ein stiller Abbruch hier
+        # heisst eine fehlende Spalte spaeter - deshalb wird er benannt, nicht
+        # verworfen. Fatal ist er nie: alle Aufrufer arbeiten auch ohne weiter.
+        print(f"WARNUNG: Schema-Nachzug uebersprungen ({fehler}).")
 
 
 def connect(pfad: str) -> sqlite3.Connection:
@@ -268,6 +269,19 @@ def connect_readonly(pfad: str) -> sqlite3.Connection:
 
 
 def _norm(text: str | None) -> str:
+    """Kleinschreibung OHNE Diakritika-Faltung - bewusst NICHT `glossar.norm_begriff`.
+
+    Diese Funktion bedient allein `_glossar_alternativen`, und dort ist sie der
+    Gesehen-Schluessel der Glossar-Hops: sie entscheidet, welche Alternative als schon
+    besucht gilt. Am 31.07.2026 gegen 1400 echte Anfragen (Abfrage-Protokoll +
+    Eintragsnamen) mit `norm_begriff` gemessen - genau EINE aendert sich, und zwar zum
+    Schlechteren: Die Anfrage 'Große' verliert die Alternative 'Größe', weil beide
+    gefaltet 'große' ergeben. Das sind zwei verschiedene deutsche Woerter, kein
+    Schreibvariantenpaar.
+
+    Die uebrigen Vergleichspfade dieses Moduls nutzen sehr wohl `norm_begriff` (als
+    `_gl_norm`): Gruppenschluessel, Exakt-Boost und Bruecken-Namen - dort ist die Faltung
+    richtig, weil sie GLEICHE Begriffe zusammenfuehren soll statt verschiedene zu trennen."""
     return (text or "").strip().lower()
 
 
@@ -421,6 +435,18 @@ def _glossar_alternativen(con: sqlite3.Connection, begriff: str,
     for zwischenbegriff in erste:
         zweite += sammle(zwischenbegriff, gesehen)
     return (erste + zweite)[:8]
+
+
+def anfrage_varianten(con: sqlite3.Connection, begriff: str) -> set[str]:
+    """Normalisierter Suchbegriff plus seine EXAKTEN Glossar-Entsprechungen.
+
+    Der Vergleichsschluessel, gegen den beide Werkzeugpfade einen Kandidatennamen als
+    "passt zur Anfrage" pruefen. Stand bis zum 31.07.2026 wortgleich zweimal da
+    (app/tools/suche.py im Namenstreffer-Zaehler, app/tools/nachschlagen.py in der
+    Exakt-Auswahl) - dieselbe Regel an zwei Orten, obwohl schon eine falsch gesetzte
+    Klammer dort zwei verschiedene Antworten erzeugt haette. NUR exakt (SYN-P0-001)."""
+    return {_gl_norm(begriff)} | {_gl_norm(a) for a
+                                  in _glossar_alternativen(con, begriff, nur_exakt=True)}
 
 
 def _fuzzy_treffer(con: sqlite3.Connection, begriff: str, kategorie: str | None,
@@ -592,18 +618,12 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
 
     def rang(t: dict) -> tuple:
         nd, ne = _gl_norm(t["name_de"]), _gl_norm(t["name_en"])
-        namen = {nd, ne}
-        # srd-de-Unterklassenschema: 'Kämpfer-Unterklasse: Champion' zaehlt auch als
-        # exakter 'Champion'-Treffer - sonst verliert der deutsche Eintrag gegen Open5e.
-        m = re.match(r".+-unterklasse:\s*(.+)$", nd)
-        if m:
-            namen.add(m.group(1).strip())
-        # Klammer-Suffix ('Erschöpfung (Zustand)') zaehlt auch ohne Zusatz als exakt
-        # (SYN-P0-002; kanonische Definition in glossar.KLAMMER_SUFFIX).
-        for n in list(namen):
-            ohne = _KLAMMER_SUFFIX.sub("", n).strip()
-            if ohne:
-                namen.add(ohne)
+        # Namensvarianten aus der EINEN Definition (glossar._eintrag_namen): normalisierte
+        # Namen + srd-de-Unterklassenschema + Klammer-Suffix. Bis zum 31.07.2026 stand
+        # dieselbe Regel hier ein zweites Mal ausgeschrieben - und der Detailpfad rief
+        # bereits die gemeinsame Fassung, sodass Ranking und Exakt-Auswahl auf zwei
+        # Kopien derselben Identitaetsregel liefen.
+        namen = _gl_eintrag_namen(t)
         exakt = 0 if begriffe & namen else 1
         prefix = 0 if any(b and n.startswith(b) for n in namen for b in begriffe) else 1
         # SYN-P1-006 (claude DND-011): Praefix auf den ORIGINAL-Suchbegriff rankt vor
@@ -731,11 +751,40 @@ def fts_suche(con: sqlite3.Connection, query: str, kategorie: str | None = None,
     }
 
 
+EINTRAGS_SPALTEN = ("quelle_id", "kategorie", "name_de", "name_en", "sprache",
+                    "edition", "seite", "kontext", "body_md")
+
+
+def ersetze_eintraege(con: sqlite3.Connection, quelle_id: int,
+                      zeilen: list[tuple]) -> None:
+    """Den Bestand EINER Quelle austauschen: loeschen + einfuegen in einem Schritt.
+
+    Committet NICHT - der Aufrufer fuehrt die Transaktion (A7), genau wie bei
+    `fts_rebuild`. Jede Zeile ist ein Tupel in der Reihenfolge von EINTRAGS_SPALTEN;
+    was eine Quelle nicht hat (englische Quellen kein `name_de`, API-Quellen keine
+    `seite`), traegt None.
+
+    Bis zum 31.07.2026 stand dasselbe DELETE+INSERT dreimal - in import_markdown,
+    import_ddb und import_open5e -, und die Open5e-Fassung listete nur acht Spalten:
+    sie schrieb `kontext` gar nicht erst. Eine neue Spalte in `eintraege` haette an drei
+    Stellen nachgezogen werden muessen, ohne dass etwas meldet, wenn eine fehlt."""
+    con.execute("DELETE FROM eintraege WHERE quelle_id = ?", (quelle_id,))  # idempotent
+    con.executemany(
+        f"INSERT INTO eintraege ({', '.join(EINTRAGS_SPALTEN)}) "
+        f"VALUES ({', '.join('?' * len(EINTRAGS_SPALTEN))})", zeilen)
+
+
 def fts_rebuild(con: sqlite3.Connection) -> None:
     """FTS extern neu aufbauen - nach jedem (Bulk-)Import Pflicht (Leitplanke): robuster als
-    inkrementelle Trigger-Synchronitaet bei grossen Importen."""
+    inkrementelle Trigger-Synchronitaet bei grossen Importen.
+
+    Committet NICHT (seit 31.07.2026): Der Aufrufer fuehrt die Transaktion. Vorher steckte
+    hier ein `con.commit()`, und genau deshalb konnte kein Importweg diese Funktion
+    benutzen - jeder von ihnen sagt eine EINE-Transaktion zu (A7), die ein Commit
+    mittendrin zerrisse. Also stand dasselbe SQL viermal roh im Code
+    (import_markdown, import_open5e, import_ddb, admin ddb-remove). Ein Interface, das
+    zwei Dinge mischt, erzeugt Kopien statt Aufrufer."""
     con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
-    con.commit()
 
 
 def hole_eintrag(con: sqlite3.Connection, eintrag_id: int) -> dict | None:

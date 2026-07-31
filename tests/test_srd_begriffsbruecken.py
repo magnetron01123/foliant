@@ -11,10 +11,9 @@ from app import facetten as f
 from importer import srd_begriffsbruecken as bb
 from importer.import_glossar import (_finde_monster_paare,
                                      seed_gegenstands_bruecke_aus_bestand)
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 def _db(tmp_path):
     pfad = tmp_path / "bruecken.sqlite"
     con = sqlite3.connect(pfad)

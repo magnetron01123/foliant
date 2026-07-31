@@ -19,9 +19,18 @@ def aufloesen(con: sqlite3.Connection, term_en: str) -> str | None:
     en = (term_en or "").strip()
     if not en:
         return None
-    de, offiziell = glossar.term_de(con, en)
-    if de == en:  # term_de gibt bei fehlendem exaktem Treffer die Eingabe unverändert zurück
+    treffer = glossar.term_de(con, en)
+    if treffer is None:          # kein belegter deutscher Begriff -> Aufrufer + LLM + '*'
         return None
+    de, offiziell = treffer
+    if de == en:
+        # Deutsch und Englisch sind gleich (Aasimar, Aboleth, Alarm, Paladin, Charisma -
+        # im Bestand 110 OFFIZIELLE Zeilen). Das ist ein BELEGTER Begriff, also weder
+        # Stern noch Klammer: "Aasimar (Aasimar)" wäre albern, "Aasimar*" schlicht falsch.
+        # Bis zum 31.07.2026 verwechselte diese Stelle die Gleichheit mit "kein Beleg"
+        # und lieferte None - der Bogen druckte dann "Aasimar* (Aasimar)" und behauptete
+        # damit, es gebe keine offizielle deutsche Fassung (Verstoß gegen SPEC.md T3/C1).
+        return de if offiziell else glossar.markiere(de, en, offiziell)
     return glossar.markiere(de, en, offiziell)
 
 

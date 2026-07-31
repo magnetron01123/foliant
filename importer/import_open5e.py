@@ -1,6 +1,6 @@
 """Open5e-Import (MVP-Quelle). EINMALIGER Import von api.open5e.com/v2 -> gleiches `eintraege`-
 Schema (BP #7); KEIN Laufzeit-API-Aufruf (Runtime bleibt offline, Q7).
-Englisch -> zur Laufzeit mit dt. Begriffen annotiert (S3-Fallback, app.tools._anzeige_name).
+Englisch -> zur Laufzeit mit dt. Begriffen annotiert (S3-Fallback, app.tools.ausgabe._anzeige_name).
 seite bleibt NULL (F7: Seite optional). Nur gewuenschte Dokumente ziehen, editionsgetaggt
 (srd-2024 / srd-2014); unbekannte Dokument-Keys werden ABGELEHNT statt geraten (Q3).
 
@@ -36,6 +36,7 @@ import sqlite3
 import sys
 import time
 
+from app import db as _db
 from importer import schwellen as _schwellen
 
 API_BASE = "https://api.open5e.com/v2/"   # Default; [open5e].api_base gewinnt (A8)
@@ -347,17 +348,17 @@ _LIZENZEN = {"srd-2024": "CC-BY-4.0", "srd-2014": "OGL-1.0a"}
 
 def _quelle_upsert(con: sqlite3.Connection, kuerzel: str, titel: str, edition: str,
                    prioritaet: int, lizenz: str) -> int:
-    """A8: beim Upsert ALLE veraenderbaren Felder konsistent aktualisieren - sonst
-    behaelt eine bestehende Quelle stillschweigend alte Lizenz/Prioritaet/Herkunft."""
-    con.execute(
-        "INSERT INTO quellen (kuerzel, titel, sprache, edition, herkunft, lizenz, prioritaet) "
-        "VALUES (?, ?, 'en', ?, 'open5e', ?, ?) "
-        "ON CONFLICT(kuerzel) DO UPDATE SET titel=excluded.titel, "
-        "sprache=excluded.sprache, edition=excluded.edition, "
-        "herkunft=excluded.herkunft, lizenz=excluded.lizenz, "
-        "prioritaet=excluded.prioritaet",
-        (kuerzel, titel, edition, lizenz, prioritaet))
-    return con.execute("SELECT id FROM quellen WHERE kuerzel = ?", (kuerzel,)).fetchone()[0]
+    """Open5e-Belegung des gemeinsamen Quellen-Registers: immer englisch, immer Herkunft
+    'open5e', kein `dateipfad` (API-Quelle, F7: Seite/Datei optional), immer Regelwerk.
+
+    Bis zum 31.07.2026 stand hier ein eigener Upsert, der `dateipfad` und `inhaltsart` gar
+    nicht erst nannte - ein Re-Import liess dort also stehen, was vorher drinstand. Jetzt
+    setzt der gemeinsame Weg beide ausdruecklich (A8: alle veraenderbaren Felder)."""
+    from importer.quellen import registriere_quelle
+
+    return registriere_quelle(con, kuerzel=kuerzel, titel=titel, sprache="en",
+                              edition=edition, herkunft="open5e", lizenz=lizenz,
+                              prioritaet=prioritaet)
 
 
 def import_open5e(con: sqlite3.Connection, dokumente: list[str] | None = None,
@@ -420,16 +421,17 @@ def import_open5e(con: sqlite3.Connection, dokumente: list[str] | None = None,
         _schwellen.pruefe_umfang(dokument, len(chunks), alt, erlaubt=erlaube_schrumpfen)
         quelle_id = _quelle_upsert(con, kuerzel, titel, edition, _PRIORITAET_BASIS + i,
                                    _LIZENZEN.get(dokument, "siehe Open5e-Dokument"))
-        con.execute("DELETE FROM eintraege WHERE quelle_id = ?", (quelle_id,))  # idempotent
-        con.executemany(
-            "INSERT INTO eintraege (quelle_id, kategorie, name_de, name_en, sprache, "
-            "edition, seite, body_md) VALUES (?, ?, NULL, ?, 'en', ?, NULL, ?)",
-            [(quelle_id, c["kategorie"], c["name"], edition, c["body"])
-             for c in chunks.values()])
+        # Open5e ist englisch (kein name_de), hat keine Seiten und keinen Breadcrumb.
+        # Die kontext-Spalte fehlte hier frueher ganz - der Sammel-Schreiber macht das
+        # explizit statt implizit.
+        _db.ersetze_eintraege(con, quelle_id, [
+            (quelle_id, c["kategorie"], None, c["name"], "en", edition, None, None,
+             c["body"]) for c in chunks.values()])
         print(f"{dokument}: {len(chunks)} Eintraege vorbereitet (Edition {edition})")
         gesamt += len(chunks)
-    # FTS-Rebuild in DERSELBEN Transaktion (Leitplanke + A7).
-    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    # FTS-Rebuild in DERSELBEN Transaktion (Leitplanke + A7). db.fts_rebuild committet
+    # bewusst nicht - deshalb ist es hier ueberhaupt aufrufbar (Befund 31.07.2026).
+    _db.fts_rebuild(con)
     return gesamt
 
 

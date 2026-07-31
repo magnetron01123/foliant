@@ -26,15 +26,10 @@ from pathlib import Path
 
 from app import dnddeutsch
 from app import glossar as _glossar
+from importer import namensreparatur as nr
 
 API_URL = dnddeutsch.API_URL                     # Default; [glossar].api_url gewinnt
 _PAUSE_S = dnddeutsch.PAUSE_S
-
-
-def _api_url() -> str:
-    """A8: die in config/foliant.toml angebotene [glossar].api_url wird tatsaechlich
-    verwendet (Default: API_URL)."""
-    return dnddeutsch.api_url()
 
 
 def _cache_verzeichnis() -> Path:
@@ -209,7 +204,6 @@ def seed_kern_singulare(con: sqlite3.Connection) -> int:
     for term_en, term_de, edition in KERN_SINGULAR_PAARE:
         _upsert(con, term_en, term_de, 1, "Kernbegriff (kuratiert, bestandsbelegt)",
                 edition, None)
-    con.commit()
     return len(KERN_SINGULAR_PAARE)
 
 
@@ -248,7 +242,6 @@ def seed_aktionen(con: sqlite3.Connection) -> int:
             continue                       # kein srd-de-Beleg -> Zeile entfaellt (nicht raten)
         _upsert(con, term_en, term_de, 1, QUELLE_AKTIONEN, "2024", None)
         n += 1
-    con.commit()
     return n
 
 
@@ -263,10 +256,6 @@ def _slug(begriff: str) -> str:
 def _hole_api(client, begriff: str) -> dict:
     """Antwort aus Cache oder API (dann gedrosselt); Cache macht Re-Runs offline (O2)."""
     return dnddeutsch.hole(client, begriff, pause_s=_PAUSE_S)
-
-
-def _edition_aus_buch(buch: str | None) -> str | None:
-    return dnddeutsch.edition_aus_buch(buch)
 
 
 # Ein Glossar-Begriff ist ein NAME, kein Satz. Beide Grenzen am Bestand gemessen
@@ -287,12 +276,14 @@ def ist_begriff(term: str) -> bool:
 
 def _upsert(con: sqlite3.Connection, term_en: str, term_de: str, offiziell: int,
             quelle: str | None, edition_quelle: str | None, seite: str | None) -> None:
-    con.execute(
-        "INSERT INTO glossar (term_en, term_de, offiziell, quelle, edition_quelle, seite) "
-        "VALUES (?, ?, ?, ?, ?, ?) "
-        "ON CONFLICT(term_en, term_de) DO UPDATE SET offiziell=excluded.offiziell, "
-        "quelle=excluded.quelle, edition_quelle=excluded.edition_quelle, seite=excluded.seite",
-        (term_en, term_de, offiziell, quelle, edition_quelle, seite))
+    """Eine Glossarzeile schreiben - ueber den EINEN Upsert in app/dnddeutsch.py.
+
+    Das SQL stand hier bis zum 31.07.2026 ein zweites Mal, zeichengleich zu
+    `dnddeutsch.schreibe_zeilen`. Zwei Kopien desselben ON-CONFLICT-Blocks heissen:
+    eine neue Glossarspalte muss an beiden Stellen nachgezogen werden, und nichts
+    meldet sich, wenn eine vergessen wird."""
+    dnddeutsch.schreibe_zeilen(con, [dnddeutsch.Zeile(
+        term_en, term_de, offiziell, quelle, edition_quelle, seite)])
 
 
 def seed_glossar(con: sqlite3.Connection, begriffe_en: list[str]) -> int:
@@ -302,7 +293,7 @@ def seed_glossar(con: sqlite3.Connection, begriffe_en: list[str]) -> int:
     import httpx  # nur der Importer braucht Netz (Q7)
 
     geschrieben = 0
-    with httpx.Client(timeout=20.0, headers={"User-Agent": "Foliant (privates Glossar-Seeding, gedrosselt)"}) as client:
+    with httpx.Client(timeout=20.0, headers={"User-Agent": dnddeutsch.USER_AGENT}) as client:
         for i, begriff in enumerate(begriffe_en, start=1):
             try:
                 daten = _hole_api(client, begriff)
@@ -317,7 +308,6 @@ def seed_glossar(con: sqlite3.Connection, begriffe_en: list[str]) -> int:
                       f"(zu viele Treffer? Begriff enger fassen)", file=sys.stderr)
                 continue
             geschrieben += dnddeutsch.schreibe_zeilen(con, zeilen)
-    con.commit()
     return geschrieben
 
 
@@ -368,7 +358,7 @@ def seed_glossar_de_aus_bestand(con: sqlite3.Connection) -> int:
             continue
         if len(sauber) < 4 or len(sauber) > 48 or any(c.isdigit() for c in sauber):
             continue
-        if not _name_sauber(sauber):
+        if not nr.name_sauber(sauber):
             continue
         if any(z["match"] == "exakt"
                for z in _glossar.lookup(con, sauber, richtung="de_en")):
@@ -381,27 +371,6 @@ def seed_glossar_de_aus_bestand(con: sqlite3.Connection) -> int:
 
 # Kurze Fuellwoerter, die in einem sauberen Monsternamen vorkommen duerfen; alles andere
 # <=2 Zeichen ist ein PDF-Zerlege-Artefakt ('Gar l gy', 'Atterko pp', 'Har ie py').
-_NAME_WL = {"der", "die", "das", "des", "dem", "den", "im", "am", "zu", "zum", "zur",
-            "vom", "von", "und", "mit", "auf", "aus"}
-
-
-def _name_sauber(name: str | None) -> bool:
-    """True, wenn der deutsche Name keine PDF-Zerlege-Kurzfragmente traegt ('Gar l gy' -> 'l',
-    'Atterko pp' -> 'pp'). Sicherheitsnetz fuer die Bruecke; die bekannten korrupten Namen
-    werden ohnehin vorher per MONSTER_NAME_REPARATUR korrigiert. BEWUSST OHNE Bigramm-Heuristik:
-    'dk'/'tk' u. ae. stehen in echten deutschen Komposita an der Wortfuge (Schild-kroete,
-    Kobold-krieger, Grottenschrat-krieger) und wurden faelschlich als korrupt aussortiert."""
-    if not name:
-        return False
-    for tok in name.replace("-", " ").split():
-        t = tok.strip(".,;:()'’`").lower()
-        # Ziffern/Zahlen sind legitime kurze Tokens ('Auf 0 Trefferpunkte', '1W10 Effekt') -
-        # nur BUCHSTABEN-Kurzfragmente ('l', 'gy', 'pp') sind Zerlege-Artefakte.
-        if t and len(t) <= 2 and t not in _NAME_WL and not any(c.isdigit() for c in t):
-            return False
-    return True
-
-
 def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]]:
     """Paart dieselbe Kreatur ueber die deutsche (srd-de) und englische (Open5e/DDB)
     SRD-Fassung per STRUKTUR-Fingerabdruck (Typ+HG+RK+TP). Das ist keine Uebersetzungs-
@@ -440,7 +409,7 @@ def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]
         de_name, en_name = next(iter(de_namen)), next(iter(en_namen))
         if _glossar.norm_begriff(de_name) == _glossar.norm_begriff(en_name):     # gleicher Name -> keine Bruecke noetig
             return None
-        if not _name_sauber(de_name):            # korrupter dt. Name -> NIE seeden
+        if not nr.name_sauber(de_name):            # korrupter dt. Name -> NIE seeden
             return None
         return en_name, de_name
 
@@ -484,7 +453,6 @@ def repariere_srd_de_namen(con: sqlite3.Connection) -> int:
     festes corrupt->korrekt, nur EIN Rest-Notfall mit Buchstabenverlust). Idempotent (saubere
     Namen bleiben unberuehrt); FTS-Rebuild bei Aenderung. Der Name ist mitindiziert."""
     from app import db as _db
-    from importer import namensreparatur as nr
 
     pdf = next((q.get("dateipfad") for q in _db.lade_konfig().get("quelle", [])
                 if q.get("kuerzel") == "srd-de"), None)
@@ -492,13 +460,12 @@ def repariere_srd_de_namen(con: sqlite3.Connection) -> int:
     namen = [r[0] for r in con.execute(
         "SELECT DISTINCT e.name_de FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
         "WHERE q.kuerzel = 'srd-de' AND e.name_de IS NOT NULL")]
-    korrekturen = nr.repariere(namen, list(set(toc + namen)), _name_sauber, toc_namen=toc)
+    korrekturen = nr.repariere(namen, list(set(toc + namen)), toc_namen=toc)
     korrekturen.update({k: v for k, v in SRD_DE_NAME_NOTFALL.items() if k in namen})
     n = 0
     for falsch, richtig in korrekturen.items():
         n += con.execute("UPDATE eintraege SET name_de = ? WHERE name_de = ?",
                          (richtig, falsch)).rowcount
-    con.commit()
     if n:
         _db.fts_rebuild(con)
     return n
@@ -531,7 +498,7 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
       1. das Glossar selbst (3000+ kuratierte deutsche Begriffe),
       2. dnddeutsch (die Autoritaet fuer deutsche Begriffe) - nur wenn die Antwort die
          Variante EXAKT bestaetigt.
-    Ein Treffer muss eindeutig sein und `_name_sauber` bestehen; sonst bleibt der Name
+    Ein Treffer muss eindeutig sein und `nr.name_sauber` bestehen; sonst bleibt der Name
     unberuehrt. Damit werden Namen wie 'SEELEN KÄFIG' zu 'Seelenkäfig' - und erst dadurch
     per Suche und Uebersetzung auffindbar (Befund 27.07.2026: 27 deutsche Zauber ohne
     Gegenstueck, die Mehrzahl davon nur wegen des zerrissenen Namens)."""
@@ -554,13 +521,13 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
     offen: list[tuple[str, list[str]]] = []
     korrekturen: dict[str, str] = {}
     for name in namen:
-        if _name_sauber(name) and _glossar.norm_begriff(name) in {
+        if nr.name_sauber(name) and _glossar.norm_begriff(name) in {
                 _glossar.norm_begriff(w) for w in referenz.values()}:
             continue                                   # bereits exakt die belegte Form
         varianten = _namensvarianten(name)
         ziel = next((referenz[vergleichsform(v)] for v in varianten
                      if vergleichsform(v) in referenz), None)
-        if ziel and _name_sauber(ziel) and ziel != name:
+        if ziel and nr.name_sauber(ziel) and ziel != name:
             korrekturen[name] = ziel
         elif len(varianten) > 1 or " " in name.strip():
             offen.append((name, varianten))
@@ -582,7 +549,7 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
                                if _glossar.norm_begriff(z.term_de) == _glossar.norm_begriff(entspacet)}
                     if len(passend) == 1:
                         ziel = next(iter(passend))
-                        if _name_sauber(ziel):
+                        if nr.name_sauber(ziel):
                             korrekturen[name] = ziel
                             dnddeutsch.schreibe_zeilen(con, zeilen)
                         break
@@ -592,7 +559,6 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
         n += con.execute("UPDATE eintraege SET name_de = ? WHERE name_de = ?",
                          (richtig, falsch)).rowcount
         print(f"  name-2014: {falsch!r} -> {richtig!r}", file=sys.stderr)
-    con.commit()
     if n:
         _db.fts_rebuild(con)
         _glossar.leere_cache()
@@ -604,7 +570,7 @@ def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
     Wortliste): hat EIN englischer Begriff mehrere OFFIZIELLE deutsche Formen, die dieselbe
     Bezeichnung sind (unterscheiden sich NUR in ß/ss oder Gross-/Kleinschreibung), entscheidet
     die QUELLEN-PRIORITAET, welche kanonisch bleibt - exakt dieselbe Leiter, mit der Foliant
-    auch Eintrags-Dubletten aufloest (glossar._auswahlschluessel: belegte Buchquelle vor
+    auch Eintrags-Dubletten aufloest (glossar.auswahlschluessel: belegte Buchquelle vor
     Community, neuere Edition vor aelterer). ß-vor-ss nur als deterministischer Orthografie-
     Tiebreak, wenn die Quellenprioritaet gleich ist. Die uebrigen Formen -> offiziell=0
     (bleiben Such-/Schreibvariante). Echte Dual-Uebersetzungen/Homonyme (NICHT fold-gleich,
@@ -622,7 +588,7 @@ def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
         # Quellenprioritaet zuerst (kanonische Regel OHNE ihren alphabetischen End-Anker),
         # dann ß>ss als deterministischer Orthografie-Tiebreak, zuletzt alphabetisch. So
         # entscheidet die QUELLE - nicht der Admin und keine Grammatik-Vermutung.
-        return (_glossar._auswahlschluessel(z)[:-1], 0 if "ß" in (z["term_de"] or "") else 1,
+        return (_glossar.auswahlschluessel(z)[:-1], 0 if "ß" in (z["term_de"] or "") else 1,
                 z["term_de"] or "")
 
     grp: dict[str, list] = defaultdict(list)
@@ -640,7 +606,6 @@ def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
             if z["term_de"] != kanon:
                 con.execute("UPDATE glossar SET offiziell=0 WHERE id=?", (z["id"],))
                 demotet += 1
-    con.commit()
     return demotet
 
 
@@ -657,7 +622,6 @@ def seed_monster_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     for term_en, term_de, _key in _finde_monster_paare(con):
         _upsert(con, term_en, term_de, 1, "SRD 5.2.1 (Strukturabgleich)", "2024", None)
         n += 1
-    con.commit()
     return n
 
 
@@ -697,7 +661,6 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
             n += 1
     for zeile in report:
         print(f"  klassenmerkmale: {zeile}", file=sys.stderr)
-    con.commit()
     _glossar.leere_cache()   # Folge-Seeder sollen die neuen Paare sehen
     return n
 
@@ -739,7 +702,6 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
         n += 1
     for zeile in report:
         print(f"  gegenstaende: {zeile}", file=sys.stderr)
-    con.commit()
     _glossar.leere_cache()
     return n
 
@@ -772,7 +734,7 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
 
     Die neuen Zeilen sind `offiziell=0` (SUCHVARIANTE): sie bruecken die Suche
     (`lookup_exakt` fragt `offiziell` nicht ab), aber die Anzeige waehlt weiter die
-    offizielle Form (`_auswahlschluessel` sortiert offiziell zuerst) und `glossar-audit`
+    offizielle Form (`auswahlschluessel` sortiert offiziell zuerst) und `glossar-audit`
     zaehlt sie nicht als Konflikt (es filtert auf `offiziell=1`). Bestehende Paare werden
     NIE angefasst - ein Upsert wuerde ihre Offizialitaet ueberschreiben."""
 
@@ -806,7 +768,6 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
                                 None, None)
                         vorhanden.add((en, de))
                         n += 1
-    con.commit()
     _glossar.leere_cache()
     return n
 
@@ -831,7 +792,6 @@ def seed_zauber_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
         n += 1
     for zeile in report:
         print(f"  zauber: {zeile}", file=sys.stderr)
-    con.commit()
     _glossar.leere_cache()
     return n
 
@@ -847,7 +807,6 @@ def seed_kernwortschatz_aus_bestand(con: sqlite3.Connection) -> int:
     paare, _verworfen = finde_kernbegriffe(con)
     for term_en, term_de, _kat, _n in paare:
         _upsert(con, term_en, term_de, 1, QUELLE, "2024", None)
-    con.commit()
     return len(paare)
 
 
@@ -856,7 +815,6 @@ def seed_abkuerzungen(con: sqlite3.Connection) -> int:
     offizielles Deutsch, das Kuerzel selbst ist nur ein Suchschluessel."""
     for kurz, lang in ABKUERZUNGEN:
         _upsert(con, kurz, lang, 1, "abkuerzung", None, None)
-    con.commit()
     return len(ABKUERZUNGEN)
 
 
@@ -864,7 +822,6 @@ def seed_srd_paare(con: sqlite3.Connection) -> int:
     """Bestands-belegte SRD-5.2/5.2.1-Begriffspaare (Modul-Doku oben); offline."""
     for term_en, term_de in SRD_2024_BEGRIFFSPAARE:
         _upsert(con, term_en, term_de, 1, "SRD 5.2/5.2.1-Begriffspaar", "2024", None)
-    con.commit()
     return len(SRD_2024_BEGRIFFSPAARE)
 
 
@@ -893,7 +850,6 @@ def kanonisiere_konflikte(con: sqlite3.Connection) -> int:
                             "quelle=coalesce(quelle,'')||' (demotet: kuratierte Fassung ist offiziell)' "
                             "WHERE id=?", (rid,))
                 demotet += 1
-    con.commit()
     return demotet
 
 
@@ -945,6 +901,14 @@ def seed_alles(con: sqlite3.Connection) -> dict[str, int]:
     mittendrin (real am 27.07.2026: NameError nach Minuten Laufzeit) hinterliess einen
     Teilzustand, bei dem die spaeteren Kanonisierer nie liefen. Jetzt landet die Kette ganz
     oder gar nicht, wie im PDF-Zweig (Befund D2).
+
+    Diese Zusage stand hier ab dem 27.07.2026 - eingeloest ist sie erst seit dem
+    31.07.2026. Bis dahin trugen FUENFZEHN der Kettenschritte weiterhin ihr eigenes
+    `con.commit()`, und `admin.py` begruendete sein `with c:` daneben mit genau der
+    Atomaritaet, die diese Commits aufhoben. Der beschriebene Fehlerfall war also nie
+    behoben, nur beschrieben. Ein Kettenschritt darf deshalb nicht mehr committen; die
+    Sichtbarkeit fuer Folgeschritte kommt ohnehin von der gemeinsamen Verbindung, nicht
+    vom Commit (`_glossar.leere_cache()` bleibt noetig, s. dessen Docstring).
 
     Rueckgabe: {Beschriftung: Anzahl} in Kettenreihenfolge - fertig fuer die Bilanzzeile.
     Zwei Schritte teilen sich eine Beschriftung (s. _KETTE); deren Zahlen werden addiert."""

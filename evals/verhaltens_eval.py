@@ -45,7 +45,6 @@ _ERGEBNISSE = Path(__file__).resolve().parent / "ergebnisse"
 # Der Doppelpunkt ist optional: der Server baut das Zitat mit, die Prompt-Beispiele
 # standen frueher ohne - der Volllauf 26.07.2026 lief genau in diese Luecke.
 BELEG_RE = re.compile(r"📖 .+Regelversion:? \d{4}")
-_MAX_RUNDEN = 8
 _RICHTER_MODELL = "claude-haiku-4-5-20251001"
 
 

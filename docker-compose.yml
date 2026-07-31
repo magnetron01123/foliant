@@ -47,9 +47,11 @@ services:
       - foliant
 
   # Charakterbogen-Uebersetzer-Website (app/charakterbogen/web.py). Eigener Container NEBEN
-  # dem MCP: kennt NICHT den oeffentlichen MCP-Token, KEIN Mount der privaten Foliant-DB
-  # (nur die glossar-nur-DB + die offizielle Vorlage, beides read-only). Kein Host-Port -
-  # erreichbar ausschliesslich ueber den gateway.
+  # dem MCP: KEIN Mount der privaten Foliant-DB (nur die glossar-nur-DB + die offizielle
+  # Vorlage, beides read-only). Kein Host-Port - erreichbar ausschliesslich ueber den
+  # gateway. Den MCP-Pfad-Token bekommt er allerdings SEHR WOHL (s. u. bei
+  # FOLIANT_PFAD_TOKEN) - er baut daraus den Connector-Link hinter der Anmeldung. Bis zum
+  # 31.07.2026 behauptete diese Zeile das Gegenteil, 19 Zeilen ueber der Uebergabe.
   web:
     build: .
     container_name: foliant-web

@@ -34,7 +34,7 @@ POINT_BUY_KOSTEN = {8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}
 POINT_BUY_BUDGET = 27
 
 _SUBCLASS = re.compile(r"^\*Subclass of:\s*(.+?)\*", re.MULTILINE)
-_UNTERKLASSE_DE = re.compile(r"^(.+)-Unterklasse:\s*(.+)$")
+_UNTERKLASSE_DE = _glossar.UNTERKLASSE_SCHEMA   # kanonisch in app/glossar.py
 # Kapitel-Header der Klassen-/Unterklassen-Gruppen, am LETZTEN Kontext-Segment geprueft -
 # dieselbe Mechanik wie _OPTION_KONTEXT, nur fuer die Kategorie 'klasse', die Klassen UND
 # Unterklassen in einem Topf fuehrt. Befund 30.07.2026: Die Weiche kannte vorher nur
@@ -111,6 +111,20 @@ _HINWEIS_BESTAND = ("Nur Optionen aus dem Bestand. Fehlt eine erwartete Option (
 
 
 def _norm(text: str | None) -> str:
+    """Kleinschreibung OHNE Diakritika-Faltung - bewusst NICHT `glossar.norm_begriff`.
+
+    Am 31.07.2026 gemessen, weil hier drei Funktionen namens `_norm` mit zwei Bedeutungen
+    nebeneinander lebten und nirgends stand, warum. Ergebnis: Der Unterschied traegt an
+    GENAU EINER Stelle Gewicht, und zwar in beide Richtungen.
+
+    Faltung waere hier FALSCH: `_ATTRIBUTE` und die Werte von `_ATTR_ALIAS` sind die
+    deutschen Attributsnamen MIT Umlaut ('stärke'). Gefaltet ergaebe die Nutzereingabe
+    'stärke' den Schluessel 'starke', der in beiden Tabellen fehlt - die Build-Pruefung
+    lehnte das Attribut als unbekannt ab und meldete `nicht_pruefbar` statt zu pruefen.
+    Genau das brach beim Umstellen drei Tests (A4/A5/T9).
+
+    Faltung waere dort RICHTIG, wo Eintragsnamen SORTIERT werden - deshalb steht dort
+    ausdruecklich `_glossar.norm_begriff` (s. `_liste`)."""
     return (text or "").strip().lower()
 
 
@@ -197,13 +211,13 @@ def _zeile(con, g: dict, **extra) -> dict:
     name_de = next((e["name_de"] for e in g["eintraege"] if e["name_de"]), None)
     name_en = next((e["name_en"] for e in g["eintraege"] if e["name_en"]), None)
     fuehrend = g["eintraege"][0]
-    if name_de and name_en and _norm(name_de) == _norm(name_en):
-        anzeige = name_de                       # 'Champion (Champion)' vermeiden
-    elif name_de and name_en:
-        anzeige = _glossar.markiere(name_de, name_en, offiziell=True)
-    else:
-        anzeige = _aus._anzeige_name(con, {"name_de": name_de, "name_en": name_en,
-                                          "sprache": "de" if name_de else "en"})
+    # Die Anzeige baut die Ausgabe-Schicht, nicht dieses Modul. Die beiden Sonderzweige,
+    # die hier bis zum 31.07.2026 standen ('Champion (Champion)' vermeiden, sonst
+    # markiere()), sind genau das, was `_anzeige_name` fuer eine deutsche Quelle ohnehin
+    # tut - am Bestand mit sechs Sonden zeichengleich nachgemessen. Zwei Kopien einer
+    # Deutsch-first-Regel sind eine zu viel: S4 steht in ausgabe.py.
+    anzeige = _aus._anzeige_name(con, {"name_de": name_de, "name_en": name_en,
+                                       "sprache": "de" if name_de else "en"})
     # eintrag_id/quelle_kuerzel (Review 30.07.2026): Die Listen brachen zwei Zusagen,
     # die der Suchpfad einhaelt. Ohne eintrag_id war der Rundlauf Liste->Detail nicht
     # moeglich (SYN-P1-002 sichert genau das zu, _knapp setzt es seit jeher). Ohne
@@ -246,7 +260,10 @@ def _liste(kategorie: str, schluessel: str, schritt_hinweis: str) -> dict:
                     if gruppe:
                         extra["kategorie"] = gruppe
             zeilen.append(_zeile(con, g, **extra))
-        zeilen.sort(key=lambda z: _norm(z["name_de"] or z["name_en"]))
+        # Deutsche Alphabetisierung (DIN 5007-1: ä = a), nicht Codepoint-Ordnung:
+        # ohne Faltung sortiert 'ä' (U+00E4) hinter 'z', und "Kämpfer" stand in der
+        # Klassenliste hinter "Kleriker". Ein Spieler liest diese Liste.
+        zeilen.sort(key=lambda z: _glossar.norm_begriff(z["name_de"] or z["name_en"]))
         antwort = {schluessel: zeilen, "hinweis_reihenfolge": schritt_hinweis,
                    "hinweis": _HINWEIS_BESTAND}
         _aus._markiere_abenteuer(con, antwort, zeilen)
@@ -287,42 +304,28 @@ def foliant_liste_optionen(
                           f"fuer {kategorie!r}.",
                 "hinweis": "Ungueltige PARAMETER-Kombination - das ist KEIN 'nichts im "
                            "Bestand'; Aufruf ohne talent_kategorie wiederholen."}
+    # Spezies und Hintergrund brauchen nur die Listen-Maschine plus ihren Schritt-Hinweis.
+    # Bis zum 31.07.2026 stand dafuer je eine eigene Funktion - Reste der zwoelf am
+    # 30.07.2026 abgeschafften foliant_liste_<typ>-Werkzeuge, samt vollstaendiger
+    # Tool-Beschreibung im Docstring, obwohl sie keine Werkzeuge mehr sind.
     if kategorie == "klasse":
         return _liste_klassen()
+    if kategorie == "talent":
+        return _liste_talente(talent_kategorie)
     if kategorie == "hintergrund":
-        return _liste_hintergruende()
-    if kategorie == "spezies":
-        return _liste_spezies()
-    return _liste_talente(talent_kategorie)
-
-
-def _liste_spezies() -> dict:
-    """Waehlbare Spezies im Bestand (KNAPPE Liste; Details per foliant_hol_eintrag).
-    Schritt 3 der 2024-Charaktererstellung - Klasse und Hintergrund kommen davor (B7).
-    KERNREGELN: nur Bestand nennen, nichts aus Allgemeinwissen ergaenzen; Deutsch-first
-    mit englischem Original in Klammern; Quelle und Regelversion nennen."""
+        return _liste("hintergrund", "hintergruende",
+                      "Hintergrund ist SCHRITT 2 von 4 (nach der Klasse). "
+                      + _HINWEIS_REIHENFOLGE)
     return _liste("spezies", "spezies",
-                  "Spezies ist SCHRITT 3 von 4 (nach Klasse und Hintergrund). " +
-                  _HINWEIS_REIHENFOLGE)
-
-
-def _liste_hintergruende() -> dict:
-    """Waehlbare Hintergruende im Bestand (KNAPPE Liste; Details per
-    foliant_hol_eintrag). Schritt 2 der 2024-Charaktererstellung (B7). Ein Hintergrund
-    liefert Attributserhoehungen, ein Ursprungstalent, Fertigkeiten und Ausruestung.
-    KERNREGELN: nur Bestand; Deutsch-first (Original in Klammern); Quelle+Version nennen."""
-    return _liste("hintergrund", "hintergruende",
-                  "Hintergrund ist SCHRITT 2 von 4 (nach der Klasse). " +
-                  _HINWEIS_REIHENFOLGE)
+                  "Spezies ist SCHRITT 3 von 4 (nach Klasse und Hintergrund). "
+                  + _HINWEIS_REIHENFOLGE)
 
 
 def _liste_talente(kategorie: Literal["herkunft", "allgemein",
         "kampfstil", "epische_gabe"] | None = None) -> dict:
-    """Talente (Feats) im Bestand, KNAPP (Details per foliant_hol_eintrag). kategorie
-    optional, exakt: herkunft | allgemein | kampfstil | epische_gabe - andere Werte
-    werden mit 'fehler' abgelehnt (kein 'nichts im Bestand'). Herkunftstalente kommen
-    ueber den Hintergrund (Schritt 2), weitere Talente ueber Stufenaufstiege.
-    KERNREGELN: nur Bestand; Deutsch-first (Original in Klammern); Quelle+Version nennen."""
+    """Talente, optional auf eine Talent-Kategorie gefiltert. Eigene Funktion statt eines
+    _liste-Aufrufs, weil der Filter NACH der Gruppierung greifen muss: die Kategorie steht
+    je Eintrag in der Typzeile bzw. der DDB-Feat-Gruppe, nicht in der Abfrage."""
     if kategorie and kategorie not in _TALENT_KATEGORIEN.values():
         # SYN-P0-006: Parameterfehler strukturiert statt leerer Liste + Leer-Hinweis.
         gueltig = ", ".join(sorted(set(_TALENT_KATEGORIEN.values())))
@@ -413,7 +416,9 @@ def _liste_klassen() -> dict:
                 zeilen.append(({"varianten": referenzen},
                                {**uz, "hinweis": "Zugehoerige Klasse nicht im Bestand."}))
 
-        klassen = sorted((z for _g, z in zeilen), key=lambda z: _norm(z["name_de"] or z["name_en"]))
+        # Deutsche Alphabetisierung wie in `_liste` (s. dort).
+        klassen = sorted((z for _g, z in zeilen),
+                         key=lambda z: _glossar.norm_begriff(z["name_de"] or z["name_en"]))
         antwort = {"klassen": klassen,
                    "hinweis_reihenfolge": "Klasse ist SCHRITT 1 von 4. " + _HINWEIS_REIHENFOLGE,
                    "hinweis": _HINWEIS_BESTAND}

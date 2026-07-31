@@ -18,6 +18,7 @@ pytest.importorskip("markdownify", reason="DDB-Exporter-Tests nur in .venv-ddb")
 from importer.ddb_exporter import artifact, book_archive
 from importer.ddb_exporter.ddb_client import BUCH_ENTITY_TYPE, DdbClient, DdbFehler
 from importer.ddb_exporter.html_to_markdown import bereinige_html, html_zu_markdown
+from tests.hilfen import SCHEMA
 
 _COBALT = "synthetisches-testtoken-nie-echt"
 
@@ -291,8 +292,7 @@ def test_schreibe_artefakt_atomar_und_validiert(tmp_path):
     import sqlite3
     oeffentlich = tmp_path / "foliant.sqlite"
     con = sqlite3.connect(oeffentlich)
-    con.executescript((Path(__file__).resolve().parent.parent / "db" /
-                       "schema.sql").read_text(encoding="utf-8"))
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
     con.commit(); con.close()
     bericht = importiere_ddb_artefakt(ziel, _BUCH, oeffentliche_db=oeffentlich,
                                       private_db=tmp_path / "p" / "privat.sqlite")

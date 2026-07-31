@@ -15,7 +15,18 @@
 set -euo pipefail
 
 HIER="$(cd "$(dirname "$0")" && pwd)"
-PI="${PI:-pi@raspberrypi.local}"
+# Das SSH-Ziel steht EINMAL in .env (gitignored) - dieselbe Aufloesung wie im Makefile.
+# Hier stand bis zum 31.07.2026 der Platzhalter `pi@raspberrypi.local`, den CONCEPT.md
+# par. 9 fuer die Make-Ziele ausdruecklich abgeschafft hat ("statt auf einen Platzhalter
+# zu laufen"). Ohne Wert wird abgebrochen - und zwar VOR der Token-Abfrage, damit niemand
+# ein Geheimnis in ein Skript tippt, das es danach nirgendwohin schreiben kann.
+PI="${PI:-$(sed -n 's/^[[:space:]]*PI=[[:space:]]*//p' "$HIER/../.env" 2>/dev/null | tail -1)}"
+if [ -z "${PI:-}" ]; then
+  echo "FEHLER: kein Pi-Ziel gesetzt." >&2
+  echo "  Einmalig in .env eintragen:   PI=pi@<host>" >&2
+  echo "  oder einmalig mitgeben:       PI=pi@<host> bash deploy/discord_einrichten.sh" >&2
+  exit 1
+fi
 # Genau die Rechte, die app/discord_bot/bot.py braucht: View Channel, Send Messages,
 # Read Message History, Create Public Threads, Send Messages in Threads.
 PERMISSIONS=309237713920

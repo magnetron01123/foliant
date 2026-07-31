@@ -114,7 +114,7 @@ def test_retry_bei_529_dann_erfolg(monkeypatch):
     assert erg.text == "Fertige Antwort." and schlaefe == [5]
 
 
-def test_harter_fehler_wirft_llmfehler(monkeypatch):
+def test_harter_fehler_wirft_httpfehler(monkeypatch):
     async def sofort(_s):
         pass
 

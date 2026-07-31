@@ -11,6 +11,24 @@ from __future__ import annotations
 import time
 
 
+def verlaufsschluessel(kanal, neuer_thread=None) -> int | None:
+    """Unter welcher ID der Verlauf abgelegt wird - der ORT, an dem die Antwort steht.
+
+    Das ist bewusst NICHT dieselbe ID wie fuer die Kanal-Allowlist: dort gilt der
+    ELTERN-Kanal (allowlistet ist der Kanal, nicht jeder Thread darin), hier der Thread.
+
+    Befund 31.07.2026: In `bot.py` trug eine einzige `kanal_id` beide Bedeutungen. Ein
+    `/regel` IM Thread legte den Verlauf unter der Eltern-ID ab, waehrend die Folgefrage
+    ihn unter der Thread-ID suchte - und ihn nie fand. Seit der Verlaufs-Rekonstruktion
+    (PR #77) ist die Folge nicht mehr der Vergessen-Hinweis, sondern ein unnoetiger
+    Rueckgriff auf die Discord-Historie bei JEDER Folgefrage - der falsche Schluessel
+    bleibt derselbe. Als eigene Funktion, weil `bot.py` discord.py importiert und
+    deshalb ohne diese Abhaengigkeit nicht testbar ist."""
+    if neuer_thread is not None:
+        return neuer_thread.id
+    return getattr(kanal, "id", None)
+
+
 class GespraechsSpeicher:
     """thread_id -> Verlauf, mit drei Deckeln gegen unbegrenztes Wachstum:
     TTL (Discord archiviert Threads ohnehin nach 24 h Default), LRU-Anzahl und ein

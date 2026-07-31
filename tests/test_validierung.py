@@ -12,10 +12,9 @@ from app import db as adb
 from app.tools import charakter as ch
 from app.tools import nachschlagen as ns
 from app.tools import suche as su
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 @pytest.fixture()
 def bestand(tmp_path, monkeypatch):
     pfad = tmp_path / "foliant-validierung.sqlite"
@@ -264,3 +263,43 @@ def test_herausforderungsgrad_wird_validiert(bestand):
     # Die echten Schreibweisen der Statbloecke bleiben gueltig:
     for gueltig in ("0", "1", "1/4", "1/2"):
         assert "fehler" not in su.foliant_suche_bestand(kategorie="monster", hg=gueltig), gueltig
+
+
+def test_admin_check_meldet_ungekennzeichnete_abenteuerbaende(tmp_path):
+    """`inhaltsart` entscheidet ueber die Spoiler-Kennzeichnung in den Tool-Ausgaben
+    (SYN-P0-007) - also ueber die OBERSTE Verhaltensregel.
+
+    Befund 31.07.2026: Der PDF-/Markdown-Weg liest den Wert allein aus dem
+    [[quelle]]-Block, und der Schluessel FEHLTE in config/foliant.example.toml. Wer einen
+    Abenteuerband einpflegt, bekommt still 'regelwerk' - kein Fehler, keine Warnung, nur
+    ein Spoiler-Band, das wie ein Regelwerk zitiert wird. Die Vorlage nennt den Schluessel
+    jetzt; dieser Waechter faengt den Fall, in dem sie trotzdem uebersehen wurde."""
+    from app.admin import _spoilerverdacht
+
+    pfad = tmp_path / "foliant.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(_SCHEMA.read_text(encoding="utf-8"))
+    con.executemany(
+        "INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,prioritaet,"
+        "inhaltsart) VALUES (?,?,?,?,?,?,?,?)",
+        [("srd-de", "SRD 5.2.1 (Deutsch)", "de", "2024", "pdf", "CC-BY-4.0", 10,
+          "regelwerk"),
+         ("cos-de", "Der Fluch des Strahd", "de", "2014", "pdf", "privat", 30,
+          "regelwerk"),                                  # <- vergessen
+         ("wdh-de", "Waterdeep: Dragon Heist", "de", "2014", "pdf", "privat", 30,
+          "abenteuer_setting")])                         # <- korrekt gekennzeichnet
+    con.commit()
+
+    verdaechtig = {k for k, _ in _spoilerverdacht(con)}
+    assert "cos-de" in verdaechtig, "ungekennzeichneter Abenteuerband nicht erkannt"
+    assert "srd-de" not in verdaechtig, "Regelwerk faelschlich als Abenteuerband gemeldet"
+    assert "wdh-de" not in verdaechtig, "korrekt gekennzeichneter Band darf nicht warnen"
+
+
+def test_config_vorlage_nennt_die_spoiler_kennzeichnung():
+    """Die Vorlage ist fuer den PDF-/Markdown-Weg die EINZIGE Stelle, an der `inhaltsart`
+    gesetzt werden kann - sie muss den Schluessel deshalb auch zeigen."""
+    vorlage = (Path(__file__).resolve().parent.parent / "config"
+               / "foliant.example.toml").read_text(encoding="utf-8")
+    assert "inhaltsart" in vorlage, "config/foliant.example.toml erklaert `inhaltsart` nicht"
+    assert "abenteuer_setting" in vorlage, "der Wert fuer Abenteuerbaende fehlt in der Vorlage"

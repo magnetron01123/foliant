@@ -12,12 +12,13 @@ import pytest
 
 from app import db as adb
 from app import facetten as F
+from app.tools import ausgabe as aus
 from app.tools import nachschlagen as ns
 from importer import facetten_seeder as seeder
 from importer import srd_zauberbruecken as Z
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
+_SCHEMA = SCHEMA
 # Echte Kopfformen aus dem Bestand (gekuerzt) - kein erfundenes Wunschformat.
 _FEUERBALL_DE = ("*Kontext: Zauber > Beschreibungen der Zauber* "
                  "_Hervorrufungszauber 3. Grades (Magier, Zauberer)_ "
@@ -318,10 +319,10 @@ def test_facetten_faellt_auf_weggemergte_fassung_zurueck(tmp_path, monkeypatch):
         de_id = con2.execute("SELECT id FROM eintraege WHERE sprache='de'").fetchone()["id"]
         en_id = con2.execute("SELECT id FROM eintraege WHERE sprache='en'").fetchone()["id"]
         gewinner = dict(con2.execute("SELECT * FROM eintraege WHERE id=?", (de_id,)).fetchone())
-        assert ns._facetten_von(con2, gewinner) is None          # ohne Rueckfallebene
+        assert aus._facetten_von(con2, gewinner) is None          # ohne Rueckfallebene
         gewinner["weitere_fassungen"] = [{"id": en_id, "quelle_titel": "SRD en",
                                           "sprache": "en"}]
-        fac = ns._facetten_von(con2, gewinner)
+        fac = aus._facetten_von(con2, gewinner)
         assert fac and fac["grad"] == 1 and fac["schule"] == "Bannzauber"
     finally:
         con2.close()
@@ -342,10 +343,10 @@ def test_facetten_ueberleben_eine_unmigrierte_alt_db(tmp_path):
     lese = sqlite3.connect(f"file:{pfad}?mode=ro", uri=True)
     lese.row_factory = sqlite3.Row
     try:
-        fac = ns._facetten_von(lese, {"id": 7, "kategorie": "zauber"})
+        fac = aus._facetten_von(lese, {"id": 7, "kategorie": "zauber"})
         assert fac == {"grad": 3, "schule": "Hervorrufung", "klassen": "Magier"}
         # Fehlt die Tabelle ganz, bleibt es beim ehrlichen 'kein Feld'.
-        assert ns._facetten_von(lese, {"id": 7, "kategorie": "monster"}) is None
+        assert aus._facetten_von(lese, {"id": 7, "kategorie": "monster"}) is None
     finally:
         lese.close()
 

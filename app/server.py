@@ -51,16 +51,20 @@ async def ready(_: Request) -> JSONResponse:
     """Readiness (SYN-P1-011): /health prueft nur den Prozess - eine fehlende/korrupte
     DB galt als 'healthy', waehrend alle Tools leer liefen. Hier: DB read-only oeffnen,
     Kernabfrage + FTS-Probe; jeder Fehler -> 503 mit secret-freiem Grund. Der
-    Compose-Healthcheck zeigt hierauf."""
+    Compose-Healthcheck zeigt hierauf.
+
+    Ueber db.connect_readonly wie jeder andere Lesepfad (Befund 31.07.2026): hier stand
+    ein rohes sqlite3.connect(mode=ro) OHNE `PRAGMA query_only` - die zweite Leitplanke
+    des Sicherheitsmodells (CONCEPT.md par. 13) fehlte ausgerechnet im Health-Pfad."""
     import sqlite3
 
-    from app.db import standard_pfad
+    from app.db import connect_readonly, standard_pfad
     pfad = standard_pfad()
     if not pfad.exists():
         return JSONResponse({"status": "nicht_bereit", "grund": "keine Datenbank"},
                             status_code=503)
     try:
-        con = sqlite3.connect(f"file:{pfad}?mode=ro", uri=True)
+        con = connect_readonly(str(pfad))
         try:
             n = con.execute("SELECT count(*) FROM eintraege").fetchone()[0]
             fts = con.execute("SELECT count(*) FROM eintraege_fts").fetchone()[0]
@@ -102,6 +106,10 @@ mcp.tool(_charakter.foliant_pruefe_build, annotations=_NUR_LESEND)
 # (.env auf dem Pi; leer = /mcp fuer Dev/Tests) + IP-Allowlist als ASGI-Wrapper. Die
 # Verbindungs-URL ist damit https://<host>/<token>/mcp - die URL selbst ist der Schluessel.
 _PFAD_TOKEN = os.environ.get("FOLIANT_PFAD_TOKEN", "").strip().strip("/")
+# Aus der Konfiguration, aber praktisch fest: deploy/Caddyfile routet auf "/mcp" und
+# die optionale Cloudflare-Regel prueft `uri.path contains "/mcp"`. Ein anderer Wert
+# hier laesst das Gateway ins Leere zeigen - die Kopplung steht deshalb auch in der
+# Config-Vorlage (Befund 31.07.2026: sie sah frei waehlbar aus).
 _BASIS_PFAD = _SERVER_KONFIG.get("pfad", "/mcp")
 _MCP_PFAD = f"/{_PFAD_TOKEN}{_BASIS_PFAD}" if _PFAD_TOKEN else _BASIS_PFAD
 # SYN-P1-004 (fail-open): Compose defaultete das Token auf leer - der Endpoint lag dann

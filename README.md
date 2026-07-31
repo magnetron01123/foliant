@@ -71,7 +71,7 @@ nach einem Server-Neustart, denn der Bot liest den Thread dann aus der Discord-H
 zurück. Wer nur für sich nachschlagen möchte, hängt **`privat:True`** an `/regel`: die
 Antwort sieht dann niemand sonst, dafür gibt es keinen Thread für Nachfragen. Es gilt ein
 gemeinsames Tageslimit als Kostendeckel.
-Einrichtung (einmalig, Betreiber): [CONCEPT.md](CONCEPT.md) §8 „Discord-Bot einrichten".
+Einrichtung (einmalig, Betreiber): [CONCEPT.md](CONCEPT.md) §9 „Discord-Bot einrichten".
 
 Betrieb, Deployment und die Import-Wege im Detail: [CONCEPT.md](CONCEPT.md) §8–9.
 

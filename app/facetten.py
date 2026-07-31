@@ -9,7 +9,7 @@ Verhaeltnis zu den Meta-Tabellen: zauber_meta/monster_meta/gegenstand_meta sind 
 diesen Funktionen abgeleitet (importer/facetten_seeder.py ruft sie), nicht umgekehrt. Ein
 gespeicherter Wert kann dem Text deshalb nie widersprechen - er ist eine Vorberechnung,
 kein zweiter Wahrheitsanspruch. Wo Tempo zaehlt, filtert der Meta-Vorfilter damit vor
-(app/tools/nachschlagen.py), und das Textpraedikat behaelt trotzdem das letzte Wort.
+(app/tools/suche.py), und das Textpraedikat behaelt trotzdem das letzte Wort.
 (Bis Phase 3 stand hier, die Tabellen seien auf dem bedienten Bestand leer - das war der
 Befund C1 und ist seit dem 28.07.2026 behoben: Deckung 94/91/34 %.)
 
@@ -56,10 +56,26 @@ def zauber_kurz(body: str | None) -> str | None:
 
 
 # --- Zauber-Schule (kanonischer Schluessel <- DE/EN-Synonyme) ----------------
+# 'bannmagie' und 'weissagung' ergaenzt (31.07.2026): Es gibt ein ZWEITES Schul-Register,
+# `importer/srd_zauberbruecken.SCHULEN`, und die beiden fuehrten unterschiedliches deutsches
+# Vokabular fuer dieselben acht Schulen. Am Bestand nachgemessen ist die Divergenz heute
+# fast folgenlos ('Bannzauber' 48x gegen 'Bannmagie' 1x) - aber ein deutsches PHB 2024
+# traefe genau hier auf.
+#
+# Ehrlich zur Wirkung: Von 727 Zaubereintraegen aendert sich GENAU EINER, und kein
+# einziger bekommt eine Schule, der vorher keine hatte. Der eine ist "Die Schulen der
+# Magie" - die TABELLE aller acht Schulen, einer der 24 bekannten Kapitelabschnitte mit
+# kategorie='zauber' (BACKLOG.md par. 3). Sein Kopf nennt alle Schulen; welche zuerst
+# trifft, ist Zufall der Reihenfolge. Er stand auf 'beschwoerung' und steht jetzt auf
+# 'bannzauber' - beides gleich bedeutungslos fuer eine Uebersichtstabelle.
+#
+# Bewusst NUR additiv und nur auf DIESER Seite: `srd_zauberbruecken.SCHULEN` speist den
+# Zauberkopf-Fingerabdruck, dessen Regexe laut CONCEPT.md par. 12 unberuehrt bleiben, weil
+# jede Aenderung daran geseedete Glossar-Paare verschiebt.
 _SCHULEN: dict[str, set[str]] = {
-    "bannzauber":   {"bannzauber", "abjuration"},
+    "bannzauber":   {"bannzauber", "bannmagie", "abjuration"},
     "beschwoerung": {"beschworung", "conjuration"},          # norm entfernt Diakritika
-    "erkenntnis":   {"erkenntnis", "erkenntnismagie", "divination"},
+    "erkenntnis":   {"erkenntnis", "erkenntnismagie", "weissagung", "divination"},
     "verzauberung": {"verzauberung", "enchantment"},
     "hervorrufung": {"hervorrufung", "evocation"},
     "illusion":     {"illusion"},
@@ -364,9 +380,13 @@ _ATTR_LABELS = (
 )
 
 
-def _falte(s: str) -> str:
-    return "".join(c for c in __import__("unicodedata").normalize("NFKD", s)
-                   if not __import__("unicodedata").combining(c)).lower()
+# Frueher stand hier eine eigene Faltung (inline `__import__("unicodedata")`), obwohl
+# dieses Modul `norm_begriff` oben schon importiert - und deren Docstring ausdruecklich
+# sagt, sie sei da, "damit alle Vergleichspfade DIESELBE Semantik nutzen statt eigener
+# .lower()-Kopien". Am Bestand nachgemessen (31.07.2026, 3084 Eintraege): die beiden
+# unterscheiden sich nur im Randwhitespace, den `norm_begriff` zusaetzlich abschneidet;
+# `monster_attribute` und `monster_statschluessel` liefern auf JEDEM Eintrag dasselbe.
+_falte = _n
 
 
 def monster_attribute(body: str | None) -> tuple | None:
@@ -402,7 +422,7 @@ def monster_statschluessel(body: str | None) -> tuple:
 # --- Der Meta-Seitenwagen: EINE Definition fuer Schreiber und Leser ------------------
 # Welche Kategorie in welche Tabelle faellt und welche Felder dort stehen. Bis zum
 # 29.07.2026 fuehrten Schreiber (importer/facetten_seeder.py) und Leser
-# (app/tools/nachschlagen.py) je eine eigene, byte-identische Kopie - eine neue Facette
+# (app/tools/ausgabe.py) je eine eigene, byte-identische Kopie - eine neue Facette
 # erschien deshalb nie in der Tool-Ausgabe, bis jemand die zweite Liste fand. Ein halb
 # gelandetes Feature ohne Fehlermeldung.
 #

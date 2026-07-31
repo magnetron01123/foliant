@@ -101,7 +101,8 @@ Zauber-Brücken: 1585 → **1539 Einträge** (die 46 Artefakt-Chunks sind in ihr
 zurückgewandert, 264 tragen den Zauberkopf jetzt im Body). **Achtung bei künftigen
 Re-Importen:** ein Re-Import spielt die rohen OCR-Namen wieder ein und macht die
 Namensreparatur der betroffenen Quelle zunichte — danach gehört `import --quelle glossar`
-gefahren, das `repariere_2014_namen` mitbringt.
+gefahren, das `repariere_2014_namen` mitbringt. Seit dem 31.07.2026 sagt die CLI-Hilfe
+des Kommandos das auch selbst, statt es nur hier zu erwähnen.
 **Zauber-Abdeckung vollständig:** Von den 369 deutschen 2024-Einträgen der Kategorie `zauber`
 tragen 345 eine Glossar-Brücke; die 24 ohne sind keine Zauber, sondern Abschnitte des
 Zauberkapitels (`Dauer`, `Effekte`, `Verbalkomponente (V)` — siehe §3). Damit ist die
@@ -162,7 +163,7 @@ Gesprächskontext (in-memory), voller Bestand mit Guild-Sperre (SPEC §12 Nr. 6)
 `claude-sonnet-5` (der gemessene Stand — gleiche Schleife wie der Eval, `app/llm.py`).
 - ✅ Code, Tests, Compose-Service, Doku
 - ⬜ **Discord-Seite (David):** Bot im Entwicklerportal anlegen, Token + Guild-ID in die
-  Pi-`.env`, Bot einladen (CONCEPT §8 „Discord-Bot einrichten")
+  Pi-`.env`, Bot einladen (CONCEPT §9 „Discord-Bot einrichten")
 - ⬜ Erst-Test in der echten Guild (`/regel`, Mention, Thread-Folgefrage, Limits)
 
 **Gate:** ein Mitspieler stellt eine Regelfrage in Discord und bekommt eine belegte

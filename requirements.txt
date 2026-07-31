@@ -1,6 +1,6 @@
 # Foliant - Python-Abhaengigkeiten (MVP). EXAKT GEPINNT (SYN-P1-012): jeder Pi-Deploy
 # baut das Image neu - offene Ranges zogen bei jedem Rebuild potenziell andere Versionen,
-# ausgerechnet pymupdf4llm ist als umgebungsempfindlich dokumentiert (bekannte_macken).
+# ausgerechnet pymupdf4llm ist als umgebungsempfindlich dokumentiert (CONCEPT.md §4).
 # Update = bewusst Pin anheben + `make test` + Import-Stichprobe, nie beilaeufig.
 fastmcp==2.14.7          # MCP-Server (bestätigt lauffähig)
 uvicorn[standard]==0.51.0  # ASGI-Server fuer den HTTP-Endpunkt (Deployment)

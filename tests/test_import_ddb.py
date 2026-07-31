@@ -14,8 +14,9 @@ import pytest
 
 from importer.ddb_artefakt import kategorie_aus_breadcrumb, pruefe_artefakt
 from importer.import_ddb import importiere_ddb_artefakt
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
+_SCHEMA = SCHEMA
 _FIXTURE = Path(__file__).resolve().parent / "fixtures" / "ddb"
 
 _BUCH = {"id": 999999, "kuerzel": "ddb-synthetic-en", "titel": "Synthetic Handbook (Fixture)",
@@ -352,7 +353,7 @@ def test_p0_inhaltsart_wandert_bis_in_die_quelle(tmp_path):
 
     from importer.import_ddb import buch_aus_manifest, importiere_ddb_artefakt
 
-    schema = (Path(__file__).resolve().parent.parent / "db" / "schema.sql")
+    schema = (SCHEMA)
     # Basis-DB OHNE inhaltsart-Spalte (wie der Pi-Bestand vor der Migration):
     basis = tmp_path / "foliant.sqlite"
     con = sqlite3.connect(basis)
@@ -427,3 +428,35 @@ def test_kuratierter_inhaltsart_override():
         "inhaltsart": "regelwerk"}))          # Manifest sagt regelwerk ...
     buch = buch_aus_manifest(d)
     assert buch["inhaltsart"] == "abenteuer_setting"   # ... Override gewinnt
+
+
+def test_ddb_import_zieht_die_facetten_nach(tmp_path, dbs):
+    """CONCEPT.md §8 sagt zu: "Die Facetten laufen automatisch am Ende JEDES
+    Quellen-Imports mit".
+
+    Das galt bis zum 31.07.2026 nur fuer `admin import` - `seed_facetten` hatte genau
+    drei Aufrufer, alle in `cmd_import`. Ein DDB-Buch landete deshalb ohne zauber_meta/
+    monster_meta im Bestand: der Meta-Vorfilter (app/tools/suche.py) hatte fuer diese
+    Eintraege nichts zu filtern und fiel jedes Mal auf das teure Textpraedikat zurueck -
+    genau der B9-Hebel, den BACKLOG §3 als behoben fuehrt.
+
+    Geprueft wird der KANONISCHE Wertraum ('hervorrufung', nicht 'Evocation'): der
+    frueher zweite Schreiber (Open5e) hat genau dort einen zweiten Wertraum erzeugt."""
+    artefakt = _schreibe_artefakt(tmp_path, [
+        {"ddb_id": "1", "title": "Fireball", "category": "zauber",
+         "breadcrumb": ["Synthetic Handbook", "Spells", "Fireball"],
+         "body_md": "_3rd-level evocation_\n\n**Range:** 150 feet\n\n8d6 fire damage."},
+        {"ddb_id": "2", "title": "Goblin", "category": "monster",
+         "breadcrumb": ["Synthetic Handbook", "Monsters", "Goblin"],
+         "body_md": "**CR** 1/4\n\n**AC** 15\n\n**HP** 7\n\nSmall humanoid."},
+    ])
+    importiere_ddb_artefakt(artefakt, _BUCH, oeffentliche_db=dbs["oeffentlich"],
+                            private_db=dbs["privat"])
+    con = sqlite3.connect(dbs["privat"])
+    try:
+        assert con.execute("SELECT grad, schule FROM zauber_meta").fetchall() == \
+            [(3, "hervorrufung")], "Zauber-Facetten nach dem DDB-Import nicht geseedet"
+        assert con.execute("SELECT hg, rk, tp FROM monster_meta").fetchall() == \
+            [("1/4", 15, 7)], "Monster-Facetten nach dem DDB-Import nicht geseedet"
+    finally:
+        con.close()

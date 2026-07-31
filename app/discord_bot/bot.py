@@ -18,7 +18,7 @@ from discord import app_commands
 
 from app import llm
 from app.discord_bot import antwort, rebuild
-from app.discord_bot.gespraech import GespraechsSpeicher
+from app.discord_bot.gespraech import GespraechsSpeicher, verlaufsschluessel
 from app.discord_bot.schranken import Schranken
 
 _log = logging.getLogger("foliant.discord")
@@ -94,8 +94,19 @@ class FoliantBot(discord.Client):
     async def _slash_regel(self, interaction: discord.Interaction, frage: str,
                            privat: bool = False) -> None:
         kanal = interaction.channel
-        kanal_id = getattr(kanal, "parent_id", None) or interaction.channel_id
-        if not self.schranken.richtiger_ort(interaction.guild_id, kanal_id):
+        # ZWEI verschiedene IDs, die nicht verwechselt werden duerfen (Befund 31.07.2026):
+        #   ort_id     - fuer die Kanal-Allowlist. In einem Thread ist das der ELTERN-Kanal,
+        #                denn allowlistet ist der Kanal, nicht jeder Thread darin.
+        #   verlauf_id - fuer den Gespraechsspeicher. Das ist der Ort, an dem die Antwort
+        #                landet, also im Thread der THREAD.
+        # Vorher trug eine einzige `kanal_id` beide Bedeutungen. Ein `/regel` IM Thread
+        # legte den Verlauf deshalb unter der Eltern-ID ab, waehrend `on_message` die
+        # Folgefrage unter `kanal.id` (der Thread-ID) suchte - und ihn nie fand. Seit der
+        # Verlaufs-Rekonstruktion (PR #77) faellt das nicht mehr als Vergessen-Hinweis auf:
+        # der Bot liest den Thread stattdessen JEDES MAL aus der Discord-Historie zurueck,
+        # obwohl der Verlauf im Speicher steht. Der falsche Schluessel bleibt derselbe.
+        ort_id = getattr(kanal, "parent_id", None) or interaction.channel_id
+        if not self.schranken.richtiger_ort(interaction.guild_id, ort_id):
             return                           # falscher Ort: still (kein Orakel)
         grund = self.schranken.ablehnungsgrund(interaction.user.id)
         if grund:
@@ -120,16 +131,15 @@ class FoliantBot(discord.Client):
         else:                                # im Thread aufgerufen: nicht verschachteln
             for teil in teile[1:]:
                 await interaction.followup.send(teil)
-        ziel_id = thread.id if thread else kanal_id
-        self.gespraeche.ergaenze(ziel_id, frage, text)
+        self.gespraeche.ergaenze(verlaufsschluessel(kanal, thread) or ort_id, frage, text)
 
     async def on_message(self, nachricht: discord.Message) -> None:
         if nachricht.author.bot or not nachricht.guild:
             return
         kanal = nachricht.channel
         ist_thread = isinstance(kanal, discord.Thread)
-        kanal_id = kanal.parent_id if ist_thread else kanal.id
-        if not self.schranken.richtiger_ort(nachricht.guild.id, kanal_id):
+        ort_id = kanal.parent_id if ist_thread else kanal.id   # Allowlist: der KANAL
+        if not self.schranken.richtiger_ort(nachricht.guild.id, ort_id):
             return
         erwaehnt = self.user in nachricht.mentions
 

@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 from app import db as _db
+from importer.quellen import STANDARD_PRIORITAET, registriere_quelle
 
 
 def _con(pfad_override: str | None = None) -> sqlite3.Connection:
@@ -28,16 +29,14 @@ def cmd_status(_args) -> None:
     n = c.execute("SELECT count(*) FROM eintraege").fetchone()[0]
     print(f"Eintraege gesamt: {n}\n")
     print("Je Quelle (nach Prioritaet):")
-    try:                                   # Bestands-DBs ohne inhaltsart-Spalte (SYN-P0-007)
-        zeilen = c.execute(
-            "SELECT q.kuerzel, q.edition, q.sprache, q.inhaltsart, count(e.id) AS n "
-            "FROM quellen q LEFT JOIN eintraege e ON e.quelle_id=q.id "
-            "GROUP BY q.id ORDER BY q.prioritaet").fetchall()
-    except sqlite3.OperationalError:
-        zeilen = c.execute(
-            "SELECT q.kuerzel, q.edition, q.sprache, 'regelwerk' AS inhaltsart, "
-            "count(e.id) AS n FROM quellen q LEFT JOIN eintraege e ON e.quelle_id=q.id "
-            "GROUP BY q.id ORDER BY q.prioritaet").fetchall()
+    # Kein Alt-Schema-Rueckfall mehr: `_con()` geht ueber `db.connect()`, und das fuehrt
+    # `stelle_schema_sicher()` mit - die inhaltsart-Spalte existiert danach IMMER.
+    # Der frueher hier stehende except-Zweig war seit dem gemeinsamen Migrationspunkt
+    # unerreichbar (am v0-Schema nachgestellt, 31.07.2026).
+    zeilen = c.execute(
+        "SELECT q.kuerzel, q.edition, q.sprache, q.inhaltsart, count(e.id) AS n "
+        "FROM quellen q LEFT JOIN eintraege e ON e.quelle_id=q.id "
+        "GROUP BY q.id ORDER BY q.prioritaet").fetchall()
     for r in zeilen:
         art = "" if r["inhaltsart"] == "regelwerk" else f"  [{r['inhaltsart']}]"
         print(f"  {r['kuerzel']:<16} {r['edition']:<5} {r['sprache']:<3} {r['n']:>6}{art}")
@@ -55,12 +54,22 @@ def cmd_status(_args) -> None:
 
 def cmd_import(args) -> None:
     """Importer nach Quellen-Kuerzel waehlen. Wege:
-      glossar            -> dnddeutsch-Seeding (Kernbegriffe + Abkuerzungen)
+      glossar            -> dnddeutsch-Seeding (Kernbegriffe + Abkuerzungen) UND die
+                            belegte Reparatur zerrissener Eintragsnamen im BESTAND.
+                            Beides in einer Kette, weil die Reparatur das geseedete
+                            Glossar als Beleggrundlage braucht (importer/import_glossar
+                            ._KETTE) - der Name des Kommandos verschweigt das sonst,
+                            und BACKLOG.md par. 1/M1 muss deshalb daran erinnern.
       facetten           -> Facetten aus dem vorhandenen Bestand nachziehen (kein Import)
       open5e-*           -> Open5e-API (Dokumente aus config [open5e].dokumente)
       <kuerzel aus toml> -> PDF-/Markdown-Quelle laut [[quelle]]-Registereintrag
     Nach jedem Import wird die FTS neu aufgebaut (Leitplanke) und der Facetten-Seeder
-    gefahren - Reihenfolge insgesamt: Bestand, dann Facetten, dann Glossar."""
+    gefahren - Reihenfolge insgesamt: Bestand, dann Facetten, dann Glossar.
+
+    Die Web-DB wird am ENDE jedes Zweigs nachgezogen (Befund 31.07.2026): Der
+    glossar-Zweig kehrte vorher vor der Auffrischung zurueck - ausgerechnet der
+    einzige Zweig, der das Glossar aendert, also genau das, was die Web-DB traegt.
+    Die Website zeigte danach bis zum naechsten Quellen-Import den alten Stand."""
     from importer.facetten_seeder import seed_facetten
 
     kuerzel = args.quelle
@@ -73,6 +82,7 @@ def cmd_import(args) -> None:
             bilanz = seed_facetten(c)
         print("Facetten: " + ", ".join(f"{n} {k}" for k, n in bilanz.items()))
         c.close()
+        _web_db_auffrischen(getattr(args, "db", None))
         return
 
     if kuerzel == "glossar":
@@ -86,6 +96,7 @@ def cmd_import(args) -> None:
             bilanz = seed_alles(c)
         print("Glossar: " + ", ".join(f"{n} {was}" for was, n in bilanz.items()) + ".")
         c.close()
+        _web_db_auffrischen(getattr(args, "db", None))
         return
 
     c = _con(getattr(args, "db", None))
@@ -131,18 +142,13 @@ def cmd_import(args) -> None:
                 # inhaltsart aus der Config honorieren (SYN-P0-007): Abenteuer-/Setting-
                 # Baende (z. B. Druck-Buecher efota/frhof) MUESSEN 'abenteuer_setting' tragen,
                 # sonst greift der Spoiler-Schutz nicht. Default 'regelwerk'.
-                c.execute(
-                    "INSERT INTO quellen (kuerzel, titel, sprache, edition, herkunft, "
-                    "lizenz, prioritaet, dateipfad, inhaltsart) VALUES (?,?,?,?,?,?,?,?,?) "
-                    "ON CONFLICT(kuerzel) DO UPDATE SET titel=excluded.titel, "
-                    "sprache=excluded.sprache, edition=excluded.edition, "
-                    "herkunft=excluded.herkunft, lizenz=excluded.lizenz, "
-                    "prioritaet=excluded.prioritaet, dateipfad=excluded.dateipfad, "
-                    "inhaltsart=excluded.inhaltsart",
-                    (kuerzel, eintrag.get("titel", kuerzel), eintrag.get("sprache", "de"),
-                     eintrag["edition"], eintrag.get("herkunft", "pdf"),
-                     eintrag.get("lizenz"), eintrag.get("prioritaet", 100),
-                     eintrag.get("dateipfad"), eintrag.get("inhaltsart", "regelwerk")))
+                registriere_quelle(
+                    c, kuerzel=kuerzel, titel=eintrag.get("titel", kuerzel),
+                    sprache=eintrag.get("sprache", "de"), edition=eintrag["edition"],
+                    herkunft=eintrag.get("herkunft", "pdf"), lizenz=eintrag.get("lizenz"),
+                    prioritaet=eintrag.get("prioritaet", STANDARD_PRIORITAET),
+                    dateipfad=eintrag.get("dateipfad"),
+                    inhaltsart=eintrag.get("inhaltsart", "regelwerk"))
                 n = importiere_markdown(c, kuerzel, markdown, edition=eintrag["edition"],
                                         kategorie=eintrag.get("kategorie", "regel"),
                                         erlaube_schrumpfen=force)
@@ -157,12 +163,17 @@ def cmd_import(args) -> None:
         # D1: was der Import verworfen oder nicht repariert hat - EINE Zeile. Interessant
         # ist weniger der Absolutwert als die Veraenderung zum letzten Lauf; eine
         # wirkungslose Reparatur (verschobener PDF-Anker) faellt so sofort auf.
-        from importer.import_markdown import letzte_bilanz
-        bilanz = letzte_bilanz()
-        print("  " + bilanz.zeile())
-        if bilanz.auffaellig:
-            print("  ^ Reparaturen ohne Anker heissen: die Quelle hat sich verschoben. "
-                  "Stichprobe fahren, bevor der Bestand freigegeben wird.")
+        # Die Bilanz fuehrt NUR der Markdown-Importer (importer/import_markdown._BILANZ).
+        # Nach einem Open5e-Lauf stuende hier der Stand des letzten PDF-/Markdown-Imports
+        # - im frischen Prozess also eine Nullzeile, die so aussaehe, als sei nichts
+        # verworfen worden (Befund 31.07.2026). Deshalb nur im Markdown-/PDF-Zweig.
+        if not kuerzel.startswith("open5e"):
+            from importer.import_markdown import letzte_bilanz
+            bilanz = letzte_bilanz()
+            print("  " + bilanz.zeile())
+            if bilanz.auffaellig:
+                print("  ^ Reparaturen ohne Anker heissen: die Quelle hat sich verschoben. "
+                      "Stichprobe fahren, bevor der Bestand freigegeben wird.")
     finally:
         c.close()
     _web_db_auffrischen(getattr(args, "db", None))
@@ -279,7 +290,7 @@ def cmd_ddb_remove(args) -> None:
         with c:
             weg = c.execute("DELETE FROM quellen WHERE kuerzel = ? AND herkunft='ddb'",
                             (args.quelle,)).rowcount
-            c.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+            _db.fts_rebuild(c)
         print(f"'{args.quelle}': {weg} Quelle(n) entfernt, FTS neu aufgebaut."
               if weg else f"Keine DDB-Quelle '{args.quelle}' in {ziel.name}.")
     finally:
@@ -341,10 +352,35 @@ def cmd_ocr_pdf(args) -> None:
 
 def cmd_reindex(_args) -> None:
     c = _con()
-    _db.fts_rebuild(c)
+    with c:                    # fts_rebuild committet nicht mehr selbst - die Transaktion fuehrt der Aufrufer
+        _db.fts_rebuild(c)
     n = c.execute("SELECT count(*) FROM eintraege").fetchone()[0]
     print(f"FTS neu aufgebaut ({n} Eintraege).")
     c.close()
+
+
+# Woerter, die einen Abenteuer-/Kampagnenband verraten - in Kuerzel ODER Titel, deutsch
+# und englisch. Bewusst eine WARNUNG und kein Fehler: die Liste kann nur Verdacht
+# aeussern, entscheiden muss der Betreiber (Regel 1 - nichts wird geraten).
+_SPOILER_WOERTER = ("abenteuer", "adventure", "kampagne", "campaign", "setting",
+                    "fluch des", "curse of", "descent", "vecna", "strahd", "ravenloft",
+                    "waterdeep", "avernus", "wildemount", "eberron", "spelljammer")
+
+
+def _spoilerverdacht(c: sqlite3.Connection) -> list[tuple[str, str]]:
+    """Quellen, die nach einem Abenteuerband aussehen, aber als 'regelwerk' gefuehrt sind.
+
+    Befund 31.07.2026: `inhaltsart` entscheidet ueber die Spoiler-Kennzeichnung bis in die
+    Tool-Ausgaben (SYN-P0-007) - die OBERSTE Verhaltensregel. Der DDB-Weg setzt sie
+    autoritativ aus dem Buchkatalog; der PDF-/Markdown-Weg liest sie allein aus dem
+    [[quelle]]-Block, und dort FEHLTE der Schluessel in der Config-Vorlage. Wer einen
+    Abenteuerband einpflegt, bekommt still 'regelwerk' - ohne Fehlermeldung, nur ohne
+    Spoiler-Warnung im Chat. Ein Verdacht in `admin check` ist billiger als ein Spoiler
+    am Spieltisch."""
+    return [(r[0], r[1]) for r in c.execute(
+        "SELECT kuerzel, titel FROM quellen WHERE inhaltsart = 'regelwerk' "
+        "ORDER BY kuerzel")
+        if any(w in f"{r[0]} {r[1]}".lower() for w in _SPOILER_WOERTER)]
 
 
 def cmd_check(_args) -> None:
@@ -353,11 +389,7 @@ def cmd_check(_args) -> None:
     c = _con()
     fehler = 0
     sv = c.execute("PRAGMA user_version").fetchone()[0]
-    hat_inhaltsart = any(r[1] == "inhaltsart"
-                         for r in c.execute("PRAGMA table_info(quellen)"))
-    print(f"Schema-Version: {sv}" + ("" if sv >= 2 and hat_inhaltsart else
-          "  HINWEIS: Alt-Schema (<v2) - inhaltsart-Spalte fehlt evtl.; "
-          "Importer ruesten sie defensiv nach, aber ein Reinit auf v2 ist sauberer"))
+    print(f"Schema-Version: {sv}")
     n_e = c.execute("SELECT count(*) FROM eintraege").fetchone()[0]
     n_f = c.execute("SELECT count(*) FROM eintraege_fts").fetchone()[0]
     print(f"Eintraege: {n_e} / FTS-Zeilen: {n_f}" + ("  OK" if n_e == n_f else "  INKONSISTENT -> reindex-fts!"))
@@ -376,6 +408,9 @@ def cmd_check(_args) -> None:
     fehler += abweichend
     leere = c.execute("SELECT count(*) FROM eintraege WHERE length(trim(body_md)) < 20").fetchone()[0]
     print(f"Auffaellig kurze Eintraege (<20 Zeichen, O3-Stichprobe): {leere}")
+    for kuerzel, titel in _spoilerverdacht(c):
+        print(f"Spoiler-Kennzeichnung pruefen: '{kuerzel}' ({titel}) traegt "
+              f"inhaltsart='regelwerk'  WARNUNG")
 
     # --- QS-Pruefungen (11.07.2026): Struktur + Textqualitaet automatisch ueberwachen ---
     # PRAGMA integrity/foreign_key: harte Strukturfehler.
@@ -896,7 +931,9 @@ def baue_parser() -> argparse.ArgumentParser:
                    ).set_defaults(func=cmd_manifest)
     pi = sub.add_parser("import", help="Quelle importieren")
     pi.add_argument("--quelle", required=True,
-                    help="kuerzel aus config, z. B. srd-de; 'glossar' = dnddeutsch-Seeding, "
+                    help="kuerzel aus config, z. B. srd-de; 'glossar' = dnddeutsch-Seeding "
+                         "UND Reparatur zerrissener Eintragsnamen im Bestand (deshalb nach "
+                         "jedem Re-Import eines Scan-Buchs faellig); "
                          "'facetten' = Facetten aus dem Bestand nachziehen (ohne Re-Import)")
     pi.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad); z. B. die private DB "
                                  "fuer ein Glossar-Reseeding nach einem DDB-Import")

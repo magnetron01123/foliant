@@ -101,6 +101,15 @@ class Zeile:
     edition: str | None
     seite: str | None
 
+    def als_glossarzeile(self) -> dict:
+        """Dieselbe Zeile unter den Feldnamen der `glossar`-Tabelle (`edition` heißt dort
+        `edition_quelle`). Damit ist `glossar.auswahlschluessel` (S3/S8) schon auf eine
+        frisch nachgeschlagene Zeile anwendbar - vor dem Schreiben, das im read-only
+        Web-Container gar nicht passiert. EIN Ort für die Feldzuordnung."""
+        return {"term_en": self.term_en, "term_de": self.term_de,
+                "offiziell": self.offiziell, "quelle": self.quelle,
+                "edition_quelle": self.edition, "seite": self.seite}
+
 
 _KLAMMER_LEMMA = re.compile(r"^(.{2,60}?)\s*\(([^()]{1,40})\)$")
 

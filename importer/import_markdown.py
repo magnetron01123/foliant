@@ -40,6 +40,7 @@ import re
 import sqlite3
 import unicodedata
 
+from app import db as _db
 from importer import schwellen as _schwellen
 
 SPLIT_STANDARD = 3       # ohne Quell-Regeln: Headings 1..3 eroeffnen neue Eintraege
@@ -554,7 +555,10 @@ def _chunks(markdown: str, kategorie_standard: str = "regel",
         roh_name = m.group(2).strip() if m else ""
         # Kursive Pseudo-Headings ('_Herkunftstalent_', '_Kosten: ..._') sind Metazeilen,
         # keine Eintragsgrenzen -> im Body belassen.
-        ist_kursiv = roh_name.startswith("_") and not roh_name.strip("_*").startswith("**")
+        # Der frueher angehaengte Konjunkt `not roh_name.strip("_*").startswith("**")`
+        # war beweisbar immer wahr: strip("_*") entfernt genau die Zeichen, mit denen
+        # "**" beginnen wuerde. Er sah nach einer Ausnahme aus, war aber keine.
+        ist_kursiv = roh_name.startswith("_")
         # Label-Pseudo-Headings ('### **Reichweite:** 9 Meter') sind Fortsetzungszeilen
         # des laufenden Eintrags -> Heading-Praefix ab, Zeile in den Body (Modul-Doku).
         if m and not ist_kursiv and (_LABEL_HEADING.match(roh_name)
@@ -602,12 +606,9 @@ def _chunks(markdown: str, kategorie_standard: str = "regel",
 
 
 def _ersetze_bestand(con: sqlite3.Connection, quelle_id: int, zeilen: list[tuple]) -> None:
-    """Loeschen + Einfuegen als EIN Schritt innerhalb der Aufrufer-Transaktion (A7) -
-    eigene Funktion, damit Tests den Absturz 'nach dem Schreiben' simulieren koennen."""
-    con.execute("DELETE FROM eintraege WHERE quelle_id = ?", (quelle_id,))  # idempotent
-    con.executemany(
-        "INSERT INTO eintraege (quelle_id, kategorie, name_de, name_en, sprache, edition, "
-        "seite, kontext, body_md) VALUES (?,?,?,?,?,?,?,?,?)", zeilen)
+    """Duenner Name fuer db.ersetze_eintraege - die Tests patchen genau diesen, um
+    einen Absturz 'nach dem Schreiben' zu simulieren (tests/test_import_safety.py)."""
+    _db.ersetze_eintraege(con, quelle_id, zeilen)
 
 
 def importiere_markdown(con: sqlite3.Connection, quelle_kuerzel: str, markdown: str,
@@ -661,5 +662,5 @@ def importiere_markdown(con: sqlite3.Connection, quelle_kuerzel: str, markdown: 
          sprache, edition, c["seite"], c["kontext"] or None, c["body"]) for c in chunks])
     # FTS-Rebuild als Teil DERSELBEN Transaktion (Leitplanke + A7: Eintraege und Index
     # landen zusammen oder rollen zusammen zurueck).
-    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    _db.fts_rebuild(con)
     return len(chunks)

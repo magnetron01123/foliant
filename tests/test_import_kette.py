@@ -15,10 +15,14 @@ Genau darauf zielen die Tests hier - rein statisch, ohne DB."""
 import ast
 import inspect
 import pathlib
+import sqlite3
+import types
+
+import pytest
 
 import importer.import_glossar as ig
 
-_WURZEL = pathlib.Path(__file__).resolve().parents[1]
+from tests.hilfen import SCHEMA, WURZEL as _WURZEL
 _ADMIN = _WURZEL / "app" / "admin.py"
 
 # Praefixe der Schritte, die fachlich in die Kette gehoeren.
@@ -76,6 +80,31 @@ def test_admin_ruft_die_kette_statt_einzelner_seeder():
                          f"gehoert nach importer.import_glossar._KETTE")
 
 
+@pytest.mark.parametrize("quelle", ["glossar", "facetten"])
+def test_jeder_import_zweig_frischt_die_web_db_auf(tmp_path, monkeypatch, quelle):
+    """Die Web-DB traegt Glossar UND Quellen-Metadaten - sie muss nach JEDEM Zweig
+    nachgezogen werden.
+
+    Bis zum 31.07.2026 kehrten die Zweige `glossar` und `facetten` frueh zurueck, vor
+    dem Aufruf am Funktionsende. Ausgerechnet `--quelle glossar` ist aber der einzige
+    Zweig, der das Glossar aendert - also genau den Inhalt, den die Web-DB ueberhaupt
+    ueberträgt. Die Website zeigte danach bis zum naechsten Quellen-Import einen alten
+    Stand, und seit sie die Buchliste zeigt, faellt das auch auf."""
+    from app import admin
+
+    db = tmp_path / "foliant.sqlite"
+    sqlite3.connect(db).executescript(
+        SCHEMA.read_text(encoding="utf-8"))
+    gerufen: list[str | None] = []
+    monkeypatch.setattr(admin, "_web_db_auffrischen", lambda p: gerufen.append(p))
+    monkeypatch.setattr(ig, "seed_alles", lambda con: {"Testzeilen": 0})
+    monkeypatch.setattr("importer.facetten_seeder.seed_facetten", lambda con: {"zauber": 0})
+
+    admin.cmd_import(types.SimpleNamespace(quelle=quelle, db=str(db), force=False))
+    assert gerufen, (f"`import --quelle {quelle}` hat die Web-DB nicht aufgefrischt - "
+                     f"die Website bleibt auf dem alten Stand stehen")
+
+
 def test_kein_zweiter_einstiegspunkt_in_den_importern():
     """Ein `if __name__ == '__main__'` in einem Importer ist ein zweiter Prozessweg neben
     `app.admin` - und zwar einer, den keine der vier Doku-Dateien kennt. Genau so entstand
@@ -87,3 +116,57 @@ def test_kein_zweiter_einstiegspunkt_in_den_importern():
                and '__name__ == "__main__"' in p.read_text(encoding="utf-8")]
     assert not treffer, (f"zweiter Einstiegspunkt neben app.admin: {treffer} - Importe "
                          f"laufen ueber `python -m app.admin import`")
+
+
+def test_kettenschritte_committen_nicht_selbst():
+    """Statischer Waechter: kein Schritt darf `con.commit()` rufen.
+
+    `seed_alles` und der Kommentar in `app/admin.py` sagen beide "EINE Transaktion, ganz
+    oder gar nicht" zu - bis zum 31.07.2026 trugen aber 15 der Schritte ihr eigenes
+    Commit, was genau diese Zusage aufhob. Ein neuer Schritt mit Commit faellt hier auf,
+    nicht erst an einem halb geschriebenen Glossar nach einem Abbruch."""
+    baum = ast.parse((_WURZEL / "importer" / "import_glossar.py").read_text(encoding="utf-8"))
+    schuldige = sorted({
+        fn.name for fn in ast.walk(baum) if isinstance(fn, ast.FunctionDef)
+        for k in ast.walk(fn)
+        if isinstance(k, ast.Call) and isinstance(k.func, ast.Attribute)
+        and k.func.attr == "commit"})
+    assert not schuldige, (
+        f"Kettenschritt(e) mit eigenem Commit: {schuldige} - die Transaktion fuehrt der "
+        f"Aufrufer (`with con: seed_alles(con)`), sonst ist die Kette nicht atomar")
+
+
+def test_abbruch_mitten_in_der_kette_laesst_das_glossar_unveraendert(tmp_path, monkeypatch):
+    """Der reale Fehlerfall vom 27.07.2026: ein Schritt wirft nach Minuten Laufzeit.
+
+    Erwartung: Das Glossar steht danach exakt auf dem Stand VOR dem Lauf. Ohne die
+    Transaktion haetten die vorherigen Schritte ihre Zeilen bereits committet, und die
+    spaeteren Kanonisierer (die die Konflikte aufloesen) waeren nie gelaufen - ein still
+    unvollstaendiges Glossar, das ueber '*'-Kennzeichnung und Deutsch-first-Ranking
+    entscheidet."""
+    db = tmp_path / "foliant.sqlite"
+    con = sqlite3.connect(db)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO glossar (term_en, term_de, offiziell, quelle) "
+                "VALUES ('Fireball','Feuerball',1,'Test')")
+    con.commit()
+
+    def schritt_wirft(c):
+        raise RuntimeError("NameError-Aequivalent mitten in der Kette")
+
+    # ERSTER Schritt ist ein ECHTER Kettenschritt (netzfrei, schreibt Glossarzeilen).
+    # Nur so misst der Test die Sache: mit einem selbstgebauten Schritt wuerde er auch
+    # ohne den Fix bestehen, weil der Schritt dann gar kein Commit mitbringt.
+    monkeypatch.setattr(ig, "_KETTE", [(ig.seed_abkuerzungen, "Abkuerzungen"),
+                                       (schritt_wirft, "kaputt")])
+    with pytest.raises(RuntimeError):
+        with con:
+            ig.seed_alles(con)
+
+    pruef = sqlite3.connect(db)
+    try:
+        zeilen = pruef.execute("SELECT term_en FROM glossar").fetchall()
+    finally:
+        pruef.close()
+    assert zeilen == [("Fireball",)], (
+        f"Teilzustand nach dem Abbruch: {zeilen} - die Kette ist nicht atomar")

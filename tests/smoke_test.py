@@ -6,11 +6,26 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
+from pathlib import Path
 
 from app import db as adb
-from app.tools import charakter as ch
-from app.tools import nachschlagen as ns
-from app.tools import suche as su
+from app import protokoll as _protokoll
+
+# Das Abfrage-Protokoll in eine Wegwerf-Datei umlenken - VOR dem Import der Werkzeuge.
+#
+# Dieser Laeufer startet ueber `python -m tests.smoke_test`, also NICHT ueber pytest: die
+# autouse-Fixture in tests/conftest.py, die genau das fuer die pytest-Suite tut, greift
+# hier nicht. Am 31.07.2026 am Live-Protokoll gemessen: von 20 125 Zeilen stammten 15 %
+# aus zehn einzelnen Sekunden - also aus Maschinenlaeufen wie diesem, nicht aus
+# Nutzeranfragen. `admin suchbericht` zieht daraus die Kurationsliste (O4/M5); Testdaten
+# darin verwaessern genau die Kandidaten, die jemand von Hand nachziehen soll (dieselbe
+# Falle beschreibt CONCEPT.md par. 12 fuer Benchmarks).
+_protokoll.protokoll_pfad = lambda: Path(tempfile.gettempdir()) / "foliant-smoke-protokoll.sqlite"
+
+from app.tools import charakter as ch      # noqa: E402 - nach der Protokoll-Umlenkung
+from app.tools import nachschlagen as ns   # noqa: E402
+from app.tools import suche as su          # noqa: E402
 
 
 def _drucke(titel: str, daten: dict, felder: list[str] | None = None) -> None:

@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 
 from importer.import_glossar import _namensvarianten, repariere_2014_namen
+from importer import namensreparatur as nr
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 @pytest.fixture()
 def con(tmp_path):
     c = sqlite3.connect(tmp_path / "namen.sqlite")

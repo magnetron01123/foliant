@@ -15,10 +15,9 @@ from app import admin
 from app import db as adb
 from importer.import_glossar import (SRD_2024_BEGRIFFSPAARE, kanonisiere_konflikte,
                                      seed_kern_singulare, seed_srd_paare)
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 def _leere_db(tmp_path, name="foliant.sqlite"):
     pfad = tmp_path / name
     con = sqlite3.connect(pfad)

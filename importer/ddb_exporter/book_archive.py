@@ -185,33 +185,6 @@ def inspiziere_tabellen(db3_pfad: Path, schluessel: str) -> list[dict]:
         con.close()
 
 
-def inspiziere_entitaeten(db3_pfad: Path, schluessel: str) -> dict:
-    """Diagnose fuer den HTMLDescription/ContentDetail-Aufbau: EntityType-Namen je ID,
-    und welche EntityTypeIDs wie viel Text tragen. Secret-frei (nur IDs/Namen/Counts)."""
-    con = _oeffne_readonly(db3_pfad, schluessel)
-    try:
-        vorhanden = {r[0] for r in con.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'")}
-        typen = {}
-        if "EntityType" in vorhanden:
-            typen = {r[0]: r[1] for r in con.execute("SELECT ID, Name FROM EntityType")}
-        verteilung = {}
-        for tab in ("HTMLDescription", "ContentDetail"):
-            if tab in vorhanden:
-                spalten = {r[1] for r in con.execute(f'PRAGMA table_info("{tab}")')}
-                if "EntityTypeID" in spalten:
-                    verteilung[tab] = [
-                        {"typ_id": r[0], "typ": typen.get(r[0], "?"), "zeilen": r[1]}
-                        for r in con.execute(
-                            f'SELECT EntityTypeID, count(*) FROM "{tab}" '
-                            f'GROUP BY EntityTypeID ORDER BY count(*) DESC')]
-        return {"typen": typen, "text_verteilung": verteilung}
-    finally:
-        con.close()
-
-
-# DDB-Entitaetstabelle (EntityType.Name) -> Foliant-Kategorie. Fuer Buecher ohne
-# Content-Text; der eigentliche Text kommt aus HTMLDescription/ContentDetail (join).
 _ENTITAET_KATEGORIE = {
     "RPGSpell": "zauber",
     "RPGMonster": "monster",

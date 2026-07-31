@@ -24,12 +24,12 @@ from pathlib import Path
 import pytest
 
 from app import db as adb
+from app import glossar
 from app.tools import charakter as ch
 from app.tools import nachschlagen as ns
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 @pytest.fixture()
 def bestand(tmp_path, monkeypatch):
     """Zwei Quellen: ein Regelwerk und ein Abenteuer-/Setting-Band. Die Klassen decken die
@@ -48,7 +48,13 @@ def bestand(tmp_path, monkeypatch):
     con.executemany(
         "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
         "body_md) VALUES (?,?,?,?,?,?,?,?)",
-        [# --- Regelwerk: Klasse + Unterklasse im deutschen Namensschema
+        [# Umlaut-Sortierung (DIN 5007-1: ae = a): 'Kaempfer' gehoert VOR 'Kleriker'.
+         # Bewusst in dieser Reihenfolge eingefuegt, damit nur die Sortierung sie dreht.
+         (1, "klasse", "Kleriker", "Cleric", "de", "2024", "60",
+          "*Kontext: Klassen*\n\nGoettliche Magie."),
+         (1, "klasse", "Kämpfer", "Fighter", "de", "2024", "55",
+          "*Kontext: Klassen*\n\nWaffenmeister."),
+         # --- Regelwerk: Klasse + Unterklasse im deutschen Namensschema
          (1, "klasse", "Magier", "Wizard", "de", "2024", "88",
           "*Kontext: Klassen*\n\nHauptmerkmale des Magiers."),
          (1, "klasse", "Magier-Unterklasse: Hervorrufer", None, "de", "2024", "92",
@@ -165,3 +171,21 @@ def test_unterabschnitte_bleiben_aus_beiden_listen_draussen(bestand):
              for k in klassen for u in k.get("unterklassen", [])}
     assert "Klassenmerkmale des Magiers" not in alle
     assert "Zauberliste des Magiers" not in alle
+
+
+def test_optionslisten_sind_deutsch_alphabetisch_sortiert(bestand):
+    """DIN 5007-1: 'ä' zaehlt beim Sortieren als 'a'.
+
+    Bis zum 31.07.2026 sortierten die Optionslisten mit einem reinen `.lower()`. In der
+    Codepoint-Ordnung steht 'ä' (U+00E4) hinter 'z', also stand "Kämpfer" in der
+    Klassenliste HINTER "Kleriker" - fuer eine Liste, die ein Spieler liest, schlicht
+    falsch. Gemessen wurde vorher, dass die Faltung genau diese eine Ausgabe aendert;
+    an den Attributsnamen darf sie NICHT angewandt werden (s. charakter._norm)."""
+    namen = [z["name_de"] or z["name_en"]
+             for z in ch.foliant_liste_optionen("klasse")["klassen"]]
+    gefaltet = [glossar.norm_begriff(n) for n in namen]
+    assert gefaltet == sorted(gefaltet), (
+        f"Klassenliste nicht deutsch-alphabetisch: {namen}")
+    if "Kämpfer" in namen and "Kleriker" in namen:
+        assert namen.index("Kämpfer") < namen.index("Kleriker"), \
+            "'Kämpfer' muss vor 'Kleriker' stehen (ä = a)"

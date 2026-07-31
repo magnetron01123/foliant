@@ -18,6 +18,7 @@ from app.charakterbogen.web import (
     _pruefe_sicher, erstelle_app,
 )
 from tests.test_charakterbogen_ddb import BEISPIEL, baue_ddb_pdf
+from tests.hilfen import SCHEMA
 
 
 def _blank_pdf(seiten: int = 2) -> bytes:
@@ -306,7 +307,7 @@ def test_bestandsuebersicht_zeigt_die_buecher(tmp_path):
 
     korpus = tmp_path / "korpus.sqlite"
     con = sqlite3.connect(korpus)
-    con.executescript((Path(__file__).resolve().parent.parent / "db" / "schema.sql")
+    con.executescript(SCHEMA
                       .read_text(encoding="utf-8"))
     con.executemany(
         "INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,prioritaet,"
@@ -378,3 +379,40 @@ def test_buchtitel_verlieren_nur_die_doppelten_zusaetze():
     # Ein Titel, der NUR aus dem Zusatz besteht, wird nicht zu einer leeren Zeile.
     assert _titel_schlicht("(Deutsch)") == "(Deutsch)"
     assert _titel_schlicht("") == ""
+
+
+def test_buchliste_folgt_der_web_db_ohne_neustart(tmp_path):
+    """Die Seite sagt über der Buchliste wörtlich "sie ist immer aktuell".
+
+    Bis zum 31.07.2026 wurde sie EINMAL beim Containerstart gebaut: `admin import`
+    frischte die Web-DB auf, der laufende Container zeigte aber bis zum nächsten
+    `docker compose restart web` den alten Stand - und behauptete dabei Aktualität.
+    Der Test schreibt in die Web-DB, NACHDEM die App gebaut wurde."""
+    from starlette.testclient import TestClient
+    from app.charakterbogen import web as w
+
+    web_db = tmp_path / "glossar_web.sqlite"
+    con = sqlite3.connect(web_db)
+    con.executescript(
+        "CREATE TABLE glossar (term_en TEXT, term_de TEXT, offiziell INT, quelle TEXT,"
+        " edition_quelle TEXT, seite TEXT);"
+        "CREATE TABLE quellen (kuerzel TEXT, titel TEXT, sprache TEXT, edition TEXT,"
+        " herkunft TEXT, lizenz TEXT, inhaltsart TEXT, eintraege INTEGER);")
+    con.execute("INSERT INTO quellen VALUES ('srd-de','SRD 5.2.1 (Deutsch)','de','2024',"
+                "'pdf','CC-BY-4.0','regelwerk',3000)")
+    con.commit()
+
+    app = w.erstelle_app(glossar_pfad=str(web_db), passwort="geheim")
+    client = TestClient(app)
+    client.post("/anmeldung", data={"kennwort": "geheim"})
+    assert "SRD 5.2.1" in client.get("/").text
+
+    # Neues Buch NACH dem App-Bau - so wie `admin import` es tut.
+    con.execute("INSERT INTO quellen VALUES ('phb-2024-de','Spielerhandbuch 2024','de',"
+                "'2024','pdf','privat','regelwerk',1500)")
+    con.commit()
+    con.close()
+
+    assert "Spielerhandbuch 2024" in client.get("/").text, (
+        "Die Buchliste haengt am Containerstart - die Seite behauptet Aktualitaet, "
+        "die sie nicht hat")

@@ -12,6 +12,7 @@ import asyncio
 import importlib
 
 from app.zugriff import ZugriffsFilter
+from tests.hilfen import SCHEMA
 
 
 def _scope(pfad="/geheim/mcp", cf_ip=None, peer="203.0.113.9"):
@@ -146,8 +147,7 @@ def test_serving_verbindung_ist_read_only(tmp_path):
     from app import db as adb
     pfad = tmp_path / "ro.sqlite"
     con = sqlite3.connect(pfad)
-    con.executescript((Path(__file__).resolve().parent.parent / "db" /
-                       "schema.sql").read_text(encoding="utf-8"))
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
     con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft) "
                 "VALUES ('x','X','de','2024','pdf')")
     con.commit(); con.close()
@@ -181,8 +181,7 @@ def test_ready_endpoint_spiegelt_db_zustand(tmp_path, monkeypatch):
     from pathlib import Path
     pfad = tmp_path / "da.sqlite"
     con = sqlite3.connect(pfad)
-    con.executescript((Path(__file__).resolve().parent.parent / "db" /
-                       "schema.sql").read_text(encoding="utf-8"))
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
     con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft) "
                 "VALUES ('x','X','de','2024','pdf')")
     con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,body_md) "

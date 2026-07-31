@@ -7,10 +7,9 @@ import pytest
 
 import importer.import_glossar as ig
 from app import glossar as gl
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 @pytest.fixture()
 def con(tmp_path):
     c = sqlite3.connect(tmp_path / "glossar.sqlite")

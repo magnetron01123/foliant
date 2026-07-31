@@ -11,83 +11,22 @@ import sqlite3
 import time
 from typing import Literal, NamedTuple
 
-from rapidfuzz import fuzz
-
 from app import db as _db
 from app.db import Kategorie
-from app import facetten as _facetten
 from app import glossar as _glossar
 from app import protokoll as _protokoll
-from app.tools.ausgabe import (  # Ausgabe-Schicht: hier re-exportiert,
-    # damit ns.HINWEIS_* und die internen Aufrufstellen unveraendert gelten
-    HINWEIS_LEER,
-    HINWEIS_ALT,
-    HINWEIS_MEHRDEUTIG,
+from app.tools.ausgabe import (
     HINWEIS_DB_FEHLT,
-    _HINWEIS_STERN,
-    _verbinde,
-    _zitat,
-    _knapp,
-    _abenteuer_kuerzel,
-    _markiere_abenteuer,
-    _reichere_facetten_an,
-    _anzeige_name,
-    _facetten_von,
-    _detail,
-    _alias_hinweis,
+    HINWEIS_LEER,
+    HINWEIS_MEHRDEUTIG,
     _HINWEIS_PARAMETER,
+    _HINWEIS_STERN,
+    _alias_hinweis,
+    _detail,
+    _knapp,
+    _markiere_abenteuer,
+    _verbinde,
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Kanonische Definition in app/glossar.py (gemeinsam mit dem Such-Ranking, SYN-P0-002).
-_KLAMMER_SUFFIX = _glossar.KLAMMER_SUFFIX
-
 
 
 
@@ -189,28 +128,20 @@ def _hole_detail(kategorie: str, name: str | None = None,
                  edition: str = _db.STANDARD_EDITION,
                  aggregiere_kinder: bool = False,
                  eintrag_id: int | None = None) -> dict:
-    """Protokollierender Mantel um _hole_detail_impl - EIN Hook fuer den gesamten
-    Detailpfad. Seit der Zusammenlegung auf foliant_hol_eintrag gibt es nur noch einen
-    oeffentlichen Aufrufer; das Protokoll bleibt kategoriebasiert (werkzeug=hol_<kategorie>),
-    damit der Suchbericht ueber den Umbau hinweg vergleichbar bleibt."""
-    start = time.monotonic()
+    """Detailabruf OHNE Protokollierung - der gemeinsame Kern des Detailpfads.
+
+    Protokolliert wird auf der WERKZEUG-Ebene (foliant_hol_eintrag), nicht hier. Bis zum
+    31.07.2026 sass der Hook an dieser Stelle, und das verzerrte den Suchbericht in beide
+    Richtungen: `app/tools/charakter.py` ruft diese Funktion dreimal als INTERNE Sonde
+    (Regelbeleg, Klassenmerkmale, Attributsregel), und jede dieser Sonden schrieb eine
+    Zeile, als haette ein Nutzer gefragt. Am Live-Protokoll gemessen stand
+    'Schritt 3: Attributswerte' mit 186 Treffern als VIERTHAEUFIGSTER Suchbegriff im
+    Bericht - hinter 'Feuerball' und 'Kämpfer'. Umgekehrt tauchten die drei
+    Charakter-Werkzeuge selbst nie auf. Der Bericht ist die Kurationsliste (O4/M5); was
+    darin steht, entscheidet, welche Glossar-Paare jemand von Hand nachzieht."""
     antwort = _hole_detail_impl(kategorie, name, edition, aggregiere_kinder, eintrag_id)
     if not antwort.get("gefunden") and (alias := _alias_hinweis(edition)):
         antwort["hinweis_edition_alias"] = alias
-    if eintrag_id is not None:
-        suchweg = "direkt_id"        # Nachladen einer Referenz - kein Kurations-Signal
-    elif "fehler" in antwort:
-        suchweg = "fehler"
-    else:
-        suchweg = "name"
-    _protokoll.protokolliere(
-        werkzeug=f"hol_{kategorie}", kategorie=kategorie,
-        suchbegriff=None if eintrag_id is not None else name, edition=edition,
-        anzahl_treffer=(len(antwort.get("kandidaten", []))
-                        or int(bool(antwort.get("gefunden")))),
-        suchweg=suchweg, mehrdeutig=bool(antwort.get("mehrdeutig")),
-        gefunden=antwort.get("gefunden"),
-        dauer_ms=(time.monotonic() - start) * 1000)
     return antwort
 
 
@@ -273,9 +204,7 @@ def _waehle_kandidat(con, name: str, kategorie: str, edition: str,
     # (SYN-P0-001: die Fuzzy-Naehe 'Aktionen'~'Reaktionen' machte einen FREMDEN Eintrag
     # zum Exakt-Treffer). Die prioritaets-sortierte Trefferliste stellt dabei deutsche
     # Quellen nach vorn (S10/Q2).
-    varianten = {_glossar.norm_begriff(name)}
-    varianten |= {_glossar.norm_begriff(a)
-                  for a in _db._glossar_alternativen(con, name, nur_exakt=True)}
+    varianten = _db.anfrage_varianten(con, name)
     exakt = [k for k in kandidaten if _glossar._eintrag_namen(k) & varianten]
     # S10 EXPLIZIT statt per Annahme: die FTS-Rangfolge stellt einen englischen
     # Volltreffer ('Warrior of the Open Hand', Open5e) vor den deutschen Praefix-Titel
@@ -405,10 +334,6 @@ def _quellabweichungen(con, voll: dict, gewaehlt: dict, exakt: list[dict],
             konflikte.append({"eintrag_id": wf["id"], "quelle": wf["quelle_titel"],
                               "hinweis": "Textfassung weicht inhaltlich ab"})
     return konflikte, fremdsprachige
-
-
-
-
 
 
 def _hole_detail_impl(kategorie: str, name: str | None = None,
@@ -589,8 +514,24 @@ def foliant_hol_eintrag(kategorie: Kategorie, name: str | None = None,
     Kandidaten zurueck - dann rueckfragen statt raten.
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
     Deutsch-first (Original in Klammern)."""
+    start = time.monotonic()
     d = _hole_detail(kategorie, name, edition, eintrag_id=eintrag_id,
                      aggregiere_kinder=kategorie in _KINDER_AGGREGATION)
+    if eintrag_id is not None:
+        suchweg = "direkt_id"        # Nachladen einer Referenz - kein Kurations-Signal
+    elif "fehler" in d:
+        suchweg = "fehler"
+    else:
+        suchweg = "name"
+    # werkzeug bleibt kategoriebasiert (hol_<kategorie>), damit der Suchbericht ueber die
+    # Zusammenlegung der zwoelf hol_*-Werkzeuge hinweg vergleichbar bleibt.
+    _protokoll.protokolliere(
+        werkzeug=f"hol_{kategorie}", kategorie=kategorie,
+        suchbegriff=None if eintrag_id is not None else name, edition=edition,
+        anzahl_treffer=(len(d.get("kandidaten", [])) or int(bool(d.get("gefunden")))),
+        suchweg=suchweg, mehrdeutig=bool(d.get("mehrdeutig")),
+        gefunden=d.get("gefunden"),
+        dauer_ms=(time.monotonic() - start) * 1000)
     return _verwandte_klassenabschnitte(d) if kategorie == "klasse" else d
 
 

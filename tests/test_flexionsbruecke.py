@@ -24,10 +24,9 @@ from app import glossar as gl
 from app.tools import nachschlagen as ns
 from importer.import_glossar import (FLEXION_QUELLE, _ist_flexion,
                                      seed_flexionsbruecke_aus_bestand)
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 @pytest.fixture()
 def bestand(tmp_path, monkeypatch):
     """Der reale Fall: zwei Glossar-Inseln, der Eintrag im Bestand im PLURAL."""

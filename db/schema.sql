@@ -53,7 +53,6 @@ CREATE TABLE IF NOT EXISTS eintraege (
     kontext    TEXT,
     body_md    TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_eintraege_kontext ON eintraege(kontext);
 CREATE INDEX IF NOT EXISTS idx_eintraege_kat_ed ON eintraege(kategorie, edition);
 -- Die realen Zugriffe jenseits von (kategorie, edition), alle mit EXPLAIN QUERY PLAN
 -- belegt (28.07.2026, Mac-Subset 3084 Eintraege): vorher SCAN, nachher SEARCH USING

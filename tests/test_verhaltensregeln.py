@@ -3,7 +3,7 @@ und driften deshalb lautlos auseinander:
 
   1. die Server-Instruktion in `config/stil.py`
   2. die Copy-Paste-Projektanweisung in `config/projektanweisung.md`
-  3. die Grounding-Hinweise IN den Tool-Ausgaben (nachschlagen/charakter)
+  3. die Grounding-Hinweise IN den Tool-Ausgaben (app/tools/ausgabe.py + charakter.py)
 
 CLAUDE.md verlangt seit jeher, sie synchron zu halten - bisher war das eine Bitte an den
 Menschen, hier wird es geprueft.
@@ -22,8 +22,8 @@ import pathlib
 
 import pytest
 
+from app.tools import ausgabe as aus
 from app.tools import charakter as ch
-from app.tools import nachschlagen as ns
 from config import stil
 from config.stil import INSTRUCTIONS
 
@@ -120,12 +120,12 @@ def test_discord_zusatz_ist_nur_darstellung():
 # Kanal 3: welcher Hinweis welche Zusage tragen muss. Die Fragmente sind bewusst kurz -
 # geprueft wird, dass die AUSSAGE dasteht, nicht ihr Wortlaut.
 _GROUNDING_HINWEISE = [
-    ("Leerbefund ist ehrlich", ns.HINWEIS_LEER, ["❌", "Allgemeinwissen", "B1"]),
-    ("Altstand wird gekennzeichnet", ns.HINWEIS_ALT, ["⚠️", "2024", "B5"]),
-    ("Mehrdeutigkeit wird nicht geraten", ns.HINWEIS_MEHRDEUTIG, ["NICHT raten", "B4",
+    ("Leerbefund ist ehrlich", aus.HINWEIS_LEER, ["❌", "Allgemeinwissen", "B1"]),
+    ("Altstand wird gekennzeichnet", aus.HINWEIS_ALT, ["⚠️", "2024", "B5"]),
+    ("Mehrdeutigkeit wird nicht geraten", aus.HINWEIS_MEHRDEUTIG, ["NICHT raten", "B4",
                                                                  "eintrag_id"]),
-    ("leerer Bestand ist kein Regelmangel", ns.HINWEIS_DB_FEHLT, ["ehrlich", "B1"]),
-    ("Stern wird erlaeutert", ns._HINWEIS_STERN, ["*", "S5"]),
+    ("leerer Bestand ist kein Regelmangel", aus.HINWEIS_DB_FEHLT, ["ehrlich", "B1"]),
+    ("Stern wird erlaeutert", aus._HINWEIS_STERN, ["*", "S5"]),
     ("2024-Baureihenfolge", ch._HINWEIS_REIHENFOLGE, ["Klasse", "Hintergrund", "Spezies",
                                                       "SPRACHEN"]),
     ("nur Optionen aus dem Bestand", ch._HINWEIS_BESTAND, ["B1", "B2"]),
@@ -144,8 +144,8 @@ def test_leerbefund_hinweis_deckt_sich_mit_der_web_regel():
     """HINWEIS_LEER ist der Ort, an dem das Modell die Websuche-Regel im Moment des
     Nulltreffers liest - also genau dann, wenn die Versuchung zum Auffuellen entsteht.
     Er muss dieselbe Kennzeichnung verlangen wie die beiden Prompt-Kanaele."""
-    assert "🌐" in ns.HINWEIS_LEER
-    assert "🚫" in ns.HINWEIS_LEER              # Spoiler-Regel gilt auch im Web
+    assert "🌐" in aus.HINWEIS_LEER
+    assert "🚫" in aus.HINWEIS_LEER              # Spoiler-Regel gilt auch im Web
     for kanal in (INSTRUCTIONS, stil.projektanweisung()):
         assert "🌐" in kanal
 

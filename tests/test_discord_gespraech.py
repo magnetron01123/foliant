@@ -1,4 +1,5 @@
 """GespraechsSpeicher: TTL, LRU-Deckel, Zeichen-Budget - alles mit injizierter Uhr."""
+from app.discord_bot import gespraech
 from app.discord_bot.gespraech import GespraechsSpeicher
 
 
@@ -75,3 +76,37 @@ def test_lru_verdraengt_das_am_laengsten_unbenutzte():
     uhr.t = 3
     s.ergaenze(3, "F", "A")
     assert s.kennt(1) and s.kennt(3) and not s.kennt(2)
+
+
+class _Kanal:
+    """Duck-Typing statt discord.py: Threads tragen `parent_id`, Kanaele nicht."""
+    def __init__(self, id_, parent_id=None):
+        self.id, self.parent_id = id_, parent_id
+
+
+def test_verlaufsschluessel_nimmt_im_thread_die_thread_id():
+    """Regression 31.07.2026: `/regel` IM Thread legte den Verlauf unter der ELTERN-ID ab.
+
+    `on_message` sucht ihn unter der Thread-ID und fand ihn deshalb nie - der Nutzer bekam
+    HINWEIS_VERGESSEN ("nach einem Neustart vergessen"), obwohl kein Neustart stattfand.
+    Ursache war eine einzige `kanal_id`, die zwei Bedeutungen trug: die Allowlist braucht
+    den Eltern-Kanal, der Verlauf den Thread."""
+    thread = _Kanal(555, parent_id=111)          # /regel wurde IM Thread gefahren
+    assert gespraech.verlaufsschluessel(thread) == 555, \
+        "im Thread muss die THREAD-ID der Verlaufsschluessel sein, nicht die Eltern-ID"
+
+
+def test_verlaufsschluessel_nimmt_den_neuen_thread():
+    """Im Kanal gefahren: die Antwort eroeffnet einen Thread - dessen ID gilt."""
+    kanal = _Kanal(111)
+    neuer = _Kanal(999, parent_id=111)
+    assert gespraech.verlaufsschluessel(kanal, neuer) == 999
+
+
+def test_verlauf_ist_unter_dem_schluessel_wiederfindbar():
+    """Der Rundlauf, um den es geht: ablegen wie `_slash_regel`, finden wie `on_message`."""
+    speicher = gespraech.GespraechsSpeicher()
+    thread = _Kanal(555, parent_id=111)
+    speicher.ergaenze(gespraech.verlaufsschluessel(thread), "Was ist ein Gelegenheitsangriff?", "…")
+    assert speicher.kennt(thread.id), \
+        "Folgefrage im selben Thread findet den Verlauf nicht"

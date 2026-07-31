@@ -15,10 +15,9 @@ from app import admin
 from app import db as adb
 from app.tools import nachschlagen as ns
 from importer import facetten_seeder as seeder
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 def _baue_db(tmp_path, name="foliant.sqlite"):
     """Schema + eine Open5e-Quelle, ein Zauber MIT zauber_meta, ein Monster OHNE Facette."""
     pfad = tmp_path / name
@@ -102,7 +101,13 @@ def test_schema_ensure_ruestet_die_nutzindizes_nach(tmp_path):
     try:
         vorhanden = {r[0] for r in c.execute(
             "SELECT name FROM sqlite_master WHERE type='index'")}
-        assert set(adb.NUTZINDIZES) <= vorhanden, f"fehlend: {set(adb.NUTZINDIZES) - vorhanden}"
+        # Erwartung direkt aus der EINEN Schema-Datei lesen, nicht aus einer zweiten
+        # Python-Liste (die gab es bis zum 31.07.2026 und musste von Hand synchron
+        # gehalten werden). So deckt der Test auch jeden kuenftigen Index ab.
+        erwartet = set(re.findall(r"CREATE (?:UNIQUE )?INDEX IF NOT EXISTS (\w+)",
+                                  _SCHEMA.read_text(encoding="utf-8")))
+        assert erwartet, "keine Indizes in db/schema.sql gefunden - Regex pruefen"
+        assert erwartet <= vorhanden, f"fehlend: {sorted(erwartet - vorhanden)}"
         # Und sie werden auch BENUTZT - sonst waeren sie nur Ballast.
         plan = " ".join(r[-1] for r in c.execute(
             "EXPLAIN QUERY PLAN SELECT id FROM eintraege WHERE quelle_id = 1"))

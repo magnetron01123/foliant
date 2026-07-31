@@ -1,8 +1,12 @@
 # DDB-Exporter-Abhaengigkeiten - GETRENNT von requirements.txt: SQLite3MC gehoert nie in
 # die dauerhafte Runtime (Vorschlag §6.1). Installation in eine eigene Umgebung:
 #   python3 -m venv .venv-ddb && .venv-ddb/bin/pip install -r requirements-ddb.txt
-# Version gepinnt laut docs/VORSCHLAG-DDB-IMPORT-RASPBERRY-PI.md; liefert ARM64-Wheels.
+# Version gepinnt und auf ARM64-Wheels geprueft (Begruendung: CONCEPT.md par. 10, ADR).
+# bs4 ist eine DIREKTE Abhaengigkeit von ddb_exporter/html_to_markdown.py - markdownify
+# zieht es zwar mit, aber die Regel aus requirements.txt gilt auch hier: was importiert
+# wird, steht drin.
 apsw-sqlite3mc==3.53.2.0
+beautifulsoup4==4.15.0
 httpx==0.28.1
 markdownify==0.13.1
 rapidfuzz==3.13.0
