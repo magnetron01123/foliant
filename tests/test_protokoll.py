@@ -13,10 +13,9 @@ from app import db as adb
 from app import protokoll as _protokoll
 from app.tools import nachschlagen as ns
 from app.tools import suche as su
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 @pytest.fixture()
 def bestand(tmp_path, monkeypatch):
     pfad = tmp_path / "foliant-protokolltest.sqlite"
@@ -132,3 +131,34 @@ def test_suchbericht_ohne_protokoll_ist_freundlich(tmp_path, monkeypatch, capsys
     monkeypatch.setattr(_protokoll, "protokoll_pfad", lambda: tmp_path / "leer.sqlite")
     adm.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=False))
     assert "Kein Abfrage-Protokoll" in capsys.readouterr().out
+
+
+def test_interne_sonden_landen_nicht_im_abfrage_protokoll(tmp_path, monkeypatch):
+    """Protokolliert wird auf WERKZEUG-Ebene, nicht auf der internen Detailfunktion.
+
+    Bis zum 31.07.2026 sass der Hook auf `_hole_detail`, die `app/tools/charakter.py`
+    dreimal als interne Sonde ruft. Am Live-Protokoll gemessen stand dadurch
+    'Schritt 3: Attributswerte' mit 186 Treffern als VIERTHAEUFIGSTER Suchbegriff im
+    Bericht - hinter 'Feuerball' und 'Kämpfer'. Kein Nutzer hat das je gesucht. Umgekehrt
+    tauchten die drei Charakter-Werkzeuge selbst nie auf. `admin suchbericht` ist die
+    Kurationsliste (O4/M5); was darin steht, entscheidet ueber die naechste Handarbeit."""
+    from app import protokoll as p
+    from app.tools import charakter as ch
+    from app.tools import nachschlagen as ns
+
+    ziel = tmp_path / "prot.sqlite"
+    monkeypatch.setattr(p, "protokoll_pfad", lambda: ziel)
+
+    ch.foliant_hol_attributswerte("standard_array")   # ruft intern _hole_detail
+    ch.foliant_pruefe_build("Kämpfer", 3)             # ruft intern _hole_detail
+    ns.foliant_hol_eintrag("regel", "Kurze Rast")     # echter Werkzeugaufruf
+
+    con = sqlite3.connect(ziel)
+    try:
+        begriffe = [r[0] for r in con.execute("SELECT suchbegriff FROM abfragen")]
+    finally:
+        con.close()
+    assert "Schritt 3: Attributswerte" not in begriffe, (
+        "interne Sonde im Abfrage-Protokoll - der Suchbericht meldet sie als "
+        "Nutzeranfrage und verwaessert die Kurationsliste")
+    assert len(begriffe) == 1, f"erwartet genau den Werkzeugaufruf, protokolliert: {begriffe}"

@@ -27,10 +27,9 @@ from app import db as adb
 from app import glossar
 from app.tools import charakter as ch
 from app.tools import nachschlagen as ns
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 @pytest.fixture()
 def bestand(tmp_path, monkeypatch):
     """Zwei Quellen: ein Regelwerk und ein Abenteuer-/Setting-Band. Die Klassen decken die

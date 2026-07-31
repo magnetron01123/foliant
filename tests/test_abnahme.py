@@ -21,10 +21,9 @@ from app.glossar import markiere
 from app.tools import nachschlagen as ns
 from app.tools import suche as su
 from importer.import_markdown import importiere_markdown
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 @pytest.fixture()
 def bestand(tmp_path, monkeypatch):
     """Synthetischer Mini-Bestand als Datei-DB; app.db.standard_pfad wird darauf umgebogen,

@@ -18,6 +18,7 @@ from app.charakterbogen.web import (
     _pruefe_sicher, erstelle_app,
 )
 from tests.test_charakterbogen_ddb import BEISPIEL, baue_ddb_pdf
+from tests.hilfen import SCHEMA
 
 
 def _blank_pdf(seiten: int = 2) -> bytes:
@@ -306,7 +307,7 @@ def test_bestandsuebersicht_zeigt_die_buecher(tmp_path):
 
     korpus = tmp_path / "korpus.sqlite"
     con = sqlite3.connect(korpus)
-    con.executescript((Path(__file__).resolve().parent.parent / "db" / "schema.sql")
+    con.executescript(SCHEMA
                       .read_text(encoding="utf-8"))
     con.executemany(
         "INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,prioritaet,"

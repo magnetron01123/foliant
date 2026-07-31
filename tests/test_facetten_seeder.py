@@ -16,9 +16,9 @@ from app.tools import ausgabe as aus
 from app.tools import nachschlagen as ns
 from importer import facetten_seeder as seeder
 from importer import srd_zauberbruecken as Z
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
+_SCHEMA = SCHEMA
 # Echte Kopfformen aus dem Bestand (gekuerzt) - kein erfundenes Wunschformat.
 _FEUERBALL_DE = ("*Kontext: Zauber > Beschreibungen der Zauber* "
                  "_Hervorrufungszauber 3. Grades (Magier, Zauberer)_ "

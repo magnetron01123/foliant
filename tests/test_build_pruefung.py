@@ -15,9 +15,9 @@ import pytest
 
 from app.tools import charakter as ch
 from app.tools import nachschlagen as ns
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
+_SCHEMA = SCHEMA
 _ATTRIBUTSREGEL = ("*Kontext: Charaktererstellung > Deinen Charakter erstellen*\n\n"
                    "**_Standardsatz:_** Verwende die folgenden sechs Werte für deine "
                    "Attribute: 15, 14, 13, 12, 10, 8.\n\n**_Punktkosten:_** Du hast 27 "

@@ -12,10 +12,9 @@ from app import db as adb
 from app.tools import charakter as ch
 from app.tools import nachschlagen as ns
 from app.tools import suche as su
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 @pytest.fixture()
 def bestand(tmp_path, monkeypatch):
     pfad = tmp_path / "foliant-validierung.sqlite"

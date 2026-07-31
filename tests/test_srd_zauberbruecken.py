@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from importer import srd_zauberbruecken as zb
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
+_SCHEMA = SCHEMA
 DE_TOTSTELLEN = ("*Kontext: Zauber*\n\nNekromantie des 3. Grades (Ritual) "
                  "Zeitaufwand: 1 Aktion Reichweite: Berührung Komponenten: V, G, M "
                  "(eine Prise Graberde) Wirkungsdauer: 1 Stunde\n\nDu berührst eine "

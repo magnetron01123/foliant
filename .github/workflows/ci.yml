@@ -36,3 +36,41 @@ jobs:
 
       - name: Tests (pytest)
         run: pytest -q
+
+  # Zweite Stufe wie in `make test` (SYN-P1-001). Sie MUSS getrennt laufen: SQLite3MC
+  # gehoert nie in die Laufzeit-Umgebung (CONCEPT.md par. 10, ADR), deshalb liegen die
+  # Exporter-Abhaengigkeiten in requirements-ddb.txt und die DDB-Tests ueberspringen sich
+  # im Haupt-venv per importorskip.
+  #
+  # Bis zum 31.07.2026 fuhr die CI nur den Job oben - und damit still OHNE die DDB-Suite,
+  # obwohl CONCEPT.md par. 11 `make test` als "das EINE Gate" fuehrt und der Makefile
+  # ausdruecklich begruendet, dass diese Tests sonst "unsichtbar rot" bleiben. Ein PR
+  # konnte importer/ddb_exporter/ (1200+ Zeilen) brechen, ohne dass die CI rot wurde.
+  ddb-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 3.12 einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: DDB-Abhaengigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ddb.txt
+
+      - name: DDB-Suite (pytest)
+        run: pytest -q tests/test_ddb_exporter.py tests/test_ddb_katalog.py tests/test_ddb_sqlcipher_spike.py
+
+      - name: Kein stiller Skip
+        # importorskip wuerde bei fehlender Abhaengigkeit lautlos ueberspringen - genau der
+        # Zustand, den dieser Job beseitigt. Also aktiv nachweisen, dass er NICHT eintrat.
+        run: |
+          pytest -q tests/test_ddb_exporter.py tests/test_ddb_katalog.py \
+                 tests/test_ddb_sqlcipher_spike.py -rs 2>&1 | tee /tmp/ddb.txt
+          if grep -q "nur in .venv-ddb" /tmp/ddb.txt; then
+            echo "FEHLER: DDB-Tests wurden uebersprungen - Abhaengigkeiten fehlen."; exit 1
+          fi

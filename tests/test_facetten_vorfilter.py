@@ -24,9 +24,9 @@ from app import db as adb
 from app.tools import nachschlagen as ns
 from app.tools import suche as su
 from importer.facetten_seeder import seed_facetten
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
+_SCHEMA = SCHEMA
 _ZAUBER = [
     ("Feuerball", "_Hervorrufungszauber 3. Grades (Magier)_ **Reichweite:** 45 Meter "
                   "**Komponenten:** V, G, M **Wirkungsdauer:** Unmittelbar"),

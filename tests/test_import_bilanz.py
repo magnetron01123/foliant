@@ -13,10 +13,9 @@ from app import db as adb
 from importer import schwellen
 from importer.import_glossar import ist_begriff
 from importer.import_markdown import _chunks, importiere_markdown, letzte_bilanz
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
-
+_SCHEMA = SCHEMA
 @pytest.fixture()
 def con(tmp_path):
     pfad = tmp_path / "bilanz.sqlite"

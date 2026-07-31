@@ -14,8 +14,9 @@ import pytest
 
 from importer.ddb_artefakt import kategorie_aus_breadcrumb, pruefe_artefakt
 from importer.import_ddb import importiere_ddb_artefakt
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
+_SCHEMA = SCHEMA
 _FIXTURE = Path(__file__).resolve().parent / "fixtures" / "ddb"
 
 _BUCH = {"id": 999999, "kuerzel": "ddb-synthetic-en", "titel": "Synthetic Handbook (Fixture)",
@@ -352,7 +353,7 @@ def test_p0_inhaltsart_wandert_bis_in_die_quelle(tmp_path):
 
     from importer.import_ddb import buch_aus_manifest, importiere_ddb_artefakt
 
-    schema = (Path(__file__).resolve().parent.parent / "db" / "schema.sql")
+    schema = (SCHEMA)
     # Basis-DB OHNE inhaltsart-Spalte (wie der Pi-Bestand vor der Migration):
     basis = tmp_path / "foliant.sqlite"
     con = sqlite3.connect(basis)

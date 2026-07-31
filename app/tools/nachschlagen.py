@@ -135,28 +135,20 @@ def _hole_detail(kategorie: str, name: str | None = None,
                  edition: str = _db.STANDARD_EDITION,
                  aggregiere_kinder: bool = False,
                  eintrag_id: int | None = None) -> dict:
-    """Protokollierender Mantel um _hole_detail_impl - EIN Hook fuer den gesamten
-    Detailpfad. Seit der Zusammenlegung auf foliant_hol_eintrag gibt es nur noch einen
-    oeffentlichen Aufrufer; das Protokoll bleibt kategoriebasiert (werkzeug=hol_<kategorie>),
-    damit der Suchbericht ueber den Umbau hinweg vergleichbar bleibt."""
-    start = time.monotonic()
+    """Detailabruf OHNE Protokollierung - der gemeinsame Kern des Detailpfads.
+
+    Protokolliert wird auf der WERKZEUG-Ebene (foliant_hol_eintrag), nicht hier. Bis zum
+    31.07.2026 sass der Hook an dieser Stelle, und das verzerrte den Suchbericht in beide
+    Richtungen: `app/tools/charakter.py` ruft diese Funktion dreimal als INTERNE Sonde
+    (Regelbeleg, Klassenmerkmale, Attributsregel), und jede dieser Sonden schrieb eine
+    Zeile, als haette ein Nutzer gefragt. Am Live-Protokoll gemessen stand
+    'Schritt 3: Attributswerte' mit 186 Treffern als VIERTHAEUFIGSTER Suchbegriff im
+    Bericht - hinter 'Feuerball' und 'Kämpfer'. Umgekehrt tauchten die drei
+    Charakter-Werkzeuge selbst nie auf. Der Bericht ist die Kurationsliste (O4/M5); was
+    darin steht, entscheidet, welche Glossar-Paare jemand von Hand nachzieht."""
     antwort = _hole_detail_impl(kategorie, name, edition, aggregiere_kinder, eintrag_id)
     if not antwort.get("gefunden") and (alias := _alias_hinweis(edition)):
         antwort["hinweis_edition_alias"] = alias
-    if eintrag_id is not None:
-        suchweg = "direkt_id"        # Nachladen einer Referenz - kein Kurations-Signal
-    elif "fehler" in antwort:
-        suchweg = "fehler"
-    else:
-        suchweg = "name"
-    _protokoll.protokolliere(
-        werkzeug=f"hol_{kategorie}", kategorie=kategorie,
-        suchbegriff=None if eintrag_id is not None else name, edition=edition,
-        anzahl_treffer=(len(antwort.get("kandidaten", []))
-                        or int(bool(antwort.get("gefunden")))),
-        suchweg=suchweg, mehrdeutig=bool(antwort.get("mehrdeutig")),
-        gefunden=antwort.get("gefunden"),
-        dauer_ms=(time.monotonic() - start) * 1000)
     return antwort
 
 
@@ -531,8 +523,24 @@ def foliant_hol_eintrag(kategorie: Kategorie, name: str | None = None,
     Kandidaten zurueck - dann rueckfragen statt raten.
     KERNREGELN: nur aus dem Bestand; Quelle + Regelversion nennen;
     Deutsch-first (Original in Klammern)."""
+    start = time.monotonic()
     d = _hole_detail(kategorie, name, edition, eintrag_id=eintrag_id,
                      aggregiere_kinder=kategorie in _KINDER_AGGREGATION)
+    if eintrag_id is not None:
+        suchweg = "direkt_id"        # Nachladen einer Referenz - kein Kurations-Signal
+    elif "fehler" in d:
+        suchweg = "fehler"
+    else:
+        suchweg = "name"
+    # werkzeug bleibt kategoriebasiert (hol_<kategorie>), damit der Suchbericht ueber die
+    # Zusammenlegung der zwoelf hol_*-Werkzeuge hinweg vergleichbar bleibt.
+    _protokoll.protokolliere(
+        werkzeug=f"hol_{kategorie}", kategorie=kategorie,
+        suchbegriff=None if eintrag_id is not None else name, edition=edition,
+        anzahl_treffer=(len(d.get("kandidaten", [])) or int(bool(d.get("gefunden")))),
+        suchweg=suchweg, mehrdeutig=bool(d.get("mehrdeutig")),
+        gefunden=d.get("gefunden"),
+        dauer_ms=(time.monotonic() - start) * 1000)
     return _verwandte_klassenabschnitte(d) if kategorie == "klasse" else d
 
 

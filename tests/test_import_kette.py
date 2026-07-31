@@ -22,7 +22,7 @@ import pytest
 
 import importer.import_glossar as ig
 
-_WURZEL = pathlib.Path(__file__).resolve().parents[1]
+from tests.hilfen import SCHEMA, WURZEL as _WURZEL
 _ADMIN = _WURZEL / "app" / "admin.py"
 
 # Praefixe der Schritte, die fachlich in die Kette gehoeren.
@@ -94,7 +94,7 @@ def test_jeder_import_zweig_frischt_die_web_db_auf(tmp_path, monkeypatch, quelle
 
     db = tmp_path / "foliant.sqlite"
     sqlite3.connect(db).executescript(
-        (_WURZEL / "db" / "schema.sql").read_text(encoding="utf-8"))
+        SCHEMA.read_text(encoding="utf-8"))
     gerufen: list[str | None] = []
     monkeypatch.setattr(admin, "_web_db_auffrischen", lambda p: gerufen.append(p))
     monkeypatch.setattr(ig, "seed_alles", lambda con: {"Testzeilen": 0})
@@ -146,7 +146,7 @@ def test_abbruch_mitten_in_der_kette_laesst_das_glossar_unveraendert(tmp_path, m
     entscheidet."""
     db = tmp_path / "foliant.sqlite"
     con = sqlite3.connect(db)
-    con.executescript((_WURZEL / "db" / "schema.sql").read_text(encoding="utf-8"))
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
     con.execute("INSERT INTO glossar (term_en, term_de, offiziell, quelle) "
                 "VALUES ('Fireball','Feuerball',1,'Test')")
     con.commit()

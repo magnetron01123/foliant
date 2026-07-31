@@ -10,9 +10,9 @@ from pathlib import Path
 import pytest
 
 from importer.import_markdown import importiere_markdown
+from tests.hilfen import SCHEMA
 
-_SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-
+_SCHEMA = SCHEMA
 _MD_OK = "# **Kapitel**\n\n### **Erster Eintrag**\n\nInhalt eins.\n\n### **Zweiter Eintrag**\n\nInhalt zwei.\n"
 
 

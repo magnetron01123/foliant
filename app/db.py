@@ -134,16 +134,13 @@ FACETTEN_SPALTEN: dict[str, dict[str, str]] = {
     "gegenstand_meta": {"preis_cent": "INTEGER"},
 }
 
-# Indizes auf eintraege ausser dem Initial-Index (kategorie, edition) - hier EINMAL neben
-# schema.sql gefuehrt, damit Bestands-DBs sie ueber denselben Migrationspunkt bekommen.
-# Jeder ist mit EXPLAIN QUERY PLAN belegt (SCAN -> SEARCH), Begruendung in schema.sql.
-NUTZINDIZES: dict[str, str] = {
-    "idx_eintraege_quelle": "quelle_id",
-    "idx_eintraege_sprache_kat": "sprache, kategorie",
-    "idx_eintraege_name_de": "name_de",
-    "idx_eintraege_name_en": "name_en",
-    "idx_eintraege_kontext": "kontext",
-}
+# Das Schema steht AUSSCHLIESSLICH in db/schema.sql. Hier lag bis zum 31.07.2026 eine
+# zweite Liste (`NUTZINDIZES`) mit denselben fuenf Indizes, damit Bestands-DBs sie ueber
+# den Migrationspunkt bekommen - obwohl der Kommentar daneben "hier EINMAL definiert"
+# behauptete. Zwei Listen, die von Hand synchron gehalten werden mussten, plus ein Test,
+# der genau das ueberwachte. Da jede Anweisung in schema.sql `IF NOT EXISTS` traegt,
+# genuegt es, die Datei auf einer Bestands-DB einfach auszufuehren.
+SCHEMA_DATEI = _PROJEKT / "db" / "schema.sql"
 
 # Der Breadcrumb steht als erste Zeile im body_md ('*Kontext: Zauber > Zaubertricks*').
 # Hier stehen BEIDE Formen, in denen das Projekt ihn liest - vorher hatte jedes der fuenf
@@ -230,12 +227,11 @@ def stelle_schema_sicher(con: sqlite3.Connection) -> None:
         for tabelle, neue in FACETTEN_SPALTEN.items():
             _ergaenze_spalten(con, tabelle, neue)
         _ruest_kontext_nach(con)
-        # Nur wenn die Tabelle da ist: sonst wirft CREATE INDEX, der Sammel-except unten
-        # schluckt es - und die user_version bliebe still auf ihrem alten Stand stehen.
-        if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND "
-                       "name='eintraege'").fetchone():
-            for name, spalten in NUTZINDIZES.items():
-                con.execute(f"CREATE INDEX IF NOT EXISTS {name} ON eintraege({spalten})")
+        # Fehlende Tabellen, Indizes und Trigger aus der EINEN Schema-Datei nachziehen.
+        # Alles darin ist `IF NOT EXISTS`, also folgenlos fuer alles, was schon steht -
+        # und eine neue Zeile in schema.sql erreicht Bestands-DBs damit von selbst,
+        # statt in einer zweiten Python-Liste nachgetragen werden zu muessen.
+        con.executescript(SCHEMA_DATEI.read_text(encoding="utf-8"))
         if con.execute("PRAGMA user_version").fetchone()[0] < 2:
             con.execute("PRAGMA user_version = 2")     # nur anheben, nie eine hoehere Version senken
         con.commit()
