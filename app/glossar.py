@@ -87,6 +87,27 @@ UNTERKLASSE_SCHEMA = re.compile(r"^(.+)-Unterklasse:\s*(.+)$", re.IGNORECASE)
 # ausgefallen - ohne Fehler, nur mit schlechterem Deutsch auf dem gedruckten Bogen.
 QUELLE_AKTIONEN = "SRD 5.2.1 (Aktionen)"
 
+# Woher eine Glossarzeile stammt, steht als Freitext in `glossar.quelle` - entweder der
+# deutsche Buchname aus der dnddeutsch.de-Datenbank ("Spielerhandbuch", "Volos Almanach
+# der Monster", ...) oder eine Marke, die einer unserer eigenen Seeder setzt. Nur an
+# diesen Marken laesst sich beides auseinanderhalten, und die Website muss das koennen:
+# sie darf nicht 3.192 Begriffspaare als "von dnddeutsch.de" ausweisen, wenn rund ein
+# Fuenftel davon Foliant selbst am eigenen Bestand belegt hat.
+#
+# Teilzeichenketten statt vollstaendiger Namen, weil `seed_alles` demotete Zeilen
+# umbenennt ("... (demotet: kuratierte Fassung ist offiziell)"). Waechst die Liste nicht
+# mit einem neuen Seeder mit, zaehlen dessen Zeilen still zu dnddeutsch.de -
+# tests/test_quellen_beschriftung.py haelt sie deshalb gegen die Seeder-Konstanten.
+EIGENE_ABLEITUNG_MARKEN = ("Strukturabgleich", "Kernwortschatz", "Zauberkopf-Abgleich",
+                           "Flexions-Bruecke", "Kernbegriff (kuratiert", "Begriffspaar",
+                           "abkuerzung", "(Aktionen)")
+
+
+def ist_eigene_ableitung(quelle: str | None) -> bool:
+    """True, wenn die Glossarzeile aus dem eigenen Bestand abgeleitet wurde (nicht von
+    dnddeutsch.de uebernommen)."""
+    return any(m in (quelle or "") for m in EIGENE_ABLEITUNG_MARKEN)
+
 # SYN-P2-004 (codex TECH-013): jeder Glossarpfad (lookup, exakte_entsprechungen,
 # _brueckennamen) las bisher die KOMPLETTE Tabelle pro Aufruf - eine Suche loest 5-8
 # Voll-Scans aus, die mit dem Vollseeding (~1.400 Zeilen) linear teurer werden. Cache

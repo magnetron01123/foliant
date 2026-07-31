@@ -371,30 +371,57 @@ def test_bestandsuebersicht_zeigt_jede_angabe_genau_einmal():
     assert ">Regeln 2014<" in html and ">Regeln 2024<" in html
 
 
-def test_bestandsuebersicht_trennt_buecher_von_netzquellen():
-    """Drei Gliederungspunkte, nicht zwei: Open5e ist kein Buch im Regal, sondern eine
-    Schnittstelle. Unter 'Regelwerke' gelistet, sah sie aus wie ein weiterer Band -
-    dabei entscheidet die Herkunft auch über den Vorrang bei Dubletten (Q2)."""
+def test_beide_srd_fassungen_stehen_unter_denselben_regelwerken():
+    """Ein Zwischenstand schnitt die dritte Gruppe nach BEZUGSWEG - und trennte damit die
+    beiden Fassungen desselben Werks: die deutsche SRD-Fassung stand unter den
+    Regelwerken, die englische darunter bei den 'weiteren Quellen', nur weil sie über
+    eine Schnittstelle geladen wurde. Ob eine Regel als PDF oder über eine API hereinkam,
+    ist eine Betriebsfrage - keine, nach der eine Liste für Spieler gliedert."""
     from app.charakterbogen import web
 
     html = web._bestand_html([
-        {"titel": "Player’s Handbook", "sprache": "en", "edition": "2024",
-         "herkunft": "ddb", "inhaltsart": "regelwerk", "eintraege": 1581},
+        {"titel": "System Reference Document 5.2.1", "sprache": "de", "edition": "2024",
+         "herkunft": "pdf", "inhaltsart": "regelwerk", "eintraege": 1619},
         {"titel": "System Reference Document 5.2", "sprache": "en", "edition": "2024",
          "herkunft": "open5e", "inhaltsart": "regelwerk", "eintraege": 982},
         {"titel": "Ravenloft", "sprache": "en", "edition": "2024",
          "herkunft": "ddb", "inhaltsart": "abenteuer_setting", "eintraege": 792},
     ])
-    assert "<h3>Regelwerke</h3>" in html
-    assert "<h3>Weitere Quellen</h3>" in html
-    assert "<h3>Abenteuer &amp; Settings</h3>" in html
-    # Die Zählung im Vorspann trennt mit: 2 Bücher, 1 Netzquelle.
-    assert "2 Büchern" in html and "1 weiteren Quelle" in html
-    # Die Spaltenüberschrift folgt der Gruppe - eine Schnittstelle ist kein "Buch".
-    assert ">Quelle<" in html and ">Buch<" in html
-    # Die Netzquelle steht NICHT mehr unter den Regelwerken.
     regelwerke = html.split("<h3>Regelwerke</h3>")[1].split("<h3>")[0]
-    assert "System Reference Document" not in regelwerke
+    assert ">System Reference Document 5.2.1<" in regelwerke
+    assert ">System Reference Document 5.2<" in regelwerke
+    assert "<h3>Abenteuer &amp; Settings</h3>" in html
+    assert "3 Büchern" in html
+
+
+def test_weitere_quellen_zeigen_woher_das_deutsch_kommt():
+    """Der Gliederungspunkt, der vorher fehlte. Das Glossar entscheidet, wie Foliant eine
+    Regel BENENNT - es stand aber nirgends auf der Seite, weil es in `glossar` liegt und
+    nicht in `quellen`. Getrennt ausgewiesen wird, was von dnddeutsch.de übernommen ist
+    und was Foliant selbst am Bestand belegt hat: alles als 'dnddeutsch.de' auszuweisen,
+    wäre eine falsche Zuschreibung."""
+    from app.charakterbogen import web
+
+    quellen = [{"titel": "Spielerhandbuch", "sprache": "de", "edition": "2014",
+                "herkunft": "pdf", "inhaltsart": "regelwerk", "eintraege": 1539}]
+    ohne = web._bestand_html(quellen)
+    assert "Deutsche Begriffe" not in ohne        # keine Glossardaten -> keine Gruppe
+
+    mit = web._bestand_html(quellen, [
+        {"titel": "dnddeutsch.de", "marke_a": "Begriffsdatenbank", "marke_b": "",
+         "zahl": 2520},
+        {"titel": "Abgleich im eigenen Bestand", "marke_a": "aus den Büchern belegt",
+         "marke_b": "", "zahl": 652},
+    ])
+    assert "<h3>Deutsche Begriffe</h3>" in mit
+    assert ">dnddeutsch.de<" in mit and "2.520" in mit
+    assert ">Abgleich im eigenen Bestand<" in mit and "652" in mit
+    # Eigene Spaltennamen - "Buch" und "Regelstand" passen auf Begriffspaare nicht.
+    herkunft = mit.split("<h3>Deutsche Begriffe</h3>")[1]
+    assert ">Quelle<" in herkunft and ">Begriffspaare<" in herkunft
+    assert "Regelstand" not in herkunft
+    # Und eine eigene Spaltenbreite, sonst laufen die langen Marken aus ihrer Spalte.
+    assert 'class="buecher herkunft"' in mit
 
 
 def test_bestandsuebersicht_faellt_ohne_quellen_weg():
@@ -440,3 +467,42 @@ def test_buchliste_folgt_der_web_db_ohne_neustart(tmp_path):
     assert "Spielerhandbuch 2024" in client.get("/").text, (
         "Die Buchliste haengt am Containerstart - die Seite behauptet Aktualitaet, "
         "die sie nicht hat")
+
+
+def test_balkenbreite_kommt_ohne_inline_stil_aus():
+    """Die Balken waren im Betrieb IMMER durchgezogen, lokal aber richtig proportional
+    (gemeldet 31.07.2026). Ursache: die Seite liefert `style-src 'self'` aus, und darunter
+    verwirft der Browser jedes Inline-`style`-Attribut - der Balken fiel auf seine
+    Vorgabebreite (100 %) zurück. Lokal fiel das nie auf, weil die Vorschau ohne CSP
+    ausliefert. Die Breite kommt deshalb als Klasse aus der externen Datei.
+
+    Der Test prüft beides: keinen Inline-Stil in der Ausgabe UND dass die Klasse, die
+    dort steht, in site.css auch wirklich definiert ist."""
+    import re
+    from pathlib import Path
+
+    from app.charakterbogen import web
+
+    html = web._bestand_html([
+        {"titel": "Groß", "sprache": "de", "edition": "2024", "herkunft": "pdf",
+         "inhaltsart": "regelwerk", "eintraege": 2000},
+        {"titel": "Klein", "sprache": "de", "edition": "2024", "herkunft": "pdf",
+         "inhaltsart": "regelwerk", "eintraege": 20},
+    ])
+    assert "style=" not in html, "Inline-Stil - unter der CSP der Seite wirkungslos"
+    klassen = re.findall(r'<span class="(b\d+)">', html)
+    assert klassen == ["b50", "b1"], klassen          # 2000 -> voll, 20 -> Mindestbreite
+
+    css = (Path("app/charakterbogen/static") / "site.css").read_text(encoding="utf-8")
+    for k in set(klassen):
+        assert f".{k}{{width:" in css, f"Breitenklasse .{k} fehlt in site.css"
+
+
+def test_die_csp_erlaubt_keine_inline_stile():
+    """Die Gegenprobe zum Test darüber: würde jemand 'unsafe-inline' in die CSP
+    aufnehmen, um einen Inline-Stil wirken zu lassen, wäre der Balken zwar richtig - die
+    Seite hätte dafür aber ihre Stil-Schranke für ALLES aufgegeben."""
+    from app.charakterbogen.web import _HTML_HEADER
+
+    csp = _HTML_HEADER["Content-Security-Policy"]
+    assert "style-src 'self'" in csp and "unsafe-inline" not in csp
