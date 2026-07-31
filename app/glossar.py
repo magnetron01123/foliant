@@ -192,7 +192,7 @@ def _exakt_index(con: sqlite3.Connection) -> dict[tuple[str, str], list[dict]]:
                 if n:
                     idx.setdefault((richtung, n), []).append(z)
         for zeilen in idx.values():
-            zeilen.sort(key=_auswahlschluessel)
+            zeilen.sort(key=auswahlschluessel)
         _INDEX_CACHE.clear()                 # nur die aktuelle Signatur halten
         _INDEX_CACHE[sig] = idx
     return idx
@@ -225,14 +225,22 @@ def exakte_entsprechungen(con: sqlite3.Connection, begriff: str) -> set[str]:
     return treffer
 
 
-def _auswahlschluessel(z: dict) -> tuple:
+def auswahlschluessel(z: dict) -> tuple:
     """A9 - dokumentierte KANONISCHE AUSWAHLREGEL (S3/S8), in dieser Reihenfolge:
       1. offizielle Begriffe vor inoffiziellen (S6),
       2. neuere belegte Edition vor aelterer, UNBEKANNTE Edition ganz hinten
          (S8: der neuere offizielle Begriff gewinnt; nichts wird als 2024 geraten),
       3. Begriffe mit konkretem Buch-/Glossar-Beleg vor blossen Community-Zeilen,
       4. alphabetisch NUR als letzter Determinismus-Anker.
-    Modulweit, damit lookup() und begriffe_im_text() DIESELBE Zeilenauswahl treffen."""
+    Modulweit, damit lookup() und begriffe_im_text() DIESELBE Zeilenauswahl treffen.
+
+    OEFFENTLICH seit dem 31.07.2026: Der Charakterbogen-Uebersetzer sortierte frisch
+    nachgeschlagene dnddeutsch-Zeilen mit einer EIGENEN Regel aus zwei Kriterien
+    (offiziell, Ulisses-Quelle) - ohne Stufe 2, also ohne S8. Bei editionsgetrennten
+    Formen (CONCEPT.md par. 5: 'Pouch' -> Tasche/2014 vs. Beutel/2024) entschied dort
+    die Sortierstabilitaet statt der Regel, und der gedruckte Bogen konnte eine andere
+    deutsche Fassung tragen als jede MCP-Auskunft. Wer diese Regel braucht, ruft sie -
+    er schreibt sie nicht neu."""
     quelle = z.get("quelle") or ""
     belegt = 0 if ("Ulisses" in quelle or "buch" in quelle.lower()
                    or (quelle and "Community" not in quelle
@@ -276,8 +284,8 @@ def lookup(con: sqlite3.Connection, begriff: str, richtung: str = "en_de") -> li
              for _n, score, i in passend for z in namen[schluessel[i]]
              if _norm(z[spalte]) != n]
 
-    return (sorted(exakt, key=_auswahlschluessel)
-            + sorted(fuzzy, key=_auswahlschluessel))
+    return (sorted(exakt, key=auswahlschluessel)
+            + sorted(fuzzy, key=auswahlschluessel))
 
 
 def term_de(con: sqlite3.Connection, term_en: str) -> tuple[str, bool]:
@@ -374,7 +382,7 @@ def begriffe_im_text(con: sqlite3.Connection, text: str, *,
         if enl not in text_low:                       # schneller C-Vortest vor dem Regex
             continue
         vorher = beste.get(enl)
-        if vorher is None or _auswahlschluessel(z) < _auswahlschluessel(vorher):
+        if vorher is None or auswahlschluessel(z) < auswahlschluessel(vorher):
             beste[enl] = z
     treffer = [z for z in beste.values()
                if re.search(r"\b" + re.escape(z["term_en"]) + r"\b", text, re.IGNORECASE)]

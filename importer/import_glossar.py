@@ -604,7 +604,7 @@ def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
     Wortliste): hat EIN englischer Begriff mehrere OFFIZIELLE deutsche Formen, die dieselbe
     Bezeichnung sind (unterscheiden sich NUR in ß/ss oder Gross-/Kleinschreibung), entscheidet
     die QUELLEN-PRIORITAET, welche kanonisch bleibt - exakt dieselbe Leiter, mit der Foliant
-    auch Eintrags-Dubletten aufloest (glossar._auswahlschluessel: belegte Buchquelle vor
+    auch Eintrags-Dubletten aufloest (glossar.auswahlschluessel: belegte Buchquelle vor
     Community, neuere Edition vor aelterer). ß-vor-ss nur als deterministischer Orthografie-
     Tiebreak, wenn die Quellenprioritaet gleich ist. Die uebrigen Formen -> offiziell=0
     (bleiben Such-/Schreibvariante). Echte Dual-Uebersetzungen/Homonyme (NICHT fold-gleich,
@@ -622,7 +622,7 @@ def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
         # Quellenprioritaet zuerst (kanonische Regel OHNE ihren alphabetischen End-Anker),
         # dann ß>ss als deterministischer Orthografie-Tiebreak, zuletzt alphabetisch. So
         # entscheidet die QUELLE - nicht der Admin und keine Grammatik-Vermutung.
-        return (_glossar._auswahlschluessel(z)[:-1], 0 if "ß" in (z["term_de"] or "") else 1,
+        return (_glossar.auswahlschluessel(z)[:-1], 0 if "ß" in (z["term_de"] or "") else 1,
                 z["term_de"] or "")
 
     grp: dict[str, list] = defaultdict(list)
@@ -772,7 +772,7 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
 
     Die neuen Zeilen sind `offiziell=0` (SUCHVARIANTE): sie bruecken die Suche
     (`lookup_exakt` fragt `offiziell` nicht ab), aber die Anzeige waehlt weiter die
-    offizielle Form (`_auswahlschluessel` sortiert offiziell zuerst) und `glossar-audit`
+    offizielle Form (`auswahlschluessel` sortiert offiziell zuerst) und `glossar-audit`
     zaehlt sie nicht als Konflikt (es filtert auf `offiziell=1`). Bestehende Paare werden
     NIE angefasst - ein Upsert wuerde ihre Offizialitaet ueberschreiben."""
 

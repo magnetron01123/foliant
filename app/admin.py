@@ -354,6 +354,30 @@ def cmd_reindex(_args) -> None:
     c.close()
 
 
+# Woerter, die einen Abenteuer-/Kampagnenband verraten - in Kuerzel ODER Titel, deutsch
+# und englisch. Bewusst eine WARNUNG und kein Fehler: die Liste kann nur Verdacht
+# aeussern, entscheiden muss der Betreiber (Regel 1 - nichts wird geraten).
+_SPOILER_WOERTER = ("abenteuer", "adventure", "kampagne", "campaign", "setting",
+                    "fluch des", "curse of", "descent", "vecna", "strahd", "ravenloft",
+                    "waterdeep", "avernus", "wildemount", "eberron", "spelljammer")
+
+
+def _spoilerverdacht(c: sqlite3.Connection) -> list[tuple[str, str]]:
+    """Quellen, die nach einem Abenteuerband aussehen, aber als 'regelwerk' gefuehrt sind.
+
+    Befund 31.07.2026: `inhaltsart` entscheidet ueber die Spoiler-Kennzeichnung bis in die
+    Tool-Ausgaben (SYN-P0-007) - die OBERSTE Verhaltensregel. Der DDB-Weg setzt sie
+    autoritativ aus dem Buchkatalog; der PDF-/Markdown-Weg liest sie allein aus dem
+    [[quelle]]-Block, und dort FEHLTE der Schluessel in der Config-Vorlage. Wer einen
+    Abenteuerband einpflegt, bekommt still 'regelwerk' - ohne Fehlermeldung, nur ohne
+    Spoiler-Warnung im Chat. Ein Verdacht in `admin check` ist billiger als ein Spoiler
+    am Spieltisch."""
+    return [(r[0], r[1]) for r in c.execute(
+        "SELECT kuerzel, titel FROM quellen WHERE inhaltsart = 'regelwerk' "
+        "ORDER BY kuerzel")
+        if any(w in f"{r[0]} {r[1]}".lower() for w in _SPOILER_WOERTER)]
+
+
 def cmd_check(_args) -> None:
     """Konsistenz- und Mini-Qualitaetschecks (O3-Unterstuetzung); ausfuehrlicher:
     tests/smoke_test.py gegen echte Daten."""
@@ -383,6 +407,9 @@ def cmd_check(_args) -> None:
     fehler += abweichend
     leere = c.execute("SELECT count(*) FROM eintraege WHERE length(trim(body_md)) < 20").fetchone()[0]
     print(f"Auffaellig kurze Eintraege (<20 Zeichen, O3-Stichprobe): {leere}")
+    for kuerzel, titel in _spoilerverdacht(c):
+        print(f"Spoiler-Kennzeichnung pruefen: '{kuerzel}' ({titel}) traegt "
+              f"inhaltsart='regelwerk'  WARNUNG")
 
     # --- QS-Pruefungen (11.07.2026): Struktur + Textqualitaet automatisch ueberwachen ---
     # PRAGMA integrity/foreign_key: harte Strukturfehler.

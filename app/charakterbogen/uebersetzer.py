@@ -181,8 +181,14 @@ class DnddeutschNachschlager:
         treffer = [z for z in zeilen if z.term_en.casefold() == begriff.casefold()]
         if not treffer:
             return None
-        best = sorted(treffer, key=lambda z: (-z.offiziell,
-                                              not z.quelle.startswith("Ulisses")))[0]
+        # Die KANONISCHE Auswahlregel (S3/S8), nicht eine eigene: hier stand bis zum
+        # 31.07.2026 `(-offiziell, not quelle.startswith("Ulisses"))`. Das ist Stufe 1
+        # und 3 der Regel - Stufe 2 fehlte, also S8 ("der neuere offizielle Begriff
+        # gewinnt"). Liefert dnddeutsch zwei offizielle Ulisses-Zeilen verschiedener
+        # Edition (CONCEPT.md par. 5: "Pouch" -> Tasche/2014 aus dem Spielerhandbuch vs.
+        # Beutel/2024 aus dem dt. SRD), entschied die Sortierstabilitaet - und der
+        # gedruckte Bogen konnte eine andere deutsche Form tragen als jede MCP-Auskunft.
+        best = min(treffer, key=lambda z: glossar.auswahlschluessel(z.als_glossarzeile()))
         try:                               # Best-Effort: Glossar dauerhaft verbessern
             dnddeutsch.schreibe_zeilen(con, zeilen)
             con.commit()

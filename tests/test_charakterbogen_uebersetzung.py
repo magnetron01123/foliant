@@ -315,6 +315,33 @@ def test_dnddeutsch_nachschlager_wertet_antwort_aus(con, monkeypatch):
     assert tuple(zeile) == ("Kampfkünste", 1)
 
 
+def test_nachschlager_folgt_der_kanonischen_auswahlregel_s8(con, monkeypatch):
+    """S8: Bei zwei offiziellen Formen desselben Begriffs gewinnt die NEUERE Edition -
+    auch im Charakterbogen.
+
+    Der Fall ist real und in CONCEPT.md §5 dokumentiert: 'Pouch' führt Ulisses in zwei
+    offiziellen Fassungen, Tasche (2014, Spielerhandbuch) und Beutel (2024, dt. SRD).
+    Bis zum 31.07.2026 sortierte der Nachschlager mit einer eigenen Zwei-Kriterien-Regel
+    (offiziell, Ulisses-Quelle); beide Zeilen sind darin gleichwertig, also entschied die
+    Sortierstabilität - und die liefert hier die 2014er Form. Der gedruckte Bogen hätte
+    'Tasche' getragen, während jede MCP-Auskunft 'Beutel' sagt.
+
+    Die Reihenfolge in der Antwort steht bewusst 2014-zuerst: nur so schlägt der Test
+    ohne den Fix fehl."""
+    from app.charakterbogen.uebersetzer import DnddeutschNachschlager
+
+    n = DnddeutschNachschlager(zeitbudget_s=60)
+    monkeypatch.setattr(n, "_hole", lambda begriff: {"result": [
+        {"name_en": "Pouch", "name_de": "Tasche", "name_de_ulisses": "Tasche",
+         "src_de": {"book": "PHB(de)", "book_long": "Spielerhandbuch"}},      # -> 2014
+        {"name_en": "Pouch", "name_de": "Beutel", "name_de_ulisses": "Beutel",
+         "src_de": {"book": "PHB24(de)", "book_long": "Spielerhandbuch 2024"}},  # -> 2024
+    ]})
+    assert n(con, "Pouch") == "Beutel (Pouch)", (
+        "Der Nachschlager folgt nicht glossar.auswahlschluessel - S8 (neuere Edition "
+        "gewinnt) wird im Charakterbogen umgangen")
+
+
 def test_dnddeutsch_nachschlager_degradiert_bei_fehlern(con, monkeypatch):
     from app.charakterbogen.uebersetzer import DnddeutschNachschlager
 
