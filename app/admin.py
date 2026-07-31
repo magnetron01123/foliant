@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 from app import db as _db
+from importer.quellen import STANDARD_PRIORITAET, registriere_quelle
 
 
 def _con(pfad_override: str | None = None) -> sqlite3.Connection:
@@ -55,7 +56,12 @@ def cmd_status(_args) -> None:
 
 def cmd_import(args) -> None:
     """Importer nach Quellen-Kuerzel waehlen. Wege:
-      glossar            -> dnddeutsch-Seeding (Kernbegriffe + Abkuerzungen)
+      glossar            -> dnddeutsch-Seeding (Kernbegriffe + Abkuerzungen) UND die
+                            belegte Reparatur zerrissener Eintragsnamen im BESTAND.
+                            Beides in einer Kette, weil die Reparatur das geseedete
+                            Glossar als Beleggrundlage braucht (importer/import_glossar
+                            ._KETTE) - der Name des Kommandos verschweigt das sonst,
+                            und BACKLOG.md par. 1/M1 muss deshalb daran erinnern.
       facetten           -> Facetten aus dem vorhandenen Bestand nachziehen (kein Import)
       open5e-*           -> Open5e-API (Dokumente aus config [open5e].dokumente)
       <kuerzel aus toml> -> PDF-/Markdown-Quelle laut [[quelle]]-Registereintrag
@@ -138,18 +144,13 @@ def cmd_import(args) -> None:
                 # inhaltsart aus der Config honorieren (SYN-P0-007): Abenteuer-/Setting-
                 # Baende (z. B. Druck-Buecher efota/frhof) MUESSEN 'abenteuer_setting' tragen,
                 # sonst greift der Spoiler-Schutz nicht. Default 'regelwerk'.
-                c.execute(
-                    "INSERT INTO quellen (kuerzel, titel, sprache, edition, herkunft, "
-                    "lizenz, prioritaet, dateipfad, inhaltsart) VALUES (?,?,?,?,?,?,?,?,?) "
-                    "ON CONFLICT(kuerzel) DO UPDATE SET titel=excluded.titel, "
-                    "sprache=excluded.sprache, edition=excluded.edition, "
-                    "herkunft=excluded.herkunft, lizenz=excluded.lizenz, "
-                    "prioritaet=excluded.prioritaet, dateipfad=excluded.dateipfad, "
-                    "inhaltsart=excluded.inhaltsart",
-                    (kuerzel, eintrag.get("titel", kuerzel), eintrag.get("sprache", "de"),
-                     eintrag["edition"], eintrag.get("herkunft", "pdf"),
-                     eintrag.get("lizenz"), eintrag.get("prioritaet", 100),
-                     eintrag.get("dateipfad"), eintrag.get("inhaltsart", "regelwerk")))
+                registriere_quelle(
+                    c, kuerzel=kuerzel, titel=eintrag.get("titel", kuerzel),
+                    sprache=eintrag.get("sprache", "de"), edition=eintrag["edition"],
+                    herkunft=eintrag.get("herkunft", "pdf"), lizenz=eintrag.get("lizenz"),
+                    prioritaet=eintrag.get("prioritaet", STANDARD_PRIORITAET),
+                    dateipfad=eintrag.get("dateipfad"),
+                    inhaltsart=eintrag.get("inhaltsart", "regelwerk"))
                 n = importiere_markdown(c, kuerzel, markdown, edition=eintrag["edition"],
                                         kategorie=eintrag.get("kategorie", "regel"),
                                         erlaube_schrumpfen=force)
@@ -930,7 +931,9 @@ def baue_parser() -> argparse.ArgumentParser:
                    ).set_defaults(func=cmd_manifest)
     pi = sub.add_parser("import", help="Quelle importieren")
     pi.add_argument("--quelle", required=True,
-                    help="kuerzel aus config, z. B. srd-de; 'glossar' = dnddeutsch-Seeding, "
+                    help="kuerzel aus config, z. B. srd-de; 'glossar' = dnddeutsch-Seeding "
+                         "UND Reparatur zerrissener Eintragsnamen im Bestand (deshalb nach "
+                         "jedem Re-Import eines Scan-Buchs faellig); "
                          "'facetten' = Facetten aus dem Bestand nachziehen (ohne Re-Import)")
     pi.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad); z. B. die private DB "
                                  "fuer ein Glossar-Reseeding nach einem DDB-Import")

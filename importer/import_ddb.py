@@ -26,7 +26,9 @@ from pathlib import Path
 from app import db as _db
 from importer import schwellen as _schwellen
 from importer.ddb_artefakt import pruefe_artefakt
+from importer.facetten_seeder import seed_facetten
 from importer.import_markdown import _chunks
+from importer.quellen import registriere_quelle
 
 # DDB-Re-Importe duerfen nicht still schrumpfen; Schwelle in importer/schwellen.py
 MIN_REIMPORT_RATIO = _schwellen.DDB_SCHRUMPF_SCHWELLE
@@ -216,20 +218,12 @@ def importiere_ddb_artefakt(artefakt: str | Path, buch: dict, *,
             # DDB-Import"), war es toter Kompatibilitaetscode direkt unter dem Kommentar,
             # der erklaert, warum hier ueber connect() geoeffnet wird.
             with con:  # EINE Transaktion: Upsert, Austausch, FTS (A7)
-                con.execute(
-                    "INSERT INTO quellen (kuerzel, titel, sprache, edition, herkunft, "
-                    "lizenz, prioritaet, dateipfad, inhaltsart) "
-                    "VALUES (?,?,?,?, 'ddb', ?,?,?,?) "
-                    "ON CONFLICT(kuerzel) DO UPDATE SET titel=excluded.titel, "
-                    "sprache=excluded.sprache, edition=excluded.edition, "
-                    "herkunft=excluded.herkunft, lizenz=excluded.lizenz, "
-                    "prioritaet=excluded.prioritaet, dateipfad=excluded.dateipfad, "
-                    "inhaltsart=excluded.inhaltsart",
-                    (buch["kuerzel"], buch["titel"], buch["sprache"], buch["edition"],
-                     buch.get("lizenz", "privat"), buch["prioritaet"], str(artefakt),
-                     buch.get("inhaltsart", "regelwerk")))
-                quelle_id = con.execute("SELECT id FROM quellen WHERE kuerzel = ?",
-                                        (buch["kuerzel"],)).fetchone()[0]
+                quelle_id = registriere_quelle(
+                    con, kuerzel=buch["kuerzel"], titel=buch["titel"],
+                    sprache=buch["sprache"], edition=buch["edition"], herkunft="ddb",
+                    lizenz=buch.get("lizenz", "privat"), prioritaet=buch["prioritaet"],
+                    dateipfad=str(artefakt),
+                    inhaltsart=buch.get("inhaltsart", "regelwerk"))
                 con.execute("DELETE FROM eintraege WHERE quelle_id = ?", (quelle_id,))
                 # kontext direkt aus dem Body ableiten statt durch _zerlege_eintrag zu
                 # faedeln: so kann die Spalte gar nicht erst von der Body-Zeile abweichen.
@@ -242,6 +236,17 @@ def importiere_ddb_artefakt(artefakt: str | Path, buch: dict, *,
                     "VALUES (?,?,NULL,?,?,?,NULL,?,?)",
                     zeilen)
                 con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+                # Facetten wie nach jedem anderen Quellen-Import (CONCEPT.md par. 8) -
+                # bis zum 31.07.2026 lief der Seeder NUR ueber `admin import`, der
+                # DDB-Weg gar nicht. Ein DDB-Buch landete damit ohne zauber_meta/
+                # monster_meta im Bestand, obwohl die Doku das Gegenteil zusagt: der
+                # Meta-Vorfilter (app/tools/suche.py) hatte fuer diese Eintraege nichts
+                # zu filtern und fiel jedes Mal auf das Textpraedikat zurueck.
+                # Voll-Lauf statt nur dieser Quelle: idempotent, billig (~0,1 s je 3000
+                # Eintraege) und zieht Quellen mit, die anders hereinkamen - genau die
+                # Begruendung aus `cmd_import`. INNERHALB der Transaktion, damit ein
+                # Fehlschlag keinen halben Facettenstand hinterlaesst.
+                seed_facetten(con)
 
             # Pruefungen VOR der Aktivierung (Auftrag §3.8).
             integritaet = con.execute("PRAGMA integrity_check").fetchone()[0]

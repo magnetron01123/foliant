@@ -347,17 +347,17 @@ _LIZENZEN = {"srd-2024": "CC-BY-4.0", "srd-2014": "OGL-1.0a"}
 
 def _quelle_upsert(con: sqlite3.Connection, kuerzel: str, titel: str, edition: str,
                    prioritaet: int, lizenz: str) -> int:
-    """A8: beim Upsert ALLE veraenderbaren Felder konsistent aktualisieren - sonst
-    behaelt eine bestehende Quelle stillschweigend alte Lizenz/Prioritaet/Herkunft."""
-    con.execute(
-        "INSERT INTO quellen (kuerzel, titel, sprache, edition, herkunft, lizenz, prioritaet) "
-        "VALUES (?, ?, 'en', ?, 'open5e', ?, ?) "
-        "ON CONFLICT(kuerzel) DO UPDATE SET titel=excluded.titel, "
-        "sprache=excluded.sprache, edition=excluded.edition, "
-        "herkunft=excluded.herkunft, lizenz=excluded.lizenz, "
-        "prioritaet=excluded.prioritaet",
-        (kuerzel, titel, edition, lizenz, prioritaet))
-    return con.execute("SELECT id FROM quellen WHERE kuerzel = ?", (kuerzel,)).fetchone()[0]
+    """Open5e-Belegung des gemeinsamen Quellen-Registers: immer englisch, immer Herkunft
+    'open5e', kein `dateipfad` (API-Quelle, F7: Seite/Datei optional), immer Regelwerk.
+
+    Bis zum 31.07.2026 stand hier ein eigener Upsert, der `dateipfad` und `inhaltsart` gar
+    nicht erst nannte - ein Re-Import liess dort also stehen, was vorher drinstand. Jetzt
+    setzt der gemeinsame Weg beide ausdruecklich (A8: alle veraenderbaren Felder)."""
+    from importer.quellen import registriere_quelle
+
+    return registriere_quelle(con, kuerzel=kuerzel, titel=titel, sprache="en",
+                              edition=edition, herkunft="open5e", lizenz=lizenz,
+                              prioritaet=prioritaet)
 
 
 def import_open5e(con: sqlite3.Connection, dokumente: list[str] | None = None,

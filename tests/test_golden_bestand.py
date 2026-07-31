@@ -17,6 +17,7 @@ if not (Path(__file__).resolve().parent.parent / "data" / "foliant.sqlite").exis
 
 from app.tools import nachschlagen as ns  # noqa: E402  (nach dem Modul-Skip)
 from app.tools import suche as su
+from importer import namensreparatur as nr
 
 
 def _text(d: dict) -> str:
@@ -261,8 +262,8 @@ def test_golden_monster_bruecke_strukturabgleich():
     assert paare.get("Ape") == "Menschenaffe"
     assert paare.get("Blink Dog") == "Flimmerhund"
     # Kein korrupter deutscher Name in den Bruecken:
-    assert all(ig._name_sauber(de) for de in paare.values()), \
-        [de for de in paare.values() if not ig._name_sauber(de)]
+    assert all(nr.name_sauber(de) for de in paare.values()), \
+        [de for de in paare.values() if not nr.name_sauber(de)]
 
 
 def test_golden_suchtreffer_tragen_grad_und_hg():

@@ -26,6 +26,7 @@ from pathlib import Path
 
 from app import dnddeutsch
 from app import glossar as _glossar
+from importer import namensreparatur as nr
 
 API_URL = dnddeutsch.API_URL                     # Default; [glossar].api_url gewinnt
 _PAUSE_S = dnddeutsch.PAUSE_S
@@ -368,7 +369,7 @@ def seed_glossar_de_aus_bestand(con: sqlite3.Connection) -> int:
             continue
         if len(sauber) < 4 or len(sauber) > 48 or any(c.isdigit() for c in sauber):
             continue
-        if not _name_sauber(sauber):
+        if not nr.name_sauber(sauber):
             continue
         if any(z["match"] == "exakt"
                for z in _glossar.lookup(con, sauber, richtung="de_en")):
@@ -381,27 +382,6 @@ def seed_glossar_de_aus_bestand(con: sqlite3.Connection) -> int:
 
 # Kurze Fuellwoerter, die in einem sauberen Monsternamen vorkommen duerfen; alles andere
 # <=2 Zeichen ist ein PDF-Zerlege-Artefakt ('Gar l gy', 'Atterko pp', 'Har ie py').
-_NAME_WL = {"der", "die", "das", "des", "dem", "den", "im", "am", "zu", "zum", "zur",
-            "vom", "von", "und", "mit", "auf", "aus"}
-
-
-def _name_sauber(name: str | None) -> bool:
-    """True, wenn der deutsche Name keine PDF-Zerlege-Kurzfragmente traegt ('Gar l gy' -> 'l',
-    'Atterko pp' -> 'pp'). Sicherheitsnetz fuer die Bruecke; die bekannten korrupten Namen
-    werden ohnehin vorher per MONSTER_NAME_REPARATUR korrigiert. BEWUSST OHNE Bigramm-Heuristik:
-    'dk'/'tk' u. ae. stehen in echten deutschen Komposita an der Wortfuge (Schild-kroete,
-    Kobold-krieger, Grottenschrat-krieger) und wurden faelschlich als korrupt aussortiert."""
-    if not name:
-        return False
-    for tok in name.replace("-", " ").split():
-        t = tok.strip(".,;:()'’`").lower()
-        # Ziffern/Zahlen sind legitime kurze Tokens ('Auf 0 Trefferpunkte', '1W10 Effekt') -
-        # nur BUCHSTABEN-Kurzfragmente ('l', 'gy', 'pp') sind Zerlege-Artefakte.
-        if t and len(t) <= 2 and t not in _NAME_WL and not any(c.isdigit() for c in t):
-            return False
-    return True
-
-
 def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]]:
     """Paart dieselbe Kreatur ueber die deutsche (srd-de) und englische (Open5e/DDB)
     SRD-Fassung per STRUKTUR-Fingerabdruck (Typ+HG+RK+TP). Das ist keine Uebersetzungs-
@@ -440,7 +420,7 @@ def _finde_monster_paare(con: sqlite3.Connection) -> list[tuple[str, str, tuple]
         de_name, en_name = next(iter(de_namen)), next(iter(en_namen))
         if _glossar.norm_begriff(de_name) == _glossar.norm_begriff(en_name):     # gleicher Name -> keine Bruecke noetig
             return None
-        if not _name_sauber(de_name):            # korrupter dt. Name -> NIE seeden
+        if not nr.name_sauber(de_name):            # korrupter dt. Name -> NIE seeden
             return None
         return en_name, de_name
 
@@ -484,7 +464,6 @@ def repariere_srd_de_namen(con: sqlite3.Connection) -> int:
     festes corrupt->korrekt, nur EIN Rest-Notfall mit Buchstabenverlust). Idempotent (saubere
     Namen bleiben unberuehrt); FTS-Rebuild bei Aenderung. Der Name ist mitindiziert."""
     from app import db as _db
-    from importer import namensreparatur as nr
 
     pdf = next((q.get("dateipfad") for q in _db.lade_konfig().get("quelle", [])
                 if q.get("kuerzel") == "srd-de"), None)
@@ -492,7 +471,7 @@ def repariere_srd_de_namen(con: sqlite3.Connection) -> int:
     namen = [r[0] for r in con.execute(
         "SELECT DISTINCT e.name_de FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
         "WHERE q.kuerzel = 'srd-de' AND e.name_de IS NOT NULL")]
-    korrekturen = nr.repariere(namen, list(set(toc + namen)), _name_sauber, toc_namen=toc)
+    korrekturen = nr.repariere(namen, list(set(toc + namen)), toc_namen=toc)
     korrekturen.update({k: v for k, v in SRD_DE_NAME_NOTFALL.items() if k in namen})
     n = 0
     for falsch, richtig in korrekturen.items():
@@ -531,7 +510,7 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
       1. das Glossar selbst (3000+ kuratierte deutsche Begriffe),
       2. dnddeutsch (die Autoritaet fuer deutsche Begriffe) - nur wenn die Antwort die
          Variante EXAKT bestaetigt.
-    Ein Treffer muss eindeutig sein und `_name_sauber` bestehen; sonst bleibt der Name
+    Ein Treffer muss eindeutig sein und `nr.name_sauber` bestehen; sonst bleibt der Name
     unberuehrt. Damit werden Namen wie 'SEELEN KÄFIG' zu 'Seelenkäfig' - und erst dadurch
     per Suche und Uebersetzung auffindbar (Befund 27.07.2026: 27 deutsche Zauber ohne
     Gegenstueck, die Mehrzahl davon nur wegen des zerrissenen Namens)."""
@@ -554,13 +533,13 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
     offen: list[tuple[str, list[str]]] = []
     korrekturen: dict[str, str] = {}
     for name in namen:
-        if _name_sauber(name) and _glossar.norm_begriff(name) in {
+        if nr.name_sauber(name) and _glossar.norm_begriff(name) in {
                 _glossar.norm_begriff(w) for w in referenz.values()}:
             continue                                   # bereits exakt die belegte Form
         varianten = _namensvarianten(name)
         ziel = next((referenz[vergleichsform(v)] for v in varianten
                      if vergleichsform(v) in referenz), None)
-        if ziel and _name_sauber(ziel) and ziel != name:
+        if ziel and nr.name_sauber(ziel) and ziel != name:
             korrekturen[name] = ziel
         elif len(varianten) > 1 or " " in name.strip():
             offen.append((name, varianten))
@@ -582,7 +561,7 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
                                if _glossar.norm_begriff(z.term_de) == _glossar.norm_begriff(entspacet)}
                     if len(passend) == 1:
                         ziel = next(iter(passend))
-                        if _name_sauber(ziel):
+                        if nr.name_sauber(ziel):
                             korrekturen[name] = ziel
                             dnddeutsch.schreibe_zeilen(con, zeilen)
                         break

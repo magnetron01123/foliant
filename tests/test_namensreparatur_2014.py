@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from importer.import_glossar import _namensvarianten, repariere_2014_namen
+from importer import namensreparatur as nr
 
 _SCHEMA = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 

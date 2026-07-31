@@ -53,11 +53,39 @@ def toc_namen(pdf_pfad: str, seiten: int = 12) -> list[str]:
     return sorted(set(namen))
 
 
+# Fuellwoerter, die als kurzes Token legitim sind - sonst hielte `name_sauber` jeden
+# Namen mit 'der'/'im'/'zu' fuer zerlegt.
+_NAME_WL = {"der", "die", "das", "des", "dem", "den", "im", "am", "zu", "zum", "zur",
+            "vom", "von", "und", "mit", "auf", "aus"}
+
+
+def name_sauber(name: str | None) -> bool:
+    """True, wenn der deutsche Name keine PDF-Zerlege-Kurzfragmente traegt ('Gar l gy' -> 'l',
+    'Atterko pp' -> 'pp'). Sicherheitsnetz fuer die Bruecke; die bekannten korrupten Namen
+    werden ohnehin vorher korrigiert. BEWUSST OHNE Bigramm-Heuristik: 'dk'/'tk' u. ae. stehen
+    in echten deutschen Komposita an der Wortfuge (Schild-kroete, Kobold-krieger,
+    Grottenschrat-krieger) und wurden faelschlich als korrupt aussortiert.
+
+    Stand bis zum 31.07.2026 in importer/import_glossar.py und wurde von dort als Parameter
+    in `finde_korrektur`/`repariere` HINEINGEREICHT - obwohl es nie einen anderen Wert gab.
+    Das Praedikat ist reine Namensqualitaet, genau wie dieses Modul: es gehoert hierher,
+    und der Parameter konnte entfallen."""
+    if not name:
+        return False
+    for tok in name.replace("-", " ").split():
+        t = tok.strip(".,;:()\'\u2019`").lower()
+        # Ziffern/Zahlen sind legitime kurze Tokens ('Auf 0 Trefferpunkte', '1W10 Effekt') -
+        # nur BUCHSTABEN-Kurzfragmente ('l', 'gy', 'pp') sind Zerlege-Artefakte.
+        if t and len(t) <= 2 and t not in _NAME_WL and not any(c.isdigit() for c in t):
+            return False
+    return True
+
+
 def _entspacet(s: str) -> str:
     return _fold(s).replace(" ", "").replace("-", "")
 
 
-def finde_korrektur(name: str, referenz: list[str], name_sauber,
+def finde_korrektur(name: str, referenz: list[str],
                     toc_fold: frozenset = frozenset()) -> str | None:
     """Korrekter Referenzname fuer einen korrupten `name` ODER None - mit PRAEZISEN Signalen
     (KEIN blindes Fuzzy, das saubere aehnliche Namen wie 'Barbaren'/'Barden' verwechselt):
@@ -87,15 +115,15 @@ def finde_korrektur(name: str, referenz: list[str], name_sauber,
     return next(iter(kand)) if len(kand) == 1 else None
 
 
-def repariere(namen: list[str], referenz: list[str], name_sauber,
+def repariere(namen: list[str], referenz: list[str],
               toc_namen: list[str] | None = None) -> dict[str, str]:
     """{korrupt: korrekt} fuer alle sicher zuordenbaren Namen (Rest bleibt unberuehrt).
-    `name_sauber(name)->bool`; `toc_namen`: die autoritativen Namen aus dem Inhaltsverzeichnis
+    `toc_namen`: die autoritativen Namen aus dem Inhaltsverzeichnis
     (Detektor 2 korrigiert nur AUF eine TOC-Form)."""
     toc_fold = frozenset(_fold(t) for t in (toc_namen or referenz))
     out: dict[str, str] = {}
     for nm in namen:
-        ziel = finde_korrektur(nm, referenz, name_sauber, toc_fold)
+        ziel = finde_korrektur(nm, referenz, toc_fold)
         if ziel and ziel != nm:
             out[nm] = ziel
     return out

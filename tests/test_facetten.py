@@ -4,6 +4,7 @@ Reine Funktionen, keine DB - deshalb immer lauffaehig (anders als die Golden-Sui
 Deckt beide Kopf-Formate ab: srd-de ('_Hervorrufungszauber 3. Grades (Magier, Zauberer)_')
 und Open5e ('**Level:** 0 · **School:** Evocation · **Classes:** Warlock')."""
 from app import facetten as f
+from importer import namensreparatur as nr
 
 _DE_FEUERBALL = "_Hervorrufungszauber 3. Grades (Magier, Zauberer)_ \n**Zeitaufwand:** Aktion"
 _DE_CANTRIP = "_Zaubertrick der Hervorrufung (Hexenmeister)_ \nDu schleuderst ..."
@@ -95,13 +96,13 @@ def test_monster_stats_de_en_und_dezimal_cr():
 
 def test_name_sauber_filtert_kurzfragmente_nicht_komposita():
     from importer import import_glossar as ig
-    assert ig._name_sauber("Menschenaffe") and ig._name_sauber("Goblin-Scherge")
-    assert not ig._name_sauber("Gar l gy")                 # Kurz-Fragment 'l'
-    assert not ig._name_sauber("Atterko pp")               # Kurz-Fragment 'pp'
+    assert nr.name_sauber("Menschenaffe") and nr.name_sauber("Goblin-Scherge")
+    assert not nr.name_sauber("Gar l gy")                 # Kurz-Fragment 'l'
+    assert not nr.name_sauber("Atterko pp")               # Kurz-Fragment 'pp'
     # KEINE Bigramm-Heuristik mehr: legitime dt. Komposita mit dk/tk/kr an der Wortfuge
     # duerfen NICHT als korrupt gelten (waren vorher Falsch-Positive):
     for gut in ("Koboldkrieger", "Drachenschildkröte", "Grottenschratkrieger"):
-        assert ig._name_sauber(gut), gut
+        assert nr.name_sauber(gut), gut
 
 
 def test_srd_de_name_notfall_minimal():
@@ -112,7 +113,7 @@ def test_srd_de_name_notfall_minimal():
     # 'Riesenfliege' zudem ohne TOC-Anker). Der Deckel schuetzt vor Listenwachstum -
     # jede Erhoehung braucht einen belegten Einzelfall wie diese beiden.
     assert len(ig.SRD_DE_NAME_NOTFALL) == 2
-    assert all(ig._name_sauber(v) for v in ig.SRD_DE_NAME_NOTFALL.values())
+    assert all(nr.name_sauber(v) for v in ig.SRD_DE_NAME_NOTFALL.values())
 
 
 def test_kanonisiere_schreibvarianten_quellengetrieben():
