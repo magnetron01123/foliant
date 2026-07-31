@@ -1,26 +1,32 @@
 # Foliant — Backlog
 
-**Stand: 28.07.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 01.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
 **Kurz: Die Technik ist so weit. Was fehlt, ist die Runde.**
 Der fünfphasige Umbau aus dem Import-/Datenbank-Review ist vollständig umgesetzt und
 deployed, B9 ist auch unter Sessionlast belegt, und der erste Durchgang der
-Kurationsschleife lief gegen echte Nutzungsdaten.
+Kurationsschleife lief gegen echte Nutzungsdaten. Am 31.07./01.08.2026 kam die
+Datenqualitäts-Schicht dazu — Revisions-Layer, Quellen-Provenienz, Prioritätsbänder und
+das Register der deutschen Abkürzungen (PR #80, Schema v3, auf dem Pi deployed).
 
 Von den verbliebenen Punkten hängen **fast alle an einer Entscheidung oder Handlung von
 David**, nicht an Code:
 
 | offen | wartet auf |
 |---|---|
-| **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — derzeit liegen Bestand *und* alle Sicherungen auf derselben SD-Karte |
+| **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — derzeit liegen Bestand *und* alle Sicherungen auf derselben SD-Karte. **Das einzige Risiko mit unwiederbringlichem Schaden** |
+| **Errata-PDFs** (§4) | drei Downloads — der Revisions-Layer steht, trägt aber noch null Einträge |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
 | **M6** Discord-Bot | Token im Entwicklerportal, Erst-Test in der Guild |
 | **M7** Discord-Ausbau | Eval-Lauf mit den DC-Fällen, Echttest nach einem Neustart |
 | **M2** Abnahme: A4 (Websuche), E1 (Injektion) | A4 nur im echten Chat prüfbar; E1-Fixture ist baubar |
 | **M1** dt. PHB 2024 | die PDFs |
 | **M5** Kurationsschleife | läuft — braucht aber echte Anfragen, um Signal zu liefern |
+
+*M2, M4 und M5 hängen an derselben Handlung: einem Abend mit der Runde. A4 lässt sich nur
+im echten Chat prüfen, M4 braucht Spieler, und M5 braucht deren Anfragen als Signal.*
 
 ---
 

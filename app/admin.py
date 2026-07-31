@@ -498,6 +498,25 @@ _SPOILER_WOERTER = ("abenteuer", "adventure", "kampagne", "campaign", "setting",
                     "planescape", "ravnica", "theros", "strixhaven")
 
 
+# Gepruefte Ausnahmen: Der TITEL klingt nach Abenteuerband, der INHALT ist reines
+# Regelmaterial. Wie bei GEPRUEFTE_HOMONYME im Glossar steht der BELEG dabei, und die
+# Ausnahme gilt nur, solange er zutrifft - eine Liste, die man einmal fuellt und nie
+# wieder prueft, ist ein Deckel und kein Beleg.
+#
+# Der Wert ist die Menge der Kategorien, die die Quelle fuehren DARF. Kommt etwas anderes
+# dazu, ist der Fall nicht mehr geprueft und der Verdacht schlaegt wieder an - genau das
+# soll er auch, denn dann hat sich der Bestand geaendert.
+_GEPRUEFTE_REGELWERKE: dict[str, tuple[frozenset[str], str]] = {
+    "ddb-mcv1-en": (
+        frozenset({"monster"}),
+        "Monstrous Compendium Vol. 1: Spelljammer Creatures - am Pi-Bestand geprueft "
+        "(01.08.2026): 40 Eintraege, ALLE kategorie='monster', Eintragsnamen sind "
+        "Statblock-Abschnitte (Traits/Actions/Bonus Actions/Description). Eine reine "
+        "Werte-Sammlung ohne Handlung, Orte oder Geheimnisse - 'spelljammer' im Titel "
+        "ist die Weltzugehoerigkeit der Kreaturen, nicht ein Kampagnenband."),
+}
+
+
 def _spoilerverdacht(c: sqlite3.Connection) -> list[tuple[str, str]]:
     """Quellen, die nach einem Abenteuerband aussehen, aber als 'regelwerk' gefuehrt sind.
 
@@ -507,11 +526,32 @@ def _spoilerverdacht(c: sqlite3.Connection) -> list[tuple[str, str]]:
     [[quelle]]-Block, und dort FEHLTE der Schluessel in der Config-Vorlage. Wer einen
     Abenteuerband einpflegt, bekommt still 'regelwerk' - ohne Fehlermeldung, nur ohne
     Spoiler-Warnung im Chat. Ein Verdacht in `admin check` ist billiger als ein Spoiler
-    am Spieltisch."""
-    return [(r[0], r[1]) for r in c.execute(
+    am Spieltisch.
+
+    Gepruefte Ausnahmen fallen raus (_GEPRUEFTE_REGELWERKE), solange ihr Beleg traegt.
+    Grund: Eine Warnung, die dauerhaft ansteht, liest bald niemand mehr - dieselbe
+    Ueberlegung wie beim Konflikt-Gate des Glossars."""
+    verdacht = [(r[0], r[1]) for r in c.execute(
         "SELECT kuerzel, titel FROM quellen WHERE inhaltsart = 'regelwerk' "
         "ORDER BY kuerzel")
         if any(w in f"{r[0]} {r[1]}".lower() for w in _SPOILER_WOERTER)]
+    return [(k, t) for k, t in verdacht if not _beleg_traegt_noch(c, k)]
+
+
+def _beleg_traegt_noch(c: sqlite3.Connection, kuerzel: str) -> bool:
+    """Gilt die gepruefte Ausnahme fuer diese Quelle noch? Nur, wenn sie ausschliesslich
+    die belegten Kategorien fuehrt."""
+    eintrag = _GEPRUEFTE_REGELWERKE.get(kuerzel)
+    if not eintrag:
+        return False
+    erlaubt, _beleg = eintrag
+    try:
+        vorhanden = {r[0] for r in c.execute(
+            "SELECT DISTINCT e.kategorie FROM eintraege e JOIN quellen q "
+            "ON q.id = e.quelle_id WHERE q.kuerzel = ?", (kuerzel,))}
+    except sqlite3.Error:
+        return False
+    return bool(vorhanden) and vorhanden <= erlaubt
 
 
 def _pruefe_inhaltsarten(c: sqlite3.Connection) -> int:
