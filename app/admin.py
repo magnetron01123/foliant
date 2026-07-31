@@ -287,7 +287,7 @@ def cmd_ddb_remove(args) -> None:
         with c:
             weg = c.execute("DELETE FROM quellen WHERE kuerzel = ? AND herkunft='ddb'",
                             (args.quelle,)).rowcount
-            c.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+            _db.fts_rebuild(c)
         print(f"'{args.quelle}': {weg} Quelle(n) entfernt, FTS neu aufgebaut."
               if weg else f"Keine DDB-Quelle '{args.quelle}' in {ziel.name}.")
     finally:
@@ -349,7 +349,8 @@ def cmd_ocr_pdf(args) -> None:
 
 def cmd_reindex(_args) -> None:
     c = _con()
-    _db.fts_rebuild(c)
+    with c:                    # fts_rebuild committet nicht mehr selbst - die Transaktion fuehrt der Aufrufer
+        _db.fts_rebuild(c)
     n = c.execute("SELECT count(*) FROM eintraege").fetchone()[0]
     print(f"FTS neu aufgebaut ({n} Eintraege).")
     c.close()

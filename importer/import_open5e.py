@@ -36,6 +36,7 @@ import sqlite3
 import sys
 import time
 
+from app import db as _db
 from importer import schwellen as _schwellen
 
 API_BASE = "https://api.open5e.com/v2/"   # Default; [open5e].api_base gewinnt (A8)
@@ -428,8 +429,9 @@ def import_open5e(con: sqlite3.Connection, dokumente: list[str] | None = None,
              for c in chunks.values()])
         print(f"{dokument}: {len(chunks)} Eintraege vorbereitet (Edition {edition})")
         gesamt += len(chunks)
-    # FTS-Rebuild in DERSELBEN Transaktion (Leitplanke + A7).
-    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    # FTS-Rebuild in DERSELBEN Transaktion (Leitplanke + A7). db.fts_rebuild committet
+    # bewusst nicht - deshalb ist es hier ueberhaupt aufrufbar (Befund 31.07.2026).
+    _db.fts_rebuild(con)
     return gesamt
 
 

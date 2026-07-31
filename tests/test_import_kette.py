@@ -116,3 +116,57 @@ def test_kein_zweiter_einstiegspunkt_in_den_importern():
                and '__name__ == "__main__"' in p.read_text(encoding="utf-8")]
     assert not treffer, (f"zweiter Einstiegspunkt neben app.admin: {treffer} - Importe "
                          f"laufen ueber `python -m app.admin import`")
+
+
+def test_kettenschritte_committen_nicht_selbst():
+    """Statischer Waechter: kein Schritt darf `con.commit()` rufen.
+
+    `seed_alles` und der Kommentar in `app/admin.py` sagen beide "EINE Transaktion, ganz
+    oder gar nicht" zu - bis zum 31.07.2026 trugen aber 15 der Schritte ihr eigenes
+    Commit, was genau diese Zusage aufhob. Ein neuer Schritt mit Commit faellt hier auf,
+    nicht erst an einem halb geschriebenen Glossar nach einem Abbruch."""
+    baum = ast.parse((_WURZEL / "importer" / "import_glossar.py").read_text(encoding="utf-8"))
+    schuldige = sorted({
+        fn.name for fn in ast.walk(baum) if isinstance(fn, ast.FunctionDef)
+        for k in ast.walk(fn)
+        if isinstance(k, ast.Call) and isinstance(k.func, ast.Attribute)
+        and k.func.attr == "commit"})
+    assert not schuldige, (
+        f"Kettenschritt(e) mit eigenem Commit: {schuldige} - die Transaktion fuehrt der "
+        f"Aufrufer (`with con: seed_alles(con)`), sonst ist die Kette nicht atomar")
+
+
+def test_abbruch_mitten_in_der_kette_laesst_das_glossar_unveraendert(tmp_path, monkeypatch):
+    """Der reale Fehlerfall vom 27.07.2026: ein Schritt wirft nach Minuten Laufzeit.
+
+    Erwartung: Das Glossar steht danach exakt auf dem Stand VOR dem Lauf. Ohne die
+    Transaktion haetten die vorherigen Schritte ihre Zeilen bereits committet, und die
+    spaeteren Kanonisierer (die die Konflikte aufloesen) waeren nie gelaufen - ein still
+    unvollstaendiges Glossar, das ueber '*'-Kennzeichnung und Deutsch-first-Ranking
+    entscheidet."""
+    db = tmp_path / "foliant.sqlite"
+    con = sqlite3.connect(db)
+    con.executescript((_WURZEL / "db" / "schema.sql").read_text(encoding="utf-8"))
+    con.execute("INSERT INTO glossar (term_en, term_de, offiziell, quelle) "
+                "VALUES ('Fireball','Feuerball',1,'Test')")
+    con.commit()
+
+    def schritt_wirft(c):
+        raise RuntimeError("NameError-Aequivalent mitten in der Kette")
+
+    # ERSTER Schritt ist ein ECHTER Kettenschritt (netzfrei, schreibt Glossarzeilen).
+    # Nur so misst der Test die Sache: mit einem selbstgebauten Schritt wuerde er auch
+    # ohne den Fix bestehen, weil der Schritt dann gar kein Commit mitbringt.
+    monkeypatch.setattr(ig, "_KETTE", [(ig.seed_abkuerzungen, "Abkuerzungen"),
+                                       (schritt_wirft, "kaputt")])
+    with pytest.raises(RuntimeError):
+        with con:
+            ig.seed_alles(con)
+
+    pruef = sqlite3.connect(db)
+    try:
+        zeilen = pruef.execute("SELECT term_en FROM glossar").fetchall()
+    finally:
+        pruef.close()
+    assert zeilen == [("Fireball",)], (
+        f"Teilzustand nach dem Abbruch: {zeilen} - die Kette ist nicht atomar")

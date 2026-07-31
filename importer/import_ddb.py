@@ -235,7 +235,7 @@ def importiere_ddb_artefakt(artefakt: str | Path, buch: dict, *,
                     "sprache, edition, seite, kontext, body_md) "
                     "VALUES (?,?,NULL,?,?,?,NULL,?,?)",
                     zeilen)
-                con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+                _db.fts_rebuild(con)
                 # Facetten wie nach jedem anderen Quellen-Import (CONCEPT.md par. 8) -
                 # bis zum 31.07.2026 lief der Seeder NUR ueber `admin import`, der
                 # DDB-Weg gar nicht. Ein DDB-Buch landete damit ohne zauber_meta/

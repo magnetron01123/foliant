@@ -40,6 +40,7 @@ import re
 import sqlite3
 import unicodedata
 
+from app import db as _db
 from importer import schwellen as _schwellen
 
 SPLIT_STANDARD = 3       # ohne Quell-Regeln: Headings 1..3 eroeffnen neue Eintraege
@@ -661,5 +662,5 @@ def importiere_markdown(con: sqlite3.Connection, quelle_kuerzel: str, markdown: 
          sprache, edition, c["seite"], c["kontext"] or None, c["body"]) for c in chunks])
     # FTS-Rebuild als Teil DERSELBEN Transaktion (Leitplanke + A7: Eintraege und Index
     # landen zusammen oder rollen zusammen zurueck).
-    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    _db.fts_rebuild(con)
     return len(chunks)

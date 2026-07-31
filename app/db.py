@@ -733,9 +733,15 @@ def fts_suche(con: sqlite3.Connection, query: str, kategorie: str | None = None,
 
 def fts_rebuild(con: sqlite3.Connection) -> None:
     """FTS extern neu aufbauen - nach jedem (Bulk-)Import Pflicht (Leitplanke): robuster als
-    inkrementelle Trigger-Synchronitaet bei grossen Importen."""
+    inkrementelle Trigger-Synchronitaet bei grossen Importen.
+
+    Committet NICHT (seit 31.07.2026): Der Aufrufer fuehrt die Transaktion. Vorher steckte
+    hier ein `con.commit()`, und genau deshalb konnte kein Importweg diese Funktion
+    benutzen - jeder von ihnen sagt eine EINE-Transaktion zu (A7), die ein Commit
+    mittendrin zerrisse. Also stand dasselbe SQL viermal roh im Code
+    (import_markdown, import_open5e, import_ddb, admin ddb-remove). Ein Interface, das
+    zwei Dinge mischt, erzeugt Kopien statt Aufrufer."""
     con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
-    con.commit()
 
 
 def hole_eintrag(con: sqlite3.Connection, eintrag_id: int) -> dict | None:

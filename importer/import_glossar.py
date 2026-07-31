@@ -210,7 +210,6 @@ def seed_kern_singulare(con: sqlite3.Connection) -> int:
     for term_en, term_de, edition in KERN_SINGULAR_PAARE:
         _upsert(con, term_en, term_de, 1, "Kernbegriff (kuratiert, bestandsbelegt)",
                 edition, None)
-    con.commit()
     return len(KERN_SINGULAR_PAARE)
 
 
@@ -249,7 +248,6 @@ def seed_aktionen(con: sqlite3.Connection) -> int:
             continue                       # kein srd-de-Beleg -> Zeile entfaellt (nicht raten)
         _upsert(con, term_en, term_de, 1, QUELLE_AKTIONEN, "2024", None)
         n += 1
-    con.commit()
     return n
 
 
@@ -318,7 +316,6 @@ def seed_glossar(con: sqlite3.Connection, begriffe_en: list[str]) -> int:
                       f"(zu viele Treffer? Begriff enger fassen)", file=sys.stderr)
                 continue
             geschrieben += dnddeutsch.schreibe_zeilen(con, zeilen)
-    con.commit()
     return geschrieben
 
 
@@ -477,7 +474,6 @@ def repariere_srd_de_namen(con: sqlite3.Connection) -> int:
     for falsch, richtig in korrekturen.items():
         n += con.execute("UPDATE eintraege SET name_de = ? WHERE name_de = ?",
                          (richtig, falsch)).rowcount
-    con.commit()
     if n:
         _db.fts_rebuild(con)
     return n
@@ -571,7 +567,6 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
         n += con.execute("UPDATE eintraege SET name_de = ? WHERE name_de = ?",
                          (richtig, falsch)).rowcount
         print(f"  name-2014: {falsch!r} -> {richtig!r}", file=sys.stderr)
-    con.commit()
     if n:
         _db.fts_rebuild(con)
         _glossar.leere_cache()
@@ -619,7 +614,6 @@ def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
             if z["term_de"] != kanon:
                 con.execute("UPDATE glossar SET offiziell=0 WHERE id=?", (z["id"],))
                 demotet += 1
-    con.commit()
     return demotet
 
 
@@ -636,7 +630,6 @@ def seed_monster_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     for term_en, term_de, _key in _finde_monster_paare(con):
         _upsert(con, term_en, term_de, 1, "SRD 5.2.1 (Strukturabgleich)", "2024", None)
         n += 1
-    con.commit()
     return n
 
 
@@ -676,7 +669,6 @@ def seed_klassenmerkmale_aus_bestand(con: sqlite3.Connection) -> int:
             n += 1
     for zeile in report:
         print(f"  klassenmerkmale: {zeile}", file=sys.stderr)
-    con.commit()
     _glossar.leere_cache()   # Folge-Seeder sollen die neuen Paare sehen
     return n
 
@@ -718,7 +710,6 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
         n += 1
     for zeile in report:
         print(f"  gegenstaende: {zeile}", file=sys.stderr)
-    con.commit()
     _glossar.leere_cache()
     return n
 
@@ -785,7 +776,6 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
                                 None, None)
                         vorhanden.add((en, de))
                         n += 1
-    con.commit()
     _glossar.leere_cache()
     return n
 
@@ -810,7 +800,6 @@ def seed_zauber_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
         n += 1
     for zeile in report:
         print(f"  zauber: {zeile}", file=sys.stderr)
-    con.commit()
     _glossar.leere_cache()
     return n
 
@@ -826,7 +815,6 @@ def seed_kernwortschatz_aus_bestand(con: sqlite3.Connection) -> int:
     paare, _verworfen = finde_kernbegriffe(con)
     for term_en, term_de, _kat, _n in paare:
         _upsert(con, term_en, term_de, 1, QUELLE, "2024", None)
-    con.commit()
     return len(paare)
 
 
@@ -835,7 +823,6 @@ def seed_abkuerzungen(con: sqlite3.Connection) -> int:
     offizielles Deutsch, das Kuerzel selbst ist nur ein Suchschluessel."""
     for kurz, lang in ABKUERZUNGEN:
         _upsert(con, kurz, lang, 1, "abkuerzung", None, None)
-    con.commit()
     return len(ABKUERZUNGEN)
 
 
@@ -843,7 +830,6 @@ def seed_srd_paare(con: sqlite3.Connection) -> int:
     """Bestands-belegte SRD-5.2/5.2.1-Begriffspaare (Modul-Doku oben); offline."""
     for term_en, term_de in SRD_2024_BEGRIFFSPAARE:
         _upsert(con, term_en, term_de, 1, "SRD 5.2/5.2.1-Begriffspaar", "2024", None)
-    con.commit()
     return len(SRD_2024_BEGRIFFSPAARE)
 
 
@@ -872,7 +858,6 @@ def kanonisiere_konflikte(con: sqlite3.Connection) -> int:
                             "quelle=coalesce(quelle,'')||' (demotet: kuratierte Fassung ist offiziell)' "
                             "WHERE id=?", (rid,))
                 demotet += 1
-    con.commit()
     return demotet
 
 
@@ -924,6 +909,14 @@ def seed_alles(con: sqlite3.Connection) -> dict[str, int]:
     mittendrin (real am 27.07.2026: NameError nach Minuten Laufzeit) hinterliess einen
     Teilzustand, bei dem die spaeteren Kanonisierer nie liefen. Jetzt landet die Kette ganz
     oder gar nicht, wie im PDF-Zweig (Befund D2).
+
+    Diese Zusage stand hier ab dem 27.07.2026 - eingeloest ist sie erst seit dem
+    31.07.2026. Bis dahin trugen FUENFZEHN der Kettenschritte weiterhin ihr eigenes
+    `con.commit()`, und `admin.py` begruendete sein `with c:` daneben mit genau der
+    Atomaritaet, die diese Commits aufhoben. Der beschriebene Fehlerfall war also nie
+    behoben, nur beschrieben. Ein Kettenschritt darf deshalb nicht mehr committen; die
+    Sichtbarkeit fuer Folgeschritte kommt ohnehin von der gemeinsamen Verbindung, nicht
+    vom Commit (`_glossar.leere_cache()` bleibt noetig, s. dessen Docstring).
 
     Rueckgabe: {Beschriftung: Anzahl} in Kettenreihenfolge - fertig fuer die Bilanzzeile.
     Zwei Schritte teilen sich eine Beschriftung (s. _KETTE); deren Zahlen werden addiert."""
