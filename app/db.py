@@ -233,6 +233,14 @@ def stelle_schema_sicher(con: sqlite3.Connection) -> None:
         # und eine neue Zeile in schema.sql erreicht Bestands-DBs damit von selbst,
         # statt in einer zweiten Python-Liste nachgetragen werden zu muessen.
         con.executescript(SCHEMA_DATEI.read_text(encoding="utf-8"))
+        # Quellen-Titel auf den Beschriftungs-Standard ziehen (importer/quellen.py).
+        # Hier und nicht nur beim Import: die Titel im Bestand stammen aus der Zeit vor
+        # dem Standard, und ein DDB-Buch wird womoeglich nie wieder importiert. NACH dem
+        # Schema-Skript, damit die Spalte sicher steht. Lokal importiert (nicht am
+        # Modulkopf), weil `importer` die Serving-Schicht sonst gegen die Import-Schicht
+        # bindet - der Serving-Pfad ruft diese Funktion nie.
+        from importer.quellen import normalisiere_titel
+        normalisiere_titel(con)
         if con.execute("PRAGMA user_version").fetchone()[0] < 2:
             con.execute("PRAGMA user_version = 2")     # nur anheben, nie eine hoehere Version senken
         con.commit()

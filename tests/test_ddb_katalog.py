@@ -43,7 +43,10 @@ def test_regelbuch_2024_wird_importiert(katalog):
     r = klassifiziere(145, katalog)
     assert r["importieren"] is True and r["edition"] == "2024"
     assert r["kuerzel"] == "ddb-phb-2024-en"                 # stabiler sourceURL-Slug
-    assert r["titel"] == "Player’s Handbook (D&D Beyond)"    # HTML-Entity aufgeloest
+    # HTML-Entity aufgeloest, und NUR der Werktitel: der Bezugsweg steht in
+    # `quellen.herkunft` ('ddb') und nicht noch einmal im Titel (Beschriftungs-Standard,
+    # importer/quellen.py).
+    assert r["titel"] == "Player’s Handbook"
 
 
 def test_edition_aus_kategorie(katalog):

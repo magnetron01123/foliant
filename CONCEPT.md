@@ -99,6 +99,17 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
 - **`quellen`** — Register aller Quellen: `edition` (2024/2014, **NOT NULL**), `sprache`,
   `herkunft` (pdf/ddb/srd-md/open5e/manuell), `lizenz`, `prioritaet` (Dubletten-Präzedenz;
   **kleiner = Vorrang**), `inhaltsart` (u. a. `abenteuer_setting` → Spoiler-Hinweis).
+  **Beschriftungs-Standard (31.07.2026):** `titel` trägt **nur den Werktitel** — kein
+  „(Deutsch)", „(2014)", „(D&D Beyond)", „(Druck)". Sprache, Regelstand und Bezugsweg
+  stehen in `sprache`, `edition` und `herkunft` und werden **daraus** angezeigt. Vorher
+  hängte jeder Importweg einen anderen Zusatz an denselben Werktitel („SRD 5.2.1
+  (Deutsch)", „Basic Rules (2014) (D&D Beyond)", „Spielerhandbuch (Deutsch, 2014er
+  Regeln)"); nebeneinander waren die Quellen dadurch nicht vergleichbar, und die Website
+  musste die Zusätze beim Anzeigen wieder herausrechnen. Durchgesetzt wird der Standard
+  beim **Schreiben** (`importer/quellen.werktitel`, gerufen in `registriere_quelle`) —
+  eine Anzeige-Kosmetik hätte jede Ausgabe einzeln nachbauen müssen. Bestands-DBs zieht
+  `db.stelle_schema_sicher()` einmalig nach (`normalisiere_titel`), damit ein DDB-Buch
+  dafür nicht neu importiert werden muss.
 - **`eintraege`** — Inhalts-Chunks (Rückgrat): `kategorie`, `name_de`/`name_en`, `edition`
   (**NOT NULL** → kein verwaister Inhalt), `seite` (optional), `body_md`, `kontext`
   (Breadcrumb). FK-Cascade von `quellen`.
@@ -613,6 +624,15 @@ docker compose up -d --no-deps web
 - Ohne `ANTHROPIC_API_KEY` läuft alles außer `POST /bogen` (→ 503).
 - **Cache mounten:** `data/cache/dnddeutsch` read-only in den Web-Container, sonst zahlt jeder
   Neustart den Erstkontakt erneut.
+- **Die Buchliste („Was steckt drin?") kommt aus der Web-DB**, nicht aus dem Template. Nach
+  einer Änderung an den Quellen-Metadaten — etwa dem Beschriftungs-Standard (§3) — genügt
+  ein Lauf, der die DB read-write öffnet und die Web-DB neu schreibt:
+  ```sh
+  docker compose exec foliant python -m app.admin import --quelle facetten
+  ```
+  Der Weg ist bewusst dieser: er fasst den Bestand nicht an (kein Re-Import, keine
+  zerstörte Namensreparatur), zieht aber `stelle_schema_sicher()` und am Ende die Web-DB
+  nach. Ohne ihn zeigt die Seite die alten Titel weiter.
 
 ### DDB-Buchimport auf dem Pi
 ```sh

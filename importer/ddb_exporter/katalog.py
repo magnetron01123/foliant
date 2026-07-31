@@ -85,7 +85,10 @@ def klassifiziere(buch_id: int, katalog: dict, kuerzel_prefix: str = "ddb") -> d
     name = html.unescape(quelle.get("description") or quelle.get("name") or str(buch_id))
     kategorie_name = katalog["kategorien"].get(quelle.get("sourceCategoryId"), "")
     edition = _edition(kategorie_name, quelle)       # aus 5e/5.5e-Kategorie, sonst None
-    eintrag = {"id": int(buch_id), "titel": f"{name} (D&D Beyond)",
+    # Titel = nur der Werkname. Der Bezugsweg steht in `quellen.herkunft` ('ddb') und
+    # gehoert nicht ein zweites Mal in den Titel (Beschriftungs-Standard,
+    # importer/quellen.py) - "D&D Beyond Basic Rules (D&D Beyond)" war das Ergebnis.
+    eintrag = {"id": int(buch_id), "titel": name,
                "kuerzel": _kuerzel(quelle, kuerzel_prefix), "sprache": "en",
                "edition": edition, "edition_sicher": edition is not None,
                "kategorie_ddb": kategorie_name,

@@ -312,9 +312,10 @@ def test_bestandsuebersicht_zeigt_die_buecher(tmp_path):
     con.executemany(
         "INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,prioritaet,"
         "inhaltsart,dateipfad) VALUES (?,?,?,?,?,?,?,?,?)",
-        [("srd-de", "SRD 5.2.1 (Deutsch)", "de", "2024", "pdf", "CC-BY-4.0", 10,
+        # Titel nach dem Beschriftungs-Standard (importer/quellen.py): nur der Werktitel.
+        [("srd-de", "SRD 5.2.1", "de", "2024", "pdf", "CC-BY-4.0", 10,
           "regelwerk", "/geheim/pfad/srd.pdf"),
-         ("rav-en", "Ravenloft (D&D Beyond)", "en", "2024", "ddb", "privat", 40,
+         ("rav-en", "Ravenloft", "en", "2024", "ddb", "privat", 40,
           "abenteuer_setting", "/geheim/pfad/rav.pdf")])
     con.executemany(
         "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,"
@@ -337,16 +338,37 @@ def test_bestandsuebersicht_zeigt_die_buecher(tmp_path):
 
     # 2. Die Anzeige: beide Buecher, mit Zahlen aus dem Bestand.
     quellen = web._bestand_lesen(str(web_db))
-    assert {q["titel"] for q in quellen} == {"SRD 5.2.1 (Deutsch)", "Ravenloft (D&D Beyond)"}
+    assert {q["titel"] for q in quellen} == {"SRD 5.2.1", "Ravenloft"}
     html = web._bestand_html(quellen)
     assert "2 Büchern" in html and "3 Einträgen" in html
     # 3. Abenteuerbaende stehen getrennt, mit der Spoiler-Ansage (B6).
     assert "Abenteuer" in html and "Handlung" in html
-    # 4. Einheitliche Zeile: Titel OHNE den Klammer-Zusatz, Sprache und Regelversion
-    #    als eigene Angaben daneben - die Herkunft steht nicht doppelt im Titel.
-    assert ">SRD 5.2.1<" in html and "(Deutsch)" not in html
-    assert ">Ravenloft<" in html and "(D&D Beyond)" not in html
-    assert "Regeln 2024" in html
+    # 4. Jede Zeile beantwortet dieselben drei Fragen in eigenen, benannten Spalten -
+    #    der Titel traegt keine davon doppelt.
+    assert ">SRD 5.2.1<" in html and ">Ravenloft<" in html
+    assert ">Buch<" in html and ">Sprache<" in html and ">Regelstand<" in html
+    assert ">Deutsch<" in html and ">Englisch<" in html
+    assert ">Regeln 2024<" in html
+
+
+def test_bestandsuebersicht_zeigt_jede_angabe_genau_einmal():
+    """Der Beschriftungs-Standard sichtbar gemacht: Sprache und Regelstand stehen in
+    eigenen Spalten, NICHT im Titel. Die Liste war vorher nicht vergleichbar, weil jeder
+    Importweg diese Angaben anders in den Titel klammerte - taucht so ein Zusatz wieder
+    auf, ist der Standard umgangen worden."""
+    from app.charakterbogen import web
+
+    html = web._bestand_html([
+        {"titel": "Player’s Handbook", "sprache": "en", "edition": "2024",
+         "inhaltsart": "regelwerk", "eintraege": 1581},
+        {"titel": "Spielerhandbuch", "sprache": "de", "edition": "2014",
+         "inhaltsart": "regelwerk", "eintraege": 1539},
+    ])
+    for zusatz in ("(Deutsch)", "(Englisch)", "(D&amp;D Beyond)", "(2014)", "(Druck)"):
+        assert zusatz not in html
+    # Beide Zeilen tragen dieselben Marken in derselben Reihenfolge.
+    assert html.count('class="sprache"') == html.count('class="regelstand"') == 3  # 2 + Kopf
+    assert ">Regeln 2014<" in html and ">Regeln 2024<" in html
 
 
 def test_bestandsuebersicht_faellt_ohne_quellen_weg():
@@ -355,30 +377,6 @@ def test_bestandsuebersicht_faellt_ohne_quellen_weg():
 
     assert web._bestand_lesen(None) == []
     assert web._bestand_html([]) == ""
-
-
-def test_buchtitel_verlieren_nur_die_doppelten_zusaetze():
-    """Die Buchliste war uneinheitlich, weil jeder Importweg einen anderen Klammer-Zusatz
-    an denselben Werktitel haengt. Entfernt wird deshalb NUR, was daneben ohnehin als
-    eigene Angabe steht (Sprache, Regelversion, Bezugsweg) - ein echter Namenszusatz
-    bleibt, sonst schneidet die Kosmetik Werktitel ab."""
-    from app.charakterbogen.web import _titel_schlicht
-
-    # Weg: Sprache, Regelversion, Bezugsweg - auch zwei Klammern hintereinander.
-    assert _titel_schlicht("SRD 5.2.1 (Deutsch)") == "SRD 5.2.1"
-    assert _titel_schlicht("Basic Rules (2014) (D&D Beyond)") == "Basic Rules"
-    assert _titel_schlicht("Spielerhandbuch (Deutsch, 2014er Regeln)") == "Spielerhandbuch"
-    assert _titel_schlicht("Eberron: Forge of the Artificer (Druck)") == \
-        "Eberron: Forge of the Artificer"
-
-    # Bleibt: alles, was zum Werknamen gehoert.
-    assert _titel_schlicht("Monstrous Compendium Vol. 1 (Spelljammer Creatures)") == \
-        "Monstrous Compendium Vol. 1 (Spelljammer Creatures)"
-    assert _titel_schlicht("Curse of Strahd: Character Options") == \
-        "Curse of Strahd: Character Options"
-    # Ein Titel, der NUR aus dem Zusatz besteht, wird nicht zu einer leeren Zeile.
-    assert _titel_schlicht("(Deutsch)") == "(Deutsch)"
-    assert _titel_schlicht("") == ""
 
 
 def test_buchliste_folgt_der_web_db_ohne_neustart(tmp_path):
