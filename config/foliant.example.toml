@@ -9,7 +9,9 @@ pfad = "data/foliant.sqlite"
 
 [server]
 name = "Foliant für D&D"
-pfad = "/mcp"
+pfad = "/mcp"           # NICHT frei waehlbar: deploy/Caddyfile und die
+                        # optionale Cloudflare-Regel matchen fest auf "/mcp"
+                        # (CONCEPT.md par. 9). Wer ihn aendert, muss beide mitziehen.
 stateless_http = true
 
 [protokoll]
@@ -81,6 +83,9 @@ prioritaet = 60          # geringer als deutsche Quellen -> fuellt Luecken, gewi
 # inhaltsart = "abenteuer_setting"        # <- PFLICHT bei Abenteuer-/Kampagnenbaenden
 # dateipfad = "quellen/CoS_DE.pdf"
 
+# [ddb].ziel_db = "data/foliant.sqlite"   # Alternative zu ins_hauptbestand: Zielpfad
+#                                        # direkt setzen. Beides erfuellt denselben
+#                                        # Zweck; ins_hauptbestand ist die Kurzform.
 # DDB-Buchimport: zweistufig - kurzlebiger Exporter (Netz+Secret, KEIN DB-Zugriff)
 # erzeugt Artefakte; der Offline-Import schreibt in die DB. KEINE Secrets hier: Cobalt
 # wird zur Laufzeit verdeckt gelesen (Keychain/Datei/TTY, nie .env/argv). Automatik:

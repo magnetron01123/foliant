@@ -236,8 +236,12 @@ def stelle_schema_sicher(con: sqlite3.Connection) -> None:
         if con.execute("PRAGMA user_version").fetchone()[0] < 2:
             con.execute("PRAGMA user_version = 2")     # nur anheben, nie eine hoehere Version senken
         con.commit()
-    except sqlite3.OperationalError:
-        pass                                            # z. B. read-only geoeffnet - hier bewusst folgenlos
+    except sqlite3.OperationalError as fehler:
+        # Meist harmlos (read-only geoeffnet), aber nicht immer: der Sammel-except
+        # bricht den REST der Nachruestung ebenfalls ab. Ein stiller Abbruch hier
+        # heisst eine fehlende Spalte spaeter - deshalb wird er benannt, nicht
+        # verworfen. Fatal ist er nie: alle Aufrufer arbeiten auch ohne weiter.
+        print(f"WARNUNG: Schema-Nachzug uebersprungen ({fehler}).")
 
 
 def connect(pfad: str) -> sqlite3.Connection:

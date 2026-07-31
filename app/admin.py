@@ -163,12 +163,17 @@ def cmd_import(args) -> None:
         # D1: was der Import verworfen oder nicht repariert hat - EINE Zeile. Interessant
         # ist weniger der Absolutwert als die Veraenderung zum letzten Lauf; eine
         # wirkungslose Reparatur (verschobener PDF-Anker) faellt so sofort auf.
-        from importer.import_markdown import letzte_bilanz
-        bilanz = letzte_bilanz()
-        print("  " + bilanz.zeile())
-        if bilanz.auffaellig:
-            print("  ^ Reparaturen ohne Anker heissen: die Quelle hat sich verschoben. "
-                  "Stichprobe fahren, bevor der Bestand freigegeben wird.")
+        # Die Bilanz fuehrt NUR der Markdown-Importer (importer/import_markdown._BILANZ).
+        # Nach einem Open5e-Lauf stuende hier der Stand des letzten PDF-/Markdown-Imports
+        # - im frischen Prozess also eine Nullzeile, die so aussaehe, als sei nichts
+        # verworfen worden (Befund 31.07.2026). Deshalb nur im Markdown-/PDF-Zweig.
+        if not kuerzel.startswith("open5e"):
+            from importer.import_markdown import letzte_bilanz
+            bilanz = letzte_bilanz()
+            print("  " + bilanz.zeile())
+            if bilanz.auffaellig:
+                print("  ^ Reparaturen ohne Anker heissen: die Quelle hat sich verschoben. "
+                      "Stichprobe fahren, bevor der Bestand freigegeben wird.")
     finally:
         c.close()
     _web_db_auffrischen(getattr(args, "db", None))

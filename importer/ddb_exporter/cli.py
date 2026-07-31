@@ -88,7 +88,10 @@ def _buch(kuerzel: str) -> dict:
                  if b.get("kuerzel") == kuerzel), None)
     if buch is None:
         sys.exit(f"Buch '{kuerzel}' nicht in config/foliant.toml ([[ddb.buch]]).")
-    for pflicht in ("id", "kuerzel", "titel", "sprache", "edition", "prioritaet"):
+    # `prioritaet` ist hier KEIN Pflichtfeld mehr (31.07.2026): der Exporter schreibt sie
+    # nirgends ins Artefakt, und der Import nimmt sie aus import_ddb._DDB_PRIORITAET.
+    # Vorhandene Konfigurationen mit dem Feld bleiben gueltig - es wird nur ignoriert.
+    for pflicht in ("id", "kuerzel", "titel", "sprache", "edition"):
         if buch.get(pflicht) in (None, ""):
             sys.exit(f"[[ddb.buch]] '{kuerzel}': Pflichtfeld '{pflicht}' fehlt - "
                      f"es wird nichts geraten.")

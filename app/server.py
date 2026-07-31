@@ -106,6 +106,10 @@ mcp.tool(_charakter.foliant_pruefe_build, annotations=_NUR_LESEND)
 # (.env auf dem Pi; leer = /mcp fuer Dev/Tests) + IP-Allowlist als ASGI-Wrapper. Die
 # Verbindungs-URL ist damit https://<host>/<token>/mcp - die URL selbst ist der Schluessel.
 _PFAD_TOKEN = os.environ.get("FOLIANT_PFAD_TOKEN", "").strip().strip("/")
+# Aus der Konfiguration, aber praktisch fest: deploy/Caddyfile routet auf "/mcp" und
+# die optionale Cloudflare-Regel prueft `uri.path contains "/mcp"`. Ein anderer Wert
+# hier laesst das Gateway ins Leere zeigen - die Kopplung steht deshalb auch in der
+# Config-Vorlage (Befund 31.07.2026: sie sah frei waehlbar aus).
 _BASIS_PFAD = _SERVER_KONFIG.get("pfad", "/mcp")
 _MCP_PFAD = f"/{_PFAD_TOKEN}{_BASIS_PFAD}" if _PFAD_TOKEN else _BASIS_PFAD
 # SYN-P1-004 (fail-open): Compose defaultete das Token auf leer - der Endpoint lag dann
