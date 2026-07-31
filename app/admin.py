@@ -135,18 +135,23 @@ def cmd_import(args) -> None:
                     sys.exit(f"Quelle '{kuerzel}': keine Markdown-Dateien unter {pfad} - "
                              f"Import abgebrochen, alter Bestand bleibt (A7).")
                 markdown = "\n\n".join(d.read_text(encoding="utf-8") for d in dateien)
-            # SYN-P0-007: Abenteuer-/Setting-Baende MUESSEN 'abenteuer_setting' tragen,
-            # sonst greift der Spoiler-Schutz nicht - und der ist die OBERSTE
-            # Verhaltensregel (SPEC.md par. 7). Der Default 'regelwerk' bleibt (ihn zur
-            # Pflicht zu machen hiesse, jeden bestehenden Config-Block zu brechen), aber
-            # er faellt nicht mehr STILL: bis zum 31.07.2026 stand hinterher nur
-            # "Import: N Eintraege", und ob dabei ein Abenteuerband ohne Kennzeichnung
-            # durchgelaufen war, sah man nirgends. `admin check` findet solche Faelle
-            # spaeter nur ueber eine Wortliste - die kennt den naechsten Bandtitel nicht.
+            # PFLICHT wie `edition` (Eigentuemer-Entscheidung 31.07.2026): `inhaltsart`
+            # entscheidet ueber die Spoiler-Kennzeichnung bis in die Tool-Ausgaben
+            # (SYN-P0-007) - die OBERSTE Verhaltensregel (SPEC.md par. 7). Der frueher
+            # stille Rueckfall auf 'regelwerk' war die einzige Stelle, an der eine neue
+            # Quelle diesen Schutz verlieren konnte, ohne dass irgendwo etwas stand: kein
+            # Fehler, keine Warnung, nur eine fehlende Kennzeichnung im Chat. `admin
+            # check` findet das hinterher nur ueber eine Wortliste - die kennt den Titel
+            # des naechsten Bandes nicht. Also lieber ein abgelehnter Import als ein
+            # ungekennzeichneter Abenteuerband: Regel 1 - nichts wird geraten.
             if not eintrag.get("inhaltsart"):
-                print(f"  Hinweis: '{kuerzel}' fuehrt kein inhaltsart in der config -> "
-                      f"'regelwerk'. Bei einem Abenteuer-/Kampagnenband waere das ein "
-                      f"Band OHNE Spoiler-Schutz (SPEC.md par. 7).")
+                sys.exit(
+                    f"Quelle '{kuerzel}': inhaltsart fehlt in der config - Import "
+                    f"abgelehnt (SYN-P0-007). Trage im [[quelle]]-Block genau eine der "
+                    f"beiden Zeilen ein:\n"
+                    f"  inhaltsart = \"regelwerk\"            # Regelband\n"
+                    f"  inhaltsart = \"abenteuer_setting\"    # Abenteuer-/Kampagnenband "
+                    f"-> Spoiler-Schutz")
             # A7: Quellen-Upsert + Ersetzen + FTS-Rebuild in EINER Transaktion - sonst
             # koennte ein fehlgeschlagener Import geaenderte Quellen-Metadaten (z. B.
             # edition) neben alten Eintraegen zuruecklassen (A8-Konsistenz).
@@ -157,7 +162,7 @@ def cmd_import(args) -> None:
                     herkunft=eintrag.get("herkunft", "pdf"), lizenz=eintrag.get("lizenz"),
                     prioritaet=eintrag.get("prioritaet", STANDARD_PRIORITAET),
                     dateipfad=eintrag.get("dateipfad"),
-                    inhaltsart=eintrag.get("inhaltsart", "regelwerk"))
+                    inhaltsart=eintrag["inhaltsart"])   # oben als Pflicht geprueft
                 n = importiere_markdown(c, kuerzel, markdown, edition=eintrag["edition"],
                                         kategorie=eintrag.get("kategorie", "regel"),
                                         erlaube_schrumpfen=force)

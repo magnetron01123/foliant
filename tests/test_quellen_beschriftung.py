@@ -205,16 +205,12 @@ def test_jede_seeder_marke_gilt_als_eigene_ableitung():
         f"{unbekannt} - app.glossar.EIGENE_ABLEITUNG_MARKEN ergaenzen.")
 
 
-def test_fehlendes_inhaltsart_faellt_beim_import_nicht_mehr_still_durch(tmp_path,
-                                                                        monkeypatch,
-                                                                        capsys):
+def test_import_ohne_inhaltsart_wird_abgelehnt(tmp_path, monkeypatch, capsys):
     """Die einzige Stelle, an der eine NEUE Quelle die oberste Verhaltensregel verlieren
-    kann: fehlt `inhaltsart` im [[quelle]]-Block, gilt 'regelwerk' - ein Abenteuerband
-    waere dann ohne Spoiler-Schutz im Bestand. Der Default bleibt (Pflicht zu machen
-    hiesse jeden bestehenden Block brechen), aber der Import sagt es jetzt.
-
-    `admin check` findet solche Faelle spaeter nur ueber eine Wortliste - die kennt den
-    Titel des naechsten Bandes nicht."""
+    konnte: fehlte `inhaltsart` im [[quelle]]-Block, galt still 'regelwerk' - ein
+    Abenteuerband landete dann ohne Spoiler-Schutz im Bestand, ohne Fehler und ohne
+    Warnung. Seit dem 31.07.2026 ist der Wert Pflicht wie `edition` (Regel 1: nichts wird
+    geraten). Lieber ein abgelehnter Import als ein ungekennzeichneter Band."""
     from app import admin, db as _db
     from tests.hilfen import neue_db
 
@@ -223,13 +219,33 @@ def test_fehlendes_inhaltsart_faellt_beim_import_nicht_mehr_still_durch(tmp_path
     md = tmp_path / "band.md"
     md.write_text("# Ein Kapitel\n\nGenug Text fuer einen Eintrag im Bestand.\n",
                   encoding="utf-8")
-
-    monkeypatch.setattr(_db, "lade_konfig", lambda: {"quelle": [
-        {"kuerzel": "neu-de", "titel": "Ein neuer Band", "sprache": "de",
-         "edition": "2024", "herkunft": "pdf", "dateipfad": str(md)}]})
+    block = {"kuerzel": "neu-de", "titel": "Ein neuer Band", "sprache": "de",
+             "edition": "2024", "herkunft": "pdf", "dateipfad": str(md)}
+    monkeypatch.setattr(_db, "lade_konfig", lambda: {"quelle": [block]})
     monkeypatch.setattr(_db, "projekt_pfad", lambda p: Path(p))
     monkeypatch.setattr(admin, "_web_db_auffrischen", lambda *_a, **_k: None)
-    admin.cmd_import(types.SimpleNamespace(quelle="neu-de", db=str(pfad), force=False))
 
-    ausgabe = capsys.readouterr().out
-    assert "kein inhaltsart" in ausgabe and "Spoiler-Schutz" in ausgabe, ausgabe
+    with pytest.raises(SystemExit) as abbruch:
+        admin.cmd_import(types.SimpleNamespace(quelle="neu-de", db=str(pfad), force=False))
+    meldung = str(abbruch.value)
+    assert "inhaltsart fehlt" in meldung
+    assert "abenteuer_setting" in meldung and "regelwerk" in meldung   # beide Werte genannt
+    # Und der Bestand ist unangetastet geblieben.
+    con = sqlite3.connect(pfad)
+    assert con.execute("SELECT count(*) FROM quellen").fetchone()[0] == 0
+    con.close()
+
+
+def test_verschriebene_inhaltsart_wird_nicht_als_regelwerk_verbucht():
+    """Der Wert wird gegen die erlaubten geprueft, nicht nur auf Anwesenheit. Alles
+    ausser 'abenteuer_setting' gilt naemlich als Regelwerk - ein verschriebenes
+    'abenteur_setting' naehme einem Band also genauso still den Spoiler-Schutz.
+
+    `db/schema.sql` traegt dafuer eine CHECK-Klausel, aber nur in FRISCH angelegten
+    Datenbanken. Auf dem Pi kam die Spalte per ALTER TABLE dazu; dort gibt es sie nicht
+    (am 31.07.2026 nachgesehen) - die Pruefung im Code ist also die einzige."""
+    con = _leere_db()
+    with pytest.raises(ValueError, match="inhaltsart"):
+        registriere_quelle(con, kuerzel="x", titel="X", sprache="de", edition="2024",
+                           herkunft="pdf", inhaltsart="abenteur_setting")
+    assert con.execute("SELECT count(*) FROM quellen").fetchone()[0] == 0

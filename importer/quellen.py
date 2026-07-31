@@ -27,6 +27,10 @@ import sqlite3
 # gesetzte Wertigkeit soll vorhandene Quellen nicht verdraengen (Q2).
 STANDARD_PRIORITAET = 100
 
+# Die einzigen erlaubten Inhaltsklassen (db/schema.sql). Sie entscheiden ueber die
+# Spoiler-Kennzeichnung bis in die Tool-Ausgaben (SYN-P0-007).
+INHALTSARTEN = frozenset({"regelwerk", "abenteuer_setting"})
+
 # --- Beschriftungs-Standard fuer Quellen ------------------------------------------
 # EINE Quelle wird ueberall mit denselben drei Angaben beschrieben, jede an ihrem
 # eigenen Platz:
@@ -119,6 +123,16 @@ def registriere_quelle(con: sqlite3.Connection, *, kuerzel: str, titel: str, spr
     faengt - der Import laeuft durch und schreibt Unsinn in die Provenienz."""
     if not (edition or "").strip():
         raise ValueError(f"Quelle {kuerzel!r} ohne Regelversion - Import abgelehnt (Q3/T11).")
+    # `db/schema.sql` traegt dafuer eine CHECK-Klausel - aber nur in FRISCH angelegten
+    # Datenbanken. Wo die Spalte per ALTER TABLE nachkam (`db.stelle_schema_sicher`),
+    # gibt es sie nicht; auf dem Pi am 31.07.2026 nachgesehen: keine CHECK-Klausel.
+    # Genau dort waere ein Tippfehler am teuersten - alles ausser 'abenteuer_setting'
+    # gilt als Regelwerk, ein verschriebenes 'abenteur_setting' naehme einem Band also
+    # still den Spoiler-Schutz (SPEC.md par. 7).
+    if inhaltsart not in INHALTSARTEN:
+        raise ValueError(
+            f"Quelle {kuerzel!r} mit unbekannter inhaltsart {inhaltsart!r} - erlaubt ist "
+            f"{' oder '.join(sorted(INHALTSARTEN))}. Import abgelehnt (SYN-P0-007).")
     # Beschriftungs-Standard hier und nicht in der Anzeige: sonst muesste ihn jede
     # Ausgabe (Website, Belegzeile, admin) einzeln nachbauen - und die Fassungen liefen
     # wieder auseinander, genau wie zuvor die drei INSERTs.
