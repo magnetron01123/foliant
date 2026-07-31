@@ -24,9 +24,12 @@ body {
 /* One-Pager (index): mehrere Karten untereinander, oben beginnend */
 body.lang { align-items: flex-start; }
 .seite { width: 100%; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
-/* Karten als Raster: eine Spalte, ab genug Platz zwei nebeneinander.
-   align-items: start, damit die kürzere Karte nicht auf Nachbarhöhe gezogen wird. */
-.inhalt { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+/* Karten als Raster: eine Spalte, ab genug Platz zwei oder drei nebeneinander.
+   Nebeneinander stehende Karten werden auf gleiche Höhe gezogen (Grid-Standard
+   `stretch`) - die drei sind sehr ungleich lang, und ein ausgefranster Fuß lässt das
+   Layout unfertig wirken. Der Preis ist warmer Papiergrund unter der kurzen Karte;
+   Eigentümer-Entscheidung vom 31.07.2026. */
+.inhalt { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
 .kopf { text-align: center; padding-top: 6px; }
 .kopf .marke {
   margin: 0;
@@ -50,8 +53,15 @@ body.lang { align-items: flex-start; }
   padding: 32px 30px;
   text-align: center;
 }
-/* Anmeldeseite: einzelne Karte direkt im zentrierten body — schmal halten. */
+/* Anmeldeseite: einzelne Karte direkt im zentrierten body — schmal halten. Sie ist eine
+   Handvoll Wörter über einem Eingabefeld, da ist die Zentrierung richtig. */
 body > .karte { max-width: 480px; }
+/* One-Pager: EINE Fluchtlinie je Karte. Zentrierter Fließtext beginnt in jeder Zeile
+   woanders — bei den mehrzeiligen Absätzen im Chat-Abschnitt und über einer Tabelle mit
+   Buchtiteln bricht das den Lesefluss, und nichts steht mehr bündig untereinander:
+   Überschrift, Absatz, Spaltenkopf und Buchtitel fingen an vier verschiedenen Stellen an.
+   Zentriert bleibt nur, was aus einer Zeile besteht (Seitenkopf und Fuß). */
+.inhalt .karte { text-align: left; }
 h1 { font-size: 1.5rem; margin: 0 0 8px; letter-spacing: .02em; }
 h2 { font-size: 1.4rem; margin: 0 0 8px; letter-spacing: .02em; }
 .unter { margin: 0 0 26px; font-size: .96rem; line-height: 1.4; opacity: .85; }
@@ -166,29 +176,39 @@ textarea.anweisung {
   .karte { padding: 26px 20px; }
   .kopf .marke { font-size: 1.7rem; }
 }
-/* Zwei Spalten erst, wenn jede Karte ihre volle einspaltige Breite (560px)
-   behält — sonst würde der Text auf dem großen Bildschirm ENGER umbrechen als
-   auf dem kleinen. 2 x 560 + 40 Spalte = 1160. Beide Spalten exakt gleich breit:
-   ungleiche Karten lassen das Layout aus der Achse gekippt wirken, auch wenn es
-   rechnerisch zentriert ist. */
+/* Spaltenzahl statt Spaltenbreite wachsen lassen. Eine Karte ist knapp 560px breit
+   gedacht; darüber wird der Fließtext nicht besser, sondern nur die Zeile länger.
+   Freier Platz kommt deshalb einer WEITEREN Spalte zugute, nicht einer breiteren.
+   2 x 560 + 40 Spalte = 1160 · 3 x 560 + 2 x 40 = 1760. */
 @media (min-width: 1260px) {
   .seite { max-width: 1160px; gap: 32px; }
   .inhalt { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; }
   /* Die drei Karten sind sehr ungleich hoch: der Charakterbogen ist kurz, der
      Claude-Chat-Abschnitt lang. Bei der automatischen Zeilen-Platzierung stand der
      Bestand deshalb als einzelne, volle Zeile UNTER beiden Spalten, und unter der
-     kurzen Karte blieb eine bildschirmhohe Lücke — nebenher lagen die Seitenränder
-     brach. Feste Platzierung statt Automatik: links die beiden kurzen Karten
-     übereinander, rechts die lange über beide Zeilen. Damit sind beide Spalten
-     annähernd gleich hoch und es gibt keinen angehängten dritten Block mehr. */
+     kurzen Karte blieb eine bildschirmhohe Lücke. Feste Platzierung statt Automatik:
+     links die beiden kurzen Karten übereinander, rechts die lange über beide Zeilen -
+     damit sind beide Spalten annähernd gleich hoch. */
   #bogen   { grid-column: 1; grid-row: 1; }
   #bestand { grid-column: 1; grid-row: 2; }
   #mcp     { grid-column: 2; grid-row: 1 / span 2; }
 }
-/* Ab hier steht so viel Rand frei, dass er der Seite mehr nützt als dem Bildschirm:
-   die Spalten werden breiter, nicht zahlreicher. Eine dritte Spalte hieße drei
-   schmale Karten — der Chat-Abschnitt und die Buchtabelle brauchen aber Breite. */
-@media (min-width: 1460px) { .seite { max-width: 1340px; } }
+/* Ab hier passen alle drei Karten nebeneinander, jede in ihrer gedachten Breite -
+   der Rand links und rechts schrumpft auf das, was ein Rand sein soll. Die
+   Zeilen-Platzierung von oben wird dafür wieder aufgehoben. Die Seite wächst danach
+   MIT dem Fenster (bis 2240px), statt bei einer festen Breite stehenzubleiben: auf
+   einem 2560er Monitor blieben sonst über 400px Rand je Seite stehen. */
+@media (min-width: 1800px) {
+  .seite { max-width: min(2240px, 100%); }
+  .inhalt { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; }
+  #bogen   { grid-column: 1; grid-row: 1; }
+  #mcp     { grid-column: 2; grid-row: 1; }
+  #bestand { grid-column: 3; grid-row: 1; }
+}
+/* Die breitere Karte soll nicht auch die längere Textzeile bedeuten: der Zuwachs geht
+   in den Rand INNERHALB der Karte. Die Fluchtlinie bleibt dabei erhalten - es rückt
+   alles gemeinsam ein, nicht nur der Fließtext. */
+@media (min-width: 2100px) { .karte { padding: 38px 52px; } }
 .fehler {
   margin: 18px 0 0;
   padding: 12px;
@@ -211,7 +231,7 @@ textarea.anweisung {
    als "ENGLISCH", also standen die Regelstand-Marken zeilenweise versetzt und die
    Liste war spaltenweise nicht lesbar. Die Karte zentriert ihren Text; eine Liste
    von Buchtiteln muss trotzdem links stehen. */
-.buecher { list-style: none; margin: 10px 0 0; padding: 0; text-align: left; }
+.buecher { list-style: none; margin: 10px 0 0; padding: 0; }
 .buch {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 5.6rem 6.6rem 3.6rem;
@@ -257,7 +277,6 @@ textarea.anweisung {
 #bestand h3 {
   margin: 18px 0 0; font-size: .82rem; letter-spacing: .08em;
   text-transform: uppercase; color: var(--rot); font-weight: 700;
-  text-align: left;
 }
 #bestand h3:first-of-type { margin-top: 14px; }
 
