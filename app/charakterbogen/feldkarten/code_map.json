@@ -1,14 +1,15 @@
 {
-  "beschreibung": "code_map (KONZEPT §7.3): feste Kürzel/Codes 1:1 gemappt, NIE ans LLM. Deterministisch, getestet.",
+  "beschreibung": "code_map (KONZEPT §7.3): feste Kürzel/Codes 1:1 gemappt, NIE ans LLM. Deterministisch, getestet. Enthält nur, was der Code auch liest — vier nie gelesene Schlüssel (attribut_tag, muenzen_reihenfolge, vorbereitet_marker, leerwert) sind am 31.07.2026 entfallen; sie sahen wie Konfiguration aus, standen aber hart im Code.",
   "zeitaufwand": {
-    "1A": "1 Aktion", "1BA": "1 Bonusaktion", "1R": "1 Reaktion", "1RA": "1 Reaktion",
-    "1M": "1 Minute", "10M": "10 Minuten", "1H": "1 Stunde", "8H": "8 Stunden", "24H": "24 Stunden",
+    "1A": "1 Aktion",
+    "1BA": "1 Bonusaktion",
+    "1R": "1 Reaktion",
+    "1RA": "1 Reaktion",
+    "1M": "1 Minute",
+    "10M": "10 Minuten",
+    "1H": "1 Stunde",
+    "8H": "8 Stunden",
+    "24H": "24 Stunden",
     "1SA": "Spezial"
-  },
-  "attribut_tag": {
-    "STR": "STÄ", "DEX": "GES", "CON": "KON", "INT": "INT", "WIS": "WEI", "CHA": "CHA"
-  },
-  "muenzen_reihenfolge": ["cp", "sp", "ep", "gp", "pp"],
-  "vorbereitet_marker": "O",
-  "leerwert": ["--", "—", ""]
+  }
 }

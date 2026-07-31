@@ -2,10 +2,6 @@
   "version": "de-wotc-2024-670D-v1",
   "beschreibung": "layout_map (KONZEPT §7.2): Canonical-Key -> Position auf dem offiziellen DE-WotC-Bogen 2024 (SHA 0f77e7d4, 670D...01 DE, 2 Seiten 603x774pt). Abgeleitet aus Label-Ankern + Vektor-Box-Rechtecken. Rects top-left-Origin, pt.",
   "seiten": 2,
-  "mediabox": [
-    603,
-    774
-  ],
   "ink": [
     0.13,
     0.13,

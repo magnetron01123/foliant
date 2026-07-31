@@ -38,6 +38,9 @@ class UeText:
     """
     en: str
     de: str | None = None
+    # "liste" fehlte hier bis zum 31.07.2026, obwohl der Uebersetzer sie fuehrt:
+    # Kategorie-Listen (Waffen, Werkzeuge, Sprachen) laufen item-weise deterministisch
+    # ueber das Glossar und NIE durch das Sprachmodell (SPEC.md C3).
     art: str = "text"
 
 

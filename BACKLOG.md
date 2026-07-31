@@ -162,7 +162,7 @@ Gesprächskontext (in-memory), voller Bestand mit Guild-Sperre (SPEC §12 Nr. 6)
 `claude-sonnet-5` (der gemessene Stand — gleiche Schleife wie der Eval, `app/llm.py`).
 - ✅ Code, Tests, Compose-Service, Doku
 - ⬜ **Discord-Seite (David):** Bot im Entwicklerportal anlegen, Token + Guild-ID in die
-  Pi-`.env`, Bot einladen (CONCEPT §8 „Discord-Bot einrichten")
+  Pi-`.env`, Bot einladen (CONCEPT §9 „Discord-Bot einrichten")
 - ⬜ Erst-Test in der echten Guild (`/regel`, Mention, Thread-Folgefrage, Limits)
 
 **Gate:** ein Mitspieler stellt eine Regelfrage in Discord und bekommt eine belegte
