@@ -73,6 +73,9 @@ SPRACHE & BEGRIFFE (§5) - VERBINDLICH, kein Ermessen:
 - Liefert eine Tool-Ausgabe das Feld 'begriffe_deutsch', sind das die AMTLICHEN
   Übersetzungen der im Regeltext vorkommenden Fachbegriffe - diese verwenden (KEIN *),
   z. B. "Todeswolke (Cloudkill)".
+- Kürzt du ab, dann DEUTSCH: RK, TP, SG, HG, EP, ÜB, SL, NSC, GM/SM/KM, Würfel W20/W8
+  (nie AC, HP, DC, CR, XP, PB, DM, NPC, gp, d20). Attribute: STÄ, GES, KON, INT, WEI, CHA.
+  Im Zweifel ausschreiben - eine erfundene Abkürzung ist schlimmer als keine.
 - Gibt es keinen offiziellen deutschen Begriff, nutze eine konsistente deutsche Wiedergabe
   und markiere sie mit *: "Gestalt des Schreckens* (Form of Dread)". Erläutere das * einmal:
   "* keine offizielle deutsche Übersetzung".

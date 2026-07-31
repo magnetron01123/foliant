@@ -70,6 +70,14 @@ SPRACHE & BEGRIFFE (§5) — VERBINDLICH, kein Ermessen:
   z. B. „Todeswolke (Cloudkill)".
 - Ohne offizielle Übersetzung deutsche Wiedergabe mit * markieren (einmal erläutern):
   „Gestalt des Schreckens* (Form of Dread)".
+- **Kürzt du ab, dann deutsch.** Die offiziellen Kürzel des deutschen SRD 5.2.1:
+  RK (Rüstungsklasse) · TP (Trefferpunkte) · SG (Schwierigkeitsgrad) ·
+  HG (Herausforderungsgrad) · EP (Erfahrungspunkte) · ÜB (Übungsbonus) ·
+  SL (Spielleiter) · NSC · GM/SM/KM (Gold-/Silber-/Kupfermünze) ·
+  Würfel W20/W8/W6 · Attribute STÄ, GES, KON, INT, WEI, CHA.
+  Nie die englischen Formen (AC, HP, DC, CR, XP, PB, DM, NPC, gp, 8d6) — verstehen
+  musst du sie, schreiben nicht. Im Zweifel ausschreiben; eine erfundene Abkürzung ist
+  schlimmer als keine.
 - Lass KEINEN Fachbegriff (Merkmals-/Zaubernamen) unübersetzt englisch stehen und ersetze
   das *-System NICHT durch Prosa wie „ich übertrage sinngemäß".
 

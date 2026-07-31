@@ -26,6 +26,7 @@ from pathlib import Path
 
 from app import dnddeutsch
 from app import glossar as _glossar
+from config import abkuerzungen as _abk
 from importer import namensreparatur as nr
 
 API_URL = dnddeutsch.API_URL                     # Default; [glossar].api_url gewinnt
@@ -64,12 +65,14 @@ KERNBEGRIFFE_EN = [
     "experience points", "darkvision", "blindsight", "truesight", "tremorsense",
 ]
 
-# Abkuerzungen als eigene Glossar-Zeilen (T7: 'AoO' -> selber Eintrag wie 'Gelegenheitsangriff').
-# Beide Richtungen, wo am Tisch ueblich: englische Kuerzel (AoO, HP) UND deutsche (RK, SG).
-ABKUERZUNGEN: list[tuple[str, str]] = [
-    ("AoO", "Gelegenheitsangriff"), ("HP", "Trefferpunkte"), ("AC", "Rüstungsklasse"),
-    ("DC", "Schwierigkeitsgrad"), ("CR", "Herausforderungsgrad"), ("XP", "Erfahrungspunkte"),
-    ("PB", "Übungsbonus"), ("THP", "Temporäre Trefferpunkte"), ("ASI", "Attributswerterhöhung"),
+# Abkuerzungen, die NICHT ins gemeinsame Register gehoeren (config/abkuerzungen.py):
+# Kuerzel ohne offizielle deutsche Entsprechung ('AoO', 'ASI') und die drei Langform->
+# Kuerzel-Zeilen, die dem Glossar den Rueckweg oeffnen ('Armor Class' -> 'RK'). Das
+# Register fuehrt, was eine ANTWORT verwenden soll; hier steht, was eine SUCHE zusaetzlich
+# finden koennen muss.
+ZUSATZ_ALIASSE: list[tuple[str, str]] = [
+    ("AoO", "Gelegenheitsangriff"), ("THP", "Temporäre Trefferpunkte"),
+    ("ASI", "Attributswerterhöhung"),
     ("Armor Class", "RK"), ("Difficulty Class", "SG"), ("Hit Points", "TP"),
 ]
 
@@ -812,10 +815,26 @@ def seed_kernwortschatz_aus_bestand(con: sqlite3.Connection) -> int:
 
 def seed_abkuerzungen(con: sqlite3.Connection) -> int:
     """Gaengige Kuerzel als eigene Zeilen (T7/B3); offiziell=1: die Zielbegriffe sind
-    offizielles Deutsch, das Kuerzel selbst ist nur ein Suchschluessel."""
-    for kurz, lang in ABKUERZUNGEN:
+    offizielles Deutsch, das Kuerzel selbst ist nur ein Suchschluessel.
+
+    Die Liste kommt seit dem 31.07.2026 aus `config/abkuerzungen.py` - dem EINEN Register,
+    das auch die Verhaltensregel und der Charakterbogen-Uebersetzer lesen. Vorher standen
+    hier zwoelf handgepflegte Paare, in denen die DEUTSCHEN Kuerzel weitgehend fehlten:
+    'XP' war eingetragen, das im deutschen SRD 388-fach belegte 'EP' nicht; ebenso fehlten
+    HG, UEB, GM, SL, W20. Wer 'EP' suchte, fand nichts, und keine Regel sagte dem Modell,
+    deutsch abzukuerzen.
+
+    Beide Richtungen landen als Zeile: die deutsche Abkuerzung (RK -> Ruestungsklasse) und
+    das englische Pendant (AC -> Ruestungsklasse). Fuer die SUCHE sind beide gleichwertig -
+    fuer die AUSGABE gilt die deutsche Form, und das steht in den Verhaltensregeln, nicht
+    im Glossar."""
+    # Wuerfel als englisch->deutsch: wer 'd20' sucht oder liest, soll 'W20' bekommen.
+    paare = (_abk.alle_such_aliasse()
+             + [(engl, deutsch) for deutsch, engl, _n in _abk.WUERFEL]
+             + ZUSATZ_ALIASSE)
+    for kurz, lang in paare:
         _upsert(con, kurz, lang, 1, "abkuerzung", None, None)
-    return len(ABKUERZUNGEN)
+    return len(paare)
 
 
 def seed_srd_paare(con: sqlite3.Connection) -> int:

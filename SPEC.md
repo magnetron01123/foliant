@@ -100,6 +100,12 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
 - **S11 — Konsistenz & robuste Begriffserkennung.** Ein Begriff hat **eine** kanonische
   deutsche Fassung. Die Erkennung normalisiert Flexion, Groß-/Kleinschreibung und Komposita,
   damit ein vorhandener offizieller Begriff nicht fälschlich ein `*` kassiert.
+- **S12 — Abkürzungen: deutsch schreiben, englisch verstehen.** Wo eine Auskunft abkürzt,
+  gilt die **offizielle deutsche** Form (RK, TP, SG, HG, EP, ÜB, W20 …) — nie die
+  englische (AC, HP, DC, CR, XP, PB, d20). Eine englische Abkürzung in der **Anfrage**
+  muss dagegen verstanden werden und zum deutschen Eintrag führen. Das Register steht in
+  `config/abkuerzungen.py`; jede empfohlene Form ist im deutschen SRD 5.2.1 belegt und
+  wird dagegen getestet — erfunden wird keine (Regel 1).
 
 > **Beispiel:** Inhalt aus „Ravenloft: Horrors Within" (EN, nicht übersetzt) → der Regeltext
 > bleibt englisch mit seiner Regelversion. Die deutschen Begriffe kommen aus „Van Richtens

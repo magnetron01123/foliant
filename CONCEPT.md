@@ -240,6 +240,16 @@ schreiben.
 - **Begriffs-Leiter (Deutsch):** aktuelles offizielles Deutsch 2024 → offizielles Deutsch aus
   Altbüchern + Ulisses-Glossar → inoffiziell (`*`) → keins (`*`). Englisches Original **immer**
   in Klammern.
+- **Abkürzungen (S12, 31.07.2026):** Das Register `config/abkuerzungen.py` ist die eine
+  Definition — der Glossar-Seeder, die Verhaltensregel und der Charakterbogen-Übersetzer
+  lesen dieselbe Liste. Zwei Richtungen mit verschiedenen Zusagen: **Ausgabe** deutsch
+  (RK, TP, SG, HG, EP, ÜB, W20, STÄ/GES/KON/INT/WEI/CHA), **Eingabe** versteht auch
+  englisch (AC, DC, CR, d20, STR → derselbe Eintrag). Jede empfohlene Form ist im
+  deutschen SRD 5.2.1 ausgezählt belegt (`tests/test_abkuerzungen.py` prüft das gegen den
+  echten Bestand). Vorher lag das Wissen an drei Stellen, die nichts voneinander wussten —
+  und ausgerechnet der MCP-Server hatte **keine** Regel, deutsch abzukürzen: im Glossar
+  standen `XP`, `CR`, `PB`, während das deutsche Buch 388-mal `EP`, 356-mal `HG` und
+  341-mal `ÜB` schreibt.
 - **Dubletten/Präzedenz** über `quellen.prioritaet` (dt. Quellen < DDB < Open5e; die
   Bänder stehen in `importer/quellen.py`, s. u.). Echte **Quellkonflikte gleicher
   Edition** werden nicht still entschieden, sondern ausgewiesen (SYN-P1-009).
