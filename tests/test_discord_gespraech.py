@@ -38,6 +38,23 @@ def test_zeichen_budget_kappt_aber_juengstes_paar_bleibt():
     assert [n["content"] for n in s.verlauf(1)] == ["kurz", "knapp"]
 
 
+def test_setze_uebernimmt_rekonstruierten_verlauf_und_kappt():
+    s = GespraechsSpeicher(max_nachrichten=4, uhr=Uhr())
+    s.setze(1, [{"role": "user", "content": f"F{i}"} if i % 2 == 0 else
+                {"role": "assistant", "content": f"A{i}"} for i in range(8)])
+    v = s.verlauf(1)
+    assert len(v) == 4 and v[0]["content"] == "F4"       # aelteste Paare fliegen
+    s.setze(1, [])                                       # zweiter Rebuild ersetzt
+    assert s.verlauf(1) == []
+
+
+def test_setze_macht_den_thread_auch_leer_bekannt():
+    """Sonst liefe der Vergessen-Hinweis bei jeder weiteren Nachricht erneut."""
+    s = GespraechsSpeicher(uhr=Uhr())
+    s.setze(1, [])
+    assert s.kennt(1)
+
+
 def test_ttl_vergisst_alte_threads():
     uhr = Uhr()
     s = GespraechsSpeicher(ttl_s=100, uhr=uhr)

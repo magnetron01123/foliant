@@ -66,9 +66,11 @@ Der MCP-Endpoint liegt lokal unter `http://localhost:8000/mcp` (Dev ohne Geheimp
 ### Foliant in Discord
 
 Auf dem Server der Runde: **`/regel <frage>`** eingeben oder **@Foliant** erwähnen — die
-Antwort öffnet einen Thread, in dem Nachfragen mit Gesprächskontext möglich sind. Nach
-einem Server-Neustart vergisst der Bot laufende Threads (er sagt es dort); dann die Frage
-einfach im Ganzen neu stellen. Es gilt ein gemeinsames Tageslimit als Kostendeckel.
+Antwort öffnet einen Thread, in dem Nachfragen mit Gesprächskontext möglich sind — auch
+nach einem Server-Neustart, denn der Bot liest den Thread dann aus der Discord-Historie
+zurück. Wer nur für sich nachschlagen möchte, hängt **`privat:True`** an `/regel`: die
+Antwort sieht dann niemand sonst, dafür gibt es keinen Thread für Nachfragen. Es gilt ein
+gemeinsames Tageslimit als Kostendeckel.
 Einrichtung (einmalig, Betreiber): [CONCEPT.md](CONCEPT.md) §9 „Discord-Bot einrichten".
 
 Betrieb, Deployment und die Import-Wege im Detail: [CONCEPT.md](CONCEPT.md) §8–9.

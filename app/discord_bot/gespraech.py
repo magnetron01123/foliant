@@ -1,7 +1,7 @@
 """Thread-Verlaeufe in-memory (Eigentuemer-Entscheidung 26.07.2026): ein Pi-Neustart
-vergisst laufende Gespraeche - der Bot sagt das im Thread ehrlich, statt still ohne
-Kontext weiterzureden. Persistenz waere neuer State ohne Not; die Discord-Historie
-bleibt als spaetere Rebuild-Quelle vorgemerkt (BACKLOG §4).
+loescht sie. Persistenz waere neuer State ohne Not - die Quelle ist die Discord-Historie
+selbst, aus der rebuild.py den Verlauf bei Bedarf zurueckliest (setze()). Nur wenn dort
+nichts Verwertbares steht, sagt der Bot ehrlich, dass er vergessen hat.
 
 Gespeichert werden NUR finale Texte (Frage/Antwort-Paare), keine Tool-Runden: jede
 Folgefrage faehrt ihre eigene Tool-Schleife - identisch zum Eval-Verhalten pro Frage,
@@ -19,10 +19,11 @@ def verlaufsschluessel(kanal, neuer_thread=None) -> int | None:
 
     Befund 31.07.2026: In `bot.py` trug eine einzige `kanal_id` beide Bedeutungen. Ein
     `/regel` IM Thread legte den Verlauf unter der Eltern-ID ab, waehrend die Folgefrage
-    ihn unter der Thread-ID suchte - und ihn nie fand. Der Nutzer bekam stattdessen
-    HINWEIS_VERGESSEN ("nach einem Neustart vergessen"), also eine falsche Begruendung
-    fuer etwas, das kein Neustart verursacht hat. Als eigene Funktion, weil `bot.py`
-    discord.py importiert und deshalb ohne diese Abhaengigkeit nicht testbar ist."""
+    ihn unter der Thread-ID suchte - und ihn nie fand. Seit der Verlaufs-Rekonstruktion
+    (PR #77) ist die Folge nicht mehr der Vergessen-Hinweis, sondern ein unnoetiger
+    Rueckgriff auf die Discord-Historie bei JEDER Folgefrage - der falsche Schluessel
+    bleibt derselbe. Als eigene Funktion, weil `bot.py` discord.py importiert und
+    deshalb ohne diese Abhaengigkeit nicht testbar ist."""
     if neuer_thread is not None:
         return neuer_thread.id
     return getattr(kanal, "id", None)
@@ -56,6 +57,17 @@ class GespraechsSpeicher:
             return []
         eintrag["zuletzt"] = self._uhr()
         return list(eintrag["verlauf"])
+
+    def setze(self, thread_id: int, verlauf: list[dict]) -> None:
+        """Einen rekonstruierten Verlauf einsetzen (rebuild.baue_verlauf nach einem
+        Neustart). Auch ein LEERER Verlauf wird gespeichert: der Thread gilt danach als
+        bekannt, der Bot bedient ihn wieder und fragt die Historie nicht bei jeder
+        Nachricht erneut ab. Die Deckel gelten unveraendert."""
+        self._raeume_auf()
+        eintrag = {"zuletzt": self._uhr(), "verlauf": list(verlauf)}
+        self._kappe(eintrag)
+        self._gespraeche[thread_id] = eintrag
+        self._verdraenge()
 
     def ergaenze(self, thread_id: int, frage: str, antwort: str) -> None:
         self._raeume_auf()

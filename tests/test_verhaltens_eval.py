@@ -2,14 +2,16 @@
 keine API-Aufrufe in `make test` (der echte Lauf kostet Tokens und ist bewusst ein
 separates Kommando: python -m evals.verhaltens_eval)."""
 from evals.faelle import FAELLE
-from evals.verhaltens_eval import BELEG_RE, projektanweisung, pruefe_deterministisch
+from evals.verhaltens_eval import (BELEG_RE, projektanweisung,
+                                   pruefe_deterministisch, systeme)
 
 
 def test_faelle_decken_die_backlog_checkliste():
     ids = [f["id"] for f in FAELLE]
     assert ids == sorted(set(ids), key=ids.index), "doppelte Fall-IDs"
     erwartet = {"A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "B5",
-                "C1", "C2", "C3", "D1", "D2", "D3", "E1", "E2"}
+                "C1", "C2", "C3", "D1", "D2", "D3", "E1", "E2",
+                "DC1", "DC2", "DC3"}
     assert set(ids) == erwartet
     for f in FAELLE:
         if f.get("uebersprungen"):
@@ -17,6 +19,44 @@ def test_faelle_decken_die_backlog_checkliste():
         assert f.get("frage"), f["id"]
         if f.get("richter"):
             assert f.get("rubrik"), f["id"]   # Richter braucht eine Rubrik
+        assert f.get("system", "standard") in ("standard", "discord"), f["id"]
+
+
+def test_nur_die_dc_faelle_fahren_den_discord_zusatz():
+    """Die tragenden Regeln (Grounding, Spoiler, Deutsch-first) muessen ohne den
+    Darstellungs-Zusatz gemessen bleiben - sonst misst der Eval eine Zusicherung,
+    die der Zusatz selbst mittraegt."""
+    mit_zusatz = {f["id"] for f in FAELLE if f.get("system") == "discord"}
+    assert mit_zusatz == {"DC1", "DC2", "DC3"}
+
+
+def test_systeme_enthalten_projektanweisung_und_discord_variante():
+    varianten = systeme()
+    assert varianten["standard"] == projektanweisung()
+    # Der Bot haengt den Zusatz an, ersetzt die Anweisung nie (haupt.py._system_prompt).
+    assert varianten["discord"].startswith(varianten["standard"])
+    assert "Codeblock" in varianten["discord"]
+
+
+def test_grader_erkennt_markdown_tabelle_nur_ausserhalb_von_codebloecken():
+    fall = dict(id="X", keine_md_tabelle=True)
+    tabelle = "| Name | Wert |\n|---|---|\n| RK | 15 |"
+    assert any("Markdown-Tabelle" in g
+               for g in pruefe_deterministisch(fall, tabelle, []))
+    # Dieselben Zeichen im Codeblock sind die ERLAUBTE Darstellung.
+    im_code = f"Statblock:\n```text\n{tabelle}\n```"
+    assert pruefe_deterministisch(fall, im_code, []) == []
+    # Ohne das Feld interessiert die Tabelle nicht (alle uebrigen Faelle).
+    assert pruefe_deterministisch(dict(id="X"), tabelle, []) == []
+
+
+def test_grader_haelt_normalen_text_mit_strichen_fuer_keine_tabelle():
+    """Fehlalarm-Absicherung: '-' und '|' kommen in echten Antworten vor."""
+    fall = dict(id="X", keine_md_tabelle=True)
+    for harmlos in ("Der Wert liegt bei 15-18 Punkten.",
+                    "Trefferpunkte - Ruestungsklasse - Bewegung",
+                    "Bedingung | Wirkung steht im Fliesstext."):
+        assert pruefe_deterministisch(fall, harmlos, []) == [], harmlos
 
 
 def test_eval_liest_die_projektanweisungs_datei():
