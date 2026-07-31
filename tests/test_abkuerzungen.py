@@ -215,3 +215,61 @@ def test_englische_abkuerzung_im_regeltext_wird_aufgeloest():
     tr = {z["term_en"] for z in g.begriffe_im_text(con, falle)}
     assert "PP" not in tr and "CP" not in tr, tr
     con.close()
+
+
+def test_abkuerzungen_verdraengen_keine_fachbegriffe():
+    """Review-Befund 31.07.2026: `begriffe_im_text` kappt auf max_treffer und sortiert
+    dabei alphabetisch - 'AC', 'CHA', 'CON', 'CR' stehen ganz vorn.
+
+    An einem langen Statblock (real gemessen: 2 von 5 laufen ins Limit) hätten sie späte
+    echte Begriffe wie 'Wisdom' verdrängt. Die fände das Modell dann nicht in
+    `begriffe_deutsch` und markierte sie mit '*', als gäbe es keine offizielle
+    Übersetzung - genau die Fehlerklasse, die das Feld verhindern soll (S5).
+
+    Deshalb gilt die Kappung nur den FACHBEGRIFFEN; Abkürzungen kommen zusätzlich."""
+    from app import glossar as g
+    from importer.import_glossar import seed_abkuerzungen
+
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.execute("CREATE TABLE glossar (id INTEGER PRIMARY KEY, term_en TEXT NOT NULL, "
+                "term_de TEXT NOT NULL, offiziell INTEGER NOT NULL, quelle TEXT, "
+                "edition_quelle TEXT, seite TEXT)")
+    con.execute("CREATE UNIQUE INDEX idx ON glossar(term_en, term_de)")
+    seed_abkuerzungen(con)
+    # Mehr Fachbegriffe als das Limit, absichtlich SPÄT im Alphabet
+    fach = [(f"Wondrous{i:02d}", f"Wundersam{i:02d}") for i in range(45)]
+    con.executemany("INSERT INTO glossar (term_en,term_de,offiziell,quelle) "
+                    "VALUES (?,?,1,'Spielerhandbuch')", fach)
+    con.commit()
+    g.leere_cache()
+
+    text = "AC 17, HP 150, CR 10. " + " ".join(en for en, _de in fach)
+    treffer = g.begriffe_im_text(con, text)
+    begriffe = [z for z in treffer if (z["quelle"] or "") != "abkuerzung"]
+    kuerzel = [z for z in treffer if (z["quelle"] or "") == "abkuerzung"]
+    con.close()
+
+    assert len(begriffe) == 40, f"Fachbegriffe bekommen ihr volles Limit: {len(begriffe)}"
+    assert {"AC", "HP", "CR"} <= {z["term_en"] for z in kuerzel}, kuerzel
+    g.leere_cache()
+
+
+def test_tool_beschreibung_nennt_nur_aufloesbare_kuerzel():
+    """Review-Befund 31.07.2026: Die Beschreibung warb mit 'STAE' - im Register steht
+    'STÄ' mit Umlaut, die Anfrage lief also ins Leere. Ein Werkzeug, das eine Eingabe
+    verspricht, die es nicht versteht, ist schlimmer als eines, das schweigt."""
+    import re as _re
+
+    from tests.test_verhaltensregeln import _tool_beschreibungen
+
+    bekannt = {k for k, _lang in abk.alle_such_aliasse()}
+    bekannt |= {e for _d, e, _n in abk.WUERFEL}
+    text = _tool_beschreibungen()["foliant_uebersetze_begriff"]
+    # Kandidaten: Grossbuchstaben-Folgen und Wuerfelnotation in der Beschreibung
+    genannt = set(_re.findall(r"\b(?:[A-ZÄÖÜ]{2,4}|d\d{1,3})\b", text))
+    # Keine Spielbegriffe: Sprachcodes ('DE<->EN') und Wörter, die der Text
+    # grossschreibt, um sie zu betonen.
+    kein_kuerzel = {"DE", "EN", "BEIDEN", "KERNREGELN"}
+    erfunden = genannt - bekannt - kein_kuerzel
+    assert not erfunden, f"nennt Kuerzel, die das Register nicht kennt: {erfunden}"

@@ -356,13 +356,25 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
         # (Warlock-Test 13.07.2026: Cloudkill/Bane/Greater Invisibility blieben englisch,
         # obwohl das Glossar Todeswolke/Verderben/Maechtige Unsichtbarkeit kennt).
         treffer = _glossar.begriffe_im_text(con, e.get("body_md") or "")
+        # Abkuerzungen getrennt ausweisen: Sie sind etwas anderes als ein Fachbegriff -
+        # 'AC' wird nicht "uebersetzt", sondern durch die deutsche Notation ERSETZT, und
+        # das Original gehoert dabei NICHT in Klammern dahinter ("RK (AC) 17" waere
+        # Unsinn). In einem Topf gaben beide dieselbe Anweisung, obwohl sie
+        # Verschiedenes verlangen.
+        begriffe = [z for z in treffer if (z["quelle"] or "") != "abkuerzung"]
+        kuerzel = [z for z in treffer if (z["quelle"] or "") == "abkuerzung"]
         hinweis = ("Regeltext liegt nur ENGLISCH vor. Antworte dennoch auf Deutsch und "
                    "uebersetze JEDEN englischen Fachbegriff: ")
-        if treffer:
-            d["begriffe_deutsch"] = {z["term_en"]: z["term_de"] for z in treffer}
+        if begriffe:
+            d["begriffe_deutsch"] = {z["term_en"]: z["term_de"] for z in begriffe}
             hinweis += ("die in 'begriffe_deutsch' aufgefuehrten Begriffe tragen die "
                         "OFFIZIELLE deutsche Form - diese verwenden (Original in Klammern, "
                         "KEIN *). ")
+        if kuerzel:
+            d["abkuerzungen_deutsch"] = {z["term_en"]: z["term_de"] for z in kuerzel}
+            hinweis += ("Die in 'abkuerzungen_deutsch' aufgefuehrten KUERZEL durch ihre "
+                        "deutsche Form ersetzen ('AC 17' -> 'RK 17') - hier gehoert das "
+                        "englische Kuerzel NICHT in Klammern dahinter. ")
         hinweis += ("Jeden weiteren englischen Fachbegriff (Merkmals-/Zaubernamen), der dort "
                     "nicht steht, konsistent deutsch wiedergeben und mit * markieren "
                     "('* keine offizielle deutsche Uebersetzung', einmal erlaeutern). Das "

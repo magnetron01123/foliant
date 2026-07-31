@@ -588,7 +588,7 @@ def foliant_uebersetze_begriff(begriff: str,
     deutsche Uebersetzung', S5). Ohne EXAKTEN Eintrag kommen hoechstens
     'aehnliche_begriffe' (Schreibvarianten) zurueck - die sind KEINE bestaetigte
     Uebersetzung des angefragten Begriffs. Versteht auch Abkuerzungen in BEIDEN Sprachen
-    (AC/DC/CR/d20/STR ebenso wie RK/SG/HG/W20/STAE) - ausgegeben wird die deutsche Form.
+    (AC/DC/CR/d20/STR ebenso wie RK/SG/HG/W20) - ausgegeben wird die deutsche Form.
     KERNREGELN: englisches Original immer in Klammern; nichts erfinden - kein Treffer
     heisst kein offizieller Begriff."""
     start = time.monotonic()

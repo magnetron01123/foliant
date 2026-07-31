@@ -99,8 +99,13 @@ def test_instruktion_bleibt_kompakt():
     dieses Satzes um rund 1400 Zeichen gewachsen, ohne dass jemand nachsah. Der dritte
     Weg loeste es ohne Regelverlust: ENTDOPPELN. Der Abschnitt "QUELLEN & VERSION" sagte
     dasselbe wie die Belegzeilen- und die Altstand-Regel darueber (und fehlte im zweiten
-    Kanal ganz), die "erste Nennung" stand zweimal da. Danach: 7154. Wer den Stand hier
-    kuenftig als Zahl liest, misst ihn besser selbst nach - dieser Satz veraltet."""
+    Kanal ganz), die "erste Nennung" stand zweimal da.
+
+    Der so gewonnene Platz ging noch am selben Tag fuer die Abkuerzungsregel (S12) drauf -
+    weshalb hier bewusst KEINE aktuelle Zahl mehr steht. Sie veraltet schneller, als
+    jemand sie nachtraegt, und eine falsche Zahl im Docstring ist genau das, was diesen
+    Test ueberhaupt noetig machte. Wer den Stand wissen will, misst ihn:
+    `len(config.stil.INSTRUCTIONS)`."""
     assert len(INSTRUCTIONS) < 7500, (
         f"stil.py INSTRUCTIONS: {len(INSTRUCTIONS)} Zeichen - erst kuerzen, dann anheben")
 

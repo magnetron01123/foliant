@@ -449,10 +449,21 @@ def begriffe_im_text(con: sqlite3.Connection, text: str, *,
             beste[enl] = z
     treffer = [z for z in beste.values()
                if re.search(r"\b" + re.escape(z["term_en"]) + r"\b", text, re.IGNORECASE)]
-    treffer += [z for z in genau.values()
-                if re.search(r"\b" + re.escape(z["term_en"]) + r"\b", text)]
     treffer.sort(key=lambda z: z["term_en"].lower())
-    return treffer[:max_treffer]
+    abkuerzungen = [z for z in genau.values()
+                    if re.search(r"\b" + re.escape(z["term_en"]) + r"\b", text)]
+    abkuerzungen.sort(key=lambda z: z["term_en"].lower())
+    # Die Kappung gilt nur den FACHBEGRIFFEN. Abkuerzungen kommen zusaetzlich, nicht
+    # stattdessen (Review-Befund 31.07.2026): Die Liste wird alphabetisch gekappt, und
+    # 'AC', 'CHA', 'CON', 'CR' stehen darin ganz vorn - an einem langen Statblock (real
+    # gemessen: 2 von 5 laufen ins Limit) haetten sie spaete echte Begriffe wie 'Wisdom'
+    # verdraengt. Die faende das Modell dann nicht in `begriffe_deutsch` und markierte sie
+    # mit '*', als gaebe es keine offizielle Uebersetzung - also genau die Fehlerklasse,
+    # die das Feld verhindern soll (S5).
+    #
+    # Der Aufschlag ist klein und gedeckelt: Das Register fuehrt ~50 Kuerzel, real trifft
+    # ein Statblock ein bis vier davon.
+    return treffer[:max_treffer] + abkuerzungen
 
 # --- Namensrelevanz -------------------------------------------------------
 # Am 30.07.2026 aus app/tools/nachschlagen.py hierher gezogen. Sie gehoert hierhin:
