@@ -475,3 +475,25 @@ def test_formatfehler_wird_genau_einmal_wiederholt():
     p = Wackelig()
     ergebnis, _ = uebersetzer._mit_wiederholung(p, {"0": "Fireball"})
     assert ergebnis == {"0": "de:Fireball"} and p.aufrufe == 2
+
+
+def test_gleichlautender_offizieller_begriff_bekommt_keinen_stern(con):
+    """SPEC.md T3/C1: ein offizieller Begriff erscheint OHNE '*'.
+
+    Regression 31.07.2026: `glossar.term_de` meldete "kein Beleg" durch Rückgabe der
+    Eingabe, und `terminologie.aufloesen` schloss aus `de == en` auf "unbelegt". Für
+    Begriffe, deren deutsche Form der englischen GLEICHT, war das falsch — im Bestand
+    sind das 111 Glossarzeilen, davon 110 offizielle (Aasimar, Aboleth, Alarm, Paladin,
+    Elf, Initiative, Charisma, Basilisk …). Der gedruckte Bogen behauptete mit
+    "Aasimar* (Aasimar)", es gebe keine offizielle deutsche Fassung."""
+    con.execute("INSERT INTO glossar (term_en, term_de, offiziell, quelle) "
+                "VALUES ('Aasimar','Aasimar',1,'SRD 5.2.1 (de)')")
+    con.commit()
+    glossar.leere_cache()
+
+    assert glossar.term_de(con, "Aasimar") == ("Aasimar", True)
+    assert terminologie.aufloesen(con, "Aasimar") == "Aasimar", (
+        "gleichlautender OFFIZIELLER Begriff darf weder Stern noch Klammer tragen")
+    # Unbelegtes bleibt unbelegt - der ehrliche Stern muss erhalten bleiben (S5).
+    assert glossar.term_de(con, "Mist Wanderer") is None
+    assert terminologie.aufloesen(con, "Mist Wanderer") is None

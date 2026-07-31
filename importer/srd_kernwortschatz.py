@@ -340,7 +340,8 @@ def _erzwinge_durch_ausschluss(con: sqlite3.Connection, bekannt: dict[str, str],
     from app import glossar as _g
     de_attribute = set(de_attr.values())          # die dt. Attributsnamen aus der Tabelle
     for a_en in ("Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"):
-        a_de, _off = _g.term_de(con, a_en)
+        treffer = _g.term_de(con, a_en)
+        a_de = treffer[0] if treffer else None
         # a_de == a_en ist KEIN Ausschluss: "Charisma" ist in beiden Sprachen gleich. Die Bindung
         # gilt, sobald a_de ein echter Attributsname aus der dt. Fertigkeiten-Tabelle ist.
         if a_de in de_attribute:

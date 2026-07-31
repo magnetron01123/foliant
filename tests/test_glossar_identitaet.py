@@ -54,8 +54,12 @@ def test_lookup_traegt_matchtyp(bestand):
         assert zeilen and all(z["match"] == "fuzzy" for z in zeilen)
         exakt = gl.lookup(con, "Reaktionen", richtung="de_en")
         assert exakt and exakt[0]["match"] == "exakt"
-        # term_de nutzt nur exakte Zeilen: fuer 'Actions' gibt es keine -> Fallback (S3/4).
-        assert gl.term_de(con, "Actions") == ("Actions", False)
+        # term_de nutzt nur exakte Zeilen: fuer 'Actions' gibt es keine -> None.
+        # Seit 31.07.2026 None statt ("Actions", False): das In-Band-Signal war von einem
+        # echten Treffer mit gleichlautendem Deutsch (Aasimar, Paladin, Charisma - 110
+        # offizielle Zeilen im Bestand) nicht unterscheidbar, und der Charakterbogen
+        # stempelte denen deshalb einen Stern auf.
+        assert gl.term_de(con, "Actions") is None
         assert gl.term_de(con, "Reactions") == ("Reaktionen", True)
     finally:
         con.close()

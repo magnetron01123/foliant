@@ -288,10 +288,20 @@ def lookup(con: sqlite3.Connection, begriff: str, richtung: str = "en_de") -> li
             + sorted(fuzzy, key=auswahlschluessel))
 
 
-def term_de(con: sqlite3.Connection, term_en: str) -> tuple[str, bool]:
-    """Liefert (deutscher_begriff, offiziell). offiziell=False -> Aufrufer setzt '*' (S5).
-    Kein EXAKTER Glossar-Treffer -> (term_en, False): es gibt (noch) keine belegte deutsche
-    Entsprechung; der Aufrufer nutzt dann eine markierte deutsche Wiedergabe (S3 Stufe 4).
+def term_de(con: sqlite3.Connection, term_en: str) -> tuple[str, bool] | None:
+    """Liefert (deutscher_begriff, offiziell) - oder None, wenn es KEINEN belegten
+    deutschen Begriff gibt. offiziell=False -> Aufrufer setzt '*' (S5).
+
+    None statt eines In-Band-Signals (31.07.2026): Diese Funktion gab bei fehlendem
+    Treffer `(term_en, False)` zurueck, und die Aufrufer schlossen aus `de == en` auf
+    "kein Beleg". Das ist falsch, sobald der deutsche Begriff dem englischen GLEICHT -
+    und das tun im Bestand 111 Glossarzeilen, davon 110 OFFIZIELLE: Aasimar, Aboleth,
+    Alarm, Paladin, Elf, Initiative, Charisma, Basilisk ... Der Charakterbogen-Uebersetzer
+    stempelte ihnen deshalb einen Stern auf ("Aasimar* (Aasimar)"), obwohl der Begriff
+    amtlich belegt ist - ein direkter Verstoss gegen SPEC.md T3/C1 und Projektregel 3.
+    Ein Rueckgabewert, der zwei Dinge bedeutet, laesst sich nicht auseinanderhalten;
+    also bedeutet er jetzt nur noch eines.
+
     Fuzzy-Zeilen zaehlen hier NIE (SYN-P0-001: sonst wird ein aehnlicher FREMDER Begriff
     zur 'offiziellen' Uebersetzung - Aktionen -> Reaktionen)."""
     zeilen = lookup_exakt(con, term_en, richtung="en_de")
@@ -303,7 +313,7 @@ def term_de(con: sqlite3.Connection, term_en: str) -> tuple[str, bool]:
         if ohne and ohne != term_en:
             zeilen = lookup_exakt(con, ohne, richtung="en_de")
     if not zeilen:
-        return (term_en, False)
+        return None
     beste = zeilen[0]
     return (beste["term_de"], bool(beste["offiziell"]))
 
