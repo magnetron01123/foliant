@@ -235,13 +235,16 @@ def _quellzeile(q: dict) -> dict:
 
 
 def _bestand_html(quellen: list[dict], glossar: list[dict] | None = None) -> str:
-    """Drei Gliederungspunkte: Regelwerke, Abenteuer/Settings, weitere Quellen.
+    """Vier Gliederungspunkte: Regelwerke, Errata/Regelauslegung, Abenteuer/Settings,
+    weitere Quellen.
 
-    Die Abenteuer-Trennung ist nicht Kosmetik - aus Abenteuerbänden gibt Foliant
-    Regelwerte heraus, aber keine Handlung (Spoiler-Schutz ist die oberste
-    Verhaltensregel), und genau das soll die Runde hier sehen.
+    Die Trennungen sind keine Kosmetik, sondern genau das, was die Runde über eine
+    Auskunft wissen muss: Aus Abenteuerbänden gibt Foliant Regelwerte heraus, aber keine
+    Handlung (Spoiler-Schutz ist die oberste Verhaltensregel). Und Errata sind kein
+    Regelbuch, sondern der Nachtrag dazu - stünden sie unter den Regelwerken, sähe die
+    Liste so aus, als hätte Foliant ein Buch mehr im Schrank, als es hat.
 
-    Die dritte Gruppe ist bewusst NICHT nach Bezugsweg geschnitten. Ein Versuch damit
+    Die letzte Gruppe ist bewusst NICHT nach Bezugsweg geschnitten. Ein Versuch damit
     (31.07.2026) trennte die beiden Fassungen desselben Werks: die deutsche SRD-Fassung
     stand unter den Regelwerken, die englische - weil über eine Schnittstelle geladen -
     daneben unter "weitere Quellen". Ob eine Regel als PDF oder über eine API hereinkam,
@@ -251,8 +254,13 @@ def _bestand_html(quellen: list[dict], glossar: list[dict] | None = None) -> str
     if not quellen:
         return ""
     groesste = max(q["eintraege"] or 0 for q in quellen) or 1
-    regel = [q for q in quellen if q["inhaltsart"] != "abenteuer_setting"]
+    # Nach inhaltsart aufteilen, und zwar mit einer POSITIVLISTE für die Regelwerke:
+    # ein `!= 'abenteuer_setting'` liess bis zum 31.07.2026 alles Neue unter den
+    # Regelwerken landen - die Errata-Quellen staenden dort als waeren sie Regelbuecher.
+    revision = [q for q in quellen if q["inhaltsart"] in ("errata", "regelauslegung")]
     abenteuer = [q for q in quellen if q["inhaltsart"] == "abenteuer_setting"]
+    sonder = {id(q) for q in revision} | {id(q) for q in abenteuer}
+    regel = [q for q in quellen if id(q) not in sonder]
     gesamt = sum(q["eintraege"] or 0 for q in quellen)
 
     html = [f'<p class="unter">Foliant schlägt in '
@@ -268,6 +276,16 @@ def _bestand_html(quellen: list[dict], glossar: list[dict] | None = None) -> str
             'Allgemeinwissen zu ergänzen. Deutsche Ausgaben haben Vorrang, und zu jeder '
             'Regel nennt es Buch, Seite und Regelstand.</p>'
             + _tabelle([_quellzeile(q) for q in regel],
+                       ("Buch", "Sprache", "Regelstand", "Einträge"), groesste))
+    if revision:
+        html.append(
+            '<h3>Errata &amp; Regelauslegung</h3>'
+            '<p class="mini">Kein eigener Regeltext, sondern die offiziellen Nachträge '
+            'dazu: <em>Errata</em> korrigieren eine gedruckte Stelle, eine '
+            '<em>Regelauslegung</em> beantwortet eine Streitfrage. Foliant nennt sie '
+            'immer zusammen mit dem Grundtext und sagt dazu, was davon die Korrektur '
+            'ist — es rechnet sie nie stillschweigend in das Buch hinein.</p>'
+            + _tabelle([_quellzeile(q) for q in revision],
                        ("Buch", "Sprache", "Regelstand", "Einträge"), groesste))
     if abenteuer:
         html.append(

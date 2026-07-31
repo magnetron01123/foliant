@@ -111,7 +111,8 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
 ## 4. Regelversionierung (sehr wichtig)
 
 - **V1 — Version bei der Ablage:** Jeder Eintrag trägt **zwingend** seine Regelversion —
-  Pflicht 2024 („5.5e") vs. 2014 („5e"); Quellbuch wo bekannt; Errata-Stand optional.
+  Pflicht 2024 („5.5e") vs. 2014 („5e"); Quellbuch wo bekannt; Errata-Stand optional
+  (seit 31.07.2026 als `quellen.versions_stand` ablegbar, siehe V9).
 - **V2 — Aktuell als Standard:** Auskünfte beziehen sich standardmäßig auf 2024.
 - **V3 — Version in der Antwort:** zusätzlich zu Quelle und ggf. Seite.
 - **V4 — Ältere Stände markieren**, mit Hinweis, dass eine Anpassung nötig sein kann.
@@ -122,6 +123,19 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
   (Quellbuch, Errata, Druckauflage) **ohne Migration** ergänzbar bleibt.
 - **V8 — Altregeln bewusst nutzbar:** Ältere Inhalte dürfen aufgenommen und durchsucht werden
   — gerade Regeln ohne 2024-Entsprechung. Bei Ausgabe **immer** deutlicher Hinweis (V4).
+- **V9 — Offizielle Nachträge stehen NEBEN dem Grundtext, nie darin.** Errata und
+  offizielle Regelauslegungen (Sage Advice) werden als **eigene Quellen** geführt
+  (`inhaltsart = "errata"` bzw. `"regelauslegung"`), nicht in den Buchtext eingerechnet.
+  Begründung: Ein eingerechneter Text wäre nicht mehr der Buchtext — die Provenienz ginge
+  verloren, `body_md` und damit der korpusweite `inhalts_hash` verschöben sich bei jedem
+  Errata-Update, und niemand könnte mehr sagen, was im Buch steht und was korrigiert wurde.
+  Die Ausgabe unterscheidet deshalb drei Dinge: **Regeltext**, **offizielle Errata** (📌,
+  die Korrektur gilt) und **offizielle Regelauslegung** (⚖️, kein Regelwortlaut).
+- **V10 — Quellen-Provenienz:** Eine Quelle kann festhalten, WELCHE Fassung im Bestand
+  steckt und woher sie kam: `versions_stand` (Errata-/Druckstand), `quell_url`,
+  `quell_hash` (sha256 der Quelldatei) und `importiert_am`. Alle vier sind optional —
+  eine Quelle ohne sie bleibt gültig, sie kann nur weniger über sich sagen. Geraten wird
+  nichts (Regel 1).
 
 **Verbindlich:** Editionen werden **NIE geraten.** Beim DDB-Import autoritativ aus der
 Buch-Datenbank, bei PDFs pro Buch explizit gesetzt. Unklar = **nicht importieren**.
@@ -189,6 +203,11 @@ Buch-Datenbank, bei PDFs pro Buch explizit gesetzt. Unklar = **nicht importieren
 - **B9 — Schnell & verfügbar im Spielbetrieb.**
 - **B10 — Einrichtung spielerfest:** klare Kurzanleitung plus Fallback-Hinweis (Custom
   Connectors sind Beta).
+- **B11 — Nachträge kenntlich machen (V9).** Stammt ein Treffer aus einer Errata-Quelle,
+  gehören **Grundtext und Korrektur zusammen** in die Antwort, mit der Aussage, dass die
+  Korrektur gilt (📌) — eine Korrektur zu verschweigen ist so falsch wie sie als eigene
+  Regel auszugeben. Eine offizielle Regelauslegung (⚖️) wird **als Auslegung**
+  gekennzeichnet und nie als Regelwortlaut zitiert.
 
 ### Die vier nicht verhandelbaren Kernregeln
 1. **Geerdet, keine Halluzination** (B1/B2)

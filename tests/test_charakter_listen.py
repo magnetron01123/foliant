@@ -4,7 +4,8 @@ Die Nachschlage-Werkzeuge hatten fuer diese Fehlerformen laengst Leitplanken; di
 Charakter-Werkzeuge daneben nicht - jede Leitplanke sass genau an dem Pfad, an dem der
 Fehler damals auffiel:
 
-  L1  `_markiere_abenteuer` lief in nachschlagen.py an JEDER Ausgabeliste, in charakter.py
+  L1  Die Inhaltsart-Kennzeichnung (damals `_markiere_abenteuer`, seit dem 31.07.2026
+      `_markiere_inhaltsart`) lief in nachschlagen.py an JEDER Ausgabeliste, in charakter.py
       an keiner einzigen. Die Optionslisten mischten Regelwerk und Abenteuer-/Setting-Band
       ununterscheidbar - gemessen am echten Bestand stammten 75 von 92 Talenten aus einem
       Abenteuerband, keines davon markiert. Spoiler-Schutz ist die OBERSTE Regel (B6).

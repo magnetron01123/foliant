@@ -24,7 +24,7 @@ from app.tools.ausgabe import (
     _alias_hinweis,
     _detail,
     _knapp,
-    _markiere_abenteuer,
+    _markiere_inhaltsart,
     _verbinde,
 )
 
@@ -237,7 +237,7 @@ def _waehle_kandidat(con, name: str, kategorie: str, edition: str,
                   "hinweis": (f"Keine Fassung der Regelversion {edition} im Bestand - "
                               f"vorhandene Fassungen siehe 'vorhandene_fassungen'; "
                               f"nicht still ersetzen (V5).")}
-        _markiere_abenteuer(con, absage, fassungen)
+        _markiere_inhaltsart(con, absage, fassungen)
         return _Auswahl(None, None, [], exakt, absage)
 
     # #1: reine Body-Erwaehnungen (deren Name gar nicht zur Anfrage passt, z. B.
@@ -264,7 +264,7 @@ def _waehle_kandidat(con, name: str, kategorie: str, edition: str,
     gezeigt = [_knapp(k, con) for k in (relevante or kandidaten)[:6]]
     absage = {"gefunden": False, "mehrdeutig": True,
               "kandidaten": gezeigt, "hinweis": HINWEIS_MEHRDEUTIG}
-    _markiere_abenteuer(con, absage, gezeigt)
+    _markiere_inhaltsart(con, absage, gezeigt)
     return _Auswahl(None, None, [], exakt, absage)
 
 
@@ -429,6 +429,25 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
                 f"⚠️ Dies ist die {voll['edition']}-Fassung. Es gibt AUCH eine "
                 f"{_db.STANDARD_EDITION}-Fassung im Bestand (siehe 'andere_fassungen') - "
                 f"die aktuelle Version nennen, sofern nicht bewusst die aeltere gewuenscht ist.")
+        # F7-Nachzug (Befund 30.07.2026): Fuehrt eine ANDERE Bestandsquelle denselben
+        # Eintrag, ist ihre Seite ein echter Beleg - "steht auch im Spielerhandbuch,
+        # S. 112". Bis hierher lag sie in der DB und fiel aus der Antwort; die Auskunft
+        # konnte nur die Fundstelle der Vorrangquelle nennen.
+        #
+        # Bewusst KEINE zweite Rangfolge (BACKLOG par. 4 riet ausdruecklich davon ab):
+        # das hier ist ein Beleg-Feld, kein Wettbewerb um den kanonischen Text. Und die
+        # Seiten sind Bestandswerte - fehlt eine, steht `null`, nie eine Schaetzung.
+        fundstellen = [f for f in (gewaehlt.get("weitere_fassungen") or [])
+                       if f.get("seite")]
+        if fundstellen:
+            antwort["weitere_fundstellen"] = gewaehlt["weitere_fassungen"]
+            antwort["hinweis_fundstellen"] = (
+                "Dieselbe Regel steht auch in den unter 'weitere_fundstellen' genannten "
+                "Bestandsquellen. Die Seitenangaben stammen aus dem Bestand - sie duerfen "
+                "genannt werden (hilfreich zum Nachschlagen am Tisch), aber NIE geraten "
+                "oder auf Quellen uebertragen, die dort nicht stehen (B1/F7).")
+        elif gewaehlt.get("weitere_fassungen"):
+            antwort["weitere_fundstellen"] = gewaehlt["weitere_fassungen"]
         konflikte, fremdsprachige = _quellabweichungen(
             con, voll, gewaehlt, exakt, weitere_abschnitte)
         if fremdsprachige:
@@ -449,7 +468,7 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
         # Abenteuer-Kennzeichnung NICHT - nur die Trefferliste der Suche und der
         # gelieferte Eintrag selbst. `weitere_abschnitte`/`andere_fassungen` fuehren aber
         # ebenfalls einen `auszug` aus dem Bestand mit, also denselben Spoiler-Weg.
-        _markiere_abenteuer(con, antwort, antwort.get("weitere_abschnitte") or [],
+        _markiere_inhaltsart(con, antwort, antwort.get("weitere_abschnitte") or [],
                             antwort.get("andere_fassungen") or [])
         return antwort
     finally:

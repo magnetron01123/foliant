@@ -163,6 +163,14 @@ SPLIT_REGELN: dict[str, list[tuple[str, int, str | None]]] = {
     "phb-2014-de": [(r"", 6, "regel")],
     "xgte-2014-de": [(r"", 6, "regel")],
     "scag-2014-de": [(r"", 6, "regel")],
+    # Errata-PDFs (WotC, offizielle Korrekturen). Ihre Eintragsebene entsteht erst durch
+    # _errata_headings unten, das aus den fetten Absatzkoepfen H3-Ueberschriften macht -
+    # deshalb Level 3. Kategorie durchgehend 'regel': ein Erratum ist keine Regel ihrer
+    # Kategorie, sondern eine AUSSAGE UEBER eine; es nach Zauber/Monster zu sortieren
+    # waere geraten, solange die Rubriken der PDFs nicht am echten Dokument geprueft sind.
+    "errata-phb-2024-en": [(r"", 3, "regel")],
+    "errata-dmg-2024-en": [(r"", 3, "regel")],
+    "errata-mm-2025-en": [(r"", 3, "regel")],
 }
 
 
@@ -320,7 +328,59 @@ def _srd_de_reparatur(markdown: str) -> str:
     return markdown
 
 
+# Ein Errata-Korrektureintrag: fetter Absatzkopf mit der betroffenen Regel und der Seite
+# im Grundbuch, dann der Korrekturtext ('**Jumping (p. 30).** The rules for jumping ...').
+# Beide Fettvarianten, weil pymupdf4llm die schliessenden Sterne mal vor, mal nach dem
+# Satzpunkt setzt; 'p.'/'pp.'/'page', weil die PDFs beides fuehren.
+_ERRATA_KOPF = re.compile(
+    r"^\*\*(?P<name>[^*\n]+?)\s*\(\s*(?:pp?\.|page)\s*(?P<seite>[\d–—, -]+?)\s*\)"
+    r"\s*\.?\s*\*\*\.?\s*", re.M)
+
+
+def _errata_headings(markdown: str) -> str:
+    """Aus den fetten Absatzkoepfen eines Errata-PDFs echte Ueberschriften machen.
+
+    Warum ueberhaupt: Errata-PDFs haben keine Heading-Struktur, die pymupdf4llm erkennen
+    koennte - jede Korrektur ist ein Absatz. Ohne diesen Schritt entstuende EIN Riesen-
+    Chunk je Rubrik, in dem die Suche nichts findet (derselbe Fehler wie bei den
+    2014-Scans, Befund 27.07.2026).
+
+    Der Eintragsname wird der Name der BETROFFENEN REGEL - nur so findet das Erratum, wer
+    nach der Regel sucht. Genau darum kollidiert es im Bestand mit dem Grundtext, und
+    genau deshalb nimmt app/db._dedupe_und_sortiere Revisionsquellen aus der
+    Dublettengruppe heraus.
+
+    Die Seite im GRUNDBUCH wandert in den Body, nicht nach `eintraege.seite`: dort steht
+    die Fundstelle in DIESER Quelle (also im Errata-PDF selbst, aus den Seitenmarkern).
+    Eine Buchseite in dieses Feld zu schreiben hiesse zu behaupten, das Erratum stuende
+    dort - es sagt nur etwas UEBER diese Seite.
+
+    ACHTUNG, an echten Daten noch nicht justiert (31.07.2026): Die drei Errata-PDFs lagen
+    bei der Umsetzung nicht vor, das Muster ist aus dem veroeffentlichten Aufbau
+    abgeleitet. Greift es nicht, meldet die Bilanz das als WIRKUNGSLOS statt still einen
+    Riesen-Chunk anzulegen - beim ersten echten Import also die Bilanzzeile lesen."""
+    treffer = 0
+
+    def ersetze(m: re.Match) -> str:
+        nonlocal treffer
+        treffer += 1
+        # Auszeichnung aus dem NAMEN nehmen: die Errata setzen Zaubernamen teils kursiv
+        # ('**_Fireball_ (p. 275).**'), und die Unterstriche wanderten sonst in den
+        # Eintragsnamen - '_Fireball_' fände weder die Suche noch die Glossar-Brücke.
+        name = m.group("name").strip().strip("_*").strip()
+        return (f"### {name}\n\n"
+                f"**Offizielle Korrektur zu S. {m.group('seite').strip()} im Grundbuch.** ")
+
+    ergebnis = _ERRATA_KOPF.sub(ersetze, markdown)
+    if not treffer:
+        _BILANZ.greift_nicht("_errata_headings (kein '**Regel (p. N).**'-Kopf gefunden)")
+    return ergebnis
+
+
 BEREINIGUNG: dict[str, list] = {
+    "errata-phb-2024-en": [_errata_headings],
+    "errata-dmg-2024-en": [_errata_headings],
+    "errata-mm-2025-en": [_errata_headings],
     # srd-de (SYN-P0-004/P1-010, Synthese 2026-07-12): Strukturreparaturen als Callable,
     # danach Textpolitur. Reihenfolge: Struktur zuerst (Anker enthalten Laufkopf-freie
     # Absaetze nicht zwingend), dann Laufkopf/Risse.

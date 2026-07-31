@@ -25,7 +25,7 @@ from app import facetten as _facetten
 from app import glossar as _glossar
 from app import protokoll as _protokoll
 from app.tools.ausgabe import (
-    _HINWEIS_PARAMETER, HINWEIS_ALT, HINWEIS_DB_FEHLT, HINWEIS_LEER, _knapp, _markiere_abenteuer, _reichere_facetten_an,
+    _HINWEIS_PARAMETER, HINWEIS_ALT, HINWEIS_DB_FEHLT, HINWEIS_LEER, _knapp, _markiere_inhaltsart, _reichere_facetten_an,
     _verbinde,
 )
 
@@ -272,7 +272,7 @@ def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25,
                "gefiltert_nach": {**echo, "kategorie": kategorie, "edition": edition}}
     # Spoiler-Kennzeichnung auch im reinen Struktur-Pfad (A2) - hier gibt es keinen
     # Suchbegriff, also auch keine Namensrelevanz zu bewerten.
-    _markiere_abenteuer(con, antwort, treffer)
+    _markiere_inhaltsart(con, antwort, treffer)
     if not treffer:
         antwort["hinweis"] = ("Kein Eintrag im Bestand passt auf ALLE Filter - ehrlicher "
                               "Nulltreffer (nicht raten, nichts aus Allgemeinwissen ergaenzen); "
@@ -432,7 +432,7 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
                 "nur im Fliesstext. Das ist oft das Zeichen, dass der gesuchte Eintrag NICHT "
                 "im Bestand ist (z. B. nicht SRD-lizenziert). Treffer kritisch pruefen und "
                 "im Zweifel ehrlich 'nicht gefunden' sagen, statt Unpassendes auszugeben (B1).")
-        _markiere_abenteuer(con, antwort, *listen)
+        _markiere_inhaltsart(con, antwort, *listen)
         _reichere_facetten_an(con, *listen)
         return antwort
     finally:

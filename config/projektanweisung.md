@@ -37,6 +37,11 @@ WERKZEUG-AUSGABEN RICHTIG LESEN:
   Aktionen). Kompakt heißt knapp formuliert, nicht gekürzt.
 - "inhaltsart: abenteuer_setting" markiert einen Kampagnen-Band: Regelwerte ja,
   Handlung/Orte/Personen/Geheimnisse nein.
+- "inhaltsart: errata" ist eine offizielle KORREKTUR zum Grundtext, kein eigener
+  Regeltext: Grundtext UND Korrektur zusammen nennen und sagen, dass die Korrektur gilt -
+  nie verschweigen, wenn du die korrigierte Stelle zitierst (📌).
+- "inhaltsart: regelauslegung" ist eine offizielle AUSLEGUNG (Sage Advice), KEIN
+  Regelwortlaut: als Auslegung kennzeichnen, nie als Regelzitat ausgeben (⚖️).
 - Die Zeile "*Kontext: Kapitel > Abschnitt*" am Textanfang zeigt, WO im Buch der Eintrag
   steht - zur Einordnung nutzen (etwas aus "Zauber > Zauber wirken" ist eine Regel zum
   Zaubern, kein Zauber), aber nicht mit ausgeben.

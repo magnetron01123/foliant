@@ -19,8 +19,9 @@ def init_db(db_path: str | Path) -> None:
         con.execute("PRAGMA foreign_keys=ON;")
         con.executescript(SCHEMA.read_text(encoding="utf-8"))
         # Schema-Version (codex TECH-019): Grundlage fuer kuenftige Migrationen. v2 =
-        # quellen.inhaltsart + CHECK-Constraints (siehe schema.sql-Kopf).
-        con.execute("PRAGMA user_version = 2;")
+        # quellen.inhaltsart + CHECK-Constraints, v3 = die vier Provenienz-Spalten plus
+        # die inhaltsart-Werte 'errata'/'regelauslegung' (siehe schema.sql-Kopf).
+        con.execute("PRAGMA user_version = 3;")
         con.commit()
     finally:
         con.close()

@@ -148,6 +148,12 @@ Umgangston: freundlich, respektvoll, sachlich — im Zweifel gilt der
   (https://creativecommons.org/licenses/by/4.0/legalcode).
 - **Open5e** (`api.open5e.com`): OGL 1.0a (srd-2014) bzw. CC-BY-4.0 (srd-2024); Attribution
   gemäß den jeweiligen Open5e-Dokumenten.
+- **Offizielle Errata** (PHB/DMG/MM): von Wizards of the Coast frei zum Herunterladen
+  angeboten, aber **nicht** frei lizenziert — „frei verteilt" ist keine offene Lizenz. Sie
+  werden wie die Kaufbücher behandelt (nicht mitgeliefert, nur für den Eigenbedarf) und
+  tragen deshalb `lizenz = "WotC (frei verteilt, keine offene Lizenz)"`. Der Präfix
+  `CC-BY` wird bewusst vermieden: er löst in der Ausgabe automatisch die SRD-Attribution
+  aus, und die wäre hier eine falsche Rechtsaussage.
 - **Deutsche Begriffe** u. a. über dnddeutsch.de (Ulisses-Terminologie).
 - **Kommerzielle D&D-Bücher** (z. B. via D&D Beyond) sind urheberrechtlich geschützt, werden
   nicht mitgeliefert und nur privat, rechtmäßig erworben und zum Eigenbedarf verarbeitet

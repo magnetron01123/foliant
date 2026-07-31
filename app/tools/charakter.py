@@ -221,7 +221,7 @@ def _zeile(con, g: dict, **extra) -> dict:
     # eintrag_id/quelle_kuerzel (Review 30.07.2026): Die Listen brachen zwei Zusagen,
     # die der Suchpfad einhaelt. Ohne eintrag_id war der Rundlauf Liste->Detail nicht
     # moeglich (SYN-P1-002 sichert genau das zu, _knapp setzt es seit jeher). Ohne
-    # quelle_kuerzel konnte _markiere_abenteuer nicht greifen - die Optionslisten
+    # quelle_kuerzel konnte _markiere_inhaltsart nicht greifen - die Optionslisten
     # lieferten Abenteuer-/Setting-Inhalte voellig unmarkiert aus, obwohl der
     # Spoiler-Schutz die OBERSTE Regel ist (belegt: 'Aberrantes Drachenmal' aus
     # Eberron stand ununterscheidbar zwischen den SRD-Talenten).
@@ -266,7 +266,7 @@ def _liste(kategorie: str, schluessel: str, schritt_hinweis: str) -> dict:
         zeilen.sort(key=lambda z: _glossar.norm_begriff(z["name_de"] or z["name_en"]))
         antwort = {schluessel: zeilen, "hinweis_reihenfolge": schritt_hinweis,
                    "hinweis": _HINWEIS_BESTAND}
-        _aus._markiere_abenteuer(con, antwort, zeilen)
+        _aus._markiere_inhaltsart(con, antwort, zeilen)
         if not zeilen:
             antwort["hinweis"] = _aus.HINWEIS_LEER
         return antwort
@@ -424,7 +424,7 @@ def _liste_klassen() -> dict:
                    "hinweis": _HINWEIS_BESTAND}
         # Auch die geschachtelten Unterklassen kennzeichnen - sie tragen dieselbe
         # Herkunft und sind fuer den Spoiler-Schutz kein Sonderfall.
-        _aus._markiere_abenteuer(con, antwort, klassen,
+        _aus._markiere_inhaltsart(con, antwort, klassen,
                                 *[k.get("unterklassen") or [] for k in klassen])
         if not klassen:
             antwort["hinweis"] = _aus.HINWEIS_LEER

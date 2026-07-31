@@ -2,11 +2,16 @@
 -- Setzt um: §5 (Datenmodell), §6/V1 (Version Pflicht), Q1–Q3 (Suche/Dubletten/keine
 -- verwaisten Inhalte), S3/S9/S11 (Glossar, Herkunft, Konsistenz). Journal-Mode: init_db.py.
 --
--- SCHEMA-VERSION (codex TECH-019): init_db.py setzt PRAGMA user_version = 2. Version 2
--- fuegte gegenueber v1 die Spalte quellen.inhaltsart (SYN-P0-007) plus die CHECK-
--- Constraints unten hinzu. CHECK gilt nur fuer NEU angelegte DBs; Bestands-DBs auf dem
--- Pi ruesten die Importer die Spalte defensiv per ALTER nach (die CHECKs fehlen dort,
--- deshalb bleibt die Laufzeit-/admin-check-Validierung die zweite Leitplanke).
+-- SCHEMA-VERSION (codex TECH-019): init_db.py setzt PRAGMA user_version = 3. Version 2
+-- fuegte gegenueber v1 die Spalte quellen.inhaltsart (SYN-P0-007) plus CHECK-Constraints
+-- hinzu. Version 3 ergaenzte die vier Provenienz-Spalten (importiert_am, versions_stand,
+-- quell_url, quell_hash), die inhaltsart-Werte 'errata'/'regelauslegung' - und nahm den
+-- CHECK auf inhaltsart wieder heraus (Begruendung an der Spalte).
+-- Grundsatz fuer JEDEN CHECK hier: er gilt nur fuer NEU angelegte DBs. Bestands-DBs
+-- ruesten Spalten per ALTER nach, und dabei entsteht keine Constraint - die Laufzeit-
+-- Validierung (importer/quellen.py, admin check) ist deshalb die tragende Leitplanke,
+-- nicht das Schema. Ein CHECK auf einem Wertraum, der noch waechst, ist zudem eine
+-- Migrationsfalle: erweitern laesst er sich nur durch einen Tabellen-Neuaufbau.
 -- edition bewusst NUR non-empty (nicht auf 2024/2014 fixiert) - V7 verlangt ein
 -- erweiterbares Versionsschema (kuenftige Editionen ohne Migration).
 
@@ -19,13 +24,42 @@ CREATE TABLE IF NOT EXISTS quellen (
     herkunft   TEXT NOT NULL,               -- 'pdf' | 'ddb' | 'srd-md' | 'open5e' | 'manuell'
     lizenz     TEXT,                        -- 'CC-BY-4.0' | 'privat'
     prioritaet INTEGER NOT NULL DEFAULT 100,-- Dubletten-Präzedenz (Q2); kleiner = Vorrang
-    -- SYN-P0-007: Abenteuer-/Setting-Inhalt PERSISTENT kennzeichnen (nicht nur als
-    -- Konsolen-Print beim Export) — 'regelwerk' | 'abenteuer_setting'. Playtest wird
-    -- gar nicht erst importiert. Bestands-DBs ohne Spalte rüsten die Importer defensiv
-    -- per ALTER TABLE nach (import_ddb.py / admin.py).
-    inhaltsart TEXT NOT NULL DEFAULT 'regelwerk'
-               CHECK (inhaltsart IN ('regelwerk','abenteuer_setting')),
-    dateipfad  TEXT
+    -- SYN-P0-007: Art des Inhalts PERSISTENT kennzeichnen (nicht nur als Konsolen-Print
+    -- beim Export). Der Wert entscheidet, welchen Hinweis eine Antwort daraus trägt:
+    --   'regelwerk'        — der Normalfall, keine Sonderkennzeichnung
+    --   'abenteuer_setting'— Spoiler-Schutz 🚫 (oberste Regel); Playtest wird gar nicht
+    --                        erst importiert
+    --   'errata'           — offizielle KORREKTUR zum Grundtext (📌). Steht als eigene
+    --                        Quelle neben dem Grundtext, wird nie in ihn eingerechnet:
+    --                        ein stilles Überschreiben nähme der Auskunft die Provenienz
+    --                        und veränderte body_md (und damit den inhalts_hash).
+    --   'regelauslegung'   — offizielle AUSLEGUNG (Sage Advice, ⚖️), kein Regeltext.
+    -- BEWUSST OHNE CHECK-Klausel (31.07.2026) - aus demselben Grund wie bei `edition`
+    -- oben: ein fixierter Wertraum erzwingt eine Migration, sobald ein Wert dazukommt.
+    -- Und zwar eine, die SQLite nicht kann: `CREATE TABLE IF NOT EXISTS` erneuert eine
+    -- BESTEHENDE Tabelle nicht, `ALTER TABLE` erzeugt keine Constraint - der alte CHECK
+    -- bliebe stehen und lehnte den neuen Wert ab. Genau das passierte beim Zuwachs auf
+    -- 'errata'/'regelauslegung': eine mit v2 angelegte Datenbank quittierte den
+    -- Errata-Import mit "IntegrityError: CHECK constraint failed" (real reproduziert).
+    -- Ihn zu erneuern hiesse, `quellen` bei jedem connect() neu aufzubauen (CREATE +
+    -- COPY + DROP + RENAME) - ein destruktiver Schritt auf der Produktions-DB als Preis
+    -- fuer eine Prüfung, die es doppelt gibt.
+    -- Der Wertraum steht deshalb allein in `importer/quellen.INHALTSARTEN` und wird dort
+    -- geprueft: `registriere_quelle` ist der EINE Schreibweg in diese Tabelle, also greift
+    -- die Pruefung auf JEDER Datenbank - auch auf denen, die nie einen CHECK hatten (der
+    -- Pi hat keinen). `admin check` meldet zusaetzlich unbekannte Werte im Bestand, was
+    -- ein CHECK nicht kann: er verhindert nur neue, findet keine vorhandenen.
+    inhaltsart TEXT NOT NULL DEFAULT 'regelwerk',
+    dateipfad  TEXT,
+    -- Provenienz der QUELLE (v3). Bis dahin trug der Bestand nur einen korpusweiten
+    -- Fingerabdruck (`admin manifest`) - "diese Quelle wurde am X in Fassung Y gezogen"
+    -- war nicht darstellbar, und der Errata-Stand aus SPEC V1 hatte keinen Platz.
+    -- Alle vier sind optional: eine Quelle ohne Angabe bleibt gültig (V7), sie kann nur
+    -- weniger über sich sagen. Geraten wird nichts.
+    importiert_am  TEXT,   -- ISO-8601 UTC des letzten Imports; setzt registriere_quelle
+    versions_stand TEXT,   -- Druck-/Errata-Stand, z. B. 'Errata Version 1.0 (2025-02)'
+    quell_url      TEXT,   -- Bezugsadresse der Quelldatei, wo es eine gibt
+    quell_hash     TEXT    -- sha256 der Quelldatei zum Importzeitpunkt
 );
 
 -- Inhalts-Chunks. edition NOT NULL erzwingt "keine verwaisten Inhalte" (Q3/V1).

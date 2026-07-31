@@ -27,7 +27,21 @@ max_zeilen = 50000
 api_url = "https://www.dnddeutsch.de/tools/json.php"
 
 # Quellen-Register: was importiert wird, mit welcher Version/Priorität.
-# prioritaet: kleiner = Vorrang bei Dubletten (Q2).
+#
+# prioritaet: kleiner = Vorrang bei Dubletten (Q2). Die Zahl folgt den PRIORITÄTSBÄNDERN
+#   aus importer/quellen.py — dort steht auch, warum sie so liegen. `admin check` meldet
+#   Quellen, die aus ihrem Band fallen:
+#     10  deutsches Kernregelwerk 2024 (Kaufbuch)   40  englische Kaufbücher (DDB/PDF)
+#     20  deutsches SRD / freie deutsche Quellen    60  englische freie API-/SRD-Quellen
+#     30  deutsche Altbücher 2014 (Scans)           70  Errata & offizielle Regelauslegung
+#   Innerhalb eines Bandes darf feinsortiert werden (ein Band ist zehn breit) — die
+#   Bänder ordnen die KLASSEN, nicht die einzelnen Bücher.
+#
+# versions_stand / quell_url (optional): welche Fassung hier drinsteckt und woher sie
+#   kommt — z. B. versions_stand = "Errata Version 1.0" oder "3. Druckauflage". Der
+#   Import ergänzt beides um `importiert_am` und `quell_hash` (sha256 der Datei), damit
+#   später nachvollziehbar bleibt, WELCHE Datei den Bestand erzeugt hat. Ohne Angabe
+#   bleibt das Feld leer — geraten wird nichts.
 #
 # titel = NUR der Werktitel des Buches, so wie es sich selbst nennt.
 #   Kein "(Deutsch)", kein "(2014)", kein "(D&D Beyond)", kein "(Druck)" — Sprache,
@@ -35,7 +49,13 @@ api_url = "https://www.dnddeutsch.de/tools/json.php"
 #   werden daraus überall einheitlich angezeigt (Beschriftungs-Standard,
 #   importer/quellen.py). Ein solcher Zusatz wird beim Import stillschweigend entfernt.
 #
-# inhaltsart = "regelwerk" | "abenteuer_setting"   — PFLICHT, wie `edition`.
+# inhaltsart = "regelwerk" | "abenteuer_setting" | "errata" | "regelauslegung"
+#   — PFLICHT, wie `edition`. Was der Wert bewirkt:
+#     regelwerk          normaler Regelband, keine Sonderkennzeichnung
+#     abenteuer_setting  Spoiler-Schutz 🚫 — Regelwerte ja, Handlung nein
+#     errata             offizielle Korrektur zum Grundtext 📌 — steht als eigene Quelle
+#                        NEBEN dem Buch, wird nie in dessen Text eingerechnet
+#     regelauslegung     offizielle Auslegung ⚖️ (Sage Advice) — kein Regelwortlaut
 #   Der Wert wandert bis in die Tool-Ausgaben und ist dort die Grundlage der
 #   Spoiler-Kennzeichnung — also der OBERSTEN Verhaltensregel (SPEC.md §7). Bis zum
 #   31.07.2026 war er optional und fiel still auf "regelwerk" zurück: ein Abenteuerband
@@ -52,7 +72,7 @@ sprache = "de"
 edition = "2024"
 herkunft = "pdf"
 lizenz = "CC-BY-4.0"
-prioritaet = 10
+prioritaet = 20          # Band 20: deutsches SRD (frei lizenziert)
 inhaltsart = "regelwerk"
 dateipfad = "quellen/SRD_5.2.1_DE.pdf"
 
@@ -65,7 +85,7 @@ sprache = "de"
 edition = "2024"
 herkunft = "pdf"
 lizenz = "privat"
-prioritaet = 20
+prioritaet = 10          # Band 10: deutsches Kernregelwerk (Kaufbuch)
 inhaltsart = "regelwerk"
 dateipfad = "quellen/PHB_2024_DE.pdf"   # bei Scan: "data/ocr/PHB_2024_DE.ocr.pdf"
 

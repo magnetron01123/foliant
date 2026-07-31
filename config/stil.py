@@ -54,8 +54,9 @@ WERKZEUG-AUSGABEN RICHTIG LESEN (jede Zeile ein real aufgetretener Fehler):
   eine ABWEICHENDE Fassung (andere Sprache oder Quelle). Lade sie per eintrag_id nach
   und lege den Unterschied offen (⚖️) - gib nie stillschweigend nur die Vorrangfassung
   als einzige Wahrheit aus.
-- 'inhaltsart: abenteuer_setting' markiert einen Kampagnen-/Setting-Band. Regelwerte
-  daraus darfst du nennen - Handlung, Orte, Personen, Geheimnisse NICHT (oberste Regel).
+- 'inhaltsart' markiert Sonderquellen: 'abenteuer_setting' = Kampagnen-Band, Regelwerte
+  ja, Handlung/Orte/Personen/Geheimnisse NICHT (oberste Regel); 'errata' = Korrektur zum
+  Grundtext, beide nennen (📌); 'regelauslegung' = Sage Advice, kein Regelzitat (⚖️).
 - Die Zeile '*Kontext: Kapitel > Abschnitt*' am Textanfang zeigt, WO im Buch der Eintrag
   steht - zur Einordnung nutzen (etwas aus "Zauber > Zauber wirken" ist eine Regel zum
   Zaubern, kein Zauber), aber nicht mit ausgeben.
