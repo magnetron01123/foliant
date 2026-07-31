@@ -70,6 +70,13 @@ _norm = norm_begriff
 # gemischtem Bestand der Altstand-Fallback ('Erschöpfung' -> 2014-'Exhaustion').
 KLAMMER_SUFFIX = re.compile(r"\s*\([^()]{1,40}\)\s*$")
 
+# srd-de-Namensschema fuer Unterklassen: '<Klasse>-Unterklasse: <Name>'. EINE Definition
+# fuer alle Vergleichspfade - sie stand bis zum 31.07.2026 dreimal als eigenes Regex-Literal
+# (hier, app/db.py im Ranking, app/tools/charakter.py). group(1) ist die Klasse, group(2)
+# der blanke Unterklassenname; ohne diesen gewinnt bei foliant_hol_eintrag("klasse",
+# "Champion") der englische Open5e-Eintrag gegen den deutschen (S10).
+UNTERKLASSE_SCHEMA = re.compile(r"^(.+)-Unterklasse:\s*(.+)$", re.IGNORECASE)
+
 # Herkunfts-Label der 2024-Aktionszeilen (glossar.quelle). Es steht hier statt beim Seeder,
 # weil es SCHREIBER und LESER verbindet: `importer/import_glossar.seed_aktionen` setzt es,
 # der Charakterbogen-Uebersetzer holt genau diese Zeilen wieder heraus. Deren EN-Lemmata
@@ -441,9 +448,9 @@ def _eintrag_namen(k: dict) -> set[str]:
     foliant_hol_eintrag("klasse", 'Champion') der englische Open5e-Eintrag (S10). Klammer-Suffixe
     zaehlen zusaetzlich OHNE Zusatz (SYN-P0-002)."""
     namen = {norm_begriff(k["name_de"]), norm_begriff(k["name_en"])}
-    m = re.match(r".+-unterklasse:\s*(.+)$", norm_begriff(k["name_de"]))
+    m = UNTERKLASSE_SCHEMA.match(norm_begriff(k["name_de"]))
     if m:
-        namen.add(m.group(1).strip())
+        namen.add(m.group(2).strip())
     for n in list(namen):
         ohne_zusatz = KLAMMER_SUFFIX.sub("", n).strip()
         if ohne_zusatz:

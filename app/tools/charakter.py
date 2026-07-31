@@ -34,7 +34,7 @@ POINT_BUY_KOSTEN = {8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}
 POINT_BUY_BUDGET = 27
 
 _SUBCLASS = re.compile(r"^\*Subclass of:\s*(.+?)\*", re.MULTILINE)
-_UNTERKLASSE_DE = re.compile(r"^(.+)-Unterklasse:\s*(.+)$")
+_UNTERKLASSE_DE = _glossar.UNTERKLASSE_SCHEMA   # kanonisch in app/glossar.py
 # Kapitel-Header der Klassen-/Unterklassen-Gruppen, am LETZTEN Kontext-Segment geprueft -
 # dieselbe Mechanik wie _OPTION_KONTEXT, nur fuer die Kategorie 'klasse', die Klassen UND
 # Unterklassen in einem Topf fuehrt. Befund 30.07.2026: Die Weiche kannte vorher nur
@@ -211,13 +211,13 @@ def _zeile(con, g: dict, **extra) -> dict:
     name_de = next((e["name_de"] for e in g["eintraege"] if e["name_de"]), None)
     name_en = next((e["name_en"] for e in g["eintraege"] if e["name_en"]), None)
     fuehrend = g["eintraege"][0]
-    if name_de and name_en and _norm(name_de) == _norm(name_en):
-        anzeige = name_de                       # 'Champion (Champion)' vermeiden
-    elif name_de and name_en:
-        anzeige = _glossar.markiere(name_de, name_en, offiziell=True)
-    else:
-        anzeige = _aus._anzeige_name(con, {"name_de": name_de, "name_en": name_en,
-                                          "sprache": "de" if name_de else "en"})
+    # Die Anzeige baut die Ausgabe-Schicht, nicht dieses Modul. Die beiden Sonderzweige,
+    # die hier bis zum 31.07.2026 standen ('Champion (Champion)' vermeiden, sonst
+    # markiere()), sind genau das, was `_anzeige_name` fuer eine deutsche Quelle ohnehin
+    # tut - am Bestand mit sechs Sonden zeichengleich nachgemessen. Zwei Kopien einer
+    # Deutsch-first-Regel sind eine zu viel: S4 steht in ausgabe.py.
+    anzeige = _aus._anzeige_name(con, {"name_de": name_de, "name_en": name_en,
+                                       "sprache": "de" if name_de else "en"})
     # eintrag_id/quelle_kuerzel (Review 30.07.2026): Die Listen brachen zwei Zusagen,
     # die der Suchpfad einhaelt. Ohne eintrag_id war der Rundlauf Liste->Detail nicht
     # moeglich (SYN-P1-002 sichert genau das zu, _knapp setzt es seit jeher). Ohne

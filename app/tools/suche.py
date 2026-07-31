@@ -25,7 +25,7 @@ from app import facetten as _facetten
 from app import glossar as _glossar
 from app import protokoll as _protokoll
 from app.tools.ausgabe import (
-    HINWEIS_ALT, HINWEIS_DB_FEHLT, HINWEIS_LEER, _knapp, _markiere_abenteuer, _reichere_facetten_an,
+    _HINWEIS_PARAMETER, HINWEIS_ALT, HINWEIS_DB_FEHLT, HINWEIS_LEER, _knapp, _markiere_abenteuer, _reichere_facetten_an,
     _verbinde,
 )
 
@@ -191,7 +191,12 @@ def _vorfilter_sql(con, kategorie: str, werte: dict) -> tuple[str, str, list]:
     sprach).
 
     Fehlt die Tabelle ganz (Alt-DB), wird gar nicht vorgefiltert."""
-    tabelle = {"zauber": "zauber_meta", "monster": "monster_meta"}.get(kategorie)
+    # Kategorie -> Meta-Tabelle aus der EINEN Definition (app.facetten.META_TABELLEN),
+    # deren Docstring genau das zusagt: "EINE Definition fuer Schreiber und Leser".
+    # Hier stand bis zum 31.07.2026 ein eigenes Dict - eine dritte Kopie neben
+    # Seeder und Ausgabe, und die einzige, die `gegenstand` gar nicht kannte.
+    spez = _facetten.META_TABELLEN.get(kategorie)
+    tabelle = spez[0] if spez else None
     if not tabelle or not werte:
         return "", "", []
     try:
@@ -230,7 +235,7 @@ def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25,
         _db._pruefe_quelle(con, quelle_kuerzel)
     except ValueError as fehler:
         return {"treffer": [], "fehler": str(fehler),
-                "hinweis": "Ungueltiger PARAMETER - KEIN 'nicht im Bestand' (B1/B4)."}
+                "hinweis": _HINWEIS_PARAMETER}
     join, zusatz, vor_params = _vorfilter_sql(con, kategorie, vorfilter or {})
     if quelle_kuerzel:
         zusatz += " AND q.kuerzel = ?"
@@ -332,9 +337,7 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
             # Befund - vor dem Fix bekam das Modell hier den B1-Leerhinweis und meldete
             # dem Nutzer ein falsches 'nicht im Bestand' fuer vorhandene Inhalte.
             return {"treffer": [], "fehler": str(fehler_v),
-                    "hinweis": "Ungueltiger PARAMETER - das ist KEIN 'nicht im Bestand'. "
-                               "Aufruf mit einem gueltigen Wert (siehe fehler) "
-                               "wiederholen; dem Nutzer keine Fehlanzeige melden (B1/B4)."}
+                    "hinweis": _HINWEIS_PARAMETER}
         antwort: dict = {"treffer": [_knapp(t, con) for t in ergebnis["treffer"]],
                          # Privat fuer den Protokoll-Hook (Wrapper poppt den Schluessel):
                          # der rohe Suchweg 'direkt|glossar:<begriff>|fuzzy|-'.
@@ -416,9 +419,7 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
         # (nicht SRD-lizenziert). Statt bm25 zu interpretieren (im Fuzzy-Pfad steht dort ein
         # ganz anderer Wert) nutzen wir die vorhandene NAMENS-Relevanz - sie trennt genau
         # diese beiden Faelle und ist dieselbe Schwelle wie bei der Detail-Auswahl.
-        varianten = {_glossar.norm_begriff(suchbegriff)}
-        varianten |= {_glossar.norm_begriff(a)
-                      for a in _db._glossar_alternativen(con, suchbegriff, nur_exakt=True)}
+        varianten = _db.anfrage_varianten(con, suchbegriff)
         namenstreffer = 0
         for liste in listen:
             for k in liste:

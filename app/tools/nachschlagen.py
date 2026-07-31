@@ -211,9 +211,7 @@ def _waehle_kandidat(con, name: str, kategorie: str, edition: str,
     # (SYN-P0-001: die Fuzzy-Naehe 'Aktionen'~'Reaktionen' machte einen FREMDEN Eintrag
     # zum Exakt-Treffer). Die prioritaets-sortierte Trefferliste stellt dabei deutsche
     # Quellen nach vorn (S10/Q2).
-    varianten = {_glossar.norm_begriff(name)}
-    varianten |= {_glossar.norm_begriff(a)
-                  for a in _db._glossar_alternativen(con, name, nur_exakt=True)}
+    varianten = _db.anfrage_varianten(con, name)
     exakt = [k for k in kandidaten if _glossar._eintrag_namen(k) & varianten]
     # S10 EXPLIZIT statt per Annahme: die FTS-Rangfolge stellt einen englischen
     # Volltreffer ('Warrior of the Open Hand', Open5e) vor den deutschen Praefix-Titel

@@ -29,6 +29,7 @@ from rapidfuzz import fuzz, process
 from app.glossar import KLAMMER_SUFFIX as _KLAMMER_SUFFIX
 from app.glossar import FUZZY_SUCHE as _FUZZY_SUCHE
 from app.glossar import norm_begriff as _gl_norm
+from app.glossar import _eintrag_namen as _gl_eintrag_namen
 
 STANDARD_EDITION = "2024"
 # SYN-P2-001 (codex TECH-011/DND-017): 'unterstuetzt' und 'im Bestand vorhanden' sind
@@ -432,6 +433,18 @@ def _glossar_alternativen(con: sqlite3.Connection, begriff: str,
     return (erste + zweite)[:8]
 
 
+def anfrage_varianten(con: sqlite3.Connection, begriff: str) -> set[str]:
+    """Normalisierter Suchbegriff plus seine EXAKTEN Glossar-Entsprechungen.
+
+    Der Vergleichsschluessel, gegen den beide Werkzeugpfade einen Kandidatennamen als
+    "passt zur Anfrage" pruefen. Stand bis zum 31.07.2026 wortgleich zweimal da
+    (app/tools/suche.py im Namenstreffer-Zaehler, app/tools/nachschlagen.py in der
+    Exakt-Auswahl) - dieselbe Regel an zwei Orten, obwohl schon eine falsch gesetzte
+    Klammer dort zwei verschiedene Antworten erzeugt haette. NUR exakt (SYN-P0-001)."""
+    return {_gl_norm(begriff)} | {_gl_norm(a) for a
+                                  in _glossar_alternativen(con, begriff, nur_exakt=True)}
+
+
 def _fuzzy_treffer(con: sqlite3.Connection, begriff: str, kategorie: str | None,
                    quelle: str | None, roh_limit: int, edition: str | None = None,
                    edition_ausser: str | None = None) -> list[dict]:
@@ -601,18 +614,12 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
 
     def rang(t: dict) -> tuple:
         nd, ne = _gl_norm(t["name_de"]), _gl_norm(t["name_en"])
-        namen = {nd, ne}
-        # srd-de-Unterklassenschema: 'Kämpfer-Unterklasse: Champion' zaehlt auch als
-        # exakter 'Champion'-Treffer - sonst verliert der deutsche Eintrag gegen Open5e.
-        m = re.match(r".+-unterklasse:\s*(.+)$", nd)
-        if m:
-            namen.add(m.group(1).strip())
-        # Klammer-Suffix ('Erschöpfung (Zustand)') zaehlt auch ohne Zusatz als exakt
-        # (SYN-P0-002; kanonische Definition in glossar.KLAMMER_SUFFIX).
-        for n in list(namen):
-            ohne = _KLAMMER_SUFFIX.sub("", n).strip()
-            if ohne:
-                namen.add(ohne)
+        # Namensvarianten aus der EINEN Definition (glossar._eintrag_namen): normalisierte
+        # Namen + srd-de-Unterklassenschema + Klammer-Suffix. Bis zum 31.07.2026 stand
+        # dieselbe Regel hier ein zweites Mal ausgeschrieben - und der Detailpfad rief
+        # bereits die gemeinsame Fassung, sodass Ranking und Exakt-Auswahl auf zwei
+        # Kopien derselben Identitaetsregel liefen.
+        namen = _gl_eintrag_namen(t)
         exakt = 0 if begriffe & namen else 1
         prefix = 0 if any(b and n.startswith(b) for n in namen for b in begriffe) else 1
         # SYN-P1-006 (claude DND-011): Praefix auf den ORIGINAL-Suchbegriff rankt vor
