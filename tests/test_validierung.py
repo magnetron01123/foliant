@@ -302,6 +302,44 @@ def test_admin_check_meldet_ungekennzeichnete_abenteuerbaende(tmp_path):
     assert "wdh-de" not in verdaechtig, "korrekt gekennzeichneter Band darf nicht warnen"
 
 
+def test_geprueftes_regelwerk_warnt_nicht_mehr(tmp_path):
+    """Der Titel klingt nach Abenteuerband, der Inhalt ist reines Regelmaterial.
+
+    Realfall (01.08.2026): 'Monstrous Compendium Vol. 1: Spelljammer Creatures' loeste den
+    Verdacht am Wort 'spelljammer' aus - der Band fuehrt aber 40 Eintraege, ALLE
+    kategorie='monster', also eine reine Werte-Sammlung. Eine Warnung, die dauerhaft
+    ansteht, liest bald niemand mehr; das ist dieselbe Ueberlegung, die im Glossar zu
+    GEPRUEFTE_HOMONYME fuehrte.
+
+    Und dieselbe Bedingung: Die Ausnahme gilt nur, SOLANGE ihr Beleg traegt."""
+    from app.admin import _GEPRUEFTE_REGELWERKE, _spoilerverdacht
+
+    con = sqlite3.connect(tmp_path / "t.sqlite")
+    con.executescript(_SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,prioritaet,"
+                "inhaltsart) VALUES ('ddb-mcv1-en','Monstrous Compendium Vol. 1: "
+                "Spelljammer Creatures','en','2014','ddb',40,'regelwerk')")
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_en,sprache,edition,body_md) "
+        "VALUES (1,?,?,'en','2014','Statblock.')",
+        [("monster", "Traits"), ("monster", "Actions"), ("monster", "Description")])
+    con.commit()
+    assert "ddb-mcv1-en" not in {k for k, _ in _spoilerverdacht(con)}
+
+    # Kommt Material ausserhalb des Belegs dazu, ist der Fall NICHT mehr geprueft.
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_en,sprache,edition,"
+                "body_md) VALUES (1,'regel','The Rock of Bral','en','2014','Ein Ort ...')")
+    con.commit()
+    assert "ddb-mcv1-en" in {k for k, _ in _spoilerverdacht(con)}, (
+        "die Ausnahme muss fallen, sobald die Quelle andere Kategorien fuehrt")
+    con.close()
+
+    # Jede Ausnahme traegt ihren Beleg im Klartext - sonst ist sie ein Deckel.
+    for kuerzel, (kategorien, beleg) in _GEPRUEFTE_REGELWERKE.items():
+        assert kategorien, f"{kuerzel}: keine belegten Kategorien"
+        assert len(beleg) > 80, f"{kuerzel}: Beleg zu duenn"
+
+
 def test_config_vorlage_nennt_die_spoiler_kennzeichnung():
     """Die Vorlage ist fuer den PDF-/Markdown-Weg die EINZIGE Stelle, an der `inhaltsart`
     gesetzt werden kann - sie muss den Schluessel deshalb auch zeigen."""
