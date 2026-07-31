@@ -45,7 +45,7 @@ api_url = "https://www.dnddeutsch.de/tools/json.php"
 #   `admin check` warnt, wenn ein Kürzel nach Abenteuerband aussieht und der Wert fehlt.
 [[quelle]]
 kuerzel = "srd-de"
-titel = "SRD 5.2.1"
+titel = "System Reference Document 5.2.1"
 sprache = "de"
 edition = "2024"
 herkunft = "pdf"

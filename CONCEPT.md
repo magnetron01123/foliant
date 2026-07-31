@@ -462,6 +462,7 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
 status        Bestand je Quelle/Edition/Kategorie + Glossar
 manifest      Korpus-Fingerabdruck (inhalts_hash) - nach jedem Import festhalten
 import        --quelle <kuerzel> | glossar | facetten (Facetten ohne Re-Import nachziehen)
+quellen-auffrischen  Quellen-METADATEN (Titel, Prioritaet, Lizenz, inhaltsart) aus der config nachziehen - ohne Re-Import, Eintraege bleiben unberuehrt
 pdf-triage    welche PDFs haben keine Textschicht?
 ocr-pdf       --datei <pfad> [--redo] [--voll]
 reindex-fts   FTS neu aufbauen

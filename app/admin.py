@@ -350,6 +350,71 @@ def cmd_ocr_pdf(args) -> None:
           f"  3. Stichprobe (O3): admin check + Suche nach bekannten Begriffen des Buchs")
 
 
+_METADATEN = ("titel", "sprache", "edition", "herkunft", "lizenz", "prioritaet",
+              "inhaltsart")
+
+
+def cmd_quellen_auffrischen(args) -> None:
+    """Quellen-METADATEN aus der Config in den Bestand ziehen - ohne Re-Import.
+
+    Der Anlass war ein Tippfehler in einem Buchtitel ('Ianathars' statt 'Xanathars', ein
+    falsch erkannter erster Buchstabe). Bis dahin gab es dafuer nur zwei Wege: den
+    Re-Import - der bei den 2014-Scans die Namensreparatur zunichte macht (CLAUDE.md) -
+    oder ein UPDATE von Hand auf der Produktions-DB. Beides ist zu viel Risiko fuer eine
+    geaenderte Zeichenkette.
+
+    Angefasst wird NUR die Zeile in `quellen`, nie ein Eintrag. Neu angelegt wird nichts:
+    ein Config-Block ohne importierte Eintraege wuerde sonst als leere Quelle auf der
+    Website stehen. Am Ende laeuft die Web-DB-Auffrischung wie nach jedem Import, sonst
+    zeigte die Seite weiter den alten Titel.
+
+    WAS DIE CONFIG NICHT SAGT, BLEIBT STEHEN. Der Import darf fuer einen fehlenden
+    optionalen Wert den Standard einsetzen - er baut die Quelle ja neu auf. Hier waere
+    das ein stiller Datenverlust, und beim ersten Lauf am 31.07.2026 war es genau das:
+    der Config-Block von `efota-en` fuehrt kein `inhaltsart`, also setzte der Standard
+    'regelwerk' - und nahm einem Setting-Band den SPOILER-SCHUTZ (SPEC.md §7, die
+    oberste Verhaltensregel). Deshalb faellt jeder nicht genannte Wert auf den
+    BESTEHENDEN zurueck, nicht auf einen Standard."""
+    c = _con(getattr(args, "db", None))
+    try:
+        vorher = {r["kuerzel"]: dict(r) for r in c.execute(
+            f"SELECT kuerzel, dateipfad, {', '.join(_METADATEN)} FROM quellen")}
+        bloecke = [q for q in _db.lade_konfig().get("quelle", [])
+                   if q.get("kuerzel") in vorher]
+        aenderungen: list[str] = []
+        with c:
+            for eintrag in bloecke:
+                kuerzel = eintrag["kuerzel"]
+                steht = vorher[kuerzel]
+
+                def wert(feld: str, _e=eintrag, _s=steht):
+                    """Config gewinnt, sonst bleibt der Bestandswert."""
+                    return _e[feld] if _e.get(feld) not in (None, "") else _s[feld]
+
+                if not wert("edition"):
+                    print(f"  uebersprungen: '{kuerzel}' hat weder in der config noch im "
+                          f"Bestand eine edition (Q3/T11 - wird nicht geraten).")
+                    continue
+                registriere_quelle(
+                    c, kuerzel=kuerzel, titel=wert("titel"), sprache=wert("sprache"),
+                    edition=wert("edition"), herkunft=wert("herkunft"),
+                    lizenz=wert("lizenz"), prioritaet=wert("prioritaet"),
+                    dateipfad=wert("dateipfad"), inhaltsart=wert("inhaltsart"))
+                nachher = dict(c.execute(
+                    f"SELECT kuerzel, {', '.join(_METADATEN)} FROM quellen "
+                    f"WHERE kuerzel = ?", (kuerzel,)).fetchone())
+                aenderungen += [f"  {kuerzel}: {feld} {vorher[kuerzel][feld]!r} -> "
+                                f"{nachher[feld]!r}"
+                                for feld in _METADATEN
+                                if vorher[kuerzel][feld] != nachher[feld]]
+        print(f"Quellen aufgefrischt: {len(bloecke)} Config-Bloecke geprueft, "
+              f"{len(aenderungen)} Feld(er) geaendert.")
+        print("\n".join(aenderungen) if aenderungen else "  (nichts zu tun)")
+    finally:
+        c.close()
+    _web_db_auffrischen(getattr(args, "db", None))
+
+
 def cmd_reindex(_args) -> None:
     c = _con()
     with c:                    # fts_rebuild committet nicht mehr selbst - die Transaktion fuehrt der Aufrufer
@@ -959,6 +1024,12 @@ def baue_parser() -> argparse.ArgumentParser:
     po.add_argument("--jobs", type=int, default=0, help="parallele Worker (0 = automatisch)")
     po.add_argument("--force", action="store_true", help="vorhandene Ausgabedatei ueberschreiben")
     po.set_defaults(func=cmd_ocr_pdf)
+    pq = sub.add_parser("quellen-auffrischen",
+                        help="Quellen-Metadaten (Titel, Prioritaet, Lizenz, inhaltsart) "
+                             "aus der config nachziehen - OHNE Re-Import, Eintraege "
+                             "bleiben unberuehrt")
+    pq.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad)")
+    pq.set_defaults(func=cmd_quellen_auffrischen)
     sub.add_parser("reindex-fts", help="FTS-Index neu aufbauen").set_defaults(func=cmd_reindex)
     sub.add_parser("check", help="Smoke-/Qualitaetschecks").set_defaults(func=cmd_check)
     pg = sub.add_parser("glossar-audit",

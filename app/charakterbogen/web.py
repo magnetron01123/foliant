@@ -137,7 +137,7 @@ def _bestand_lesen(glossar_pfad: str | None) -> list[dict]:
     try:
         con.row_factory = sqlite3.Row
         return [dict(r) for r in con.execute(
-            "SELECT titel, sprache, edition, inhaltsart, eintraege FROM quellen "
+            "SELECT titel, sprache, edition, herkunft, inhaltsart, eintraege FROM quellen "
             "ORDER BY eintraege DESC")]
     except sqlite3.Error:
         return []
@@ -145,10 +145,19 @@ def _bestand_lesen(glossar_pfad: str | None) -> list[dict]:
         con.close()
 
 
+# Woher eine Quelle kommt, entscheidet über ihre Gruppe auf der Seite. Bücher sind das,
+# was im Regal steht (eigenes PDF oder D&D-Beyond-Bibliothek); alles andere sind offene
+# Regeldaten aus dem Netz. Positivliste, damit eine neue Herkunft nicht stillschweigend
+# als Buch durchgeht.
+_BUCH_HERKUNFT = {"pdf", "ddb"}
+
+
 def _bestand_html(quellen: list[dict]) -> str:
-    """Zwei Gruppen: Regelwerke und Abenteuer/Setting. Die Trennung ist nicht Kosmetik -
-    aus Abenteuerbänden gibt Foliant Regelwerte heraus, aber keine Handlung (Spoiler-Schutz
-    ist die oberste Verhaltensregel), und genau das soll die Runde hier sehen.
+    """Drei Gruppen: Regelwerke, weitere Quellen, Abenteuer/Setting. Die Abenteuer-Trennung
+    ist nicht Kosmetik - aus Abenteuerbänden gibt Foliant Regelwerte heraus, aber keine
+    Handlung (Spoiler-Schutz ist die oberste Verhaltensregel), und genau das soll die Runde
+    hier sehen. Die dritte Gruppe trennt Bücher von offenen Netzdaten: beides ist Bestand,
+    aber nur das eine steht als Buch im Regal.
 
     Jede Zeile beantwortet dieselben drei Fragen in derselben Reihenfolge und in eigenen,
     ausgerichteten Spalten: WELCHES BUCH, in WELCHER SPRACHE, auf WELCHEM REGELSTAND.
@@ -160,16 +169,17 @@ def _bestand_html(quellen: list[dict]) -> str:
     if not quellen:
         return ""
     groesste = max(q["eintraege"] or 0 for q in quellen) or 1
-    kopf = ('<li class="buch spaltenkopf">'
-            '<span class="buch-titel">Buch</span>'
-            '<span class="sprache">Sprache</span>'
-            '<span class="regelstand">Regelstand</span>'
-            '<span class="balken"></span>'
-            '<span class="zahl">Einträge</span>'
-            '</li>')
 
-    def zeilen(gruppe: list[dict]) -> str:
-        teile = [kopf]
+    def zeilen(gruppe: list[dict], erste_spalte: str = "Buch") -> str:
+        # Die Kopfzeile benennt die erste Spalte nach der Gruppe: was aus einer
+        # Schnittstelle kommt, ist kein Buch.
+        teile = [f'<li class="buch spaltenkopf">'
+                 f'<span class="buch-titel">{erste_spalte}</span>'
+                 f'<span class="sprache">Sprache</span>'
+                 f'<span class="regelstand">Regelstand</span>'
+                 f'<span class="balken"></span>'
+                 f'<span class="zahl">Einträge</span>'
+                 f'</li>']
         for q in gruppe:
             n = q["eintraege"] or 0
             breite = max(2, round(100 * n / groesste))
@@ -188,17 +198,35 @@ def _bestand_html(quellen: list[dict]) -> str:
                 f'</li>'.replace(",", "."))
         return "".join(teile)
 
-    regel = [q for q in quellen if q["inhaltsart"] != "abenteuer_setting"]
-    abenteuer = [q for q in quellen if q["inhaltsart"] == "abenteuer_setting"]
-    gesamt = sum(q["eintraege"] or 0 for q in quellen)
+    def ist_buch(q: dict) -> bool:
+        return (q.get("herkunft") or "").strip() in _BUCH_HERKUNFT
 
-    html = [f'<p class="unter">Foliant schlägt in <strong>{len(quellen)} Büchern</strong> '
-            f'mit zusammen <strong>{gesamt:,} Einträgen</strong> nach. '
+    abenteuer = [q for q in quellen if q["inhaltsart"] == "abenteuer_setting"]
+    rest = [q for q in quellen if q["inhaltsart"] != "abenteuer_setting"]
+    regel = [q for q in rest if ist_buch(q)]
+    weitere = [q for q in rest if not ist_buch(q)]
+    gesamt = sum(q["eintraege"] or 0 for q in quellen)
+    n_buecher = sum(1 for q in quellen if ist_buch(q))
+    n_weitere = len(quellen) - n_buecher
+    umfang = f'<strong>{n_buecher} {"Buch" if n_buecher == 1 else "Büchern"}</strong>'
+    if n_weitere:
+        umfang += (f' und <strong>{n_weitere} weiteren '
+                   f'{"Quelle" if n_weitere == 1 else "Quellen"}</strong>')
+
+    html = [f'<p class="unter">Foliant schlägt in {umfang} mit zusammen '
+            f'<strong>{gesamt:,} Einträgen</strong> nach. '
             f'Diese Liste kommt direkt aus dem Bestand — sie ist immer aktuell.'
             f'</p>'.replace(",", ".")]
     if regel:
         html.append('<h3>Regelwerke</h3>'
                     f'<ul class="buecher">{zeilen(regel)}</ul>')
+    if weitere:
+        html.append(
+            '<h3>Weitere Quellen</h3>'
+            '<p class="mini">Keine Bücher, sondern frei lizenzierte Regeldaten aus dem '
+            'Netz (Schnittstelle). Sie füllen Lücken — wo ein Buch dieselbe Regel '
+            'hergibt, gewinnt das Buch.</p>'
+            f'<ul class="buecher">{zeilen(weitere, "Quelle")}</ul>')
     if abenteuer:
         html.append(
             '<h3>Abenteuer &amp; Settings</h3>'

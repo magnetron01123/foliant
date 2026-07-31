@@ -10,6 +10,7 @@ waren die Quellen nebeneinander nicht mehr vergleichbar.
 from __future__ import annotations
 
 import sqlite3
+import types
 
 import pytest
 
@@ -87,3 +88,87 @@ def test_erzeuger_haengen_den_bezugsweg_nicht_mehr_an_den_titel():
         for zeile in quelltext.splitlines():
             if "titel" in zeile and verbot in zeile and not zeile.lstrip().startswith("#"):
                 pytest.fail(f"{datei}: Bezugsweg wieder im Titel - {zeile.strip()}")
+
+
+def test_auffrischen_aendert_metadaten_und_laesst_eintraege_stehen(tmp_path, monkeypatch,
+                                                                   capsys):
+    """`admin quellen-auffrischen` ist der Weg fuer eine korrigierte Zeichenkette im
+    Titel - hier der real aufgetretene OCR-Fehler im ersten Buchstaben ('Ianathars' statt
+    'Xanathars'). Ein Re-Import waere dafuer der falsche Hebel: er spielt die rohen
+    OCR-Namen der 2014-Scans wieder ein und macht deren Namensreparatur zunichte
+    (CLAUDE.md). Der Test haelt beides fest - die Metadaten aendern sich, die Eintraege
+    bleiben Zeichen fuer Zeichen stehen."""
+    from app import admin, db as _db
+    from tests.hilfen import neue_db
+
+    pfad = tmp_path / "bestand.sqlite"
+    con = neue_db(pfad)
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,"
+                "prioritaet) VALUES ('xgte-2014-de','Ianathars Ratgeber (Deutsch)','de',"
+                "'2014','pdf','privat',85)")
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,"
+                "body_md) VALUES (1,'regel','Trefferwürfel','de','2014','Repariert.')")
+    con.commit()
+    con.close()
+
+    monkeypatch.setattr(_db, "lade_konfig", lambda: {"quelle": [
+        {"kuerzel": "xgte-2014-de", "titel": "Xanathars Ratgeber für Alles",
+         "sprache": "de", "edition": "2014", "herkunft": "pdf", "lizenz": "privat",
+         "prioritaet": 85},
+        # Ein Block OHNE importierte Eintraege wird NICHT angelegt - sonst stuende eine
+        # leere Quelle auf der Website.
+        {"kuerzel": "gibt-es-nicht", "titel": "Nie importiert", "sprache": "de",
+         "edition": "2024", "herkunft": "pdf"},
+    ]})
+    monkeypatch.setattr(admin, "_web_db_auffrischen", lambda *_a, **_k: None)
+    admin.cmd_quellen_auffrischen(types.SimpleNamespace(db=str(pfad)))
+
+    con = sqlite3.connect(pfad)
+    con.row_factory = sqlite3.Row
+    quellen = {r["kuerzel"]: r["titel"] for r in con.execute(
+        "SELECT kuerzel, titel FROM quellen")}
+    assert quellen == {"xgte-2014-de": "Xanathars Ratgeber für Alles"}
+    eintraege = con.execute("SELECT name_de, body_md FROM eintraege").fetchall()
+    assert [tuple(r) for r in eintraege] == [("Trefferwürfel", "Repariert.")]
+    con.close()
+    assert "Ianathars" in capsys.readouterr().out          # die Aenderung wird benannt
+
+
+def test_auffrischen_nimmt_einem_setting_band_nicht_den_spoilerschutz(tmp_path,
+                                                                      monkeypatch):
+    """Real passiert am 31.07.2026, beim ERSTEN Lauf des Kommandos auf dem Pi: Der
+    Config-Block von 'efota-en' fuehrt kein `inhaltsart`. Weil die Auffrischung fuer
+    fehlende Werte den Import-Standard einsetzte, wurde aus 'abenteuer_setting' still
+    'regelwerk' - ein Setting-Band ohne Spoiler-Schutz, also ohne die OBERSTE
+    Verhaltensregel (SPEC.md par. 7). Kein Fehler, keine Warnung, nur eine fehlende
+    Kennzeichnung im Chat.
+
+    Die Regel dagegen: Was die Config nicht sagt, bleibt stehen. Ein Import darf
+    Standardwerte setzen (er baut die Quelle neu auf) - eine Auffrischung nie."""
+    from app import admin, db as _db
+    from tests.hilfen import neue_db
+
+    pfad = tmp_path / "bestand.sqlite"
+    con = neue_db(pfad)
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,"
+                "prioritaet,inhaltsart,dateipfad) VALUES ('efota-en','Alter Titel','en',"
+                "'2024','pdf','privat',45,'abenteuer_setting','quellen/md/efota.md')")
+    con.commit()
+    con.close()
+
+    # Config-Block wie auf dem Pi: NUR der Titel geaendert, kein inhaltsart, kein
+    # dateipfad, keine Lizenz.
+    monkeypatch.setattr(_db, "lade_konfig", lambda: {"quelle": [
+        {"kuerzel": "efota-en", "titel": "Eberron: Forge of the Artificer",
+         "sprache": "en", "edition": "2024", "herkunft": "pdf"}]})
+    monkeypatch.setattr(admin, "_web_db_auffrischen", lambda *_a, **_k: None)
+    admin.cmd_quellen_auffrischen(types.SimpleNamespace(db=str(pfad)))
+
+    con = sqlite3.connect(pfad)
+    con.row_factory = sqlite3.Row
+    q = dict(con.execute("SELECT * FROM quellen").fetchone())
+    con.close()
+    assert q["titel"] == "Eberron: Forge of the Artificer"      # die Config gewinnt
+    assert q["inhaltsart"] == "abenteuer_setting"               # ... aber nur, wo sie spricht
+    assert q["lizenz"] == "privat" and q["prioritaet"] == 45
+    assert q["dateipfad"] == "quellen/md/efota.md"

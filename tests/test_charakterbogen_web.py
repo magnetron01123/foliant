@@ -360,15 +360,41 @@ def test_bestandsuebersicht_zeigt_jede_angabe_genau_einmal():
 
     html = web._bestand_html([
         {"titel": "Player’s Handbook", "sprache": "en", "edition": "2024",
-         "inhaltsart": "regelwerk", "eintraege": 1581},
+         "herkunft": "ddb", "inhaltsart": "regelwerk", "eintraege": 1581},
         {"titel": "Spielerhandbuch", "sprache": "de", "edition": "2014",
-         "inhaltsart": "regelwerk", "eintraege": 1539},
+         "herkunft": "pdf", "inhaltsart": "regelwerk", "eintraege": 1539},
     ])
     for zusatz in ("(Deutsch)", "(Englisch)", "(D&amp;D Beyond)", "(2014)", "(Druck)"):
         assert zusatz not in html
     # Beide Zeilen tragen dieselben Marken in derselben Reihenfolge.
     assert html.count('class="sprache"') == html.count('class="regelstand"') == 3  # 2 + Kopf
     assert ">Regeln 2014<" in html and ">Regeln 2024<" in html
+
+
+def test_bestandsuebersicht_trennt_buecher_von_netzquellen():
+    """Drei Gliederungspunkte, nicht zwei: Open5e ist kein Buch im Regal, sondern eine
+    Schnittstelle. Unter 'Regelwerke' gelistet, sah sie aus wie ein weiterer Band -
+    dabei entscheidet die Herkunft auch über den Vorrang bei Dubletten (Q2)."""
+    from app.charakterbogen import web
+
+    html = web._bestand_html([
+        {"titel": "Player’s Handbook", "sprache": "en", "edition": "2024",
+         "herkunft": "ddb", "inhaltsart": "regelwerk", "eintraege": 1581},
+        {"titel": "System Reference Document 5.2", "sprache": "en", "edition": "2024",
+         "herkunft": "open5e", "inhaltsart": "regelwerk", "eintraege": 982},
+        {"titel": "Ravenloft", "sprache": "en", "edition": "2024",
+         "herkunft": "ddb", "inhaltsart": "abenteuer_setting", "eintraege": 792},
+    ])
+    assert "<h3>Regelwerke</h3>" in html
+    assert "<h3>Weitere Quellen</h3>" in html
+    assert "<h3>Abenteuer &amp; Settings</h3>" in html
+    # Die Zählung im Vorspann trennt mit: 2 Bücher, 1 Netzquelle.
+    assert "2 Büchern" in html and "1 weiteren Quelle" in html
+    # Die Spaltenüberschrift folgt der Gruppe - eine Schnittstelle ist kein "Buch".
+    assert ">Quelle<" in html and ">Buch<" in html
+    # Die Netzquelle steht NICHT mehr unter den Regelwerken.
+    regelwerke = html.split("<h3>Regelwerke</h3>")[1].split("<h3>")[0]
+    assert "System Reference Document" not in regelwerke
 
 
 def test_bestandsuebersicht_faellt_ohne_quellen_weg():

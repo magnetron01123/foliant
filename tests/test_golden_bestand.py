@@ -114,7 +114,7 @@ def test_golden_open5e_trigger_und_referenzlauf():
     d = ns.foliant_hol_eintrag("zauber", "Counterspell")
     # Quellentitel = nur der Werktitel (Beschriftungs-Standard,
     # importer/quellen.py); Sprache und Regelversion stehen daneben.
-    assert d["gefunden"] and d["quelle"] == "SRD 5.2.1"   # kanonisch: Deutsch
+    assert d["gefunden"] and d["quelle"] == "System Reference Document 5.2.1"   # kanonisch: Deutsch
     fremde = d.get("fremdsprachige_fassungen") or []
     assert fremde, "Open5e-Fassung nicht als Referenz ausgewiesen"
     # Am VOLLEN Korpus stehen neben Open5e auch DDB-Fremdfassungen in der Liste (nach
@@ -122,11 +122,11 @@ def test_golden_open5e_trigger_und_referenzlauf():
     # fremde[0] anzunehmen (das galt nur am Mac-Subset ohne DDB, korpusabhaengig).
     # Erkannt am WERKTITEL, nicht mehr am Bezugsweg: der stand frueher als "(Open5e)" im
     # Titel und steht seit dem Beschriftungs-Standard allein in `quellen.herkunft`.
-    _OPEN5E_WERK = "System Reference Document"
-    open5e = next((f for f in fremde if _OPEN5E_WERK in (f.get("quelle") or "")), None)
+    _OPEN5E_WERK = "System Reference Document 5.2"      # 5.2.1 ist die dt. Fassung
+    open5e = next((f for f in fremde if (f.get("quelle") or "") == _OPEN5E_WERK), None)
     assert open5e, ("Open5e-Fassung nicht unter den Fremdfassungen", fremde)
     en = ns.foliant_hol_eintrag("zauber", "egal", eintrag_id=open5e["eintrag_id"])
-    assert en["gefunden"] and _OPEN5E_WERK in en["quelle"]
+    assert en["gefunden"] and en["quelle"] == _OPEN5E_WERK
     assert "reaction" in en["regeltext_md"].lower()
     assert "you see" in en["regeltext_md"] or "which you take" in en["regeltext_md"], \
         en["regeltext_md"][:200]                       # Trigger erhalten (B8)
@@ -173,7 +173,7 @@ def test_golden_deutsch_first_schlaegt_laengeren_fremdeintrag():
         assert d.get("gefunden"), (begriff, d.get("kandidaten"))
         # Der gewaehlte Haupttreffer ist die deutsche Quelle - nie der laengere Fremdeintrag.
         assert d["sprache"] == "de", (begriff, d["quelle"], d.get("name_en"))
-        assert d["quelle"] == "SRD 5.2.1", (begriff, d["quelle"])
+        assert d["quelle"] == "System Reference Document 5.2.1", (begriff, d["quelle"])
         assert d["name_de"] == name_de, (begriff, d["name_de"])
         # Fremdsprachige Fassungen bleiben ausgewiesen (per eintrag_id ladbar), aber NIE
         # als Haupttreffer - und tauchen nie als Scheinkonflikt auf (Same-Source-Abschnitte
@@ -248,7 +248,7 @@ def test_golden_tippfehler_direkttreffer_statt_rauschen():
     Zauberplaetze) verrauscht. Deutsch-first bleibt gewahrt."""
     d = ns.foliant_hol_eintrag("zauber", "Magic Missle")                  # Tippfehler: Missle
     assert d.get("gefunden") and not d.get("mehrdeutig"), d.get("kandidaten")
-    assert d["quelle"] == "SRD 5.2.1"
+    assert d["quelle"] == "System Reference Document 5.2.1"
     assert "Magic Missile" in d["anzeige_name"] and "Magisches Geschoss" in d["anzeige_name"]
 
 
