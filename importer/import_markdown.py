@@ -606,12 +606,9 @@ def _chunks(markdown: str, kategorie_standard: str = "regel",
 
 
 def _ersetze_bestand(con: sqlite3.Connection, quelle_id: int, zeilen: list[tuple]) -> None:
-    """Loeschen + Einfuegen als EIN Schritt innerhalb der Aufrufer-Transaktion (A7) -
-    eigene Funktion, damit Tests den Absturz 'nach dem Schreiben' simulieren koennen."""
-    con.execute("DELETE FROM eintraege WHERE quelle_id = ?", (quelle_id,))  # idempotent
-    con.executemany(
-        "INSERT INTO eintraege (quelle_id, kategorie, name_de, name_en, sprache, edition, "
-        "seite, kontext, body_md) VALUES (?,?,?,?,?,?,?,?,?)", zeilen)
+    """Duenner Name fuer db.ersetze_eintraege - die Tests patchen genau diesen, um
+    einen Absturz 'nach dem Schreiben' zu simulieren (tests/test_import_safety.py)."""
+    _db.ersetze_eintraege(con, quelle_id, zeilen)
 
 
 def importiere_markdown(con: sqlite3.Connection, quelle_kuerzel: str, markdown: str,

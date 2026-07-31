@@ -751,6 +751,29 @@ def fts_suche(con: sqlite3.Connection, query: str, kategorie: str | None = None,
     }
 
 
+EINTRAGS_SPALTEN = ("quelle_id", "kategorie", "name_de", "name_en", "sprache",
+                    "edition", "seite", "kontext", "body_md")
+
+
+def ersetze_eintraege(con: sqlite3.Connection, quelle_id: int,
+                      zeilen: list[tuple]) -> None:
+    """Den Bestand EINER Quelle austauschen: loeschen + einfuegen in einem Schritt.
+
+    Committet NICHT - der Aufrufer fuehrt die Transaktion (A7), genau wie bei
+    `fts_rebuild`. Jede Zeile ist ein Tupel in der Reihenfolge von EINTRAGS_SPALTEN;
+    was eine Quelle nicht hat (englische Quellen kein `name_de`, API-Quellen keine
+    `seite`), traegt None.
+
+    Bis zum 31.07.2026 stand dasselbe DELETE+INSERT dreimal - in import_markdown,
+    import_ddb und import_open5e -, und die Open5e-Fassung listete nur acht Spalten:
+    sie schrieb `kontext` gar nicht erst. Eine neue Spalte in `eintraege` haette an drei
+    Stellen nachgezogen werden muessen, ohne dass etwas meldet, wenn eine fehlt."""
+    con.execute("DELETE FROM eintraege WHERE quelle_id = ?", (quelle_id,))  # idempotent
+    con.executemany(
+        f"INSERT INTO eintraege ({', '.join(EINTRAGS_SPALTEN)}) "
+        f"VALUES ({', '.join('?' * len(EINTRAGS_SPALTEN))})", zeilen)
+
+
 def fts_rebuild(con: sqlite3.Connection) -> None:
     """FTS extern neu aufbauen - nach jedem (Bulk-)Import Pflicht (Leitplanke): robuster als
     inkrementelle Trigger-Synchronitaet bei grossen Importen.

@@ -38,7 +38,6 @@ _PREIS_DE = re.compile(r"\((\d+(?:[.,]\d+)?)\s*(GM|SM|KM)\)")
 _PREIS_EN_NAME = re.compile(r"\((\d+(?:\.\d+)?)\s*(GP|SP|CP)\)", re.I)
 _PREIS_EN_BODY = re.compile(r"\*\*Cost:\*\*\s*(\d+(?:\.\d+)?)\s*(gp|sp|cp)", re.I)
 _KATEGORIE_EN = re.compile(r"\*\*Category:\*\*\s*([^·\n]+)")
-_SUFFIX = re.compile(r"\s*\([^)]*\)\s*$")
 
 # Muenzkurse relativ zur Goldmuenze - identisch in beiden Fassungen (SRD-Preisliste).
 _KURS = {"gm": 1.0, "gp": 1.0, "sm": 0.1, "sp": 0.1, "km": 0.01, "cp": 0.01}
@@ -101,7 +100,12 @@ def _grob_en(body: str | None) -> str:
 
 
 def _kurz(name: str) -> str:
-    return _SUFFIX.sub("", name).strip()
+    """Name ohne Klammer-Zusatz - ueber die kanonische Definition (glossar.KLAMMER_SUFFIX,
+    SYN-P0-002). Hier stand ein eigenes `_SUFFIX`-Regex mit weiterer Semantik (beliebige
+    Laenge, verschachtelte Klammern erlaubt). An allen 8033 Namen aus Bestand und Glossar
+    gemessen (31.07.2026): null Abweichung - die Laengengrenze von 40 Zeichen greift
+    real nirgends."""
+    return glossar.KLAMMER_SUFFIX.sub("", name).strip()
 
 
 def _belegte_de(con: sqlite3.Connection, term_en: str) -> set[str]:

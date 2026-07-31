@@ -276,12 +276,14 @@ def ist_begriff(term: str) -> bool:
 
 def _upsert(con: sqlite3.Connection, term_en: str, term_de: str, offiziell: int,
             quelle: str | None, edition_quelle: str | None, seite: str | None) -> None:
-    con.execute(
-        "INSERT INTO glossar (term_en, term_de, offiziell, quelle, edition_quelle, seite) "
-        "VALUES (?, ?, ?, ?, ?, ?) "
-        "ON CONFLICT(term_en, term_de) DO UPDATE SET offiziell=excluded.offiziell, "
-        "quelle=excluded.quelle, edition_quelle=excluded.edition_quelle, seite=excluded.seite",
-        (term_en, term_de, offiziell, quelle, edition_quelle, seite))
+    """Eine Glossarzeile schreiben - ueber den EINEN Upsert in app/dnddeutsch.py.
+
+    Das SQL stand hier bis zum 31.07.2026 ein zweites Mal, zeichengleich zu
+    `dnddeutsch.schreibe_zeilen`. Zwei Kopien desselben ON-CONFLICT-Blocks heissen:
+    eine neue Glossarspalte muss an beiden Stellen nachgezogen werden, und nichts
+    meldet sich, wenn eine vergessen wird."""
+    dnddeutsch.schreibe_zeilen(con, [dnddeutsch.Zeile(
+        term_en, term_de, offiziell, quelle, edition_quelle, seite)])
 
 
 def seed_glossar(con: sqlite3.Connection, begriffe_en: list[str]) -> int:

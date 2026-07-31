@@ -421,12 +421,12 @@ def import_open5e(con: sqlite3.Connection, dokumente: list[str] | None = None,
         _schwellen.pruefe_umfang(dokument, len(chunks), alt, erlaubt=erlaube_schrumpfen)
         quelle_id = _quelle_upsert(con, kuerzel, titel, edition, _PRIORITAET_BASIS + i,
                                    _LIZENZEN.get(dokument, "siehe Open5e-Dokument"))
-        con.execute("DELETE FROM eintraege WHERE quelle_id = ?", (quelle_id,))  # idempotent
-        con.executemany(
-            "INSERT INTO eintraege (quelle_id, kategorie, name_de, name_en, sprache, "
-            "edition, seite, body_md) VALUES (?, ?, NULL, ?, 'en', ?, NULL, ?)",
-            [(quelle_id, c["kategorie"], c["name"], edition, c["body"])
-             for c in chunks.values()])
+        # Open5e ist englisch (kein name_de), hat keine Seiten und keinen Breadcrumb.
+        # Die kontext-Spalte fehlte hier frueher ganz - der Sammel-Schreiber macht das
+        # explizit statt implizit.
+        _db.ersetze_eintraege(con, quelle_id, [
+            (quelle_id, c["kategorie"], None, c["name"], "en", edition, None, None,
+             c["body"]) for c in chunks.values()])
         print(f"{dokument}: {len(chunks)} Eintraege vorbereitet (Edition {edition})")
         gesamt += len(chunks)
     # FTS-Rebuild in DERSELBEN Transaktion (Leitplanke + A7). db.fts_rebuild committet

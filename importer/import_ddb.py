@@ -224,17 +224,13 @@ def importiere_ddb_artefakt(artefakt: str | Path, buch: dict, *,
                     lizenz=buch.get("lizenz", "privat"), prioritaet=buch["prioritaet"],
                     dateipfad=str(artefakt),
                     inhaltsart=buch.get("inhaltsart", "regelwerk"))
-                con.execute("DELETE FROM eintraege WHERE quelle_id = ?", (quelle_id,))
                 # kontext direkt aus dem Body ableiten statt durch _zerlege_eintrag zu
                 # faedeln: so kann die Spalte gar nicht erst von der Body-Zeile abweichen.
-                zeilen = [(quelle_id, kat, name, buch["sprache"], buch["edition"],
-                           _db.kontext_aus_body(body), body)
+                # DDB-Buecher sind englisch -> name_de bleibt None, seite gibt es nicht.
+                zeilen = [(quelle_id, kat, None, name, buch["sprache"], buch["edition"],
+                           None, _db.kontext_aus_body(body), body)
                           for kat, name, body in zeilen_daten]
-                con.executemany(
-                    "INSERT INTO eintraege (quelle_id, kategorie, name_de, name_en, "
-                    "sprache, edition, seite, kontext, body_md) "
-                    "VALUES (?,?,NULL,?,?,?,NULL,?,?)",
-                    zeilen)
+                _db.ersetze_eintraege(con, quelle_id, zeilen)
                 _db.fts_rebuild(con)
                 # Facetten wie nach jedem anderen Quellen-Import (CONCEPT.md par. 8) -
                 # bis zum 31.07.2026 lief der Seeder NUR ueber `admin import`, der
