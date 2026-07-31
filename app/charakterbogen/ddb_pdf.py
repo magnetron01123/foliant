@@ -482,11 +482,6 @@ def _parse_story(char: Charakter, idx: dict, feldkarte: dict) -> None:
 
 # --- Orchestrierung ----------------------------------------------------------
 
-# Felder, die bewusst KEIN eigenes Modell-Ziel haben, aber verbatim in roh_felder
-# stehen (nicht als 'unerwartet' in raw markieren).
-_BEKANNT_OHNE_ZIEL = {"spellSlotHeader"}
-
-
 def extrahiere(quelle: str | bytes | Path, feldkarte: dict | None = None) -> Charakter:
     """Liest ein DDB-Export-PDF vollstaendig in das neutrale Modell (EN).
 

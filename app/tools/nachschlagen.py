@@ -11,11 +11,8 @@ import sqlite3
 import time
 from typing import Literal, NamedTuple
 
-from rapidfuzz import fuzz
-
 from app import db as _db
 from app.db import Kategorie
-from app import facetten as _facetten
 from app import glossar as _glossar
 from app import protokoll as _protokoll
 from app.tools.ausgabe import (
@@ -26,15 +23,11 @@ from app.tools.ausgabe import (
     _HINWEIS_STERN,
     _alias_hinweis,
     _detail,
-    _facetten_von,
     _knapp,
     _markiere_abenteuer,
     _verbinde,
 )
 
-
-# Kanonische Definition in app/glossar.py (gemeinsam mit dem Such-Ranking, SYN-P0-002).
-_KLAMMER_SUFFIX = _glossar.KLAMMER_SUFFIX
 
 
 def _texte_weichen_ab(a: str, b: str) -> bool:

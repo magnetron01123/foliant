@@ -29,16 +29,14 @@ def cmd_status(_args) -> None:
     n = c.execute("SELECT count(*) FROM eintraege").fetchone()[0]
     print(f"Eintraege gesamt: {n}\n")
     print("Je Quelle (nach Prioritaet):")
-    try:                                   # Bestands-DBs ohne inhaltsart-Spalte (SYN-P0-007)
-        zeilen = c.execute(
-            "SELECT q.kuerzel, q.edition, q.sprache, q.inhaltsart, count(e.id) AS n "
-            "FROM quellen q LEFT JOIN eintraege e ON e.quelle_id=q.id "
-            "GROUP BY q.id ORDER BY q.prioritaet").fetchall()
-    except sqlite3.OperationalError:
-        zeilen = c.execute(
-            "SELECT q.kuerzel, q.edition, q.sprache, 'regelwerk' AS inhaltsart, "
-            "count(e.id) AS n FROM quellen q LEFT JOIN eintraege e ON e.quelle_id=q.id "
-            "GROUP BY q.id ORDER BY q.prioritaet").fetchall()
+    # Kein Alt-Schema-Rueckfall mehr: `_con()` geht ueber `db.connect()`, und das fuehrt
+    # `stelle_schema_sicher()` mit - die inhaltsart-Spalte existiert danach IMMER.
+    # Der frueher hier stehende except-Zweig war seit dem gemeinsamen Migrationspunkt
+    # unerreichbar (am v0-Schema nachgestellt, 31.07.2026).
+    zeilen = c.execute(
+        "SELECT q.kuerzel, q.edition, q.sprache, q.inhaltsart, count(e.id) AS n "
+        "FROM quellen q LEFT JOIN eintraege e ON e.quelle_id=q.id "
+        "GROUP BY q.id ORDER BY q.prioritaet").fetchall()
     for r in zeilen:
         art = "" if r["inhaltsart"] == "regelwerk" else f"  [{r['inhaltsart']}]"
         print(f"  {r['kuerzel']:<16} {r['edition']:<5} {r['sprache']:<3} {r['n']:>6}{art}")
@@ -386,11 +384,7 @@ def cmd_check(_args) -> None:
     c = _con()
     fehler = 0
     sv = c.execute("PRAGMA user_version").fetchone()[0]
-    hat_inhaltsart = any(r[1] == "inhaltsart"
-                         for r in c.execute("PRAGMA table_info(quellen)"))
-    print(f"Schema-Version: {sv}" + ("" if sv >= 2 and hat_inhaltsart else
-          "  HINWEIS: Alt-Schema (<v2) - inhaltsart-Spalte fehlt evtl.; "
-          "Importer ruesten sie defensiv nach, aber ein Reinit auf v2 ist sauberer"))
+    print(f"Schema-Version: {sv}")
     n_e = c.execute("SELECT count(*) FROM eintraege").fetchone()[0]
     n_f = c.execute("SELECT count(*) FROM eintraege_fts").fetchone()[0]
     print(f"Eintraege: {n_e} / FTS-Zeilen: {n_f}" + ("  OK" if n_e == n_f else "  INKONSISTENT -> reindex-fts!"))

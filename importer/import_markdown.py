@@ -555,7 +555,10 @@ def _chunks(markdown: str, kategorie_standard: str = "regel",
         roh_name = m.group(2).strip() if m else ""
         # Kursive Pseudo-Headings ('_Herkunftstalent_', '_Kosten: ..._') sind Metazeilen,
         # keine Eintragsgrenzen -> im Body belassen.
-        ist_kursiv = roh_name.startswith("_") and not roh_name.strip("_*").startswith("**")
+        # Der frueher angehaengte Konjunkt `not roh_name.strip("_*").startswith("**")`
+        # war beweisbar immer wahr: strip("_*") entfernt genau die Zeichen, mit denen
+        # "**" beginnen wuerde. Er sah nach einer Ausnahme aus, war aber keine.
+        ist_kursiv = roh_name.startswith("_")
         # Label-Pseudo-Headings ('### **Reichweite:** 9 Meter') sind Fortsetzungszeilen
         # des laufenden Eintrags -> Heading-Praefix ab, Zeile in den Body (Modul-Doku).
         if m and not ist_kursiv and (_LABEL_HEADING.match(roh_name)

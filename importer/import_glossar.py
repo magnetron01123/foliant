@@ -32,12 +32,6 @@ API_URL = dnddeutsch.API_URL                     # Default; [glossar].api_url ge
 _PAUSE_S = dnddeutsch.PAUSE_S
 
 
-def _api_url() -> str:
-    """A8: die in config/foliant.toml angebotene [glossar].api_url wird tatsaechlich
-    verwendet (Default: API_URL)."""
-    return dnddeutsch.api_url()
-
-
 def _cache_verzeichnis() -> Path:
     """A8: Cache-Pfad projektroot-relativ, nie abhaengig vom Arbeitsverzeichnis."""
     return dnddeutsch.cache_verzeichnis()
@@ -264,10 +258,6 @@ def _hole_api(client, begriff: str) -> dict:
     return dnddeutsch.hole(client, begriff, pause_s=_PAUSE_S)
 
 
-def _edition_aus_buch(buch: str | None) -> str | None:
-    return dnddeutsch.edition_aus_buch(buch)
-
-
 # Ein Glossar-Begriff ist ein NAME, kein Satz. Beide Grenzen am Bestand gemessen
 # (28.07.2026, 2682 Zeilen): laengster echter Begriff 53 Zeichen, p99,9 = 51; die
 # laengsten legitimen Namen haben 6 Woerter ("Mask of the Wild" hat 4). Die Grenzen
@@ -301,7 +291,7 @@ def seed_glossar(con: sqlite3.Connection, begriffe_en: list[str]) -> int:
     import httpx  # nur der Importer braucht Netz (Q7)
 
     geschrieben = 0
-    with httpx.Client(timeout=20.0, headers={"User-Agent": "Foliant (privates Glossar-Seeding, gedrosselt)"}) as client:
+    with httpx.Client(timeout=20.0, headers={"User-Agent": dnddeutsch.USER_AGENT}) as client:
         for i, begriff in enumerate(begriffe_en, start=1):
             try:
                 daten = _hole_api(client, begriff)
