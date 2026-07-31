@@ -44,8 +44,11 @@ INHALTSARTEN = frozenset({"regelwerk", "abenteuer_setting", "errata", "regelausl
 # Ausschlag geben?" - also Q2/S10, Deutsch vor Englisch, offiziell vor abgeleitet:
 #
 #   10  deutsches Kernregelwerk 2024 (Kaufbuch)  - Obermenge des SRD UND am Tisch
-#                                                  nachschlagbar; deshalb VOR dem SRD
-#   20  deutsches SRD / freie deutsche Quellen   - offiziell, aber Teilmenge
+#                                                  nachschlagbar; deshalb VOR dem SRD.
+#                                                  NUR Kernregelwerke - ein Abenteuerband
+#                                                  gehoert hier nicht hin
+#   20  deutsches SRD, deutsche Ergaenzungs- und Abenteuerbaende 2024 - offiziell, aber
+#                                                  kein Kernregeltext
 #   30  deutsche Altbuecher 2014 (Scans)         - offiziell, aber aeltere Regelversion;
 #                                                  Terminologie bleibt gueltig (V6/S7)
 #   40  englische Kaufbuecher (DDB/PDF)          - vollstaendig, aber nicht deutsch
@@ -77,14 +80,28 @@ def band_fuer(*, sprache: str, edition: str, herkunft: str,
     es gibt legitime Feinsortierung innerhalb einer Klasse, und ein hartes Gate wuerde
     genau die Handbreite nehmen, die die Baender offen lassen sollen.
 
-    Errata und Regelauslegung zuerst: ihre Klasse haengt an DEM, was sie sind, nicht an
-    Sprache oder Bezugsweg - ein deutsches Errata bliebe eine Korrektur und duerfte den
-    Grundtext trotzdem nicht ueberholen."""
+    Bekannte Grenzen der Heuristik (Review 31.07.2026) - sie fuehren zu einer FALSCHEN
+    WARNUNG, nie zu einem falschen Import:
+      * Der deutsche Zweig unterscheidet Vollbuch und SRD an der Lizenz. Eine deutsche
+        2024-Quelle ohne `lizenz` oder mit anders geschriebener Lizenz ('CC BY 4.0' mit
+        Leerzeichen) gilt als Kaufbuch und wird bei Band 20 angemahnt.
+      * Der englische Zweig erkennt freie Quellen an `herkunft='open5e'`. Eine kuenftige
+        freie API mit anderer `herkunft` wuerde bei Band 60 angemahnt - dann gehoert sie
+        in die Aufzaehlung unten, nicht die Zahl in der Config verbogen."""
+    # Zuerst die Faelle, deren Klasse an DEM haengt, was die Quelle IST - nicht an
+    # Sprache oder Bezugsweg. Ein deutsches Errata bliebe eine Korrektur und duerfte den
+    # Grundtext trotzdem nicht ueberholen.
     if inhaltsart in ("errata", "regelauslegung"):
         return BAND_REVISION
     if sprache == "de":
         if edition != "2024":
             return BAND_DE_ALTBUCH
+        # Band 10 ist AUSDRUECKLICH dem Kernregelwerk vorbehalten. Ein Abenteuer-/
+        # Settingband ist keines: er liefert Regelwerte, aber keine Kernregeln, und stuende
+        # dort vor dem SRD - bei einer Dublette gaebe also die Abenteuervariante den
+        # Ausschlag (Review-Befund 31.07.2026: er bekam vorher Band 10).
+        if inhaltsart == "abenteuer_setting":
+            return BAND_DE_SRD
         # Das SRD ist eine offizielle TEILMENGE des Kernregelwerks; unterschieden wird
         # an der Lizenz, weil genau sie den Unterschied ausmacht: frei weitergebbar
         # (CC-BY) gegen gekauftes Vollbuch ('privat').

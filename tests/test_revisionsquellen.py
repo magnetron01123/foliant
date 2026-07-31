@@ -195,3 +195,41 @@ def test_optionslisten_laufen_auch_ohne_die_inhaltsart_spalte(tmp_path):
             "auf die ungefilterte Abfrage greift nicht")
     finally:
         c.close()
+
+
+def test_errata_hinweis_verdraengt_den_spoilerschutz_nicht(tmp_path, monkeypatch):
+    """Review-Befund 31.07.2026: Der Sammelhinweis fuer die NEBENLISTEN entfiel, sobald
+    der Detail-Pfad schon einen Hinweis gesetzt hatte.
+
+    Solange nur Abenteuerbaende gekennzeichnet wurden, war das folgenlos - es war
+    derselbe Text. Mit Errata nicht mehr: Liefert der Detailabruf ein ERRATUM (📌) und
+    steht in 'andere_fassungen' ein ABENTEUERBAND, fiel dessen 🚫 lautlos weg. Damit
+    verschwand der Spoiler-Schutz - die OBERSTE Verhaltensregel - hinter einer
+    Korrektur-Meldung."""
+    con = sqlite3.connect(tmp_path / "t.sqlite")
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.executemany(
+        "INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,prioritaet,"
+        "inhaltsart) VALUES (?,?,?,?,?,?,?,?)",
+        [("errata-phb", "PHB Errata", "en", "2024", "pdf", "WotC", 70, "errata"),
+         ("cos-de", "Fluch des Strahd", "de", "2014", "pdf", "privat", 35,
+          "abenteuer_setting")])
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,"
+        "seite,body_md) VALUES (?,?,?,?,?,?,?,?)",
+        [(1, "regel", None, "Vampire", "en", "2024", "2", "Korrektur zu Vampiren."),
+         # Andere Edition -> landet als 'andere_fassungen' in der Nebenliste.
+         (2, "regel", None, "Vampire", "de", "2014", "88", "Strahds Schloss: Gang ...")])
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(adb, "standard_pfad", lambda: tmp_path / "t.sqlite")
+
+    d = ns.foliant_hol_eintrag("regel", "Vampire")
+    assert d["quelle_kuerzel"] == "errata-phb"          # Vorbedingung: Erratum geliefert
+    neben = d.get("andere_fassungen") or []
+    assert any(n.get("inhaltsart") == "abenteuer_setting" for n in neben), neben
+    hinweis = d.get("hinweis_inhaltsart") or ""
+    assert "📌" in hinweis, "der praezisere Einzelhinweis muss stehen bleiben"
+    assert "🚫" in hinweis, "der Spoiler-Hinweis der Nebenliste darf NICHT wegfallen"

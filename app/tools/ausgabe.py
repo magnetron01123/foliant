@@ -162,18 +162,32 @@ def _markiere_inhaltsart(con: sqlite3.Connection, antwort: dict, *listen: list[d
             if art:
                 k["inhaltsart"] = art
                 betroffen[art] = betroffen.get(art, 0) + 1
-    # Die Kennzeichnung am EINZELNEN Treffer wird immer gesetzt; der Sammelhinweis nur,
-    # wenn nicht schon ein spezifischerer dasteht. Im Detail-Pfad hat _detail bereits
-    # gesagt "DIESER Eintrag stammt aus einem Abenteuerband" - das ist die praezisere
-    # Aussage und darf nicht von der Zaehlung ueberschrieben werden.
-    if not betroffen or "hinweis_inhaltsart" in antwort:
+    if not betroffen:
         return
+    # Die Kennzeichnung am EINZELNEN Treffer wird immer gesetzt. Beim Sammelhinweis hat
+    # ein bereits vorhandener Vorrang: Im Detail-Pfad hat _detail schon gesagt "DIESER
+    # Eintrag stammt aus ..." - die praezisere Aussage, die keine Zaehlung ueberschreiben
+    # darf.
+    #
+    # Er darf sie aber auch nicht VERDRAENGEN. Bis dahin brach die Funktion hier ab, sobald
+    # irgendein Hinweis stand - solange nur Abenteuerbaende gekennzeichnet wurden, war das
+    # folgenlos (derselbe Text). Mit Errata und Auslegung nicht mehr: liefert der Detail-
+    # Pfad ein ERRATUM (📌) und steht in den Nebenlisten ein ABENTEUERBAND, fiel dessen
+    # 🚫-Hinweis lautlos weg - der Spoiler-Schutz, also die oberste Regel, verschwand
+    # hinter einer Korrektur-Meldung (Review-Befund 31.07.2026, reproduziert).
+    # Deshalb: nur die Arten ueberspringen, die der vorhandene Hinweis schon nennt.
+    schon = antwort.get("hinweis_inhaltsart")
+    if schon:
+        betroffen = {art: n for art, n in betroffen.items()
+                     if INHALTSART_HINWEISE.get(art, ("",))[0] not in schon}
+        if not betroffen:
+            return
     teile = [f"{symbol} {betroffen[art]} Treffer "
              f"{'stammt' if betroffen[art] == 1 else 'stammen'} aus {woraus}: {folge}"
              for art, (symbol, woraus, folge) in INHALTSART_HINWEISE.items()
              if art in betroffen]
     if teile:
-        antwort["hinweis_inhaltsart"] = " | ".join(teile)
+        antwort["hinweis_inhaltsart"] = " | ".join(([schon] if schon else []) + teile)
 
 def _reichere_facetten_an(con: sqlite3.Connection, *treffer_listen: list[dict]) -> None:
     """#2: knappe Zauber-/Monster-Treffer um eine kompakte Facette ('Grad 3' bzw. 'HG 1')

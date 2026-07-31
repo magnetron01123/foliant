@@ -610,8 +610,16 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
         # unten zieht ihn ab und die Glossar-Bruecke fuehrt trotzdem in die Gruppe.
         #
         # Deshalb gar nicht erst gruppieren: Errata und Auslegung stehen NEBEN dem
-        # Grundtext, nicht statt seiner. Dass sie ihn im Ranking nicht ueberholen,
-        # besorgt ihr Prioritaetsband (70, hinter jedem Regelwerk) in `rang()`.
+        # Grundtext, nicht statt seiner.
+        #
+        # Zur Reihenfolge, praezise (Review 31.07.2026): Bei einem EXAKTEN Namenstreffer
+        # entscheidet `rang()` zuerst nach `prioritaet` - dort haelt das Revisionsband
+        # (70, hinter jedem Regelwerk) das Erratum zuverlaessig hinter dem Grundtext. Bei
+        # unscharfen Volltext-Treffern kommt dagegen das Lauf-Ordinal ZUERST (A6: Relevanz
+        # vor Quellenpraezedenz), ein Erratum kann dort also vorn stehen. Das ist gewollt -
+        # wer im Volltext sucht, will den relevantesten Abschnitt -, und es ist
+        # unschaedlich, weil der Treffer seine Kennzeichnung mitfuehrt (📌 verlangt
+        # ausdruecklich, Grundtext UND Korrektur zusammen wiederzugeben).
         if t.get("quelle") in revision:
             eigenstaendig.append(dict(t))
             continue

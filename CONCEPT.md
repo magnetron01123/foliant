@@ -256,8 +256,12 @@ schreiben.
   dieselbe Edition und Kategorie — es liefe damit in die Gruppe des Grundtexts und
   verschwände dort in `weitere_fassungen`, also aus der Trefferliste. Ein Namenszusatz
   hülfe nicht (die Klammer-Suffix-Logik zieht ihn ab, und die Glossar-Brücke führt
-  trotzdem in die Gruppe). Dass sie den Grundtext im Ranking nicht überholen, besorgt ihr
-  Prioritätsband (70, hinter jedem Regelwerk).
+  trotzdem in die Gruppe). Bei einem **exakten Namenstreffer** hält ihr Prioritätsband
+  (70, hinter jedem Regelwerk) sie zuverlässig hinter dem Grundtext; bei unscharfen
+  Volltext-Treffern entscheidet dagegen zuerst die Relevanz (A6), dort kann ein Erratum
+  also vorn stehen. Das ist gewollt und unschädlich — der Treffer trägt seine
+  Kennzeichnung mit, und die verlangt ausdrücklich, Grundtext und Korrektur zusammen
+  wiederzugeben.
 
 ---
 
