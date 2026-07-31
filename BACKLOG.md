@@ -100,7 +100,8 @@ Zauber-Brücken: 1585 → **1539 Einträge** (die 46 Artefakt-Chunks sind in ihr
 zurückgewandert, 264 tragen den Zauberkopf jetzt im Body). **Achtung bei künftigen
 Re-Importen:** ein Re-Import spielt die rohen OCR-Namen wieder ein und macht die
 Namensreparatur der betroffenen Quelle zunichte — danach gehört `import --quelle glossar`
-gefahren, das `repariere_2014_namen` mitbringt.
+gefahren, das `repariere_2014_namen` mitbringt. Seit dem 31.07.2026 sagt die CLI-Hilfe
+des Kommandos das auch selbst, statt es nur hier zu erwähnen.
 **Zauber-Abdeckung vollständig:** Von den 369 deutschen 2024-Einträgen der Kategorie `zauber`
 tragen 345 eine Glossar-Brücke; die 24 ohne sind keine Zauber, sondern Abschnitte des
 Zauberkapitels (`Dauer`, `Effekte`, `Verbalkomponente (V)` — siehe §3). Damit ist die

@@ -56,10 +56,26 @@ def zauber_kurz(body: str | None) -> str | None:
 
 
 # --- Zauber-Schule (kanonischer Schluessel <- DE/EN-Synonyme) ----------------
+# 'bannmagie' und 'weissagung' ergaenzt (31.07.2026): Es gibt ein ZWEITES Schul-Register,
+# `importer/srd_zauberbruecken.SCHULEN`, und die beiden fuehrten unterschiedliches deutsches
+# Vokabular fuer dieselben acht Schulen. Am Bestand nachgemessen ist die Divergenz heute
+# fast folgenlos ('Bannzauber' 48x gegen 'Bannmagie' 1x) - aber ein deutsches PHB 2024
+# traefe genau hier auf.
+#
+# Ehrlich zur Wirkung: Von 727 Zaubereintraegen aendert sich GENAU EINER, und kein
+# einziger bekommt eine Schule, der vorher keine hatte. Der eine ist "Die Schulen der
+# Magie" - die TABELLE aller acht Schulen, einer der 24 bekannten Kapitelabschnitte mit
+# kategorie='zauber' (BACKLOG.md par. 3). Sein Kopf nennt alle Schulen; welche zuerst
+# trifft, ist Zufall der Reihenfolge. Er stand auf 'beschwoerung' und steht jetzt auf
+# 'bannzauber' - beides gleich bedeutungslos fuer eine Uebersichtstabelle.
+#
+# Bewusst NUR additiv und nur auf DIESER Seite: `srd_zauberbruecken.SCHULEN` speist den
+# Zauberkopf-Fingerabdruck, dessen Regexe laut CONCEPT.md par. 12 unberuehrt bleiben, weil
+# jede Aenderung daran geseedete Glossar-Paare verschiebt.
 _SCHULEN: dict[str, set[str]] = {
-    "bannzauber":   {"bannzauber", "abjuration"},
+    "bannzauber":   {"bannzauber", "bannmagie", "abjuration"},
     "beschwoerung": {"beschworung", "conjuration"},          # norm entfernt Diakritika
-    "erkenntnis":   {"erkenntnis", "erkenntnismagie", "divination"},
+    "erkenntnis":   {"erkenntnis", "erkenntnismagie", "weissagung", "divination"},
     "verzauberung": {"verzauberung", "enchantment"},
     "hervorrufung": {"hervorrufung", "evocation"},
     "illusion":     {"illusion"},

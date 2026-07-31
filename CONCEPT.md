@@ -382,7 +382,9 @@ python -m app.admin import --quelle open5e-srd-2024     # Open5e-API
 python -m app.admin import --quelle glossar             # inkl. Kern-Singulare
 ```
 Reihenfolge: **Bestand → Facetten → Glossar.** Die Facetten laufen automatisch am Ende jedes
-Quellen-Imports mit (Voll-Lauf, idempotent, ~0,1 s je 3000 Einträge). Für eine bestehende DB
+Quellen-Imports mit — auch beim DDB-Import (Voll-Lauf, idempotent, ~0,1 s je 3000 Einträge).
+*Bis zum 31.07.2026 stimmte dieser Satz nur für `admin import`; der DDB-Weg rief den Seeder
+nie, seine Bücher lagen also ohne Facetten im Bestand.* Für eine bestehende DB
 ziehst du sie **ohne Re-Import** nach — wichtig, weil ein Re-Import die Namensreparatur der
 2014-Scans zunichte macht:
 ```
@@ -704,7 +706,14 @@ bestehende Pipeline den Inhaltsbedarf; DDB bliebe dann unerschlossen.
 - **Haupt-Suite** (`.venv`) inkl. Abnahme T1–T12 und der **Golden-Suite**
   (`tests/test_golden_bestand.py`), die Regel-**Semantik** am echten Bestand prüft
 - **DDB-Suite** in `.venv-ddb` — sonst bleibt sie **unsichtbar rot**
-- `admin check` + `tests/smoke_test.py` (deckt alle 6 Tools ab, prüft aktiv auf Header-Müll)
+- `admin check` + `tests/smoke_test.py` (deckt alle 6 Tools ab, prüft aktiv auf Header-Müll);
+  der Smoke-Test lenkt das Abfrage-Protokoll bewusst in eine Wegwerf-Datei um — er läuft
+  über `python -m` und damit an der `conftest.py`-Isolation vorbei
+
+**Die CI fährt dieselben zwei Stufen** (`.github/workflows/ci.yml`): einen Job je
+Anforderungsdatei. Bis zum 31.07.2026 installierte sie nur `requirements.txt`, wodurch die
+26 DDB-Tests sich dort **still übersprangen** — genau der Zustand, den `make test` lokal
+verhindert. Der zweite Job schlägt fehl, wenn sie doch übersprungen werden.
 
 **Grüne Strukturtests beweisen keine Inhalte** (Synthese-Fund 12.07.2026). Nach jedem
 srd-de-Re-Import ist die Golden-Suite Pflicht.
@@ -808,7 +817,9 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
 - **Zugang** (`app/zugriff.py`): geheimer Pfad-Token + IP-Allowlist auf `CF-Connecting-IP`.
   `/health` bleibt offen (nur Status, keine Inhalte — trägt das Monitoring).
 - **Read-only-Betrieb:** Der Server öffnet die SQLite-DB schreibgeschützt (`mode=ro`,
-  `query_only=ON`); alle 6 Tools sind `readOnlyHint`.
+  `query_only=ON`); alle 6 Tools sind `readOnlyHint`. **Jeder** Lesepfad geht über
+  `db.connect_readonly` — auch `/ready`, das bis zum 31.07.2026 ein rohes `sqlite3.connect`
+  ohne `query_only` benutzte und damit als einziger Pfad ohne die zweite Leitplanke lief.
 - **Fail-fast:** Mit `FOLIANT_PRODUKTION=an` verweigert der Server den Start, wenn das
   Pfad-Token kürzer als 16 Zeichen ist.
 - **Eingabegrenzen:** Suchanfragen sind längenbegrenzt, `limit` wird gedeckelt (DoS-Schutz).
