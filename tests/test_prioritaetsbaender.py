@@ -47,13 +47,18 @@ def test_revision_liegt_immer_im_eigenen_band(art, sprache, edition, herkunft):
                        inhaltsart=art) == q.BAND_REVISION
 
 
-def test_revision_rankt_hinter_jedem_regelwerk():
+def test_revision_rankt_hinter_den_aktuellen_regelwerken():
     """Die eigentliche Zusage des Revisions-Bandes: bei gleichem Namen gewinnt immer der
     Grundtext. Ohne sie koennte eine Korrektur als kanonischer Text ausgegeben werden -
-    also ein Satzfragment ('the damage is 8d6, not 6d6') statt der Regel."""
-    regelwerke = (q.BAND_DE_KERNREGELWERK, q.BAND_DE_SRD, q.BAND_DE_ALTBUCH,
-                  q.BAND_EN_KAUFBUCH, q.BAND_EN_FREI)
-    assert all(b + q.BAND_BREITE <= q.BAND_REVISION for b in regelwerke)
+    also ein Satzfragment ('the damage is 8d6, not 6d6') statt der Regel.
+
+    Die deutschen ALTBUECHER stehen bewusst HINTER dem Revisionsband (80 gegen 70): Ihr
+    Regelinhalt ist die alte Fassung, ihr Wert liegt in der Terminologie, und die laeuft
+    ueber das Glossar. Ein Erratum zur aktuellen Regel ist naeher an der Wahrheit als ein
+    OCR-Scan der Vorgaengeredition."""
+    aktuelle = (q.BAND_DE_KERNREGELWERK, q.BAND_DE_SRD, q.BAND_EN_KAUFBUCH, q.BAND_EN_FREI)
+    assert all(q.band_ende(b) <= q.BAND_REVISION for b in aktuelle)
+    assert q.BAND_DE_ALTBUCH > q.BAND_REVISION
 
 
 def test_baender_ueberschneiden_sich_nicht():
@@ -61,18 +66,21 @@ def test_baender_ueberschneiden_sich_nicht():
     Zufall - und der Dedupe-Sieger haenge am alphabetischen Stichentscheid."""
     baender = sorted((q.BAND_DE_KERNREGELWERK, q.BAND_DE_SRD, q.BAND_DE_ALTBUCH,
                       q.BAND_EN_KAUFBUCH, q.BAND_EN_FREI, q.BAND_REVISION))
-    assert all(b + q.BAND_BREITE <= naechstes
-               for b, naechstes in zip(baender, baender[1:]))
-    assert baender[-1] + q.BAND_BREITE <= q.STANDARD_PRIORITAET
+    assert all(q.band_ende(b) <= naechstes for b, naechstes in zip(baender, baender[1:]))
+    assert q.band_ende(baender[-1]) <= q.STANDARD_PRIORITAET
 
 
-def test_band_passt_prueft_den_ganzen_bereich():
-    """Ein Band ist zehn breit - genau dafuer, dass ein Import innerhalb seiner Klasse
-    feinsortieren darf (Open5e legt je Dokument einen Laufindex drauf)."""
-    assert q.band_passt(q.BAND_EN_FREI, q.BAND_EN_FREI)
-    assert q.band_passt(q.BAND_EN_FREI + 9, q.BAND_EN_FREI)
-    assert not q.band_passt(q.BAND_EN_FREI + 10, q.BAND_EN_FREI)
-    assert not q.band_passt(q.BAND_EN_FREI - 1, q.BAND_EN_FREI)
+def test_band_reicht_bis_zum_naechsten_band():
+    """Ein Band endet dort, wo das naechste beginnt - nicht nach einer festen Breite.
+    Der Unterschied ist praktisch: die realen Werte sind INNERHALB ihrer Klasse gestaffelt
+    (efota/frhof auf 45, die drei Altbuecher auf 80/85/90), und eine starre Zehnerbreite
+    liess 90 aus seinem eigenen Band fallen."""
+    assert q.band_passt(q.BAND_EN_KAUFBUCH, q.BAND_EN_KAUFBUCH)
+    assert q.band_passt(45, q.BAND_EN_KAUFBUCH)              # efota-en/frhof-en real
+    assert not q.band_passt(q.BAND_EN_FREI, q.BAND_EN_KAUFBUCH)
+    for real in (80, 85, 90):                                 # die drei 2014-Scans real
+        assert q.band_passt(real, q.BAND_DE_ALTBUCH), real
+    assert not q.band_passt(q.STANDARD_PRIORITAET, q.BAND_DE_ALTBUCH)
 
 
 def test_importer_beziehen_ihre_zahlen_aus_den_baendern():
@@ -98,4 +106,4 @@ def test_config_haelt_ihre_eigenen_baender_ein():
                            lizenz=block.get("lizenz"))
         assert q.band_passt(block.get("prioritaet", q.STANDARD_PRIORITAET), band), (
             f"{block['kuerzel']}: prioritaet={block.get('prioritaet')}, "
-            f"erwartet {band}-{band + q.BAND_BREITE - 1}")
+            f"erwartet {band}-{q.band_ende(band) - 1}")

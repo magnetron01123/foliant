@@ -49,14 +49,27 @@ INHALTSARTEN = frozenset({"regelwerk", "abenteuer_setting", "errata", "regelausl
 #                                                  gehoert hier nicht hin
 #   20  deutsches SRD, deutsche Ergaenzungs- und Abenteuerbaende 2024 - offiziell, aber
 #                                                  kein Kernregeltext
-#   30  deutsche Altbuecher 2014 (Scans)         - offiziell, aber aeltere Regelversion;
-#                                                  Terminologie bleibt gueltig (V6/S7)
 #   40  englische Kaufbuecher (DDB/PDF)          - vollstaendig, aber nicht deutsch
 #   60  englische freie API-/SRD-Quellen         - abgeleitet, ohne Seitenzahlen
 #   70  Errata und offizielle Regelauslegung     - ergaenzen den Grundtext, ersetzen ihn
 #                                                  nie: sie duerfen ihn auch im Ranking
 #                                                  nicht verdraengen
+#   80  deutsche Altbuecher 2014 (Scans)         - ganz hinten, s. u.
 #  100  unklassifiziert (STANDARD_PRIORITAET)
+#
+# WARUM DIE DEUTSCHEN ALTBUECHER HINTEN STEHEN und nicht, wie man nach "Deutsch zuerst"
+# (S10) vermuten wuerde, gleich hinter dem SRD: Ihr REGELINHALT ist die alte Fassung, und
+# die Scans sind OCR-Text mit messbar schlechterer Qualitaet als jedes sauber importierte
+# Buch. Ihr eigentlicher Wert liegt in der TERMINOLOGIE - und die laeuft ueber das Glossar
+# (S7/V6), nicht ueber `prioritaet`. Der Produktions-Pi setzt sie deshalb seit jeher auf
+# 80/85/90 und staffelt sie darin untereinander (PHB vor Xanathar vor Schwertkueste).
+#
+# Diese Zeilen standen bis zum 31.07.2026 falsch hier (Band 30, also VOR den englischen
+# Kaufbuechern). Der Fehler entstand, weil die drei Buecher lokal gar nicht importiert sind
+# - die Baender waren an einer Config kalibriert, die sie nicht enthaelt. Aufgefallen ist
+# es erst beim Abgleich mit dem echten Pi-Bestand vor dem Deploy: `admin check` haette
+# dort drei dauerhafte Warnungen fuer bewusst gesetzte Werte geworfen, und eine Warnung,
+# die immer ansteht, liest bald niemand mehr.
 #
 # Bewusst offen gelassen: dass das gekaufte deutsche Vollbuch VOR dem deutschen SRD steht,
 # ist eine Abwaegung, keine Naturkonstante. Dagegen spricht die Texttreue (das PHB kommt
@@ -64,11 +77,18 @@ INHALTSARTEN = frozenset({"regelwerk", "abenteuer_setting", "errata", "regelausl
 # werden muss: eine Zahl in der Config und `admin quellen-auffrischen`.
 BAND_DE_KERNREGELWERK = 10
 BAND_DE_SRD = 20
-BAND_DE_ALTBUCH = 30
 BAND_EN_KAUFBUCH = 40
 BAND_EN_FREI = 60
 BAND_REVISION = 70
-BAND_BREITE = 10          # ein Band reicht von seinem Startwert bis Start + BREITE - 1
+BAND_DE_ALTBUCH = 80
+
+# Ein Band reicht bis zum Beginn des naechsten - nicht ueber eine feste Breite. Der
+# Unterschied ist praktisch: Die realen Werte sind ueber ihre Klasse gestaffelt (efota/
+# frhof auf 45 innerhalb der englischen Kaufbuecher, die drei Altbuecher auf 80/85/90),
+# und eine starre Zehnerbreite haette 90 aus seinem eigenen Band fallen lassen.
+_BANDGRENZEN = sorted((BAND_DE_KERNREGELWERK, BAND_DE_SRD, BAND_EN_KAUFBUCH,
+                       BAND_EN_FREI, BAND_REVISION, BAND_DE_ALTBUCH,
+                       STANDARD_PRIORITAET))
 
 
 def band_fuer(*, sprache: str, edition: str, herkunft: str,
@@ -111,9 +131,15 @@ def band_fuer(*, sprache: str, edition: str, herkunft: str,
     return BAND_EN_FREI if herkunft in ("open5e",) else BAND_EN_KAUFBUCH
 
 
+def band_ende(band: int) -> int:
+    """Der erste Wert, der NICHT mehr zu diesem Band gehoert (= Start des naechsten)."""
+    hoeher = [g for g in _BANDGRENZEN if g > band]
+    return hoeher[0] if hoeher else band + 10
+
+
 def band_passt(prioritaet: int, band: int) -> bool:
-    """Liegt die vergebene Prioritaet in ihrem Band? (Start bis Start + BREITE - 1)"""
-    return band <= prioritaet < band + BAND_BREITE
+    """Liegt die vergebene Prioritaet in ihrem Band? (Start bis vor das naechste Band)"""
+    return band <= prioritaet < band_ende(band)
 
 # --- Beschriftungs-Standard fuer Quellen ------------------------------------------
 # EINE Quelle wird ueberall mit denselben drei Angaben beschrieben, jede an ihrem
