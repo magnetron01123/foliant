@@ -687,9 +687,12 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
             # SYN-P1-009: die IDs der weggemergten Fassungen mitfuehren - nur so kann
             # die Detail-Schicht Textabweichungen erkennen (Konflikt-/Fremdfassungs-
             # Ausweis) und das Modell eine bestimmte Fassung per eintrag_id nachladen.
+            # `quelle_kuerzel` heisst hier so wie ueberall in der Ausgabeschicht (_knapp):
+            # nur unter diesem Namen findet die Inhaltsart-Kennzeichnung den Eintrag - und
+            # eine weggemergte Fassung kann aus einem Abenteuerband stammen.
             t["weitere_fassungen"] = [
                 {"id": m["id"], "quelle_titel": m["quelle_titel"],
-                 "quelle": m["quelle"], "seite": m.get("seite"),
+                 "quelle_kuerzel": m["quelle"], "seite": m.get("seite"),
                  "sprache": m["sprache"]} for m in mitglieder[1:]]
         kanonisch.append(t)
     kanonisch.extend(eigenstaendig)

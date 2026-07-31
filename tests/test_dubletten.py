@@ -119,9 +119,13 @@ def test_weitere_fassungen_fuehren_seite_und_kuerzel(bestand):
 
     Ueber den NAMEN abgerufen, nicht per eintrag_id: die Fundstellen entstehen aus der
     Dublettengruppe, und die kennt nur dieser Weg. Ein Abruf per eintrag_id laedt bewusst
-    genau EINE Fassung - dort waere eine Gruppenaussage falsch."""
+    genau EINE Fassung - dort waere eine Gruppenaussage falsch.
+
+    Das Kuerzel heisst `quelle_kuerzel` wie ueberall in der Ausgabeschicht - nur unter
+    diesem Namen findet die Inhaltsart-Kennzeichnung den Eintrag, und eine weggemergte
+    Fassung kann aus einem Abenteuerband stammen (Review-Befund 31.07.2026)."""
     d = ns.foliant_hol_eintrag("zauber", "Feuerball")
-    fassungen = {f["quelle"]: f for f in d.get("weitere_fundstellen", [])}
+    fassungen = {f["quelle_kuerzel"]: f for f in d.get("weitere_fundstellen", [])}
     assert fassungen["ddb-phb-2024-en"]["seite"] == "241"
     assert fassungen["open5e-srd-2024"]["seite"] is None   # keine geratene Seite
     assert "S. 241" in d["hinweis_fundstellen"] or "Bestand" in d["hinweis_fundstellen"]

@@ -328,13 +328,11 @@ def _srd_de_reparatur(markdown: str) -> str:
     return markdown
 
 
-# Ein Errata-Korrektureintrag: fetter Absatzkopf mit der betroffenen Regel und der Seite
-# im Grundbuch, dann der Korrekturtext ('**Jumping (p. 30).** The rules for jumping ...').
-# Beide Fettvarianten, weil pymupdf4llm die schliessenden Sterne mal vor, mal nach dem
-# Satzpunkt setzt; 'p.'/'pp.'/'page', weil die PDFs beides fuehren.
-_ERRATA_KOPF = re.compile(
-    r"^\*\*(?P<name>[^*\n]+?)\s*\(\s*(?:pp?\.|page)\s*(?P<seite>[\d–—, -]+?)\s*\)"
-    r"\s*\.?\s*\*\*\.?\s*", re.M)
+# Ein fetter Absatzkopf am ZEILENANFANG - so leiten Errata-PDFs ihre Korrekturen ein.
+# Was dahinter kommt, entscheidet _errata_headings; hier wird nur der Kandidat gefasst.
+_ERRATA_FETTKOPF = re.compile(r"^\*\*(?P<fett>[^*\n]+?)\*\*(?P<rest>[^\n]*)", re.M)
+# Eine Seitenangabe in Klammern: '(p. 30)', '(pp. 27-28)', '(page 30)', '(pp. 12, 40)'.
+_ERRATA_SEITE = re.compile(r"\(\s*(?:pp?\.|page)\s*([\d–—,\s-]+?)\s*\)")
 
 
 def _errata_headings(markdown: str) -> str:
@@ -355,25 +353,55 @@ def _errata_headings(markdown: str) -> str:
     Eine Buchseite in dieses Feld zu schreiben hiesse zu behaupten, das Erratum stuende
     dort - es sagt nur etwas UEBER diese Seite.
 
+    ZWEI Fettvarianten, beide real (Review-Befund 31.07.2026 - die zweite fehlte und liess
+    ihre Korrekturen lautlos im vorherigen Chunk verschwinden):
+      '**Jumping (p. 182).** Text'   - Seite INNERHALB der Fettung
+      '**Jumping** (p. 182). Text'   - nur der Name fett, Seite dahinter
+
+    Die ERSTE Seitenangabe gilt. Ein Kopf kann eine zweite als Querverweis fuehren
+    ('Jumping (p. 182). See also Long Jump (p. 27).'); der frueher einteilige Regex
+    backtrackte dort bis zur letzten und schrieb sowohl den falschen Namen als auch die
+    falsche Buchseite in den Eintrag.
+
     ACHTUNG, an echten Daten noch nicht justiert (31.07.2026): Die drei Errata-PDFs lagen
     bei der Umsetzung nicht vor, das Muster ist aus dem veroeffentlichten Aufbau
-    abgeleitet. Greift es nicht, meldet die Bilanz das als WIRKUNGSLOS statt still einen
-    Riesen-Chunk anzulegen - beim ersten echten Import also die Bilanzzeile lesen."""
-    treffer = 0
+    abgeleitet. Deshalb zaehlt die Bilanz KANDIDATEN gegen ERKANNTE: ein Kopf, der nicht
+    passt, faellt so auf, statt still im vorherigen Eintrag zu landen. Beim ersten echten
+    Import die Bilanzzeile lesen."""
+    erkannt = kandidaten = 0
 
     def ersetze(m: re.Match) -> str:
-        nonlocal treffer
-        treffer += 1
+        nonlocal erkannt, kandidaten
+        kandidaten += 1
+        fett, rest = m.group("fett"), m.group("rest")
+        treffer = _ERRATA_SEITE.search(fett)
+        if treffer:                                   # Seite innerhalb der Fettung
+            name, seite = fett[:treffer.start()], treffer.group(1)
+            schwanz = fett[treffer.end():].lstrip(" .") + rest
+        else:                                         # Seite direkt hinter der Fettung
+            vorne = rest.lstrip()
+            treffer = _ERRATA_SEITE.match(vorne)
+            if not treffer:
+                return m.group(0)                     # kein Korrektur-Kopf -> unveraendert
+            name, seite = fett, treffer.group(1)
+            schwanz = vorne[treffer.end():].lstrip(" .")
+        erkannt += 1
         # Auszeichnung aus dem NAMEN nehmen: die Errata setzen Zaubernamen teils kursiv
         # ('**_Fireball_ (p. 275).**'), und die Unterstriche wanderten sonst in den
-        # Eintragsnamen - '_Fireball_' fände weder die Suche noch die Glossar-Brücke.
-        name = m.group("name").strip().strip("_*").strip()
-        return (f"### {name}\n\n"
-                f"**Offizielle Korrektur zu S. {m.group('seite').strip()} im Grundbuch.** ")
+        # Eintragsnamen - '_Fireball_' faende weder die Suche noch die Glossar-Bruecke.
+        name = name.strip().strip("_*").strip(" .")
+        return (f"### {name}\n\n**Offizielle Korrektur zu S. {seite.strip()} im "
+                f"Grundbuch.** {schwanz.strip()}")
 
-    ergebnis = _ERRATA_KOPF.sub(ersetze, markdown)
-    if not treffer:
-        _BILANZ.greift_nicht("_errata_headings (kein '**Regel (p. N).**'-Kopf gefunden)")
+    ergebnis = _ERRATA_FETTKOPF.sub(ersetze, markdown)
+    if not erkannt:
+        _BILANZ.greift_nicht("_errata_headings (kein Korrektur-Kopf mit Seitenangabe)")
+    elif erkannt < kandidaten:
+        # Teiltreffer sind der gefaehrlichere Fall: der Import laeuft durch, ein Teil der
+        # Korrekturen hat aber keinen eigenen Eintrag und haengt am Vorgaenger.
+        _BILANZ.greift_nicht(
+            f"_errata_headings ({kandidaten - erkannt} von {kandidaten} fetten Koepfen "
+            f"ohne erkennbare Seitenangabe)")
     return ergebnis
 
 

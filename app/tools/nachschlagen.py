@@ -311,11 +311,29 @@ def _quellabweichungen(con, voll: dict, gewaehlt: dict, exakt: list[dict],
     # `weitere_abschnitte` ausgewiesen - sie duerfen den Vergleich (der QUELLuebergreifende
     # Dubletten meint) nicht als Scheinkonflikt fuellen.
     abschnitt_ids = {w["eintrag_id"] for w in weitere_abschnitte}
-    vergleiche = list(gewaehlt.get("weitere_fassungen") or [])
+    # Errata und Regelauslegung gehoeren NICHT in diesen Vergleich (Review-Befund
+    # 31.07.2026). Ein Erratum traegt den Namen der betroffenen Regel, ist also ein
+    # exakter Treffer derselben Edition - und landete damit hier. Die Funktion sortiert
+    # aber nur nach Sprache und Textabweichung: ein englisches Erratum neben deutschem
+    # Grundtext (genau die konfigurierte Lage) kam als 'fremdsprachige Fassung' heraus,
+    # mit dem Hinweis "offizielle Uebersetzungen koennen inhaltlich abweichen". Eine
+    # geltende Korrektur als blosse Uebersetzungsvariante auszugeben ist schlimmer als
+    # sie wegzulassen - und dass sie ABWEICHT, ist ihr Zweck, kein ungeklaerter
+    # Quellenstreit. Sie steht stattdessen als eigener, mit 📌 gekennzeichneter Treffer
+    # in der Suche (app/db._dedupe_und_sortiere nimmt sie aus der Gruppierung heraus).
+    revision = _db._revisions_kuerzel(con)
+
+    def _ist_revision(eid: int) -> bool:
+        e = _db.hole_eintrag(con, eid)
+        return bool(e and e.get("quelle") in revision)
+
+    vergleiche = [w for w in (gewaehlt.get("weitere_fassungen") or [])
+                  if not _ist_revision(w["id"])]
     vergleiche += [{"id": k["id"], "quelle_titel": k["quelle_titel"]}
                    for k in exakt
                    if k["edition"] == voll["edition"] and k["id"] != voll["id"]
-                   and k["id"] not in abschnitt_ids]
+                   and k["id"] not in abschnitt_ids
+                   and k.get("quelle") not in revision]
     konflikte, fremdsprachige = [], []
     gesehen_ids = {voll["id"]}
     for wf in vergleiche[:3]:
@@ -468,8 +486,14 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
         # Abenteuer-Kennzeichnung NICHT - nur die Trefferliste der Suche und der
         # gelieferte Eintrag selbst. `weitere_abschnitte`/`andere_fassungen` fuehren aber
         # ebenfalls einen `auszug` aus dem Bestand mit, also denselben Spoiler-Weg.
+        # `weitere_fundstellen` gehoert dazu (Review-Befund 31.07.2026): Eine weggemergte
+        # Fassung kann aus einem ABENTEUERBAND stammen - "steht auch im Fluch des Strahd,
+        # S. 88" verweist das Modell dann unmarkiert auf eine Spoiler-Quelle. Die Seite
+        # selbst verraet nichts, aber der Verweis soll seine Kennzeichnung tragen, bevor
+        # jemand ihn per eintrag_id nachlaedt.
         _markiere_inhaltsart(con, antwort, antwort.get("weitere_abschnitte") or [],
-                            antwort.get("andere_fassungen") or [])
+                            antwort.get("andere_fassungen") or [],
+                            antwort.get("weitere_fundstellen") or [])
         return antwort
     finally:
         con.close()

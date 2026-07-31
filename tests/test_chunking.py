@@ -377,6 +377,45 @@ def test_errata_kopf_deckt_die_realen_schreibweisen_ab():
     assert not _errata_headings(ungreifbar).startswith("###")
 
 
+def test_errata_erste_seitenangabe_gilt():
+    """Review-Befund 31.07.2026: Ein Kopf kann eine ZWEITE Seitenangabe als Querverweis
+    fuehren. Der frueher einteilige Regex backtrackte bis zur letzten und schrieb beides
+    falsch - den Namen ('Jumping (p. 182). See also Long Jump') und die Buchseite (27
+    statt 182). Eine falsche Fundstelle ist schlimmer als keine: sie sieht belegt aus."""
+    from importer.import_markdown import _errata_headings
+
+    aus = _errata_headings(
+        "**Jumping (p. 182). See also Long Jump (p. 27).** Your jump distance ...")
+    assert aus.split("\n")[0] == "### Jumping", aus.split("\n")[0]
+    assert "S. 182" in aus and "S. 27 im Grundbuch" not in aus, aus
+
+
+def test_errata_erkennt_beide_fettformen():
+    """Zwei reale Schreibweisen, und die zweite fehlte (Review-Befund 31.07.2026):
+    '**Jumping (p. 182).**' hat die Seite INNERHALB der Fettung, '**Jumping** (p. 182).'
+    dahinter. Nicht erkannte Koepfe bekommen keinen eigenen Eintrag - ihre Korrektur
+    haengt dann stumm am Vorgaenger."""
+    from importer.import_markdown import _errata_headings
+
+    aus = _errata_headings(
+        "**Cover (p. 30).** Erste.\n\n**Jumping** (p. 182). Zweite.\n")
+    assert "### Cover" in aus and "### Jumping" in aus, aus
+    assert "S. 30" in aus and "S. 182" in aus, aus
+
+
+def test_errata_meldet_auch_einen_TEILtreffer():
+    """Der gefaehrlichere Fall als 'gar nichts erkannt': der Import laeuft durch, ein Teil
+    der Korrekturen hat aber keinen eigenen Eintrag. Ohne Zaehlung faellt das niemandem
+    auf - die Bilanz meldete frueher nur, wenn KEIN Kopf passte."""
+    from importer.import_markdown import _errata_headings, letzte_bilanz
+
+    letzte_bilanz().wirkungslos.clear()
+    _errata_headings("**Cover (p. 30).** Erste.\n\n**Kapitel 2**\n\n**Ohne Seite** Text.")
+    meldung = " ".join(letzte_bilanz().wirkungslos)
+    assert "_errata_headings" in meldung and "2 von 3" in meldung, meldung
+    letzte_bilanz().wirkungslos.clear()
+
+
 def test_errata_muster_meldet_sich_wenn_es_nicht_greift():
     """Das Muster ist an den veroeffentlichten PDFs abgeleitet, aber nie an ihnen
     JUSTIERT worden (sie lagen bei der Umsetzung nicht vor). Fuehrt eine kuenftige

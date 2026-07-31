@@ -233,3 +233,63 @@ def test_errata_hinweis_verdraengt_den_spoilerschutz_nicht(tmp_path, monkeypatch
     hinweis = d.get("hinweis_inhaltsart") or ""
     assert "📌" in hinweis, "der praezisere Einzelhinweis muss stehen bleiben"
     assert "🚫" in hinweis, "der Spoiler-Hinweis der Nebenliste darf NICHT wegfallen"
+
+
+def test_fundstelle_eines_abenteuerbands_traegt_ihre_kennzeichnung(tmp_path, monkeypatch):
+    """Review-Befund 31.07.2026: Eine weggemergte Fassung kann aus einem ABENTEUERBAND
+    stammen - "steht auch im Fluch des Strahd, S. 88".
+
+    Die Seite selbst verraet nichts, aber der Verweis fuehrte unmarkiert auf eine
+    Spoiler-Quelle: `weitere_fundstellen` trug keine `inhaltsart`, und der Sammelhinweis
+    sah die weggemergte Fassung gar nicht (sie ist kein eigener Treffer mehr). Wer sie per
+    eintrag_id nachlaedt, bekommt die Kennzeichnung erst DANN - eine Stufe zu spaet."""
+    con = sqlite3.connect(tmp_path / "t.sqlite")
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.executemany(
+        "INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,prioritaet,"
+        "inhaltsart) VALUES (?,?,?,?,?,?,?,?)",
+        [("srd-de", "SRD 5.2.1", "de", "2024", "pdf", "CC-BY-4.0", 20, "regelwerk"),
+         ("cos-de", "Fluch des Strahd", "de", "2024", "pdf", "privat", 45,
+          "abenteuer_setting")])
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,"
+        "seite,body_md) VALUES (?,?,?,?,?,?,?,?)",
+        [(1, "monster", "Vampir", "Vampire", "de", "2024", "310", "Vampir-Steckbrief."),
+         (2, "monster", "Vampir", "Vampire", "de", "2024", "88", "Vampir im Schloss ...")])
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(adb, "standard_pfad", lambda: tmp_path / "t.sqlite")
+
+    d = ns.foliant_hol_eintrag("monster", "Vampir")
+    assert d["quelle_kuerzel"] == "srd-de"              # Regelwerk gewinnt (Band 20 < 45)
+    fundstellen = d.get("weitere_fundstellen") or []
+    abenteuer = [f for f in fundstellen if f.get("quelle_kuerzel") == "cos-de"]
+    assert abenteuer, fundstellen
+    assert abenteuer[0]["seite"] == "88"               # die Fundstelle bleibt erhalten
+    assert abenteuer[0].get("inhaltsart") == "abenteuer_setting", abenteuer[0]
+    assert "🚫" in (d.get("hinweis_inhaltsart") or ""), d.get("hinweis_inhaltsart")
+
+
+def test_erratum_ist_keine_uebersetzungsvariante(bestand):
+    """Review-Befund 31.07.2026: Ein Erratum traegt den Namen der betroffenen Regel, ist
+    also ein exakter Treffer derselben Edition - und landete damit in
+    `_quellabweichungen`. Die sortiert aber nur nach Sprache und Textabweichung.
+
+    Folge in der konfigurierten Lage (englisches Erratum neben deutschem Grundtext): Die
+    Korrektur kam als 'fremdsprachige Fassung' heraus, mit dem Hinweis "offizielle
+    Uebersetzungen koennen inhaltlich abweichen" - eine GELTENDE Korrektur als blosse
+    Uebersetzungsvariante. Beim gleichsprachigen Erratum als 'Quellkonflikt', also als
+    ungeklaerter Streit. Dass ein Erratum abweicht, ist sein ZWECK."""
+    d = ns.foliant_hol_eintrag("zauber", "Feuerball")
+    fremd = [f for f in (d.get("fremdsprachige_fassungen") or [])
+             if "Errata" in (f.get("quelle") or "")]
+    konflikt = [k for k in (d.get("konflikt_quellen") or [])
+                if "Errata" in (k.get("quelle") or "")]
+    assert not fremd, d.get("fremdsprachige_fassungen")
+    assert not konflikt, d.get("konflikt_quellen")
+    # Die Korrektur ist deshalb nicht verschwunden - sie steht als eigener Treffer da.
+    s = su.foliant_suche_bestand("Feuerball")
+    assert any(t["quelle_kuerzel"] == "errata-phb-2024-en" for t in s["treffer"])
+    assert "📌" in (s.get("hinweis_inhaltsart") or "")
