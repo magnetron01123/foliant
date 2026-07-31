@@ -24,8 +24,12 @@ body {
 /* One-Pager (index): mehrere Karten untereinander, oben beginnend */
 body.lang { align-items: flex-start; }
 .seite { width: 100%; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
-/* Karten als Raster: eine Spalte, ab genug Platz zwei nebeneinander.
-   align-items: start, damit die kürzere Karte nicht auf Nachbarhöhe gezogen wird. */
+/* Karten als Raster: eine Spalte, ab genug Platz zwei oder drei nebeneinander.
+   `align-items: start` - jede Karte ist so hoch wie ihr Inhalt. Kurz auf gleiche Höhe
+   gezogen (31.07.2026), dann verworfen: die gestreckte Karte war unten zur Hälfte leerer
+   Papiergrund, und das sah nach Fehler aus, nicht nach Absicht. Der Charakterbogen-Block
+   hat stattdessen erklärenden Inhalt bekommen - das schließt die Lücke am richtigen
+   Ende. */
 .inhalt { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
 .kopf { text-align: center; padding-top: 6px; }
 .kopf .marke {
@@ -50,8 +54,15 @@ body.lang { align-items: flex-start; }
   padding: 32px 30px;
   text-align: center;
 }
-/* Anmeldeseite: einzelne Karte direkt im zentrierten body — schmal halten. */
+/* Anmeldeseite: einzelne Karte direkt im zentrierten body — schmal halten. Sie ist eine
+   Handvoll Wörter über einem Eingabefeld, da ist die Zentrierung richtig. */
 body > .karte { max-width: 480px; }
+/* One-Pager: EINE Fluchtlinie je Karte. Zentrierter Fließtext beginnt in jeder Zeile
+   woanders — bei den mehrzeiligen Absätzen im Chat-Abschnitt und über einer Tabelle mit
+   Buchtiteln bricht das den Lesefluss, und nichts steht mehr bündig untereinander:
+   Überschrift, Absatz, Spaltenkopf und Buchtitel fingen an vier verschiedenen Stellen an.
+   Zentriert bleibt nur, was aus einer Zeile besteht (Seitenkopf und Fuß). */
+.inhalt .karte { text-align: left; }
 h1 { font-size: 1.5rem; margin: 0 0 8px; letter-spacing: .02em; }
 h2 { font-size: 1.4rem; margin: 0 0 8px; letter-spacing: .02em; }
 .unter { margin: 0 0 26px; font-size: .96rem; line-height: 1.4; opacity: .85; }
@@ -166,26 +177,39 @@ textarea.anweisung {
   .karte { padding: 26px 20px; }
   .kopf .marke { font-size: 1.7rem; }
 }
-/* Zwei Spalten erst, wenn jede Karte ihre volle einspaltige Breite (560px)
-   behält — sonst würde der Text auf dem großen Bildschirm ENGER umbrechen als
-   auf dem kleinen. 2 x 560 + 40 Spalte = 1160. Beide Spalten exakt gleich breit:
-   ungleiche Karten lassen das Layout aus der Achse gekippt wirken, auch wenn es
-   rechnerisch zentriert ist. */
+/* Spaltenzahl statt Spaltenbreite wachsen lassen. Eine Karte ist knapp 560px breit
+   gedacht; darüber wird der Fließtext nicht besser, sondern nur die Zeile länger.
+   Freier Platz kommt deshalb einer WEITEREN Spalte zugute, nicht einer breiteren.
+   2 x 560 + 40 Spalte = 1160 · 3 x 560 + 2 x 40 = 1760. */
 @media (min-width: 1260px) {
   .seite { max-width: 1160px; gap: 32px; }
   .inhalt { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; }
-  /* Der Bestand ist eine Liste, keine Textspalte - für ihn gilt die 560px-Regel
-     oben NICHT. In einer halben Spalte muss jede Buchzeile umbrechen (Titel und
-     Marken oben, Balken und Zahl darunter); über die volle Breite stehen Titel,
-     Sprache, Regelversion und Umfang nebeneinander. Als letzte Karte fällt sie
-     dabei natürlich unter die beiden Spalten. */
-  #bestand { grid-column: 1 / -1; }
-  #bestand .buch {
-    grid-template-columns: minmax(0, 1fr) auto minmax(140px, 300px) auto;
-    grid-template-areas: "titel marken balken zahl";
-    gap: 0 16px;
-  }
+  /* Die drei Karten sind sehr ungleich hoch: der Charakterbogen ist kurz, der
+     Claude-Chat-Abschnitt lang. Bei der automatischen Zeilen-Platzierung stand der
+     Bestand deshalb als einzelne, volle Zeile UNTER beiden Spalten, und unter der
+     kurzen Karte blieb eine bildschirmhohe Lücke. Feste Platzierung statt Automatik:
+     links die beiden kurzen Karten übereinander, rechts die lange über beide Zeilen -
+     damit sind beide Spalten annähernd gleich hoch. */
+  #bogen   { grid-column: 1; grid-row: 1; }
+  #bestand { grid-column: 1; grid-row: 2; }
+  #mcp     { grid-column: 2; grid-row: 1 / span 2; }
 }
+/* Ab hier passen alle drei Karten nebeneinander, jede in ihrer gedachten Breite -
+   der Rand links und rechts schrumpft auf das, was ein Rand sein soll. Die
+   Zeilen-Platzierung von oben wird dafür wieder aufgehoben. Die Seite wächst danach
+   MIT dem Fenster (bis 2240px), statt bei einer festen Breite stehenzubleiben: auf
+   einem 2560er Monitor blieben sonst über 400px Rand je Seite stehen. */
+@media (min-width: 1800px) {
+  .seite { max-width: min(2240px, 100%); }
+  .inhalt { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; }
+  #bogen   { grid-column: 1; grid-row: 1; }
+  #mcp     { grid-column: 2; grid-row: 1; }
+  #bestand { grid-column: 3; grid-row: 1; }
+}
+/* Die breitere Karte soll nicht auch die längere Textzeile bedeuten: der Zuwachs geht
+   in den Rand INNERHALB der Karte. Die Fluchtlinie bleibt dabei erhalten - es rückt
+   alles gemeinsam ein, nicht nur der Fließtext. */
+@media (min-width: 2100px) { .karte { padding: 38px 52px; } }
 .fehler {
   margin: 18px 0 0;
   padding: 12px;
@@ -199,40 +223,74 @@ textarea.anweisung {
 /* --- Bestandsübersicht: welche Bücher Foliant kennt ------------------------- */
 /* Ein Regal, kein Datenblatt: der Balken macht auf einen Blick sichtbar, welches
    Buch den Bestand trägt und welches nur ein paar Optionen beisteuert. Die Zahlen
-   stehen trotzdem daneben - der Balken ist Orientierung, nicht die Aussage. */
+   stehen trotzdem daneben - der Balken ist Orientierung, nicht die Aussage.
+
+   Jede Zeile beantwortet dieselben drei Fragen an derselben Stelle: WELCHES BUCH,
+   WELCHE SPRACHE, WELCHER REGELSTAND. Sprache und Regelstand bekommen deshalb FESTE
+   Spaltenbreiten statt `auto`: jedes <li> ist ein eigenes Raster, und mit `auto`
+   richtete sich jede Zeile nach ihrer eigenen Textlänge aus — "DEUTSCH" ist kürzer
+   als "ENGLISCH", also standen die Regelstand-Marken zeilenweise versetzt und die
+   Liste war spaltenweise nicht lesbar. Die Karte zentriert ihren Text; eine Liste
+   von Buchtiteln muss trotzdem links stehen. */
 .buecher { list-style: none; margin: 10px 0 0; padding: 0; }
 .buch {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "titel marken" "balken zahl";
-  gap: 2px 10px;
+  grid-template-columns: minmax(0, 1fr) 5.6rem 6.6rem 3.6rem;
+  grid-template-areas: "titel sprache regelstand zahl" "balken balken balken balken";
+  gap: 5px 12px;
   align-items: center;
-  padding: 7px 0;
-  border-bottom: 1px solid rgba(185, 168, 136, .45);
+  padding: 6px 0 0;
 }
-.buch:last-child { border-bottom: 0; }
+/* Tabellen mit nur EINER Marke je Zeile (die Glossar-Herkunft): die beiden mittleren
+   Spalten werden zu einer. Sonst ragt eine längere Beschriftung über ihre Spalte hinaus
+   und die Zeilen stehen wieder versetzt - genau das, was die festen Breiten oben
+   verhindern sollen. */
+.buecher.herkunft .buch { grid-template-columns: minmax(0, 1fr) 12.2rem 0 3.6rem; }
+/* Kopfzeile: benennt die Spalten, trägt aber keine Daten - deshalb ohne Marken-Rahmen
+   und mit einer durchgezogenen Linie statt eines Balkens. */
+.buch.spaltenkopf {
+  font-variant: small-caps; letter-spacing: .07em; font-size: .74rem;
+  opacity: .6; padding-top: 2px;
+}
+.buch.spaltenkopf .balken { background: var(--linie); height: 1px; }
 .buch-titel {
   grid-area: titel; font-size: .9rem; line-height: 1.3;
   overflow-wrap: anywhere;
 }
-.marken { grid-area: marken; display: flex; gap: 5px; flex-shrink: 0; }
+.sprache { grid-area: sprache; }
+.regelstand { grid-area: regelstand; }
 .marke-klein {
+  display: inline-block;
   font-size: .68rem; letter-spacing: .04em; text-transform: uppercase;
   padding: 1px 6px; border: 1px solid var(--linie); border-radius: 2px;
   color: var(--tinte); opacity: .8; white-space: nowrap;
 }
 .marke-klein.jahr { border-color: var(--rot); color: var(--rot); opacity: 1; }
+/* Der Balken ist zugleich die Trennlinie zwischen zwei Büchern - so bleibt jede Zeile
+   EINE Textzeile hoch, auch wenn die Karte nur eine halbe Seitenbreite hat. */
 .balken {
-  grid-area: balken; display: block; height: 5px; border-radius: 3px;
+  grid-area: balken; display: block; height: 4px; border-radius: 2px;
   background: rgba(185, 168, 136, .3); overflow: hidden;
 }
+/* Balkenbreite in 50 Stufen à 2 % — als KLASSEN, nicht als style-Attribut.
+   Die Seite läuft unter `style-src 'self'`: ein Inline-`style` wird vom Browser
+   verworfen, der Balken fiel damit auf seine Vorgabebreite zurück und war IMMER
+   durchgezogen. Lokal fiel das nie auf, weil die Vorschau ohne CSP ausliefert —
+   der Fehler war nur im Betrieb sichtbar (gemeldet 31.07.2026). Der Ausweg über
+   'unsafe-inline' wäre der falsche: er öffnete die CSP für die ganze Seite,
+   damit ein Balken die richtige Länge hat. */
+.b1{width:2%} .b2{width:4%} .b3{width:6%} .b4{width:8%} .b5{width:10%} .b6{width:12%} .b7{width:14%} .b8{width:16%} .b9{width:18%} .b10{width:20%}
+.b11{width:22%} .b12{width:24%} .b13{width:26%} .b14{width:28%} .b15{width:30%} .b16{width:32%} .b17{width:34%} .b18{width:36%} .b19{width:38%} .b20{width:40%}
+.b21{width:42%} .b22{width:44%} .b23{width:46%} .b24{width:48%} .b25{width:50%} .b26{width:52%} .b27{width:54%} .b28{width:56%} .b29{width:58%} .b30{width:60%}
+.b31{width:62%} .b32{width:64%} .b33{width:66%} .b34{width:68%} .b35{width:70%} .b36{width:72%} .b37{width:74%} .b38{width:76%} .b39{width:78%} .b40{width:80%}
+.b41{width:82%} .b42{width:84%} .b43{width:86%} .b44{width:88%} .b45{width:90%} .b46{width:92%} .b47{width:94%} .b48{width:96%} .b49{width:98%} .b50{width:100%}
 .balken > span {
   display: block; height: 100%; border-radius: 3px;
   background: linear-gradient(90deg, var(--rot), var(--rot-hell));
 }
 .zahl {
   grid-area: zahl; font-size: .78rem; font-variant-numeric: tabular-nums;
-  opacity: .7; white-space: nowrap;
+  opacity: .7; white-space: nowrap; text-align: right;
 }
 #bestand h3 {
   margin: 18px 0 0; font-size: .82rem; letter-spacing: .08em;
@@ -241,9 +299,13 @@ textarea.anweisung {
 #bestand h3:first-of-type { margin-top: 14px; }
 
 @media (max-width: 430px) {
-  /* Auf dem Handy hat der Titel die ganze Zeile - die Marken rutschen darunter,
-     statt den Titel auf drei Zeichen zu quetschen. */
-  .buch { grid-template-columns: 1fr; grid-template-areas: "titel" "marken" "balken" "zahl"; }
-  .marken { margin: 2px 0; }
-  .zahl { margin-top: 1px; }
+  /* Auf dem Handy hat der Titel die ganze Zeile - Sprache, Regelstand und Zahl rutschen
+     darunter, statt den Titel auf drei Zeichen zu quetschen. Die Kopfzeile entfällt:
+     untereinander benennt sie nichts mehr, sondern verdoppelt nur die Werte. */
+  .buch {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas: "titel titel titel" "sprache regelstand zahl"
+                         "balken balken balken";
+  }
+  .buch.spaltenkopf { display: none; }
 }

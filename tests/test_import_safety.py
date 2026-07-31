@@ -262,7 +262,9 @@ def test_a8_quellen_upsert_aktualisiert_alle_felder(tmp_path, monkeypatch):
         with con:
             import_open5e(con, ["srd-2024"], erlaube_schrumpfen=True)
         q = con.execute("SELECT titel, lizenz, prioritaet, edition FROM quellen").fetchone()
-        assert q["titel"] == "SRD 5.2 (Open5e)"
+        # Nur der Werktitel - der Bezugsweg steht in `herkunft` (Beschriftungs-Standard,
+        # importer/quellen.py), nicht ein zweites Mal im Titel.
+        assert q["titel"] == "SRD 5.2"
         assert q["lizenz"] == "CC-BY-4.0" and q["prioritaet"] == 60      # A10-Lizenz je Dokument
         assert q["edition"] == "2024"
     finally:

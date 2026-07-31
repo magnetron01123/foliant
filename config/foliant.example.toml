@@ -29,52 +29,63 @@ api_url = "https://www.dnddeutsch.de/tools/json.php"
 # Quellen-Register: was importiert wird, mit welcher Version/Priorität.
 # prioritaet: kleiner = Vorrang bei Dubletten (Q2).
 #
-# inhaltsart = "regelwerk" | "abenteuer_setting"   (optional, Default "regelwerk")
-#   ABENTEUER- UND KAMPAGNENBÄNDE MÜSSEN "abenteuer_setting" tragen. Der Wert wandert
-#   bis in die Tool-Ausgaben und ist dort die Grundlage der Spoiler-Kennzeichnung — also
-#   der OBERSTEN Verhaltensregel (SPEC.md §7). Fehlt er, gilt still "regelwerk" und der
-#   Band wird wie ein Regelwerk zitiert; es gibt keine Fehlermeldung, nur eine fehlende
-#   Warnung im Chat. Der DDB-Weg setzt ihn automatisch aus dem Buchkatalog — der
-#   PDF-/Markdown-Weg hier NICHT, der Wert steht allein in diesem Block.
-#   `admin check` warnt, wenn ein Kürzel nach Abenteuerband aussieht und der Wert fehlt.
+# titel = NUR der Werktitel des Buches, so wie es sich selbst nennt.
+#   Kein "(Deutsch)", kein "(2014)", kein "(D&D Beyond)", kein "(Druck)" — Sprache,
+#   Regelversion und Bezugsweg stehen daneben in `sprache`, `edition` und `herkunft` und
+#   werden daraus überall einheitlich angezeigt (Beschriftungs-Standard,
+#   importer/quellen.py). Ein solcher Zusatz wird beim Import stillschweigend entfernt.
+#
+# inhaltsart = "regelwerk" | "abenteuer_setting"   — PFLICHT, wie `edition`.
+#   Der Wert wandert bis in die Tool-Ausgaben und ist dort die Grundlage der
+#   Spoiler-Kennzeichnung — also der OBERSTEN Verhaltensregel (SPEC.md §7). Bis zum
+#   31.07.2026 war er optional und fiel still auf "regelwerk" zurück: ein Abenteuerband
+#   ohne die Zeile landete ohne Spoiler-Schutz im Bestand, ohne Fehler und ohne Warnung
+#   — nur ohne Kennzeichnung im Chat. Deshalb lehnt der Import ihn jetzt ab, statt zu
+#   raten (Regel 1). Der DDB-Weg setzt den Wert automatisch aus dem Buchkatalog; der
+#   PDF-/Markdown-Weg hier NICHT, er steht allein in diesem Block.
+#   `admin check` warnt zusätzlich, wenn ein Kürzel nach Abenteuerband aussieht und
+#   trotzdem "regelwerk" trägt.
 [[quelle]]
 kuerzel = "srd-de"
-titel = "SRD 5.2.1 (Deutsch)"
+titel = "System Reference Document 5.2.1"
 sprache = "de"
 edition = "2024"
 herkunft = "pdf"
 lizenz = "CC-BY-4.0"
 prioritaet = 10
+inhaltsart = "regelwerk"
 dateipfad = "quellen/SRD_5.2.1_DE.pdf"
 
 [[quelle]]
 # GESCANNTE PDFs: erst die OCR-Vorstufe fahren (admin pdf-triage -> admin ocr-pdf),
 # dann zeigt dateipfad auf die OCR-Fassung unter data/ocr/ (Original bleibt in quellen/).
 kuerzel = "phb-2024-de"
-titel = "Spielerhandbuch 2024 (Deutsch)"
+titel = "Spielerhandbuch"
 sprache = "de"
 edition = "2024"
 herkunft = "pdf"
 lizenz = "privat"
 prioritaet = 20
+inhaltsart = "regelwerk"
 dateipfad = "quellen/PHB_2024_DE.pdf"   # bei Scan: "data/ocr/PHB_2024_DE.ocr.pdf"
 
 [[quelle]]
 # Kuerzel-Schema des Importers: "open5e-<dokument-key>" (Quelle wird beim Import angelegt)
 kuerzel = "open5e-srd-2024"
-titel = "System Reference Document 5.2 (Open5e)"
+titel = "System Reference Document 5.2"
 sprache = "en"
 edition = "2024"
 herkunft = "open5e"
 lizenz = "CC-BY-4.0 / OGL"
 prioritaet = 60          # geringer als deutsche Quellen -> fuellt Luecken, gewinnt nicht (Q2)
+inhaltsart = "regelwerk"
 # dateipfad entfaellt: API-Quelle (siehe [open5e])
 
 # Beispiel fuer einen Abenteuer-/Kampagnenband aus einem eigenen PDF. Der Unterschied zu
 # den Bloecken oben ist EINE Zeile - und ohne sie greift der Spoiler-Schutz nicht.
 # [[quelle]]
 # kuerzel = "cos-de"
-# titel = "Der Fluch des Strahd (Deutsch)"
+# titel = "Der Fluch des Strahd"
 # sprache = "de"
 # edition = "2014"
 # herkunft = "pdf"

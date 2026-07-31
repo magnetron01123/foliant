@@ -389,7 +389,9 @@ def import_open5e(con: sqlite3.Connection, dokumente: list[str] | None = None,
 
         for dokument in dokumente:
             edition = _EDITIONEN[dokument]
-            titel = f"{titel_je_dok.get(dokument, dokument)} (Open5e)"
+            # Nur der Werkname; der Bezugsweg steht in `quellen.herkunft` ('open5e')
+            # und nicht noch einmal im Titel (Beschriftungs-Standard, importer/quellen.py).
+            titel = titel_je_dok.get(dokument, dokument)
             chunks: dict[tuple[str, str], dict] = {}  # (kategorie, name) -> chunk
             for endpunkt, kategorie in _ENDPUNKTE:
                 rohe = _hole_alle(client, endpunkt, dokument, basis)

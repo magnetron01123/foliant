@@ -32,6 +32,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from app.charakterbogen.ddb_pdf import DDBFormatFehler, extrahiere
+from app.glossar import ist_eigene_ableitung
 from app.charakterbogen.de_bogen import rendere
 from app.charakterbogen.uebersetzer import (
     DnddeutschNachschlager, ProviderNichtKonfiguriert, UebersetzungsFehler,
@@ -145,93 +146,147 @@ def _bestand_lesen(glossar_pfad: str | None) -> list[dict]:
         con.close()
 
 
-# Klammer-Zusätze, die NUR wiederholen, was auf der Seite ohnehin als eigene Angabe
-# neben dem Titel steht: Sprache, Regelversion, Bezugsweg. Sie sind der Grund für die
-# uneinheitliche Liste - jeder Importweg hängt einen anderen an denselben Werktitel
-# ("SRD 5.2.1 (Deutsch)", "Basic Rules (2014) (D&D Beyond)", "... (Druck)"). Die
-# Positivliste ist bewusst eng: was hier nicht steht, bleibt am Titel. Lieber ein
-# ungekürzter Titel als ein abgeschnittener Werkname.
-_TITEL_ZUSATZ = {
-    "deutsch", "englisch", "english", "de", "en",
-    "d&d beyond", "dnd beyond", "ddb", "open5e", "druck", "pdf", "scan",
-    "2014", "2024", "2014er regeln", "2024er regeln",
-}
-_KLAMMER_AM_ENDE = re.compile(r"\s*\(([^()]*)\)\s*$")
+# Die Glossar-Herkunft ist der dritte Gliederungspunkt. Sie stand nirgends auf der Seite,
+# obwohl sie die Grundlage des Deutschen ist: ohne dnddeutsch.de gaebe es zu den meisten
+# englischen Begriffen keinen belegten deutschen. Die Zeilen leben in `glossar`, nicht in
+# `quellen` - deshalb ein eigener Lesevorgang statt einer weiteren Spalte.
+def _glossar_herkunft(glossar_pfad: str | None) -> list[dict]:
+    """Die deutschen Begriffe nach Herkunft: übernommen von dnddeutsch.de gegenüber
+    selbst am Bestand belegt. Leer, wenn die Tabelle fehlt - dann entfällt die Gruppe."""
+    if not glossar_pfad:
+        return []
+    try:
+        con = sqlite3.connect(f"file:{glossar_pfad}?mode=ro&immutable=1", uri=True)
+    except sqlite3.Error:
+        return []
+    try:
+        zeilen = con.execute("SELECT quelle, count(*) FROM glossar GROUP BY quelle").fetchall()
+    except sqlite3.Error:
+        return []
+    finally:
+        con.close()
+    eigen = sum(n for q, n in zeilen if ist_eigene_ableitung(q))
+    fremd = sum(n for q, n in zeilen if not ist_eigene_ableitung(q))
+    gruppe = []
+    if fremd:
+        gruppe.append({"titel": "dnddeutsch.de", "marke_a": "Begriffsdatenbank",
+                       "marke_b": "", "zahl": fremd})
+    if eigen:
+        gruppe.append({"titel": "Abgleich im eigenen Bestand",
+                       "marke_a": "aus den Büchern belegt", "marke_b": "", "zahl": eigen})
+    return gruppe
 
 
-def _titel_schlicht(titel: str) -> str:
-    """Werktitel ohne die Klammer-Zusätze, die Sprache/Regelversion/Bezugsweg doppeln.
+def _tabelle(zeilen: list[dict], kopf: tuple[str, str, str, str], groesste: int,
+             klasse: str = "") -> str:
+    """EIN Zeilenbauer für alle Gruppen - jede Zeile trägt dieselben vier Angaben an
+    derselben Stelle, nur die Spaltennamen wechseln mit der Gruppe. Zwei Bauer wären der
+    sichere Weg zurück in die Uneinheitlichkeit, die die Liste vorher unlesbar machte.
 
-    Nur am ENDE und nur, wenn JEDER kommagetrennte Teil in der Positivliste steht -
-    "Curse of Strahd: Character Options (D&D Beyond)" verliert die Herkunft,
-    "Monstrous Compendium Vol. 1 (Spelljammer Creatures)" behielte seinen Zusatz.
-    Mehrfach angewandt, weil manche Titel zwei Klammern tragen ("(2014) (D&D Beyond)").
-    """
-    rest = (titel or "").strip()
-    while True:
-        treffer = _KLAMMER_AM_ENDE.search(rest)
-        if not treffer:
-            return rest.strip()
-        teile = [t.strip().lower() for t in treffer.group(1).split(",")]
-        if not teile or not all(t in _TITEL_ZUSATZ for t in teile):
-            return rest.strip()
-        gekuerzt = rest[:treffer.start()].strip()
-        if not gekuerzt:                 # Titel BESTEHT nur aus dem Zusatz -> unangetastet
-            return rest.strip()
-        rest = gekuerzt
+    `zeilen`: {titel, marke_a, marke_b, zahl}. `kopf`: die vier Spaltennamen.
+    `klasse`: Zusatzklasse fuer Tabellen ohne zweite Marke - deren erste darf dann
+    beide Spalten nutzen, sonst laeuft sie ueber ihre Spalte hinaus und die Zeilen
+    stehen wieder versetzt."""
+    teil = [f'<li class="buch spaltenkopf">'
+            f'<span class="buch-titel">{_escape(kopf[0])}</span>'
+            f'<span class="sprache">{_escape(kopf[1])}</span>'
+            f'<span class="regelstand">{_escape(kopf[2])}</span>'
+            f'<span class="balken"></span>'
+            f'<span class="zahl">{_escape(kopf[3])}</span>'
+            f'</li>']
+    for z in zeilen:
+        n = z["zahl"] or 0
+        # Breite als Klasse (b1..b50, je 2 %), nicht als style-Attribut: die Seite laeuft
+        # unter `style-src 'self'`, dort verwirft der Browser jeden Inline-Stil. Siehe
+        # site.css.
+        stufe = min(50, max(1, round(50 * n / (groesste or 1))))
+        marke_b = (f'<span class="marke-klein jahr">{_escape(z["marke_b"])}</span>'
+                   if z.get("marke_b") else "")
+        teil.append(
+            f'<li class="buch">'
+            f'<span class="buch-titel">{_escape(z["titel"] or "?")}</span>'
+            f'<span class="sprache">'
+            f'<span class="marke-klein">{_escape(z["marke_a"])}</span></span>'
+            f'<span class="regelstand">{marke_b}</span>'
+            f'<span class="balken" aria-hidden="true">'
+            f'<span class="b{stufe}"></span></span>'
+            f'<span class="zahl">{n:,}</span>'
+            f'</li>'.replace(",", "."))
+    return f'<ul class="buecher{klasse}">{"".join(teil)}</ul>'
 
 
-def _bestand_html(quellen: list[dict]) -> str:
-    """Zwei Gruppen: Regelwerke und Abenteuer/Setting. Die Trennung ist nicht Kosmetik -
-    aus Abenteuerbänden gibt Foliant Regelwerte heraus, aber keine Handlung (Spoiler-Schutz
-    ist die oberste Verhaltensregel), und genau das soll die Runde hier sehen.
+# Foliant führt heute nur deutsche und englische Quellen. Eine dritte Sprache wäre
+# deshalb nicht "unbekannt", sondern schlicht neu - und würde ohne diese Zuordnung als
+# "Englisch" ausgewiesen, weil alles Nicht-Deutsche vorher in den Englisch-Zweig fiel.
+# Ein falsches Etikett ist schlechter als ein ungewohntes: der Sprachcode ist ehrlich.
+_SPRACHNAMEN = {"de": "Deutsch", "en": "Englisch"}
 
-    Jede Zeile zeigt dieselben drei Angaben in derselben Form: Titel, Sprache,
-    Regelversion. Die Regelversion trägt ihr Wort mit ("Regeln 2024") - eine nackte
-    Jahreszahl neben einem Buchtitel liest sich wie ein Erscheinungsjahr."""
+
+def _quellzeile(q: dict) -> dict:
+    """Eine Bestandsquelle als Tabellenzeile: Titel, Sprache, Regelstand, Eintragszahl.
+    Die Regelversion trägt ihr Wort mit ("Regeln 2024") - eine nackte Jahreszahl neben
+    einem Buchtitel liest sich wie ein Erscheinungsjahr."""
+    edition = str(q["edition"] or "").strip()
+    code = (q["sprache"] or "").strip().lower()[:2]
+    return {"titel": q["titel"],
+            "marke_a": _SPRACHNAMEN.get(code, code.upper() or "Sprache offen"),
+            "marke_b": f"Regeln {edition}" if edition else "Regelversion offen",
+            "zahl": q["eintraege"] or 0}
+
+
+def _bestand_html(quellen: list[dict], glossar: list[dict] | None = None) -> str:
+    """Drei Gliederungspunkte: Regelwerke, Abenteuer/Settings, weitere Quellen.
+
+    Die Abenteuer-Trennung ist nicht Kosmetik - aus Abenteuerbänden gibt Foliant
+    Regelwerte heraus, aber keine Handlung (Spoiler-Schutz ist die oberste
+    Verhaltensregel), und genau das soll die Runde hier sehen.
+
+    Die dritte Gruppe ist bewusst NICHT nach Bezugsweg geschnitten. Ein Versuch damit
+    (31.07.2026) trennte die beiden Fassungen desselben Werks: die deutsche SRD-Fassung
+    stand unter den Regelwerken, die englische - weil über eine Schnittstelle geladen -
+    daneben unter "weitere Quellen". Ob eine Regel als PDF oder über eine API hereinkam,
+    ist eine Betriebsfrage und keine, die eine Liste für Spieler gliedern sollte.
+    Regelwerk bleibt Regelwerk. "Weitere Quellen" beantwortet stattdessen die Frage, die
+    die Seite vorher gar nicht beantwortete: woher das DEUTSCH kommt."""
     if not quellen:
         return ""
     groesste = max(q["eintraege"] or 0 for q in quellen) or 1
-
-    def zeilen(gruppe: list[dict]) -> str:
-        teile = []
-        for q in gruppe:
-            n = q["eintraege"] or 0
-            breite = max(2, round(100 * n / groesste))
-            sprache = "Deutsch" if (q["sprache"] or "").startswith("de") else "Englisch"
-            edition = str(q["edition"] or "").strip()
-            regeln = f"Regeln {edition}" if edition else "Regelversion offen"
-            teile.append(
-                f'<li class="buch">'
-                f'<span class="buch-titel">{_escape(_titel_schlicht(q["titel"]) or "?")}</span>'
-                f'<span class="marken">'
-                f'<span class="marke-klein">{sprache}</span>'
-                f'<span class="marke-klein jahr">{_escape(regeln)}</span>'
-                f'</span>'
-                f'<span class="balken" aria-hidden="true">'
-                f'<span style="width:{breite}%"></span></span>'
-                f'<span class="zahl">{n:,}</span>'
-                f'</li>'.replace(",", "."))
-        return "".join(teile)
-
     regel = [q for q in quellen if q["inhaltsart"] != "abenteuer_setting"]
     abenteuer = [q for q in quellen if q["inhaltsart"] == "abenteuer_setting"]
     gesamt = sum(q["eintraege"] or 0 for q in quellen)
 
-    html = [f'<p class="unter">Foliant schlägt in <strong>{len(quellen)} Büchern</strong> '
-            f'mit zusammen <strong>{gesamt:,} Einträgen</strong> nach. '
+    html = [f'<p class="unter">Foliant schlägt in '
+            f'<strong>{len(quellen)} Büchern</strong> mit zusammen '
+            f'<strong>{gesamt:,} Einträgen</strong> nach. '
             f'Diese Liste kommt direkt aus dem Bestand — sie ist immer aktuell.'
             f'</p>'.replace(",", ".")]
     if regel:
-        html.append('<h3>Regelwerke</h3>'
-                    f'<ul class="buecher">{zeilen(regel)}</ul>')
+        html.append(
+            '<h3>Regelwerke</h3>'
+            '<p class="mini">Die Grundlage jeder Auskunft. Foliant antwortet <em>nur</em> '
+            'aus diesen Büchern — was hier fehlt, sagt es ehrlich, statt es aus '
+            'Allgemeinwissen zu ergänzen. Deutsche Ausgaben haben Vorrang, und zu jeder '
+            'Regel nennt es Buch, Seite und Regelstand.</p>'
+            + _tabelle([_quellzeile(q) for q in regel],
+                       ("Buch", "Sprache", "Regelstand", "Einträge"), groesste))
     if abenteuer:
         html.append(
             '<h3>Abenteuer &amp; Settings</h3>'
             '<p class="mini">Daraus nennt Foliant <em>Regelwerte</em> — Werte einer '
             'Kreatur, ein Zauber, eine Option. Handlung, Orte, Geheimnisse und Taktiken '
             'gibt es nicht, auch nicht auf Nachfrage.</p>'
-            f'<ul class="buecher">{zeilen(abenteuer)}</ul>')
+            + _tabelle([_quellzeile(q) for q in abenteuer],
+                       ("Buch", "Sprache", "Regelstand", "Einträge"), groesste))
+    if glossar:
+        html.append(
+            '<h3>Deutsche Begriffe</h3>'
+            '<p class="mini">Kein Regeltext, sondern die Zuordnung deutscher zu '
+            'englischen Fachbegriffen — sie entscheidet, wie Foliant eine Regel benennt. '
+            'Fehlt zu einem Begriff ein belegtes Deutsch, kennzeichnet Foliant die '
+            'Wiedergabe mit <em>*</em>, statt sie als offiziell auszugeben.</p>'
+            + _tabelle(glossar, ("Quelle", "Art", "", "Begriffspaare"),
+                       max((g["zahl"] for g in glossar), default=1),
+                       klasse=" herkunft"))
     return "".join(html)
 
 
@@ -243,7 +298,8 @@ def _bereite_index(mcp_url: str | None, glossar_pfad: str | None = None) -> str:
     deshalb zur Laufzeit aus config/projektanweisung.md (config.stil) statt als Kopie im
     Template - so verteilt die Seite nie eine veraltete Fassung."""
     seite = _INDEX
-    bestand = _bestand_html(_bestand_lesen(glossar_pfad))
+    bestand = _bestand_html(_bestand_lesen(glossar_pfad),
+                            _glossar_herkunft(glossar_pfad))
     seite = (seite.replace("{{BESTAND}}", bestand) if bestand
              else _schneide_heraus(seite, _BESTAND_START, _BESTAND_ENDE, ""))
     anweisung = stil.projektanweisung() if mcp_url else None
