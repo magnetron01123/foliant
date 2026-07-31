@@ -15,6 +15,10 @@ Genau darauf zielen die Tests hier - rein statisch, ohne DB."""
 import ast
 import inspect
 import pathlib
+import sqlite3
+import types
+
+import pytest
 
 import importer.import_glossar as ig
 
@@ -74,6 +78,31 @@ def test_admin_ruft_die_kette_statt_einzelner_seeder():
                                                                            "seed_facetten"}
     assert not einzeln, (f"cmd_import ruft Seeder direkt: {sorted(einzeln)} - die Kette "
                          f"gehoert nach importer.import_glossar._KETTE")
+
+
+@pytest.mark.parametrize("quelle", ["glossar", "facetten"])
+def test_jeder_import_zweig_frischt_die_web_db_auf(tmp_path, monkeypatch, quelle):
+    """Die Web-DB traegt Glossar UND Quellen-Metadaten - sie muss nach JEDEM Zweig
+    nachgezogen werden.
+
+    Bis zum 31.07.2026 kehrten die Zweige `glossar` und `facetten` frueh zurueck, vor
+    dem Aufruf am Funktionsende. Ausgerechnet `--quelle glossar` ist aber der einzige
+    Zweig, der das Glossar aendert - also genau den Inhalt, den die Web-DB ueberhaupt
+    ueberträgt. Die Website zeigte danach bis zum naechsten Quellen-Import einen alten
+    Stand, und seit sie die Buchliste zeigt, faellt das auch auf."""
+    from app import admin
+
+    db = tmp_path / "foliant.sqlite"
+    sqlite3.connect(db).executescript(
+        (_WURZEL / "db" / "schema.sql").read_text(encoding="utf-8"))
+    gerufen: list[str | None] = []
+    monkeypatch.setattr(admin, "_web_db_auffrischen", lambda p: gerufen.append(p))
+    monkeypatch.setattr(ig, "seed_alles", lambda con: {"Testzeilen": 0})
+    monkeypatch.setattr("importer.facetten_seeder.seed_facetten", lambda con: {"zauber": 0})
+
+    admin.cmd_import(types.SimpleNamespace(quelle=quelle, db=str(db), force=False))
+    assert gerufen, (f"`import --quelle {quelle}` hat die Web-DB nicht aufgefrischt - "
+                     f"die Website bleibt auf dem alten Stand stehen")
 
 
 def test_kein_zweiter_einstiegspunkt_in_den_importern():

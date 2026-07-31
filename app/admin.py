@@ -60,7 +60,12 @@ def cmd_import(args) -> None:
       open5e-*           -> Open5e-API (Dokumente aus config [open5e].dokumente)
       <kuerzel aus toml> -> PDF-/Markdown-Quelle laut [[quelle]]-Registereintrag
     Nach jedem Import wird die FTS neu aufgebaut (Leitplanke) und der Facetten-Seeder
-    gefahren - Reihenfolge insgesamt: Bestand, dann Facetten, dann Glossar."""
+    gefahren - Reihenfolge insgesamt: Bestand, dann Facetten, dann Glossar.
+
+    Die Web-DB wird am ENDE jedes Zweigs nachgezogen (Befund 31.07.2026): Der
+    glossar-Zweig kehrte vorher vor der Auffrischung zurueck - ausgerechnet der
+    einzige Zweig, der das Glossar aendert, also genau das, was die Web-DB traegt.
+    Die Website zeigte danach bis zum naechsten Quellen-Import den alten Stand."""
     from importer.facetten_seeder import seed_facetten
 
     kuerzel = args.quelle
@@ -73,6 +78,7 @@ def cmd_import(args) -> None:
             bilanz = seed_facetten(c)
         print("Facetten: " + ", ".join(f"{n} {k}" for k, n in bilanz.items()))
         c.close()
+        _web_db_auffrischen(getattr(args, "db", None))
         return
 
     if kuerzel == "glossar":
@@ -86,6 +92,7 @@ def cmd_import(args) -> None:
             bilanz = seed_alles(c)
         print("Glossar: " + ", ".join(f"{n} {was}" for was, n in bilanz.items()) + ".")
         c.close()
+        _web_db_auffrischen(getattr(args, "db", None))
         return
 
     c = _con(getattr(args, "db", None))
