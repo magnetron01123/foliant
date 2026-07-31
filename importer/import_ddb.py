@@ -209,13 +209,12 @@ def importiere_ddb_artefakt(artefakt: str | Path, buch: dict, *,
             _schwellen.pruefe_umfang(buch["kuerzel"], len(zeilen_daten), alt,
                                      erlaubt=erlaube_schrumpfen,
                                      min_anteil=MIN_REIMPORT_RATIO)
-            # SYN-P0-007: Bestands-DBs (Kandidat = Kopie der Basis) kennen die neue
-            # Spalte noch nicht - defensiv nachziehen statt Migrationstooling.
-            try:
-                con.execute("ALTER TABLE quellen ADD COLUMN inhaltsart TEXT NOT NULL "
-                            "DEFAULT 'regelwerk'")
-            except sqlite3.OperationalError:
-                pass                                   # Spalte existiert bereits
+            # Die inhaltsart-Spalte (SYN-P0-007) zieht `db.stelle_schema_sicher()` nach,
+            # das `db.connect()` oben mitfuehrt - hier stand bis zum 31.07.2026 ein
+            # zweites, eigenes ALTER TABLE. Es war der urspruengliche Weg; seit der
+            # gemeinsame Migrationspunkt existiert (db.py: "das tat frueher NUR der
+            # DDB-Import"), war es toter Kompatibilitaetscode direkt unter dem Kommentar,
+            # der erklaert, warum hier ueber connect() geoeffnet wird.
             with con:  # EINE Transaktion: Upsert, Austausch, FTS (A7)
                 con.execute(
                     "INSERT INTO quellen (kuerzel, titel, sprache, edition, herkunft, "

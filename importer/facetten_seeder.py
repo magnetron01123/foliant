@@ -15,7 +15,7 @@ schreibt deren Ergebnis fuer ALLE Quellen weg.
     srd_begriffsbruecken           preis_cent
 
 WELCHE Spalten wohin gehoeren, steht in `app.facetten.META_TABELLEN` - dieselbe Definition,
-aus der der LESER (app/tools/nachschlagen.py) die Facetten holt. Bis zum 29.07.2026 fuehrte
+aus der der LESER (app/tools/ausgabe.py) die Facetten holt. Bis zum 29.07.2026 fuehrte
 jede Seite ihre eigene, byte-identische Kopie; eine neue Facette erschien deshalb nie in der
 Tool-Ausgabe, bis jemand die zweite Liste fand.
 

@@ -1,6 +1,6 @@
 """Open5e-Import (MVP-Quelle). EINMALIGER Import von api.open5e.com/v2 -> gleiches `eintraege`-
 Schema (BP #7); KEIN Laufzeit-API-Aufruf (Runtime bleibt offline, Q7).
-Englisch -> zur Laufzeit mit dt. Begriffen annotiert (S3-Fallback, app.tools._anzeige_name).
+Englisch -> zur Laufzeit mit dt. Begriffen annotiert (S3-Fallback, app.tools.ausgabe._anzeige_name).
 seite bleibt NULL (F7: Seite optional). Nur gewuenschte Dokumente ziehen, editionsgetaggt
 (srd-2024 / srd-2014); unbekannte Dokument-Keys werden ABGELEHNT statt geraten (Q3).
 

@@ -9,7 +9,7 @@ Verhaeltnis zu den Meta-Tabellen: zauber_meta/monster_meta/gegenstand_meta sind 
 diesen Funktionen abgeleitet (importer/facetten_seeder.py ruft sie), nicht umgekehrt. Ein
 gespeicherter Wert kann dem Text deshalb nie widersprechen - er ist eine Vorberechnung,
 kein zweiter Wahrheitsanspruch. Wo Tempo zaehlt, filtert der Meta-Vorfilter damit vor
-(app/tools/nachschlagen.py), und das Textpraedikat behaelt trotzdem das letzte Wort.
+(app/tools/suche.py), und das Textpraedikat behaelt trotzdem das letzte Wort.
 (Bis Phase 3 stand hier, die Tabellen seien auf dem bedienten Bestand leer - das war der
 Befund C1 und ist seit dem 28.07.2026 behoben: Deckung 94/91/34 %.)
 
@@ -402,7 +402,7 @@ def monster_statschluessel(body: str | None) -> tuple:
 # --- Der Meta-Seitenwagen: EINE Definition fuer Schreiber und Leser ------------------
 # Welche Kategorie in welche Tabelle faellt und welche Felder dort stehen. Bis zum
 # 29.07.2026 fuehrten Schreiber (importer/facetten_seeder.py) und Leser
-# (app/tools/nachschlagen.py) je eine eigene, byte-identische Kopie - eine neue Facette
+# (app/tools/ausgabe.py) je eine eigene, byte-identische Kopie - eine neue Facette
 # erschien deshalb nie in der Tool-Ausgabe, bis jemand die zweite Liste fand. Ein halb
 # gelandetes Feature ohne Fehlermeldung.
 #

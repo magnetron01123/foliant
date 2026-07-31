@@ -17,7 +17,7 @@ from rapidfuzz import fuzz, process
 # Vorher lagen sie in drei Modulen (glossar 88, db.py 86, nachschlagen 90), gewachsen statt
 # abgestimmt - niemand konnte sagen, warum sie sich unterscheiden. Sie stehen jetzt hier,
 # weil dieses Modul ohnehin die kanonische Namensvergleichs-Logik traegt (norm_begriff,
-# KLAMMER_SUFFIX); db.py und nachschlagen.py importieren von hier.
+# KLAMMER_SUFFIX); db.py und die Werkzeug-Module importieren von hier.
 #
 # Die WERTE sind bewusst unveraendert uebernommen: Sie sind an echten Faellen justiert, und
 # jede Verschiebung bewegt das Suchverhalten am gesamten Bestand. Die Aufgabe war, sie

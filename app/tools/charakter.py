@@ -287,42 +287,28 @@ def foliant_liste_optionen(
                           f"fuer {kategorie!r}.",
                 "hinweis": "Ungueltige PARAMETER-Kombination - das ist KEIN 'nichts im "
                            "Bestand'; Aufruf ohne talent_kategorie wiederholen."}
+    # Spezies und Hintergrund brauchen nur die Listen-Maschine plus ihren Schritt-Hinweis.
+    # Bis zum 31.07.2026 stand dafuer je eine eigene Funktion - Reste der zwoelf am
+    # 30.07.2026 abgeschafften foliant_liste_<typ>-Werkzeuge, samt vollstaendiger
+    # Tool-Beschreibung im Docstring, obwohl sie keine Werkzeuge mehr sind.
     if kategorie == "klasse":
         return _liste_klassen()
+    if kategorie == "talent":
+        return _liste_talente(talent_kategorie)
     if kategorie == "hintergrund":
-        return _liste_hintergruende()
-    if kategorie == "spezies":
-        return _liste_spezies()
-    return _liste_talente(talent_kategorie)
-
-
-def _liste_spezies() -> dict:
-    """Waehlbare Spezies im Bestand (KNAPPE Liste; Details per foliant_hol_eintrag).
-    Schritt 3 der 2024-Charaktererstellung - Klasse und Hintergrund kommen davor (B7).
-    KERNREGELN: nur Bestand nennen, nichts aus Allgemeinwissen ergaenzen; Deutsch-first
-    mit englischem Original in Klammern; Quelle und Regelversion nennen."""
+        return _liste("hintergrund", "hintergruende",
+                      "Hintergrund ist SCHRITT 2 von 4 (nach der Klasse). "
+                      + _HINWEIS_REIHENFOLGE)
     return _liste("spezies", "spezies",
-                  "Spezies ist SCHRITT 3 von 4 (nach Klasse und Hintergrund). " +
-                  _HINWEIS_REIHENFOLGE)
-
-
-def _liste_hintergruende() -> dict:
-    """Waehlbare Hintergruende im Bestand (KNAPPE Liste; Details per
-    foliant_hol_eintrag). Schritt 2 der 2024-Charaktererstellung (B7). Ein Hintergrund
-    liefert Attributserhoehungen, ein Ursprungstalent, Fertigkeiten und Ausruestung.
-    KERNREGELN: nur Bestand; Deutsch-first (Original in Klammern); Quelle+Version nennen."""
-    return _liste("hintergrund", "hintergruende",
-                  "Hintergrund ist SCHRITT 2 von 4 (nach der Klasse). " +
-                  _HINWEIS_REIHENFOLGE)
+                  "Spezies ist SCHRITT 3 von 4 (nach Klasse und Hintergrund). "
+                  + _HINWEIS_REIHENFOLGE)
 
 
 def _liste_talente(kategorie: Literal["herkunft", "allgemein",
         "kampfstil", "epische_gabe"] | None = None) -> dict:
-    """Talente (Feats) im Bestand, KNAPP (Details per foliant_hol_eintrag). kategorie
-    optional, exakt: herkunft | allgemein | kampfstil | epische_gabe - andere Werte
-    werden mit 'fehler' abgelehnt (kein 'nichts im Bestand'). Herkunftstalente kommen
-    ueber den Hintergrund (Schritt 2), weitere Talente ueber Stufenaufstiege.
-    KERNREGELN: nur Bestand; Deutsch-first (Original in Klammern); Quelle+Version nennen."""
+    """Talente, optional auf eine Talent-Kategorie gefiltert. Eigene Funktion statt eines
+    _liste-Aufrufs, weil der Filter NACH der Gruppierung greifen muss: die Kategorie steht
+    je Eintrag in der Typzeile bzw. der DDB-Feat-Gruppe, nicht in der Abfrage."""
     if kategorie and kategorie not in _TALENT_KATEGORIEN.values():
         # SYN-P0-006: Parameterfehler strukturiert statt leerer Liste + Leer-Hinweis.
         gueltig = ", ".join(sorted(set(_TALENT_KATEGORIEN.values())))

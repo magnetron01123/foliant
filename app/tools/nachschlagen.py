@@ -18,77 +18,23 @@ from app.db import Kategorie
 from app import facetten as _facetten
 from app import glossar as _glossar
 from app import protokoll as _protokoll
-from app.tools.ausgabe import (  # Ausgabe-Schicht: hier re-exportiert,
-    # damit ns.HINWEIS_* und die internen Aufrufstellen unveraendert gelten
-    HINWEIS_LEER,
-    HINWEIS_ALT,
-    HINWEIS_MEHRDEUTIG,
+from app.tools.ausgabe import (
     HINWEIS_DB_FEHLT,
-    _HINWEIS_STERN,
-    _verbinde,
-    _zitat,
-    _knapp,
-    _abenteuer_kuerzel,
-    _markiere_abenteuer,
-    _reichere_facetten_an,
-    _anzeige_name,
-    _facetten_von,
-    _detail,
-    _alias_hinweis,
+    HINWEIS_LEER,
+    HINWEIS_MEHRDEUTIG,
     _HINWEIS_PARAMETER,
+    _HINWEIS_STERN,
+    _alias_hinweis,
+    _detail,
+    _facetten_von,
+    _knapp,
+    _markiere_abenteuer,
+    _verbinde,
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # Kanonische Definition in app/glossar.py (gemeinsam mit dem Such-Ranking, SYN-P0-002).
 _KLAMMER_SUFFIX = _glossar.KLAMMER_SUFFIX
-
-
 
 
 def _texte_weichen_ab(a: str, b: str) -> bool:
@@ -405,10 +351,6 @@ def _quellabweichungen(con, voll: dict, gewaehlt: dict, exakt: list[dict],
             konflikte.append({"eintrag_id": wf["id"], "quelle": wf["quelle_titel"],
                               "hinweis": "Textfassung weicht inhaltlich ab"})
     return konflikte, fremdsprachige
-
-
-
-
 
 
 def _hole_detail_impl(kategorie: str, name: str | None = None,
