@@ -128,3 +128,70 @@ def test_grundtext_bleibt_unveraendert(bestand):
     d = ns.foliant_hol_eintrag("zauber", "Feuerball")
     assert d["regeltext_md"] == "8W6 Feuerschaden."
     assert "8d6" not in d["regeltext_md"]
+
+
+def test_optionslisten_fuehren_keine_errata(bestand, monkeypatch):
+    """Eine Optionsliste beantwortet "was kann ich WAEHLEN" - ein Erratum ist keine
+    waehlbare Option, sondern eine Aussage ueber eine.
+
+    Der Fall ist nicht theoretisch: Die Optionslisten haben eine EIGENE
+    Zusammenfuehrung (charakter._varianten), nicht die Dubletten-Logik aus app/db.py.
+    Ein Erratum zu 'Alert' heisst 'Alert' und verschmilzt dort als Namensvariante mit
+    dem echten Talent - unsichtbar, solange sein Prioritaetsband hinter jedem Regelwerk
+    liegt, und ein Korrektur-Fragment als Option, sobald das einmal nicht gilt."""
+    import sqlite3 as _sq
+    from app.tools import charakter as ch
+
+    con = _sq.connect(bestand)
+    qid = con.execute("SELECT id FROM quellen WHERE kuerzel='errata-phb-2024-en'").fetchone()[0]
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,"
+                "edition,seite,body_md) VALUES (?,?,?,?,?,?,?,?)",
+                (qid, "talent", None, "Alert", "en", "2024", "3",
+                 "**Offizielle Korrektur zu S. 200 im Grundbuch.** Alert grants ..."))
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+
+    r = ch.foliant_liste_optionen("talent")
+    kuerzel = {t.get("quelle_kuerzel") for t in r.get("talente", [])}
+    assert "errata-phb-2024-en" not in kuerzel, r.get("talente")
+
+
+def test_optionslisten_laufen_auch_ohne_die_inhaltsart_spalte(tmp_path):
+    """Der Serving-Pfad migriert nicht: eine Bestands-DB von vor der Migration kennt die
+    Spalte nicht, auf die der neue Filter zugreift. Dann darf die Abfrage NICHT einfach
+    scheitern - sonst waeren die Charakterbau-Listen dort schlagartig leer.
+
+    Geprueft wird `_eintraege` direkt, nicht die fertige Liste: Das ist die Stelle, die
+    den Filter traegt. Ob ein einzelner Eintrag danach als waehlbare OPTION gilt, haengt
+    an seinem Breadcrumb (`_ist_option`) und ist eine andere Frage."""
+    import sqlite3 as _sq
+    from app import db as _adb
+    from app.tools import charakter as ch
+
+    pfad = tmp_path / "ohne-inhaltsart.sqlite"
+    con = _sq.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    # Eine quellen-Tabelle ohne `inhaltsart` - genau so sah der Bestand vor der
+    # v2-Migration aus (eine Spalte entfernen kann SQLite nur ueber einen Neuaufbau).
+    con.executescript(
+        "DROP TABLE quellen;"
+        "CREATE TABLE quellen (id INTEGER PRIMARY KEY, kuerzel TEXT UNIQUE, titel TEXT,"
+        " sprache TEXT, edition TEXT, herkunft TEXT, lizenz TEXT, prioritaet INTEGER,"
+        " dateipfad TEXT);"
+        "INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,prioritaet)"
+        " VALUES ('srd-de','SRD 5.2.1','de','2024','pdf',20);")
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,"
+                "edition,seite,body_md) VALUES (1,'talent','Wachsam','Alert','de','2024',"
+                "'200','Du bist wachsam.')")
+    con.commit()
+    con.close()
+
+    c = _adb.connect_readonly(str(pfad))
+    try:
+        assert ch._eintraege(c, "talent"), (
+            "Alt-DB ohne inhaltsart-Spalte liefert keine Eintraege mehr - der Rueckfall "
+            "auf die ungefilterte Abfrage greift nicht")
+    finally:
+        c.close()

@@ -144,14 +144,31 @@ _EDITION = "2024"   # Charakterlisten und Build-Pruefung sind STRIKT 2024 (A4/Q4
 
 def _eintraege(con, kategorie: str) -> list[dict]:
     """Eintraege einer Kategorie, NUR Edition 2024 (A4: Listen liefern ausschliesslich
-    2024-Optionen; aeltere Staende mischen nie mit), prioritaets-sortiert (Q2)."""
-    return [dict(r) for r in con.execute(
-        """SELECT e.id, e.kategorie, e.name_de, e.name_en, e.sprache, e.edition, e.seite,
-                  e.body_md, q.titel AS quelle_titel, q.kuerzel AS quelle_kuerzel,
-                  q.prioritaet
-           FROM eintraege e JOIN quellen q ON q.id = e.quelle_id
-           WHERE e.kategorie = ? AND e.edition = ? ORDER BY q.prioritaet, e.id""",
-        (kategorie, _EDITION))]
+    2024-Optionen; aeltere Staende mischen nie mit), prioritaets-sortiert (Q2).
+
+    OHNE Errata und Regelauslegung: Diese Listen beantworten "was kann ich WAEHLEN" - ein
+    Erratum ist keine waehlbare Option, sondern eine Aussage ueber eine. Der Filter sitzt
+    hier und nicht in der Ausgabe, weil die Optionslisten eine EIGENE Zusammenfuehrung
+    haben (`_varianten`), nicht die Dubletten-Logik aus app/db.py: ein Erratum zu 'Alert'
+    hiesse 'Alert' und wuerde dort als Namensvariante mit dem echten Talent verschmelzen -
+    unsichtbar, solange sein Prioritaetsband (70) hinter jedem Regelwerk liegt, und ein
+    Korrektur-Fragment als Option, sobald das einmal nicht gilt. Wer die Korrektur sucht,
+    findet sie ueber die Suche und den Detailabruf, wo sie gekennzeichnet danebensteht.
+
+    Defensiv gegen Bestands-DBs ohne die Spalte: der Serving-Pfad migriert nicht."""
+    sql = """SELECT e.id, e.kategorie, e.name_de, e.name_en, e.sprache, e.edition, e.seite,
+                    e.body_md, q.titel AS quelle_titel, q.kuerzel AS quelle_kuerzel,
+                    q.prioritaet
+             FROM eintraege e JOIN quellen q ON q.id = e.quelle_id
+             WHERE e.kategorie = ? AND e.edition = ?{filter}
+             ORDER BY q.prioritaet, e.id"""
+    try:
+        return [dict(r) for r in con.execute(
+            sql.format(filter=" AND q.inhaltsart NOT IN ('errata','regelauslegung')"),
+            (kategorie, _EDITION))]
+    except sqlite3.OperationalError:
+        return [dict(r) for r in con.execute(sql.format(filter=""),
+                                             (kategorie, _EDITION))]
 
 
 def _ist_option(e: dict, kategorie: str) -> bool:
