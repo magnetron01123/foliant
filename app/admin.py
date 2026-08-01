@@ -10,6 +10,7 @@ Beispiele:
 from __future__ import annotations
 import argparse
 import hashlib
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -517,6 +518,141 @@ _GEPRUEFTE_REGELWERKE: dict[str, tuple[frozenset[str], str]] = {
 }
 
 
+# Alphabetische REGISTERKOEPFE, keine Risse: 'B | Monsters', 'Spells J', 'Magic Items U'.
+# Der einzelne Buchstabe ist dort der Registerbuchstabe, nicht ein abgetrenntes Wortstueck.
+#
+# Am Pi-Vollbestand ausgezaehlt (01.08.2026): 42 der 91 gemeldeten Treffer waren solche
+# Koepfe - fast die Haelfte der Warnung war Rauschen, und zwar Rauschen aus DDB-Buechern,
+# die gar keine Scans sind. Es ueberdeckte die 49 echten Risse und machte die Zahl
+# unbrauchbar: BACKLOG nannte 51 (die Scans), gemeldet wurden 91 (sieben Quellen), und
+# die Differenz erklaerte niemand.
+#
+# Positivliste statt Heuristik, weil der strukturelle Unterschied nicht allgemein
+# entscheidbar ist: 'Spells J' und 'D ORNENWAND' sehen gleich aus - Buchstabe am Rand,
+# Wort daneben. Nur die Kenntnis, dass 'Spells' ein Registerwort und 'ORNENWAND' ein
+# Fragment ist, trennt sie. Kommt ein Buch mit einem anderen Registerwort, schlaegt die
+# Warnung an - dann wird es einmal geprueft und hier ergaenzt (Beleg, kein Deckel).
+# Die Registerwoerter sind am Bestand belegt, nicht geraten: 'Monsters' 26x, 'Spells'
+# 14x, 'Magic Items' 2x (Auszaehlung am Pi-Vollbestand 01.08.2026). Das Muster laesst
+# auch das GESCHUETZTE Leerzeichen zu - DDB setzt es zwischen Registerbuchstabe und
+# Trennstrich ('B | Monsters'), und im Quelltext waere es unsichtbar.
+_REGISTER_WOERTER = ("Monsters", "Spells", "Magic Items")
+_REGISTER_KOPF = re.compile(
+    "^(?:[A-Z][\\s|\\u00a0]+)?(?:" + "|".join(_REGISTER_WOERTER)
+    + ")(?:[\\s|\\u00a0]+[A-Z])?$")
+
+
+QUALITAET_BASIS = _db.projekt_pfad("config/qualitaet_basis.json")
+
+
+def _lade_basiswerte() -> dict:
+    """Der dokumentierte Stand bekannter Datenmaengel (config/qualitaet_basis.json).
+    Fehlt die Datei, entfaellt der Vergleich - der Check laeuft dann wie zuvor."""
+    import json
+
+    try:
+        return json.loads(QUALITAET_BASIS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list) -> int:
+    """Vergleicht die gemessenen Maengel mit dem dokumentierten Stand und liefert die Zahl
+    der FEHLER (Anstiege).
+
+    Der Punkt der ganzen Uebung: Bis zum 01.08.2026 gab `admin check` nur Zahlen aus.
+    Niemand verglich sie mit dem letzten Stand - also fiel weder auf, dass die gemeldete
+    Zahl von 51 (BACKLOG §3) auf 91 gewachsen war, noch dass 42 davon gar keine Risse
+    sind, sondern Registerkoepfe aus DDB-Buechern. Eine Kennzahl, die niemand nachrechnet,
+    ist keine Warnung mehr, sondern Hintergrundrauschen.
+
+    Die drei Faelle und was sie bedeuten:
+      STEIGT  -> FEHLER. Ein Import hat einen NEUEN Mangel eingeschleppt. Das ist der
+                 eine Fall, der jemanden erreichen muss, und deshalb bricht er den Check.
+      SINKT   -> Hinweis. Etwas wurde repariert; der Basiswert gehoert nachgezogen, damit
+                 die Verbesserung nicht spaeter unbemerkt wieder verlorengeht.
+      GLEICH  -> still. Alles wie dokumentiert.
+
+    Quellen, die in DIESER Datenbank fehlen, werden uebersprungen: Das Mac-Subset fuehrt
+    vier von fuenfzehn Quellen, und ein Vergleich gegen fehlende Buecher meldete lauter
+    Scheinverbesserungen (CONCEPT.md par. 11, Korpus-Luecke)."""
+    basis = _lade_basiswerte()
+    if not basis:
+        return 0
+    from collections import Counter
+
+    vorhanden = {r[0] for r in c.execute("SELECT kuerzel FROM quellen")}
+    ist = Counter(q for _n, q in risse)
+    soll = basis.get("ocr_risse_je_quelle", {})
+    fehler = 0
+    gesunken: list[str] = []
+    for quelle in sorted(set(soll) | set(ist)):
+        if quelle not in vorhanden:
+            continue                       # Quelle in dieser DB nicht importiert
+        erwartet, gemessen = soll.get(quelle, 0), ist.get(quelle, 0)
+        if gemessen > erwartet:
+            print(f"NEUE Namensmaengel in '{quelle}': {gemessen} statt {erwartet} "
+                  f"dokumentierten - ein Import hat sie eingeschleppt  FEHLER")
+            fehler += 1
+        elif gemessen < erwartet:
+            gesunken.append(f"{quelle} {erwartet}->{gemessen}")
+    soll_meta = basis.get("metadaten_namen_gesamt", 0)
+    if len(meta) > soll_meta:
+        print(f"NEUE Metadaten-Namen: {len(meta)} statt {soll_meta} dokumentierten  FEHLER")
+        fehler += 1
+    if gesunken:
+        print(f"Namensmaengel gesunken ({', '.join(gesunken)}) - Basiswert nachziehen: "
+              f"admin qualitaet-basis --schreiben")
+    if not fehler and not gesunken:
+        print(f"Qualitaets-Basiswerte: unveraendert seit {basis.get('erhoben_am', '?')}  OK")
+    return fehler
+
+
+def cmd_qualitaet_basis(args) -> None:
+    """Den Basiswert bekannter Datenmaengel neu erheben (config/qualitaet_basis.json).
+
+    Bewusst ein eigenes Kommando und kein Automatismus: Eine Zahl anzuheben heisst, einen
+    Mangel als bekannt zu akzeptieren - das ist eine Entscheidung, keine Buchfuehrung.
+    Die Datei liegt im Git, damit die Aenderung im Diff steht und im Commit begruendet
+    werden muss.
+
+    NUR am Vollbestand sinnvoll: Aus dem Mac-Subset erhoben, wuerde die Datei fuer elf
+    Quellen eine Null behaupten, die dort nur fehlen."""
+    import json
+
+    c = _con(getattr(args, "db", None))
+    try:
+        from importer.import_markdown import KOPF_HEADING
+        namen = [(r[0], r[1]) for r in c.execute(
+            "SELECT DISTINCT coalesce(e.name_de, e.name_en, ''), q.kuerzel "
+            "FROM eintraege e JOIN quellen q ON q.id = e.quelle_id")]
+        quellen = c.execute("SELECT count(*) FROM quellen").fetchone()[0]
+        eintraege = c.execute("SELECT count(*) FROM eintraege").fetchone()[0]
+    finally:
+        c.close()
+    from collections import Counter
+    meta = {(n, q) for n, q in namen if KOPF_HEADING.match(n)}
+    risse = {(n, q) for n, q in namen
+             if re.search(r"(?:^|\s)[B-HJ-Zb-hj-zÄÖÜäöüß](?:\s|$)", n)
+             and not _REGISTER_KOPF.match(n)}
+    alt = _lade_basiswerte()
+    neu = dict(alt)
+    neu["erhoben_am"] = __import__("datetime").date.today().isoformat()
+    neu["erhoben_an"] = f"{eintraege} Eintraege, {quellen} Quellen"
+    neu["ocr_risse_je_quelle"] = dict(sorted(Counter(q for _n, q in risse).items(),
+                                             key=lambda kv: (-kv[1], kv[0])))
+    neu["metadaten_namen_gesamt"] = len(meta)
+    if not getattr(args, "schreiben", False):
+        print("Vorschau (nichts geschrieben - mit --schreiben uebernehmen):")
+        print(json.dumps({k: v for k, v in neu.items() if not k.startswith("_")},
+                         ensure_ascii=False, indent=2))
+        return
+    QUALITAET_BASIS.write_text(json.dumps(neu, ensure_ascii=False, indent=2) + "\n",
+                               encoding="utf-8")
+    print(f"Basiswerte geschrieben: {QUALITAET_BASIS}")
+    print("Die Datei liegt im Git - die Aenderung gehoert in einen Commit mit Begruendung.")
+
+
 def _spoilerverdacht(c: sqlite3.Connection) -> list[tuple[str, str]]:
     """Quellen, die nach einem Abenteuerband aussehen, aber als 'regelwerk' gefuehrt sind.
 
@@ -709,7 +845,8 @@ def cmd_check(_args) -> None:
     # genau auf A oder I faellt, entgeht dem Waechter - besser als eine Warnung, die man
     # wegen Rauschens ignoriert. Die Zeichenklasse laesst A/I aus (B-H, dann J-Z).
     risse = sorted({(n, q) for n, q in _namen
-                    if _re.search(r"(?:^|\s)[B-HJ-Zb-hj-zÄÖÜäöüß](?:\s|$)", n)})
+                    if _re.search(r"(?:^|\s)[B-HJ-Zb-hj-zÄÖÜäöüß](?:\s|$)", n)
+                    and not _REGISTER_KOPF.match(n)})
     print(f"Namensqualitaet: {len(meta)} Metadaten-Namen (Chunking-Artefakt), "
           f"{len(risse)} mit Einzelbuchstaben-Fragment (OCR)"
           + ("  OK" if not (meta or risse) else "  WARNUNG"))
@@ -717,6 +854,7 @@ def cmd_check(_args) -> None:
         if funde:
             quellen_ = sorted({q for _, q in funde})
             print(f"   {titel}: {[n for n, _ in funde[:3]]} ... aus {quellen_}")
+    fehler += _pruefe_gegen_basiswerte(c, meta, risse)
     # Facetten-Deckung (Befund C1, 28.07.2026): Die Meta-Tabellen waren auf dem Pi LEER,
     # lokal gefuellt - und niemand merkte es, weil kein Check hinsah. WARNUNG statt Fehler:
     # eine vollstaendige Deckung ist gar nicht erreichbar (Ausruestung ohne Preisangabe
@@ -1204,6 +1342,12 @@ def baue_parser() -> argparse.ArgumentParser:
     pq.set_defaults(func=cmd_quellen_auffrischen)
     sub.add_parser("reindex-fts", help="FTS-Index neu aufbauen").set_defaults(func=cmd_reindex)
     sub.add_parser("check", help="Smoke-/Qualitaetschecks").set_defaults(func=cmd_check)
+    pqb = sub.add_parser("qualitaet-basis",
+                         help="Basiswert bekannter Datenmaengel neu erheben (nur am Vollbestand)")
+    pqb.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad)")
+    pqb.add_argument("--schreiben", action="store_true",
+                     help="config/qualitaet_basis.json wirklich ueberschreiben")
+    pqb.set_defaults(func=cmd_qualitaet_basis)
     pg = sub.add_parser("glossar-audit",
                         help="Deutsch-Qualitaet messen: offiziell-Deckung/*-Quote/Luecken + Konflikte (read-only)")
     pg.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad)")
