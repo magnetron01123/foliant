@@ -41,7 +41,12 @@ body.lang { align-items: flex-start; }
 }
 .kopf .untertitel { margin: 2px 0 10px; font-size: .92rem; opacity: .75; }
 .kopf nav { font-size: .9rem; }
-.kopf nav a { color: var(--rot); text-decoration: none; border-bottom: 1px solid transparent; }
+/* `nowrap`: Seit dem vierten Eintrag bricht die Zeile auf dem Handy um - dann aber
+   bitte ZWISCHEN zwei Verweisen und nicht mitten in "Foliant im Claude-Chat". */
+.kopf nav a {
+  color: var(--rot); text-decoration: none; border-bottom: 1px solid transparent;
+  white-space: nowrap;
+}
 .kopf nav a:hover { border-bottom-color: var(--rot); }
 .kopf nav span { margin: 0 8px; opacity: .5; }
 .karte {
@@ -140,6 +145,18 @@ textarea.anweisung {
   color: var(--tinte);
 }
 .mini { margin: 8px 0 0; font-size: .8rem; line-height: 1.4; opacity: .75; text-align: left; }
+/* Discord-Befehle (/regel, @Foliant): dieselbe Monospace wie beim MCP-Link, damit die
+   Seite EINE Schrift für Abzutippendes hat. `white-space: nowrap` - ein Befehl, der über
+   den Zeilenumbruch zerfällt, ist keiner mehr. */
+.befehl {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .85em;
+  padding: 1px 5px;
+  background: #fff;
+  border: 1px solid var(--linie);
+  border-radius: 3px;
+  white-space: nowrap;
+}
 .block { margin-top: 22px; text-align: left; }
 .block h3 {
   font-variant: small-caps;
@@ -181,30 +198,41 @@ textarea.anweisung {
    gedacht; darüber wird der Fließtext nicht besser, sondern nur die Zeile länger.
    Freier Platz kommt deshalb einer WEITEREN Spalte zugute, nicht einer breiteren.
    2 x 560 + 40 Spalte = 1160 · 3 x 560 + 2 x 40 = 1760. */
+/* Zwei Spalten füllt der BROWSER, nicht eine Platzierung von Hand (CSS-Mehrspalten).
+   Mit drei Karten ging Handarbeit noch auf, mit der vierten (Discord) nicht mehr: im
+   Raster ist eine Zeile so hoch wie ihre höchste Karte, und neben der kurzen bleibt
+   genau die bildschirmhohe Lücke stehen, die hier schon einmal aussortiert wurde.
+   Der Mehrspalten-Umbruch setzt die Karten dagegen lückenlos untereinander und teilt
+   sie so auf, dass beide Spalten etwa gleich hoch enden (gemessen 01.08.2026: 2174 zu
+   2118 px). `break-inside: avoid` - eine Karte wird nie mitten im Text zerrissen. */
 @media (min-width: 1260px) {
   .seite { max-width: 1160px; gap: 32px; }
-  .inhalt { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; }
-  /* Die drei Karten sind sehr ungleich hoch: der Charakterbogen ist kurz, der
-     Claude-Chat-Abschnitt lang. Bei der automatischen Zeilen-Platzierung stand der
-     Bestand deshalb als einzelne, volle Zeile UNTER beiden Spalten, und unter der
-     kurzen Karte blieb eine bildschirmhohe Lücke. Feste Platzierung statt Automatik:
-     links die beiden kurzen Karten übereinander, rechts die lange über beide Zeilen -
-     damit sind beide Spalten annähernd gleich hoch. */
+  /* Der Abstand zwischen zwei Karten ist hier ein Rand AN der Karte (ein Raster-`gap`
+     gibt es beim Mehrspalten-Umbruch nicht). Am Spaltenende verwirft der Browser ihn
+     von selbst - der Fuß steht deshalb genauso weit weg wie am Seitenkopf (gemessen). */
+  .inhalt { display: block; columns: 2; column-gap: 40px; }
+  .inhalt .karte { break-inside: avoid; margin-bottom: 40px; }
+}
+/* Ab hier passen alle vier Karten in drei Spalten, jede in ihrer gedachten Breite -
+   der Rand links und rechts schrumpft auf das, was ein Rand sein soll. Die Seite wächst
+   danach MIT dem Fenster (bis 2240px), statt bei einer festen Breite stehenzubleiben:
+   auf einem 2560er Monitor blieben sonst über 400px Rand je Seite stehen.
+
+   Hier kippt der Mehrspalten-Umbruch von oben: er füllt der Reihe nach, und zur
+   längsten Karte (Claude-Chat) passt keine zweite mehr dazu - der Charakterbogen bliebe
+   als einzelne kurze Karte mit einer bildschirmhohen Lücke darunter stehen (gemessen).
+   Deshalb hier wieder Raster mit fester Platzierung: oben die drei Karten in
+   Lesereihenfolge, der Bestand unter die kürzeste davon. */
+@media (min-width: 1800px) {
+  .seite { max-width: min(2240px, 100%); }
+  .inhalt {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px;
+  }
+  .inhalt .karte { margin-bottom: 0; }
   #bogen   { grid-column: 1; grid-row: 1; }
   #bestand { grid-column: 1; grid-row: 2; }
   #mcp     { grid-column: 2; grid-row: 1 / span 2; }
-}
-/* Ab hier passen alle drei Karten nebeneinander, jede in ihrer gedachten Breite -
-   der Rand links und rechts schrumpft auf das, was ein Rand sein soll. Die
-   Zeilen-Platzierung von oben wird dafür wieder aufgehoben. Die Seite wächst danach
-   MIT dem Fenster (bis 2240px), statt bei einer festen Breite stehenzubleiben: auf
-   einem 2560er Monitor blieben sonst über 400px Rand je Seite stehen. */
-@media (min-width: 1800px) {
-  .seite { max-width: min(2240px, 100%); }
-  .inhalt { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; }
-  #bogen   { grid-column: 1; grid-row: 1; }
-  #mcp     { grid-column: 2; grid-row: 1; }
-  #bestand { grid-column: 3; grid-row: 1; }
+  #discord { grid-column: 3; grid-row: 1 / span 2; }
 }
 /* Die breitere Karte soll nicht auch die längere Textzeile bedeuten: der Zuwachs geht
    in den Rand INNERHALB der Karte. Die Fluchtlinie bleibt dabei erhalten - es rückt

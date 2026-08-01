@@ -293,6 +293,17 @@ def test_credit_zeile_auf_der_seite(client):
     assert "©" in r.text and "für Nerds" in r.text
 
 
+def test_discord_abschnitt_erklaert_den_bot(client):
+    """Der Bot ist der zweite Weg in denselben Bestand, stand aber nirgends auf der Seite.
+    Die Runde soll ohne Rueckfrage wissen, wie sie ihn anspricht - und dass Discord die
+    Antworten dauerhaft im Kanal stehen laesst (SPEC par. 12)."""
+    r = client.get("/")
+    assert 'id="discord"' in r.text
+    assert 'href="#discord"' in r.text                    # im Seitenkopf verlinkt
+    assert "/regel" in r.text and "privat:True" in r.text
+    assert "Discord hebt Nachrichten auf" in r.text
+
+
 def test_bestandsuebersicht_zeigt_die_buecher(tmp_path):
     """Die Runde soll nachschauen koennen, was im Bestand steht, statt zu raten - und die
     Zahl soll nicht im Template gepflegt werden muessen (dort stand am 30.07.2026 'rund
