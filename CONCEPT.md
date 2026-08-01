@@ -156,6 +156,21 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
   `"hervorrufung"`) — auf dem Pi waren alle drei Tabellen deshalb schlicht leer.
   Gespeichert wird immer der **kanonische Schlüssel**; die deutsche Anzeigeform macht erst
   die Ausgabe (`_facetten_von`). Was der Text nicht hergibt, bleibt `NULL` — nie geraten.
+
+  **Nachgeschaltet: `importer/fassungsabgleich.py`** (01.08.2026). Steckt durch einen
+  Chunking-Unfall ein zweiter Statblock im Eintrag, gibt der Text **mehrere** Werte her und
+  der Parser nimmt den ersten — der deutsche Ghul stand so mit HG 8 (Geisternaga) statt 1 da,
+  eine HG-1-Suche fand ihn nicht. Der Abgleich lässt in diesem Fall die **anderen Fassungen
+  derselben Kreatur** entscheiden, welcher der im Text stehenden Werte der eigene ist
+  (Namensbrücke über das Glossar, gleiche Edition, Einstimmigkeit). Er bringt **nie** einen
+  Wert ein, der nicht im eigenen Text steht; ohne eindeutige Zeugen bleibt die Facette `NULL`.
+  Der bloße **Widerspruch** (ein Wert im Text, andere Fassung sagt etwas anderes) wird
+  ausdrücklich **nicht** korrigiert, sondern nur gemeldet: Ein erster Entwurf hätte
+  `Summon Celestial` im PHB von Grad 5 auf 7 gezogen, Zeuge war der deutsche SRD-Eintrag
+  „Celestisches Wesen beschwören" über eine Glossarzeile aus einem 2014er Band. Dahinter kann
+  ein Schaden, eine Editionsdifferenz oder eine falsche Begriffszuordnung stecken — das
+  entscheidet ein Mensch, nicht die Heuristik. `admin import --quelle facetten` gibt beide
+  Listen aus: die Korrekturen einzeln und die gemeldeten Widersprüche daneben.
 - **`glossar`** — DE↔EN: `term_de` (kanonisch), `offiziell` (1 → kein `*`, 0 → `*`), `quelle`,
   `edition_quelle`. Grundlage für Begriffswahl und `*`-Kennzeichnung (S6/S9).
 - **`eintraege_fts`** — FTS5 (external-content) über `name_de, name_en, body_md`, Tokenizer
