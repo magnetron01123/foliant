@@ -127,3 +127,80 @@ def repariere(namen: list[str], referenz: list[str],
         if ziel and ziel != nm:
             out[nm] = ziel
     return out
+
+
+# --- Kuratierte Kapitel-/Abschnittstitel -------------------------------------------
+# Die generische Reparatur oben braucht eine REFERENZ: das PDF-Inhaltsverzeichnis oder
+# einen sauberen Bestandsnamen. Fuer Kapitel- und Abschnittstitel gibt es beides nicht -
+# sie stehen in keinem Glossar (es sind keine Spielbegriffe) und im TOC der Scans oft
+# ebenso zerrissen wie im Text. Genau deshalb blieben 49 davon offen.
+#
+# WARUM VON HAND UND NICHT PER HEURISTIK (gemessen am 01.08.2026, zwei Anlaeufe):
+# Ein Algorithmus, der Einzelbuchstaben an den Nachbarn zieht, schaffte 22 von 49 - und
+# produzierte dabei FALSCHE Namen: 'HEIMATLÄ N DER' -> 'HEIMATLÄ NDER',
+# 'MAGISCHE GEGE N STÄNDE' -> 'MAGISCHE GEGEN STÄNDE'. Ein segmentierender Zweitversuch
+# kam auf 26, verklebte aber 'DIE S PIELWERTE' zu 'DIES PIELWERTE'. Der Grund ist
+# grundsaetzlich: Welches Leerzeichen echt ist und welches ein Riss, steht nicht im Namen -
+# 'GEGEN STÄNDE' und 'GEGENSTÄNDE' sind beide deutsche Wortfolgen. Und ein FALSCHER
+# Eintragsname ist schlimmer als ein zerrissener: Der zerrissene faellt auf, der falsche
+# sieht richtig aus.
+#
+# BELEGLAGE (am Pi-Vollbestand geprueft): 41 der 46 Zuordnungen bestehen aus Woertern, die
+# im deutschen Bestand vorkommen. Die uebrigen fuenf sind sprachlich eindeutig, aber dort
+# nicht nachweisbar - 'SELBSTVERSORGUNG' kommt im Fliesstext schlicht nicht vor, die
+# Ortsnamen von Upper Tavick's Landing sind englisch. Sie stehen unten mit dem Vermerk.
+#
+# NICHT aufgenommen, weil hier wirklich geraten waere: 'AURA D' (abgeschnitten, Ziel
+# unbekannt), 'MAGISCH R N' (zu wenig Substanz), 'IJ ER K.A1~v1 PFA BLAU F' (vermutlich
+# 'DER KAMPFABLAUF', aber die Zeichen tragen die Lesart nicht). Sie bleiben zerrissen und
+# in der Warnung - das ist der ehrlichere Zustand.
+KURATIERTE_TITEL: dict[str, str] = {
+    # --- bestandsbelegt: jedes Wort der Zielform kommt im deutschen Bestand vor ---
+    ", E INLEITUNG": "EINLEITUNG",
+    "ABERGLAUB E": "ABERGLAUBE",
+    "ARKANE S BOGENSCHÜTZENWISSEN": "ARKANES BOGENSCHÜTZENWISSEN",
+    "AUF EINE LANGE RAST VER ZIC H TEN": "AUF EINE LANGE RAST VERZICHTEN",
+    "B EZIEHUNGEN VON MONSTERN": "BEZIEHUNGEN VON MONSTERN",
+    "D 0 GGE": "DOGGE",                       # OCR las die Null statt des O
+    "D ER KAMPF UM DIE FREIHEIT": "DER KAMPF UM DIE FREIHEIT",
+    "D NKELSICHT": "DUNKELSICHT",             # das U ging verloren
+    "DAS HALBLI N GS-PANTH EO N": "DAS HALBLINGS-PANTHEON",
+    "DIE F LUCHKLINGE": "DIE FLUCHKLINGE",
+    "DIE GÖTTER VON F AERUN": "DIE GÖTTER VON FAERUN",
+    "DIE S PIELWERTE DER C H ARAKTERE": "DIE SPIELWERTE DER CHARAKTERE",
+    "E NTSPSPANNUNG": "ENTSPANNUNG",          # 'SP' doppelt gelesen
+    "F AERUNISCHE GÖTTER": "FAERUNISCHE GÖTTER",
+    "F AERUNISCHE ÜÖTIER": "FAERUNISCHE GÖTTER",   # 'ÜÖTIER' ist die OCR von 'GÖTTER'
+    "GAB E DER TIEFEN": "GABE DER TIEFEN",
+    "GEGENSTÄNDE STUFE FÜR STUFE AUSWÄHLE N": "GEGENSTÄNDE STUFE FÜR STUFE AUSWÄHLEN",
+    "GLÜ CKSSPIE L": "GLÜCKSSPIEL",
+    "HEIMATLÄ N DER": "HEIMATLÄNDER",
+    "INDIVIDUELL E SCHÄTZE": "INDIVIDUELLE SCHÄTZE",
+    "J ENSEITS DER UNBEFAHRENEN S EE ----": "JENSEITS DER UNBEFAHRENEN SEE",
+    "KIN DH EITSERIN N ERU NGEN": "KINDHEITSERINNERUNGEN",
+    "KLI N GENGESANG·STILE": "KLINGENGESANG-STILE",
+    "M ERKMALE: SCHATTENMAGIE": "MERKMALE: SCHATTENMAGIE",
+    "MAGISCHE GEGE N STÄNDE": "MAGISCHE GEGENSTÄNDE",
+    "ME RKMALE: PFAD DES ÄHN ENWÄC HTER S": "MERKMALE: PFAD DES AHNENWÄCHTERS",
+    "MENSCHLICH E ETHNIEN IN F AERUN": "MENSCHLICHE ETHNIEN IN FAERUN",
+    "P ERSÖNLICHE ENTSCHEIDUNGEN": "PERSÖNLICHE ENTSCHEIDUNGEN",
+    "PERLE DER E RFRISCHUNG": "PERLE DER ERFRISCHUNG",
+    "R A SCHER ANGRIFF": "RASCHER ANGRIFF",
+    "SCHAU 5 Pl E LE R": "SCHAUSPIELER",      # '5'->'S', 'Pl'->'PI'
+    "SCHRECKLICHER H I NTERHALT": "SCHRECKLICHER HINTERHALT",
+    "So Z TALE INTERAKTION": "SOZIALE INTERAKTION",   # 'Z TALE' ist die OCR von 'ZIALE'
+    "TABELLEN FÜR MAGISCHE G EGENSTÄNDE": "TABELLEN FÜR MAGISCHE GEGENSTÄNDE",
+    "U NDERDARK-ßEGEG NU NGEN (STUFE 5-10)": "UNDERDARK-BEGEGNUNGEN (STUFE 5-10)",
+    "UNBEIRRTE R BLICK": "UNBEIRRTER BLICK",
+    "V ERTEILU NG NACH SELTENHEIT": "VERTEILUNG NACH SELTENHEIT",
+    "VERSENGENDE R LICHTBOGENSCHLAG": "VERSENGENDER LICHTBOGENSCHLAG",
+    "WACHSAMER V ERTEIDIGER": "WACHSAMER VERTEIDIGER",
+    "j ERGAL": "JERGAL",                      # Gottheit; das kleine j ist ein Scan-Artefakt
+    "Ü BE RNATÜRLICH E SCHWINGEN": "ÜBERNATÜRLICHE SCHWINGEN",
+    # --- sprachlich eindeutig, im deutschen Fliesstext aber nicht nachweisbar ---
+    "P EINLICHE AUS RUT SCHER": "PEINLICHE AUSRUTSCHER",
+    "SCHMIEDEVATER UND VEREHRTE M UTIER": "SCHMIEDEVATER UND VEREHRTE MUTTER",
+    "SEI.BSTVERSO RG U N G": "SELBSTVERSORGUNG",   # '.' statt 'L' gelesen
+    "TOPF DES ERWACH E NS": "TOPF DES ERWACHENS",
+    "’ UPPER TAVICK S LANDING": "UPPER TAVICK'S LANDING",   # englischer Ortsname (efota-en)
+}
