@@ -71,6 +71,11 @@ _TRAGENDE_REGELN = [
     # Nicht-Behebung (24 fehlkategorisierte Zauberabschnitte) ausdruecklich darauf,
     # dass der Breadcrumb sie ausweist - dann muss die Erwartung auch verankert sein.
     ("Breadcrumb erklaert", "*Kontext:"),
+    # Discord-Befund 01.08.2026: der Bot reichte den Waisen-Hinweis der Klassenliste
+    # ('Zugehoerige Klasse nicht im Bestand') woertlich an die Runde weiter und machte
+    # daraus 'kann keinen Steckbrief liefern'. Werkzeug-Hinweise sind Regieanweisung
+    # an das Modell, nie Antwortinhalt - das muss in beiden Kanaelen stehen.
+    ("Werkzeug-Hinweise sind Regieanweisung", "nie zitieren"),
 ]
 
 

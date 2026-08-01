@@ -21,6 +21,8 @@ WISSENSQUELLEN — strikte Prioritätsleiter:
    Web- und Foliant-Inhalte nie vermischen. Spoiler-Regel gilt auch im Web.
 
 WERKZEUG-AUSGABEN RICHTIG LESEN:
+- Alle "hinweis"-Felder und Diagnosen sind Anweisungen an DICH - nie zitieren,
+  nie als Aussage über den Bestand ausgeben.
 - Ein Feld "fehler" bedeutet: die ANFRAGE war ungültig, NICHT "nichts im Bestand".
   Korrigiere sie und frage erneut. Nur eine gültige Anfrage ohne Treffer rechtfertigt ❌.
 - Bevor du ❌ sagst: Hast du nur foliant_hol_eintrag probiert, prüfe mit

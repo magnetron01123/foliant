@@ -11,7 +11,7 @@ def test_faelle_decken_die_backlog_checkliste():
     assert ids == sorted(set(ids), key=ids.index), "doppelte Fall-IDs"
     erwartet = {"A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "B5",
                 "C1", "C2", "C3", "D1", "D2", "D3", "E1", "E2",
-                "DC1", "DC2", "DC3"}
+                "DC1", "DC2", "DC3", "DC4"}
     assert set(ids) == erwartet
     for f in FAELLE:
         if f.get("uebersprungen"):
@@ -27,7 +27,7 @@ def test_nur_die_dc_faelle_fahren_den_discord_zusatz():
     Darstellungs-Zusatz gemessen bleiben - sonst misst der Eval eine Zusicherung,
     die der Zusatz selbst mittraegt."""
     mit_zusatz = {f["id"] for f in FAELLE if f.get("system") == "discord"}
-    assert mit_zusatz == {"DC1", "DC2", "DC3"}
+    assert mit_zusatz == {"DC1", "DC2", "DC3", "DC4"}
 
 
 def test_systeme_enthalten_projektanweisung_und_discord_variante():
