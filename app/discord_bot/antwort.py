@@ -20,7 +20,8 @@ HINWEIS_VERGESSEN = ("⚠️ Ich habe den bisherigen Verlauf nach einem Neustart
 # Ephemere Antworten koennen keinen Thread tragen (Discord-Grenze) - das sagt der Bot
 # dazu, statt die fehlende Nachfrage-Moeglichkeit unerklaert zu lassen.
 HINWEIS_PRIVAT = ("ℹ️ Diese Antwort sieht nur du - deshalb gibt es hier keinen Thread "
-                  "fuer Nachfragen. Fuer ein Gespraech die Frage ohne `privat` stellen.")
+                  "fuer Nachfragen. Fuer ein Gespraech dieselbe Frage mit `/regel` "
+                  "stellen.")
 
 
 def fehlertext(stop_grund: str) -> str | None:

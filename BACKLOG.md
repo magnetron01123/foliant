@@ -195,8 +195,10 @@ die Antwort ist die Erklärung, nicht der Datenbank-Auszug —, kein Charakterbo
   den Thread aus der Discord-Historie zurück, statt das Gespräch aufzugeben. **Kein neuer
   State** — die Historie *ist* die Persistenz. Der Vergessen-Hinweis bleibt für den Fall,
   dass dort nichts Verwertbares steht.
-- ✅ **`/regel … privat:True`**: ephemere Antwort nur für den Fragenden. Ohne Thread —
-  ephemere Nachrichten können keinen tragen; der Bot sagt es dazu.
+- ✅ **`/regel-privat`**: ephemere Antwort nur für den Fragenden. Ohne Thread —
+  ephemere Nachrichten können keinen tragen; der Bot sagt es dazu. Anfangs ein Schalter
+  `privat:True` an `/regel`; als eigener Befehl steht die Wahl in der Befehlsliste,
+  statt hinter den Optionen zu warten.
 - ✅ **`DISCORD_COOLDOWN_S`** konfigurierbar; ungültige Werte fallen fail-soft auf den
   Standard zurück, damit eine Schranke nie still ausfällt.
 - ✅ **DC1–DC3 im Eval**: die ersten Fälle, die den Prompt messen, den der Bot wirklich
