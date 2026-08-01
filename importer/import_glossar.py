@@ -502,6 +502,30 @@ def _namensvarianten(name: str) -> list[str]:
     return varianten
 
 
+
+def repariere_kuratierte_titel(con: sqlite3.Connection) -> int:
+    """Zerrissene Kapitel-/Abschnittstitel aus der kuratierten Tabelle setzen
+    (`namensreparatur.KURATIERTE_TITEL`); liefert die Zahl der geaenderten Eintraege.
+
+    Warum zusaetzlich zu `repariere_2014_namen`: Der belegt gegen das GLOSSAR und
+    dnddeutsch - also gegen Spielbegriffe. Kapiteltitel wie 'KINDHEITSERINNERUNGEN' stehen
+    dort nicht und blieben deshalb zerrissen, obwohl sie fuer einen Menschen sofort lesbar
+    sind. Die Tabelle schliesst genau diese Luecke; ihre Herleitung und warum sie von Hand
+    kuratiert ist, steht bei ihr.
+
+    In der KETTE, nicht als Einmal-UPDATE: Ein Re-Import spielt die rohen OCR-Namen wieder
+    ein (CLAUDE.md), und eine Reparatur, die das nicht ueberlebt, ist beim naechsten Buch
+    wieder verloren. Idempotent - wer schon repariert ist, wird nicht gefunden."""
+    from importer.namensreparatur import KURATIERTE_TITEL
+
+    geaendert = 0
+    for kaputt, korrekt in KURATIERTE_TITEL.items():
+        for spalte in ("name_de", "name_en"):
+            cur = con.execute(
+                f"UPDATE eintraege SET {spalte} = ? WHERE {spalte} = ?", (korrekt, kaputt))
+            geaendert += cur.rowcount
+    return geaendert
+
 def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
     """Zerrissene Eintragsnamen der deutschen 2014-Scans reparieren - BELEGT, nie geraten.
 
@@ -906,6 +930,7 @@ _KETTE = [
     (seed_glossar_aus_bestand, "Zeilen aus Bestandsnamen"),
     (seed_glossar_de_aus_bestand, "Zeilen aus deutschen Namen"),
     (repariere_2014_namen, "Namen repariert"),         # zerrissene 2014-Scan-Namen (belegt)
+    (repariere_kuratierte_titel, "Titel repariert"),   # Kapiteltitel: kuratierte Tabelle
     # Zweiter Lauf NACH der Reparatur: die eben zusammengefuegten Namen ('D ORNENWAND' ->
     # 'Dornenwand') sind erst jetzt abfragbar. Gleiche Beschriftung -> die Bilanz addiert.
     (seed_glossar_de_aus_bestand, "Zeilen aus deutschen Namen"),
