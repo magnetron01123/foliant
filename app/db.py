@@ -661,7 +661,33 @@ def _dedupe_und_sortiere(con: sqlite3.Connection, treffer: list[dict],
             # das Verschmelzen liess 'vollstaendige' Steckbriefe zu Fragmenten werden
             # (SYN-P0-003, 'Solar'). Alle Mitglieder bleiben eigene Treffer; die
             # Detail-Schicht loest Mehrdeutigkeit per Kandidaten auf (B4).
-            kanonisch.extend(dict(m) for m in g["mitglieder"])
+            #
+            # Mit EINER Ausnahme (Bestandspruefung 01.08.2026): Traegt ein Eintrag
+            # denselben Namen UND denselben Text, ist er keine zweite Fassung, sondern
+            # dieselbe. Das Buch fuehrt 'Ability Score Improvement' bei jeder Klasse
+            # einmal auf - zehnmal derselbe Absatz. Die Suche zeigte daraufhin ACHT
+            # gleichnamige Treffer mit identischem Auszug; im Bestand sind es 16 solcher
+            # Gruppen mit 30 ueberzaehligen Eintraegen, und sie treffen ausgerechnet die
+            # haeufig gesuchten Klassenmerkmale und Kampfstile.
+            #
+            # Das widerspricht SYN-P0-003 nicht, sondern schaerft es: Dort ging es um
+            # Abschnitte mit VERSCHIEDENEM Inhalt, bei denen das Verschmelzen Text
+            # verschluckte. Hier ist der Text zeichengleich - verloren gehen kann nichts.
+            # Die abweichenden FUNDSTELLEN bleiben erhalten (weitere_quellen), denn
+            # dass dasselbe Merkmal auf vier Seiten steht, ist echte Information.
+            gesehen: dict[tuple, dict] = {}
+            for m in g["mitglieder"]:
+                schluessel = (m["quelle"], _gl_norm(m["name_de"]), _gl_norm(m["name_en"]),
+                              m.get("auszug"))
+                erster = gesehen.get(schluessel)
+                if erster is None:
+                    gesehen[schluessel] = dict(m)
+                elif m.get("seite") and m["seite"] != erster.get("seite"):
+                    weitere = erster.setdefault("weitere_quellen", [])
+                    stelle = _fundstelle(m)
+                    if stelle not in weitere:
+                        weitere.append(stelle)
+            kanonisch.extend(gesehen.values())
             continue
         mitglieder = sorted(g["mitglieder"],
                             key=lambda m: (m["prioritaet"], m.get("lauf_rang", 0),

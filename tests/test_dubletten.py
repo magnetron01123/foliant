@@ -183,3 +183,42 @@ def test_a3_fuzzy_brueckt_keine_dublette(bestand):
     # und der englische Eintrag traegt NICHT ploetzlich den deutschen Namen:
     ray = next(t for t in s_en["treffer"] if (t["name_en"] or "") == "Ray of Frost")
     assert ray["name_de"] is None
+
+
+def test_identische_fassungen_derselben_quelle_werden_zusammengefasst(tmp_path, monkeypatch):
+    """Bestandsprüfung 01.08.2026: Das Buch führt 'Ability Score Improvement' bei jeder
+    Klasse einmal auf - zehnmal derselbe Absatz. Die Suche zeigte daraufhin acht
+    gleichnamige Treffer mit identischem Auszug; im Bestand waren es 16 solcher Gruppen
+    mit 30 überzähligen Einträgen, und sie trafen ausgerechnet die häufig gesuchten
+    Klassenmerkmale.
+
+    Das widerspricht SYN-P0-003 nicht, sondern schärft es: Dort ging es um Abschnitte mit
+    VERSCHIEDENEM Inhalt, bei denen das Verschmelzen Text verschluckte. Hier ist der Text
+    zeichengleich - verlieren kann man nichts. Die abweichenden FUNDSTELLEN bleiben."""
+    pfad = tmp_path / "dubletten.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(_SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (id,kuerzel,titel,sprache,edition,herkunft,prioritaet)"
+                " VALUES (1,'phb-2014-de','Spielerhandbuch','de','2014','pdf',80)")
+    text = "*Kontext: Klassen*\n\nBeim Erreichen der 4. Stufe erhoehst du einen Attributswert."
+    for seite in ("47", "64", "77", "85"):        # dasselbe Merkmal bei vier Klassen
+        con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,"
+                    "seite,body_md) VALUES (1,'regel','Attributswerterhoehung','de','2014',?,?)",
+                    (seite, text))
+    # Ein gleichnamiger Abschnitt mit ANDEREM Text muss eigenständig bleiben (SYN-P0-003)
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,seite,"
+                "body_md) VALUES (1,'regel','Attributswerterhoehung','de','2014','300',?)",
+                ("*Kontext: Anhang*\n\nKurzverweis im Regelglossar, anderer Wortlaut.",))
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+
+    s = su.foliant_suche_bestand("Attributswerterhoehung", edition="2014")
+    treffer = [t for t in s["treffer"] if t["name_de"] == "Attributswerterhoehung"]
+    assert len(treffer) == 2, [t.get("seite") for t in treffer]   # 4 identische -> 1, plus 1 andere
+    zusammengefasst = next(t for t in treffer if t["seite"] == "47")
+    weitere = zusammengefasst.get("weitere_quellen") or []
+    assert any("S. 64" in w for w in weitere), weitere            # Fundstellen bleiben
+    assert any("S. 85" in w for w in weitere), weitere

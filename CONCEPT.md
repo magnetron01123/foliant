@@ -604,9 +604,18 @@ Einmal aus- und wieder einloggen. Test: `docker run --rm hello-world`.
 make deploy-pi
 ```
 Das ist der **eine** Weg: rsync → `docker compose up -d --build foliant` → Golden-Suite am
-Vollbestand. Alle drei Schritte hängen zusammen, weil das Weglassen jedes einzelnen schon
-schiefgegangen ist (Rebuild vergessen → alter Code meldet „Erfolg"; Golden vergessen →
-korpusabhängige Regression bleibt unentdeckt).
+Vollbestand → **`admin check` am Vollbestand** (`make check-pi`). Alle vier Schritte hängen
+zusammen, weil das Weglassen jedes einzelnen schon schiefgegangen ist (Rebuild vergessen →
+alter Code meldet „Erfolg"; Golden vergessen → korpusabhängige Regression bleibt
+unentdeckt).
+
+**Warum der Check seit dem 01.08.2026 dazugehört:** `make test` fährt ihn lokal, aber die
+Dev-DB ist ein **Subset** (4 von 15 Quellen). Alles, was erst am Vollbestand sichtbar wird,
+fällt dort nicht auf — an genau dieser Lücke ist eine falsche Prioritätsband-Tabelle
+durchgegangen, die an einer Config kalibriert war, welche drei der betroffenen Bücher gar
+nicht enthält. `admin check` endet bei Problemen mit Exitcode ≠ 0 und bricht damit den
+Deploy ab: Ein Import, der **neue** Datenmängel einschleppt, geht nicht mehr still live
+(was bekannt ist, steht in `config/qualitaet_basis.json`).
 
 **Das SSH-Ziel steht einmalig als `PI=` in der `.env`** (gitignored; Vorlage in
 `.env.example`) — nicht in dieser Doku: das Repository ist öffentlich und die
