@@ -393,20 +393,54 @@ def _liste_klassen() -> dict:
         gruppen = _gruppiere(con, klassen_eintraege)
         zeilen = [(g, _zeile(con, g, unterklassen=[])) for g in gruppen]
 
-        # Unterklassen ihren Klassen zuordnen: srd-de ueber den Kontext ('Klassen > X'),
-        # Open5e ueber '*Subclass of: X*' - beides gegen die Namensvarianten der Klasse.
-        for ug in _gruppiere(con, unterklassen_eintraege):
+        gruppen_u = _gruppiere(con, unterklassen_eintraege)
+        # Flaches Chunking der Druckquellen: unter 'Paladin > Paladin Subclasses' steht
+        # neben 'Oath of the Ancients' auch dessen Abschnitt 'Oath of the Ancients
+        # Spells' - gleicher Kontext, fuer die Weiche oben nicht zu unterscheiden.
+        # Erkennbar am NAMEN: er fuehrt den Namen einer Geschwister-Unterklasse fort.
+        # Solche Fortsetzungen sind Unterabschnitte, keine waehlbaren Optionen - in der
+        # Liste stand die Zauberliste sonst als eigene Unterklasse neben ihrem Schwur.
+        def _u_name(g: dict) -> str:
+            e = g["eintraege"][0]
+            return _norm(e["name_de"] or e["name_en"] or "")
+        namen_je_kontext: dict[str, set[str]] = {}
+        for g in gruppen_u:
+            namen_je_kontext.setdefault(_kontext(g["eintraege"][0]), set()).add(_u_name(g))
+        gruppen_u = [g for g in gruppen_u
+                     if not any(n != _u_name(g) and _u_name(g).startswith(n + " ")
+                                for n in namen_je_kontext[_kontext(g["eintraege"][0])])]
+
+        # Unterklassen ihren Klassen zuordnen - gegen die Namensvarianten der Klasse,
+        # ueber die VIER Schreibweisen der Quellen (jede fehlte einmal wirklich):
+        # srd-de im Kontext ('Klassen > X'), Open5e im Body ('*Subclass of: X*'),
+        # Druckquellen als Klammer-Suffix am Namen ('BLADESINGER (WIZARD)') und
+        # DDB-PHB-2024 im Kontext-PFAD ('Warlock > Warlock Subclasses'). Ohne die
+        # vierte standen alle 48 PHB-Unterklassen als Waisen mit dem falschen Hinweis
+        # 'Klasse nicht im Bestand' in der Liste - der Discord-Bot hat diese Diagnose
+        # am 01.08.2026 woertlich an die Runde weitergereicht.
+        for ug in gruppen_u:
             referenzen: set[str] = set()
             for e in ug["eintraege"]:
                 kontext = _kontext(e)
                 if kontext.startswith("Klassen > "):
                     referenzen.add(_norm(kontext.split(" > ", 1)[1]))
+                segmente = [s.strip() for s in kontext.split(" > ")] if kontext else []
+                if segmente and _UNTERKLASSEN_KONTEXT.match(segmente[-1]):
+                    # 'Warlock > Warlock Subclasses': die Klasse steht davor im Pfad
+                    # UND im Segment selbst ('Warlock Subclasses'). Beide nutzen -
+                    # manche Quellen haben nur eines von beiden. 'THE ARTIFICER'
+                    # traegt einen Artikel, den kein Klassenname fuehrt.
+                    if len(segmente) >= 2:
+                        referenzen.add(_norm(re.sub(r"^the\s+", "", segmente[-2],
+                                                    flags=re.IGNORECASE)))
+                    im_segment = re.match(r"^(.+?)\s+(?:Unterklassen|Subclasses)$",
+                                          segmente[-1], re.IGNORECASE)
+                    if im_segment:
+                        referenzen.add(_norm(re.sub(r"^the\s+", "", im_segment.group(1),
+                                                    flags=re.IGNORECASE)))
                 m = _SUBCLASS.search(e["body_md"] or "")
                 if m:
                     referenzen.add(_norm(m.group(1)))
-                # Dritte Schreibweise, aus den englischen Druckquellen: die Klasse steht
-                # als Klammer-Suffix am NAMEN ('BLADESINGER (WIZARD)'), nicht im Kontext
-                # und nicht im Body.
                 km = _UNTERKLASSE_KLAMMER.match(e["name_de"] or e["name_en"] or "")
                 if km:
                     referenzen.add(_norm(km.group(2)))
@@ -430,15 +464,38 @@ def _liste_klassen() -> dict:
                 # zum Ziel einer spaeteren Unterklasse werden - das war ein KeyError.
                 ziel.setdefault("unterklassen", []).append(uz)
             else:
+                # Handlungsanweisung statt Datenbank-Diagnose: die Unterklasse SELBST ist
+                # vollstaendig im Bestand und waehlbar - nur der Grundeintrag ihrer
+                # Klasse fehlt. Der alte Text ('Zugehoerige Klasse nicht im Bestand.')
+                # las sich wie ein Mangel der Unterklasse; der Discord-Bot hat daraus
+                # 'kann keinen Steckbrief liefern' gemacht, obwohl der Steckbrief da war.
                 zeilen.append(({"varianten": referenzen},
-                               {**uz, "hinweis": "Zugehoerige Klasse nicht im Bestand."}))
+                               {**uz, "hinweis": "Waehlbare Unterklasse - nur der "
+                                "Grundeintrag ihrer Klasse ist nicht im Bestand. Als "
+                                "Option anbieten, nicht als Mangel ausgeben; Details "
+                                "liefert foliant_hol_eintrag."}))
 
         # Deutsche Alphabetisierung wie in `_liste` (s. dort).
         klassen = sorted((z for _g, z in zeilen),
                          key=lambda z: _glossar.norm_begriff(z["name_de"] or z["name_en"]))
         antwort = {"klassen": klassen,
                    "hinweis_reihenfolge": "Klasse ist SCHRITT 1 von 4. " + _HINWEIS_REIHENFOLGE,
-                   "hinweis": _HINWEIS_BESTAND}
+                   "hinweis": _HINWEIS_BESTAND,
+                   # Discord-Befund 01.08.2026: auf "Welche Unterklassen hat X?" kam eine
+                   # Inventurliste, nach Datenlage gegliedert ("vollstaendig deutsch" /
+                   # "Namens-Treffer ohne verknuepfte Klassendaten") - fuer die fragende
+                   # Person unbrauchbar. Der Hinweis steht HIER, weil die Tool-Ausgabe
+                   # der zuverlaessigste der drei Verhaltenskanaele ist (SPEC par. 7) und
+                   # das Instruktions-Budget (test_instruktion_bleibt_kompakt) knapp ist.
+                   "hinweis_darstellung": (
+                       "Bei der Frage nach Klassen/Unterklassen: als MENUE antworten - je "
+                       "Option EINE geerdete Kurzzeile, wofuer sie spielerisch steht "
+                       "(bei Bedarf per foliant_hol_eintrag nachladen, nie aus dem "
+                       "Gedaechtnis). Sprachstatus ist eine Fussnote je Option (englische "
+                       "Namen mit * wiedergeben), NIE das Ordnungsprinzip. "
+                       "'abenteuer_setting' fuer die Runde heisst: ob die Option am Tisch "
+                       "erlaubt ist, entscheidet die SL. Mit der Rueckfrage enden, welche "
+                       "Option im Detail gewuenscht ist.")}
         # Auch die geschachtelten Unterklassen kennzeichnen - sie tragen dieselbe
         # Herkunft und sind fuer den Spoiler-Schutz kein Sonderfall.
         _aus._markiere_inhaltsart(con, antwort, klassen,

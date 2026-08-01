@@ -194,4 +194,23 @@ FAELLE = [
          rubrik="Die ausdrueckliche Bitte um eine 'Tabelle' darf NICHT zu einer "
                 "Markdown-Tabelle fuehren (Discord rendert sie nicht). PASS bei "
                 "Codeblock mit festen Spalten oder fetten Feldzeilen.", korpus="voll"),
+    # Real ueber den Bot gestellt am 01.08.2026; die Antwort war eine nach DATENLAGE
+    # gegliederte Inventurliste ("Namens-Treffer ohne verknuepfte Klassendaten"), nackte
+    # englische Namen ohne *, Werkzeug-Diagnostik woertlich zitiert, dazu die falsche
+    # Behauptung, drei Unterklassen seien nicht lieferbar. Der Fall misst die drei
+    # Gegenmassnahmen: Zuordnungs-Fix in der Klassenliste, hinweis_darstellung (Menue)
+    # und die Nie-zitieren-Regel in beiden Kanaelen.
+    dict(id="DC4", system="discord",
+         frage="Welche Unterklassen hat der Hexenmeister?",
+         pflicht=["📖", "Unhold-Schutzherr"],
+         verboten=["nicht im Bestand verknüpft", "Namens-Treffer",
+                   "Zugehörige Klasse nicht im Bestand"],
+         erwartete_tools=["foliant_liste_optionen"],
+         richter=True,
+         rubrik="Ein MENUE fuer die fragende Person: alle Schutzherren des Bestands als "
+                "waehlbare Optionen, englische Namen mit *-Wiedergabe (Deutsch-first), "
+                "Setting-Optionen mit SL-Vorbehalt statt Datenbank-Sprech. FAIL, wenn "
+                "die Antwort nach Datenlage gegliedert ist, Werkzeug-Hinweise zitiert "
+                "oder Unterklassen faelschlich fuer nicht lieferbar erklaert.",
+         korpus="voll"),
 ]

@@ -33,9 +33,10 @@ from tests.hilfen import SCHEMA
 _SCHEMA = SCHEMA
 @pytest.fixture()
 def bestand(tmp_path, monkeypatch):
-    """Zwei Quellen: ein Regelwerk und ein Abenteuer-/Setting-Band. Die Klassen decken die
-    DREI Schreibweisen ab, in denen Quellen eine Unterklasse ihrer Klasse zuordnen:
-    deutscher Namenspraefix, '*Subclass of:*' im Body, Klammer-Suffix am Namen."""
+    """Drei Quellen: Regelwerk, Abenteuer-/Setting-Band und ein englisches Druck-PHB.
+    Die Klassen decken die VIER Schreibweisen ab, in denen Quellen eine Unterklasse
+    ihrer Klasse zuordnen: deutscher Namenspraefix, '*Subclass of:*' im Body,
+    Klammer-Suffix am Namen, Klasse im Kontext-Pfad ('Warlock > Warlock Subclasses')."""
     pfad = tmp_path / "foliant-charakterlisten.sqlite"
     con = sqlite3.connect(pfad)
     con.executescript(_SCHEMA.read_text(encoding="utf-8"))
@@ -45,7 +46,9 @@ def bestand(tmp_path, monkeypatch):
         [("srd-de", "SRD 5.2.1 (Deutsch)", "de", "2024", "pdf", "CC-BY-4.0", 10,
           "regelwerk"),
          ("efota-en", "Eberron: Forge of the Artificer (Druck)", "en", "2024", "pdf",
-          "privat", 40, "abenteuer_setting")])
+          "privat", 40, "abenteuer_setting"),
+         ("ddb-phb-2024-en", "Player's Handbook", "en", "2024", "ddb", "privat", 30,
+          "regelwerk")])
     con.executemany(
         "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
         "body_md) VALUES (?,?,?,?,?,?,?,?)",
@@ -83,6 +86,19 @@ def bestand(tmp_path, monkeypatch):
          # --- Spezies fuer den Rundlauf-Test
          (1, "spezies", "Zwerg", "Dwarf", "de", "2024", "94",
           "*Kontext: Beschreibungen der Spezies*\n\nZwerge sind zaeh."),
+         # --- DDB-PHB-2024: die Klasse steht NUR im Kontext-Pfad (vierte Schreibweise).
+         # 'Wizard' hat im Bestand eine deutsche Klassen-Zeile (Magier) - die Zuordnung
+         # muss ueber die Namensvarianten der Gruppe laufen, nicht ueber die Quelle.
+         (3, "klasse", None, "Illusionist", "en", "2024", None,
+          "*Kontext: Wizard > Wizard Subclasses*\n\nYou master illusions."),
+         # Unterabschnitt im SELBEN Kontext wie eine echte Unterklasse (flaches
+         # Chunking): fuehrt deren Namen fort und darf NICHT als Unterklasse erscheinen.
+         (3, "klasse", None, "Illusionist Spells", "en", "2024", None,
+          "*Kontext: Wizard > Wizard Subclasses*\n\nAlways prepared: minor illusion."),
+         # Klasse mit Artikel im Kontext-Pfad ('THE ARTIFICER') und ohne Grundeintrag
+         # im Bestand: bleibt eine ehrliche Waise.
+         (3, "klasse", None, "Cartographer", "en", "2024", None,
+          "*Kontext: The Artificer > Artificer Subclasses*\n\nYou map the unknown."),
          ])
     con.commit()
     con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
@@ -141,6 +157,45 @@ def test_klammer_suffix_wird_nicht_als_deutsch_first_missverstanden(bestand):
                   if k["name_de"] == "Magier")
     bs = next(u for u in magier["unterklassen"] if (u["name_en"] or "") == "BLADESINGER")
     assert bs["anzeige"] == "BLADESINGER"
+
+
+def test_unterklasse_aus_kontextpfad_haengt_an_ihrer_klasse(bestand):
+    """Vierte Schreibweise (Befund 01.08.2026): Im DDB-PHB-2024 steht die Klasse NUR im
+    Kontext-Pfad ('Wizard > Wizard Subclasses') - kein Namenspraefix, kein Body-Marker,
+    kein Klammer-Suffix. Vorher waren damit alle 48 PHB-Unterklassen Waisen mit dem
+    falschen Hinweis 'Klasse nicht im Bestand', und der Discord-Bot hat der Runde genau
+    das erzaehlt - obwohl der Magier direkt daneben in der Liste stand."""
+    klassen = ch.foliant_liste_optionen("klasse")["klassen"]
+    magier = next(k for k in klassen if k["name_de"] == "Magier")
+    namen = {u["name_de"] or u["name_en"] for u in magier["unterklassen"]}
+    assert "Illusionist" in namen, f"PHB-Unterklasse nicht zugeordnet: {namen}"
+    oben = {k["name_de"] or k["name_en"] for k in klassen}
+    assert "Illusionist" not in oben, "haengt zugeordnet UND als Waise in der Liste"
+
+
+def test_zauberlisten_abschnitt_ist_keine_unterklasse(bestand):
+    """'Illusionist Spells' liegt durch das flache Chunking im SELBEN Kontext wie die
+    Unterklasse selbst und ist von ihr nur am Namen zu unterscheiden: er fuehrt den
+    Namen der Geschwister-Unterklasse fort. In der Liste stand die Zauberliste sonst
+    als eigene Unterklasse neben ihrem Original ('Oath of the Ancients Spells')."""
+    klassen = ch.foliant_liste_optionen("klasse")["klassen"]
+    alle = {k["name_de"] or k["name_en"] for k in klassen} | {
+        u["name_de"] or u["name_en"]
+        for k in klassen for u in k.get("unterklassen") or []}
+    assert "Illusionist Spells" not in alle
+
+
+def test_waisen_hinweis_ist_handlungsanweisung(bestand):
+    """Der Hinweis einer echten Waise muss dem Modell sagen, was es TUN soll (Option
+    anbieten), nicht wie die Datenlage aussieht. Aus 'Zugehoerige Klasse nicht im
+    Bestand.' hat der Bot 'kann keinen Steckbrief liefern' gemacht - dabei ist die
+    Unterklasse selbst vollstaendig abrufbar."""
+    r = ch.foliant_liste_optionen("klasse")
+    waisen = [k for k in r["klassen"] if k.get("hinweis")]
+    assert waisen, "Waisen-Fall nicht erzeugt - Fixture pruefen"
+    for w in waisen:
+        assert "Waehlbare Unterklasse" in w["hinweis"]
+        assert "Option anbieten" in w["hinweis"]
 
 
 def test_zwei_waisen_derselben_fehlenden_klasse_stuerzen_nicht_ab(bestand):
