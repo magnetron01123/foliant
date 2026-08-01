@@ -669,6 +669,11 @@ als es zu löschen, und baut danach neu.
    wenn dort nichts Verwertbares steht, sagt er im Thread, dass er vergessen hat.
 5. **Kontrolle:** Discord-Anfragen erscheinen im Abfrage-Protokoll
    (`admin suchbericht`) — derselbe Kurations-Kreislauf wie beim MCP.
+6. **Für die Runde erklärt** ist der Bot auf der Website (Karte „Foliant in Discord",
+   `app/charakterbogen/templates/index.html`): Befehle, Threads, `privat:True`, Schranken
+   und der Hinweis, dass Discord Antworten dauerhaft im Kanal stehen lässt. Ändern sich
+   Befehle oder Schranken, gehört die Karte mitgezogen — sie ist das, was die Spieler
+   lesen.
 
 ### Cloudflare Named Tunnel
 Zero-Trust-Dashboard → Networks → Tunnels → **Create tunnel** → Token in die Pi-`.env` als
