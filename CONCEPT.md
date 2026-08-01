@@ -662,15 +662,18 @@ als es zu löschen, und baut danach neu.
    `DISCORD_COOLDOWN_S` (Default 10 s zwischen zwei Fragen desselben Nutzers).
 4. **Start:** `docker compose up -d --build --no-deps discord` · Logs:
    `docker compose logs -f discord` · Nutzung: `/regel <frage>` oder @Foliant erwähnen;
-   Folgefragen im automatisch erzeugten Thread. `/regel … privat:True` antwortet nur
-   dem Fragenden (ephemer, deshalb ohne Thread für Nachfragen). Der Verlauf bleibt
+   Folgefragen im automatisch erzeugten Thread. `/regel-privat <frage>` antwortet nur
+   dem Fragenden (ephemer, deshalb ohne Thread für Nachfragen) — ein **eigener Befehl**
+   statt eines Schalters an `/regel`, weil Discord bei der Eingabe von „/regel" beide
+   Namen mit Beschreibung anzeigt und die Wahl damit vor dem Tippen steht; der Schalter
+   war nur zu finden, wenn man ihn schon kannte. Der Verlauf bleibt
    bewusst in-memory, ein Neustart löscht ihn — der Bot liest den Thread dann aber aus
    der Discord-Historie zurück (`app/discord_bot/rebuild.py`, max. 40 Nachrichten); nur
    wenn dort nichts Verwertbares steht, sagt er im Thread, dass er vergessen hat.
 5. **Kontrolle:** Discord-Anfragen erscheinen im Abfrage-Protokoll
    (`admin suchbericht`) — derselbe Kurations-Kreislauf wie beim MCP.
 6. **Für die Runde erklärt** ist der Bot auf der Website (Karte „Foliant in Discord",
-   `app/charakterbogen/templates/index.html`): Befehle, Threads, `privat:True`, Schranken
+   `app/charakterbogen/templates/index.html`): Befehle, Threads, `/regel-privat`, Schranken
    und der Hinweis, dass Discord Antworten dauerhaft im Kanal stehen lässt. Ändern sich
    Befehle oder Schranken, gehört die Karte mitgezogen — sie ist das, was die Spieler
    lesen.
@@ -1055,7 +1058,7 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Tools laufen in-process am `ZugriffsFilter` vorbei — bewusst, wie beim Eval-Harness:
   der Filter schützt den HTTP-Weg, nicht die Prozessgrenze (SPEC.md §12 Nr. 6). Der
   Spoiler-Schutz bleibt prompt-basiert; im gemeinsamen Kanal sieht jeder jede Antwort
-  (Ausnahme: `/regel … privat` antwortet ephemer nur dem Fragenden — das ist Rücksicht
+  (Ausnahme: `/regel-privat` antwortet ephemer nur dem Fragenden — das ist Rücksicht
   auf den Kanal, **keine** Vertraulichkeitszusage: Discord entscheidet, wie lange eine
   ephemere Nachricht lebt, und der Rebuild liest ohnehin nur echte Kanalbeiträge).
 - **Inhalte-Recht:** Das Repository enthält **keine** kommerziellen Regelinhalte. Die aus

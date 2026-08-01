@@ -65,12 +65,22 @@ class FoliantBot(discord.Client):
         @self.baum.command(name="regel", guild=self._guild,
                            description="Regelfrage an Foliant - die Antwort "
                                        "oeffnet einen Thread fuer Nachfragen")
-        @app_commands.describe(frage="Deine Regelfrage (deutsch oder englisch)",
-                               privat="Antwort nur fuer dich - dann ohne Thread "
-                                      "fuer Nachfragen")
-        async def regel(interaction: discord.Interaction, frage: str,
-                        privat: bool = False) -> None:
-            await self._slash_regel(interaction, frage, privat)
+        @app_commands.describe(frage="Deine Regelfrage (deutsch oder englisch)")
+        async def regel(interaction: discord.Interaction, frage: str) -> None:
+            await self._slash_regel(interaction, frage, privat=False)
+
+        # Eigener Befehl statt eines Schalters an /regel: den Schalter gab es, aber man
+        # musste ihn KENNEN - er stand erst nach dem Aufklappen der Optionen da, und wer
+        # ihn nicht kannte, fragte im Zweifel im Kanal. Der gemeinsame Wortstamm ist der
+        # Grund fuer genau diesen Namen: Discord zeigt bei der Eingabe von "/regel" beide
+        # Befehle untereinander, samt Beschreibung - die Wahl steht damit VOR dem Tippen
+        # der Frage, nicht in einem Untermenue dahinter.
+        @self.baum.command(name="regel-privat", guild=self._guild,
+                           description="Regelfrage, deren Antwort nur du siehst - "
+                                       "dafuer ohne Thread fuer Nachfragen")
+        @app_commands.describe(frage="Deine Regelfrage (deutsch oder englisch)")
+        async def regel_privat(interaction: discord.Interaction, frage: str) -> None:
+            await self._slash_regel(interaction, frage, privat=True)
 
         # Guild-scoped Sync: sofort verfuegbar (globaler Sync braucht bis zu 1 h).
         await self.baum.sync(guild=self._guild)

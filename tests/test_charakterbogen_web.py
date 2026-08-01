@@ -300,7 +300,7 @@ def test_discord_abschnitt_erklaert_den_bot(client):
     r = client.get("/")
     assert 'id="discord"' in r.text
     assert 'href="#discord"' in r.text                    # im Seitenkopf verlinkt
-    assert "/regel" in r.text and "privat:True" in r.text
+    assert "/regel" in r.text and "/regel-privat" in r.text
     assert "Discord hebt Nachrichten auf" in r.text
 
 
