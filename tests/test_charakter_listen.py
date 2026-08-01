@@ -59,10 +59,15 @@ def bestand(tmp_path, monkeypatch):
          (1, "klasse", "Kämpfer", "Fighter", "de", "2024", "55",
           "*Kontext: Klassen*\n\nWaffenmeister."),
          # --- Regelwerk: Klasse + Unterklasse im deutschen Namensschema
+         # Wie im echten Bestand: der Klassen-Steckbrief beginnt mit der
+         # Merkmalstabelle (keine Schlagzeile), die Unterklasse mit ihrer Schlagzeile.
          (1, "klasse", "Magier", "Wizard", "de", "2024", "88",
-          "*Kontext: Klassen*\n\nHauptmerkmale des Magiers."),
+          "*Kontext: Klassen*\n\n###### **Hauptmerkmale des Magiers** \n\n"
+          "|**Hauptattribut**|Intelligenz|\n|---|---|\n"
+          "|**Trefferpunktewürfel**|1W6 pro Magierstufe|"),
          (1, "klasse", "Magier-Unterklasse: Hervorrufer", None, "de", "2024", "92",
-          "*Kontext: Klassen > Magier*\n\n_Meister der Energie_"),
+          "*Kontext: Klassen > Magier*\n\n_Meister der rohen Energie_ \n\nDu formst "
+          "rohe Energie zu maechtigen Zaubern."),
          # Unterabschnitte: duerfen in KEINER Liste auftauchen (weder Klasse noch Unterklasse)
          (1, "klasse", "Klassenmerkmale des Magiers", None, "de", "2024", "89",
           "*Kontext: Klassen > Magier*\n\nAls Magier erhaeltst du folgende Merkmale."),
@@ -85,7 +90,8 @@ def bestand(tmp_path, monkeypatch):
           "*Kontext: ARTIFICER SUBCLASSES*\n\nAn artificer of armor."),
          # --- Spezies fuer den Rundlauf-Test
          (1, "spezies", "Zwerg", "Dwarf", "de", "2024", "94",
-          "*Kontext: Beschreibungen der Spezies*\n\nZwerge sind zaeh."),
+          "*Kontext: Beschreibungen der Spezies*\n\nZwerge sind ein zaehes Volk "
+          "aus den Bergen."),
          # --- DDB-PHB-2024: die Klasse steht NUR im Kontext-Pfad (vierte Schreibweise).
          # 'Wizard' hat im Bestand eine deutsche Klassen-Zeile (Magier) - die Zuordnung
          # muss ueber die Namensvarianten der Gruppe laufen, nicht ueber die Quelle.
@@ -157,6 +163,50 @@ def test_klammer_suffix_wird_nicht_als_deutsch_first_missverstanden(bestand):
                   if k["name_de"] == "Magier")
     bs = next(u for u in magier["unterklassen"] if (u["name_en"] or "") == "BLADESINGER")
     assert bs["anzeige"] == "BLADESINGER"
+
+
+def test_jede_option_traegt_belegzeile_und_kurzcharakteristik(bestand):
+    """Simulationslauf 01.08.2026: Das Modell charakterisierte Klassen aus dem
+    Gedaechtnis ("kaempft mit Ki-Energie") und baute die Belegzeile selbst zusammen -
+    beides, weil die Liste weder 'kurz' noch 'zitat' trug. Die Liste liefert es jetzt,
+    damit Raten gar nicht erst noetig ist (B1)."""
+    magier = next(k for k in ch.foliant_liste_optionen("klasse")["klassen"]
+                  if k["name_de"] == "Magier")
+    assert magier["zitat"] == "Quelle: SRD 5.2.1 (Deutsch) · S. 88 · Regelversion: 2024"
+    # Klassen-Steckbriefe fuehren keine Schlagzeile, aber die Merkmalstabelle - und das
+    # Hauptattribut ist fuer die Klassenwahl ohnehin die nuetzlichere Angabe.
+    assert magier["kurz"] == "Hauptattribut: Intelligenz"
+    hervorrufer = next(u for u in magier["unterklassen"] if u["name_de"] == "Hervorrufer")
+    assert hervorrufer["kurz"] == "Meister der rohen Energie"   # Schlagzeile der Quelle
+    zwerg = ch.foliant_liste_optionen("spezies")["spezies"][0]
+    assert zwerg["kurz"] == "Zwerge sind ein zaehes Volk aus den Bergen."
+
+
+def test_kurzzeile_nimmt_keinen_kuenstlernamen(bestand):
+    """Die Druckquellen streuen Kuenstlernamen als eigene Zeile in den Text ('ERION
+    MAKUO'). Zweiwortzeilen scheiden deshalb aus - sonst stuende so ein Name als
+    Charakteristik der Unterklasse in der Liste."""
+    # Drei Woerter reichen fuer einen Namen mit Initial ("Helge C. Balzer") - deshalb
+    # vier; und der Rueckfall nimmt nur ganze Saetze, keine Datenzeilen.
+    assert ch._kurzzeile("*Kontext: SUBCLASSES*\n\nHelge C. Balzer\n\nGroesse: "
+                         "Mittelgross\n\nEin ganzer Satz ueber diese Unterklasse.") \
+        == "Ein ganzer Satz ueber diese Unterklasse."
+    assert ch._kurzzeile("*Kontext: X*\n\nARTIST: KEVIN GNUTZMANS Ability Scores: "
+                         "Strength") is None
+
+
+def test_kurzzeile_doppelt_die_talent_typzeile_nicht(bestand):
+    """Die Typzeile ('General Feat (Prerequisite: ...)') steht bereits als eigene Felder
+    in der Zeile. Als Kurzcharakteristik verdraengte sie den Satz, der wirklich sagt,
+    was das Talent tut - und schleppte dabei die Markdown-Escapes der Druckquelle mit
+    ('Level 4\\+')."""
+    assert ch._kurzzeile("*Kontext: General Feats*\n\nGeneral Feat (Prerequisite: "
+                         "Level 4\\+)\n\nDu bemerkst Gefahren fruehzeitig und handelst "
+                         "zuerst.") == "Du bemerkst Gefahren fruehzeitig und handelst zuerst."
+    # Escapes werden auch dort entfernt, wo die Zeile selbst durchkommt.
+    assert "\\" not in (ch._kurzzeile("*Kontext: X*\n\nAasimar \\(AH\\-sih\\-mar\\) sind "
+                                      "Sterbliche mit einem Funken der Oberen Ebenen.") or "")
+    assert ch._kurzzeile("*Kontext: X*") is None               # nichts da -> kein Feld
 
 
 def test_unterklasse_aus_kontextpfad_haengt_an_ihrer_klasse(bestand):

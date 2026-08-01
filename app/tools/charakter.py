@@ -223,6 +223,85 @@ def _gruppiere(con, eintraege: list[dict]) -> list[dict]:
     return gruppen
 
 
+# Eine Optionsliste ohne Kurzzeile ist eine Liste blanker Namen - und genau da hat das
+# Modell im Simulationslauf vom 01.08.2026 aus dem Gedaechtnis ergaenzt ("Fokus auf
+# Heilung/Licht", "kaempft mit Ki-Energie"). Sauber formuliert, nirgends belegt: B1.
+# Der Bestand traegt die Zeile laengst - die Quellen stellen jeder Unterklasse eine
+# Schlagzeile voran ("Bargain with Whimsical Fey", "_Lindere die Leiden der Welt_").
+# Klassen-Steckbriefe haben keine, dort steht das Hauptattribut in der Merkmalstabelle -
+# fuer die Klassenwahl ohnehin die nuetzlichere Angabe.
+_ZIER = re.compile(r"[*_`]+")
+_HAUPTATTRIBUT = re.compile(
+    r"\|\s*\*\*(?:Hauptattribut|Primary Ability)\*\*\s*\|\s*([^|]+?)\s*\|", re.IGNORECASE)
+# Die Huerden stammen aus einem Probelauf gegen den VOLLBESTAND (01.08.2026) - am
+# Fixture war keine davon zu sehen. Die Druckquellen streuen Bildnachweise als eigene
+# Zeile in den Text: 'ERION MAKUO', 'Ignatius Budi', 'Helge C. Balzer',
+# 'ARTIST: KEVIN GNUTZMANS'. Ohne die Huerden stand 'Helge C. Balzer' als
+# Charakteristik der Spezies Dhampir in der Liste.
+#   - Schlagzeile: mindestens VIER Woerter (faengt dreiteilige Namen), kein Punkt am
+#     Ende, keine Tabellen-/Ueberschriftenzeile.
+#   - Fliesstext-Rueckfall: nur ein ganzer SATZ (Punkt am Ende, mindestens fuenf
+#     Woerter). Das schliesst Datenzeilen wie 'Groesse: Mittelgross (150-210 cm)' aus.
+# Lieber kein Feld als ein falsches - der Darstellungs-Hinweis sagt dem Modell, dann
+# nachzuladen.
+_BILDNACHWEIS = re.compile(r"^\s*(artist|kuenstler|künstler|illustration)\b", re.IGNORECASE)
+# Die Typzeile eines Talents ('General Feat (Prerequisite: ...)', 'Allgemeines Talent
+# (Voraussetzung: ...)') steht schon als eigene Felder `kategorie`/`voraussetzung` in
+# der Zeile - als Kurzcharakteristik waere sie eine Dopplung und verdraengt den Satz,
+# der WIRKLICH sagt, was das Talent tut.
+_TYPZEILE = re.compile(r"^[\w äöüÄÖÜß.-]{0,40}\b(Feat|Talent)\b[^(]*\(.*\)\s*$",
+                       re.IGNORECASE)
+# Markdown-Escapes der Druckquellen ('AH\-sih\-mar', 'Level 4\+') - im Fliesstext einer
+# Antwort sind die Schraegstriche schlicht Muell.
+_ESCAPE = re.compile(r"\\([-+*_.()\[\]#])")
+# Ueberleitungssaetze, die nichts ueber die Option aussagen ("Du erhaeltst folgende
+# Vorzuege."). Sie stehen in vielen Talenten vor der eigentlichen Aufzaehlung und
+# waeren als Kurzcharakteristik eine leere Zeile im Menue.
+_FLOSKEL = re.compile(r"^(you gain the following"
+                      r"|du erh(ä|ae)ltst (die )?folgenden?)", re.IGNORECASE)
+_KURZ_MIN_WOERTER = 4
+_KURZ_SATZ_MIN_WOERTER = 5
+_KURZ_MAX_ZEICHEN = 160
+
+
+def _kurzzeile(body: str | None) -> str | None:
+    """Eine BELEGTE Kurzcharakteristik aus dem Eintragstext; None, wenn keine da ist.
+
+    Lieber kein Feld als ein schlechtes: fehlt die Zeile, sagt der Darstellungs-Hinweis
+    dem Modell, den Eintrag nachzuladen - raten darf es in keinem der beiden Faelle."""
+    def sauber(text: str) -> str:
+        return _ESCAPE.sub(r"\1", _ZIER.sub("", text)).strip()
+
+    zeilen = [z.strip() for z in (body or "").split("\n")]
+    zeilen = [z for z in zeilen if z and not z.startswith("*Kontext:")
+              and not _BILDNACHWEIS.match(sauber(z))
+              and not _TYPZEILE.match(sauber(z))
+              and not _FLOSKEL.match(sauber(z))]
+    if not zeilen:
+        return None
+    schlagzeile = sauber(zeilen[0])
+    if (not zeilen[0].startswith("#") and "|" not in zeilen[0]
+            and not schlagzeile.endswith(".")
+            and len(schlagzeile) <= 120
+            and len(schlagzeile.split()) >= _KURZ_MIN_WOERTER):
+        return schlagzeile
+    m = _HAUPTATTRIBUT.search(body or "")
+    if m:
+        return f"Hauptattribut: {sauber(m.group(1))}"
+    for zeile in zeilen:                      # sonst der erste ganze Fliesstext-SATZ
+        if zeile.startswith("#") or "|" in zeile:
+            continue
+        satz = sauber(zeile)
+        punkt = satz.find(". ")
+        if punkt > 0:
+            satz = satz[:punkt + 1]
+        if not satz.endswith(".") or len(satz.split()) < _KURZ_SATZ_MIN_WOERTER:
+            continue
+        return (satz[:_KURZ_MAX_ZEICHEN].rstrip() + "…"
+                if len(satz) > _KURZ_MAX_ZEICHEN else satz)
+    return None
+
+
 def _zeile(con, g: dict, **extra) -> dict:
     """Knappe Listen-Zeile einer Options-Gruppe: Anzeige Deutsch-first (S3/S4)."""
     name_de = next((e["name_de"] for e in g["eintraege"] if e["name_de"]), None)
@@ -246,10 +325,17 @@ def _zeile(con, g: dict, **extra) -> dict:
     # gemischten Gruppen fuehrt wegen ORDER BY q.prioritaet die Regelwerksquelle - dann
     # ist die Option auch wirklich im Regelwerk enthalten und keine Spoilergefahr;
     # 'quellen' zeigt die uebrigen Baende weiterhin an.
+    # `zitat` wie beim Suchtreffer (_knapp): stil.py verlangt, die Belegzeile WOERTLICH
+    # auszugeben - ohne das Feld baute das Modell sie selbst und mischte im Test drei
+    # Quellen zu einer erfundenen Zeile zusammen ("Player's Handbook / SRD 5.2.1").
     z = {"eintrag_id": fuehrend["id"], "anzeige": anzeige,
          "name_de": name_de, "name_en": name_en,
          "edition": fuehrend["edition"], "quelle_kuerzel": fuehrend["quelle_kuerzel"],
-         "quellen": sorted({e["quelle_titel"] for e in g["eintraege"]})}
+         "quellen": sorted({e["quelle_titel"] for e in g["eintraege"]}),
+         "zitat": _aus._zitat(fuehrend)}
+    kurz = _kurzzeile(fuehrend["body_md"])
+    if kurz:
+        z["kurz"] = kurz
     z.update({k: v for k, v in extra.items() if v is not None})
     return z
 
@@ -313,6 +399,9 @@ def foliant_liste_optionen(
     talent_kategorie filtert NUR bei kategorie='talent' (herkunft | allgemein |
     kampfstil | epische_gabe); ungueltige Werte werden mit 'fehler' abgelehnt, was
     NICHT 'nichts im Bestand' bedeutet.
+    Jede Zeile traegt 'zitat' (Belegzeile woertlich) und - wo der Bestand eine
+    hergibt - 'kurz': die BELEGTE Kurzcharakteristik der Option. Charakterisiere
+    Optionen nur daraus oder aus foliant_hol_eintrag, nie aus dem Gedaechtnis.
     KERNREGELN: nur aus dem Bestand nennen, nichts aus Allgemeinwissen ergaenzen
     (fehlende Optionen = fehlendes Buch, B2); Quelle und Regelversion nennen;
     Deutsch-first (englisches Original in Klammern)."""
@@ -489,13 +578,14 @@ def _liste_klassen() -> dict:
                    # das Instruktions-Budget (test_instruktion_bleibt_kompakt) knapp ist.
                    "hinweis_darstellung": (
                        "Bei der Frage nach Klassen/Unterklassen: als MENUE antworten - je "
-                       "Option EINE geerdete Kurzzeile, wofuer sie spielerisch steht "
-                       "(bei Bedarf per foliant_hol_eintrag nachladen, nie aus dem "
-                       "Gedaechtnis). Sprachstatus ist eine Fussnote je Option (englische "
-                       "Namen mit * wiedergeben), NIE das Ordnungsprinzip. "
-                       "'abenteuer_setting' fuer die Runde heisst: ob die Option am Tisch "
-                       "erlaubt ist, entscheidet die SL. Mit der Rueckfrage enden, welche "
-                       "Option im Detail gewuenscht ist.")}
+                       "Option EINE Kurzzeile aus dem Feld 'kurz' (steht dort keines, per "
+                       "foliant_hol_eintrag nachladen); NIE aus dem Gedaechtnis "
+                       "charakterisieren, auch nicht 'nur grob' (B1). Sprachstatus ist "
+                       "eine Fussnote je Option (englische Namen mit * wiedergeben), NIE "
+                       "das Ordnungsprinzip. 'abenteuer_setting' fuer die Runde heisst: ob "
+                       "die Option am Tisch erlaubt ist, entscheidet die SL. Belegzeile "
+                       "aus dem Feld 'zitat' der gezeigten Option. Mit der Rueckfrage "
+                       "enden, welche Option im Detail gewuenscht ist.")}
         # Auch die geschachtelten Unterklassen kennzeichnen - sie tragen dieselbe
         # Herkunft und sind fuer den Spoiler-Schutz kein Sonderfall.
         _aus._markiere_inhaltsart(con, antwort, klassen,
