@@ -63,11 +63,27 @@ deploy-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose up -d --build foliant'
 	@echo "--- Rebuild durch, jetzt die Pflicht-Pruefung am Vollbestand ---"
 	$(MAKE) test-golden-pi PI=$(PI)
+	@echo "--- Regel-Semantik ok, jetzt die DATENQUALITAET am Vollbestand ---"
+	$(MAKE) check-pi PI=$(PI)
 
 # Golden-Suite gegen den VOLLEN Bestand im Pi-Container (Regel-Semantik am echten Korpus,
 # nicht am Mac-Subset). Pflicht nach Deploy / srd-de-Re-Import.
 test-golden-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T -w /app foliant python -m pytest -q tests/test_golden_bestand.py'
+
+# Datenqualitaet am VOLLBESTAND - Teil jedes Deploys, nicht nur auf Zuruf.
+#
+# Warum am Pi und nicht lokal: `make test` faehrt `admin check` gegen die Dev-DB, und die
+# ist ein SUBSET (4 von 15 Quellen). Alles, was nur am Vollbestand sichtbar wird, faellt
+# dort nicht auf - am 01.08.2026 ist genau so eine falsche Prioritaetsband-Tabelle
+# durchgegangen: Sie war an einer Config kalibriert, die drei der betroffenen Buecher
+# gar nicht enthaelt.
+#
+# `admin check` beendet bei Problemen mit Exitcode != 0 und bricht damit den Deploy ab.
+# Das ist der Punkt: Ein Import, der neue Datenmaengel einschleppt, soll nicht still
+# live gehen (die Basiswerte in config/qualitaet_basis.json sagen, was bekannt ist).
+check-pi: _pi-ziel
+	ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin check'
 
 # B9 unter Sessionlast: Antwortzeiten bei mehreren gleichzeitigen Spielern, gegen den
 # VOLLEN Pi-Korpus. Rein lesend, gefahrlos neben dem Live-Betrieb. Exitcode != 0, wenn
