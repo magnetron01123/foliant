@@ -1,0 +1,16 @@
+{
+  "_zweck": "Der Basiswert bekannter Datenmängel je Quelle. `admin check` misst dagegen: STEIGT eine Zahl, ist ein NEUES Problem entstanden und der Check schlägt fehl. Sinkt sie, wurde etwas repariert - dann gehört dieser Stand nachgezogen (`admin qualitaet-basis --schreiben`). Bleibt sie gleich, ist alles wie dokumentiert und der Check bleibt still.",
+  "_warum": "Bis zum 01.08.2026 gab admin check nur Zahlen aus. Niemand verglich sie mit dem letzten Stand, also fiel weder auf, dass die Zahl von 51 (BACKLOG) auf 91 gewachsen war, noch dass 42 davon gar keine Risse sind, sondern Registerköpfe aus DDB-Büchern. Eine Warnung, die dauerhaft ansteht und deren Zahl niemand nachrechnet, ist keine Warnung mehr, sondern Hintergrundrauschen.",
+  "_pflege": "Diese Datei liegt im Git, damit jede Änderung an ihr im Diff sichtbar wird. Wer eine Zahl anhebt, muss das im Commit begründen - genau das ist der Punkt. Quellen, die in der geprüften Datenbank fehlen (das Mac-Subset führt nur vier), werden übersprungen.",
+  "erhoben_am": "2026-08-01",
+  "erhoben_an": "Pi-Vollbestand, 12503 Einträge, 15 Quellen",
+  "ocr_risse_je_quelle": {
+    "xgte-2014-de": 29,
+    "scag-2014-de": 11,
+    "phb-2014-de": 8,
+    "efota-en": 1
+  },
+  "_ocr_erlaeuterung": "Zerrissene Eintragsnamen aus der OCR der 2014-Druckscans ('D ORNENWAND', 'ABERGLAUB E'). Bewusst offen (BACKLOG §3): Es sind Kapitel-/Abschnittstitel ohne Wörterbuch-Beleg - eine Reparatur wäre Raten (Regel 1). Der eine Treffer in efota-en ('TAVICK S LANDING') ist ein Druck-PDF-Riss derselben Art.",
+  "metadaten_namen_gesamt": 0,
+  "_metadaten_erlaeuterung": "Einträge, deren NAME eine Zauberkopf-Zeile ist ('Zeitaufwand: 1 Aktion'). 46 davon standen bis zum 27.07.2026 unbemerkt im Bestand; seit dem KOPF_HEADING-Fix sind es null. Diese Zahl darf nie wieder steigen."
+}

@@ -527,7 +527,8 @@ quellen-auffrischen  Quellen-METADATEN (Titel, Prioritaet, Lizenz, inhaltsart, v
 pdf-triage    welche PDFs haben keine Textschicht?
 ocr-pdf       --datei <pfad> [--redo] [--voll]
 reindex-fts   FTS neu aufbauen
-check         Integritaet, FK, FTS-Suchbarkeit, Editionen, Textqualitaet, Facetten-Deckung, Prioritaets-Baender
+check         Integritaet, FK, FTS-Suchbarkeit, Editionen, Textqualitaet, Facetten-Deckung, Prioritaets-Baender, Qualitaets-Basiswerte
+qualitaet-basis  Basiswert bekannter Datenmaengel neu erheben [--schreiben] - nur am Vollbestand sinnvoll
 glossar-audit Glossar-Stand und -Herkunft pruefen
 glossar-paare Kandidaten fuer neue Glossar-Paare zeigen [--nur-neue] [--json]
 suchbericht   Auswertung des Abfrage-Protokolls: Nulltreffer, Fuzzy, Mehrdeutigkeiten
@@ -949,6 +950,17 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Schema-Zuwachs v3 brach `tests/test_quellen_beschriftung.py` an einer abgetippten
   `CREATE TABLE quellen (...)` — einem stillen Zweitschema. Fixtures speisen sich aus
   `db/schema.sql` (`_db.SCHEMA_DATEI`), dann kann das nicht wieder passieren.
+- **Eine Kennzahl ohne Basiswert ist keine Warnung, sondern Rauschen.** `admin check` gab
+  Zahlen aus, aber niemand verglich sie mit dem letzten Stand. Folge (01.08.2026): Die
+  gemeldeten OCR-Risse waren von 51 (so stand es im BACKLOG) auf 91 gewachsen, ohne dass
+  es auffiel — und 42 davon waren gar keine Risse, sondern alphabetische Registerköpfe aus
+  DDB-Büchern (`B | Monsters`, `Spells J`), die die 49 echten Befunde überdeckten. Seither
+  hält `config/qualitaet_basis.json` den Stand **je Quelle** fest: steigt eine Zahl, bricht
+  der Check (neuer Mangel); sinkt sie, meldet er „nachziehen"; bleibt sie gleich, ist er
+  still. Die Datei liegt im Git, damit das Anheben einer Zahl im Diff steht und begründet
+  werden muss — es ist eine Entscheidung, keine Buchführung. Quellen, die in der geprüften
+  Datenbank fehlen, werden übersprungen (das Mac-Subset führt vier von fünfzehn; sonst
+  meldete der Vergleich lauter Scheinverbesserungen).
 - **Eine Kennzeichnung, die eine andere unterdrückt, ist kein Schutz mehr.** Der
   Sammelhinweis für die Nebenlisten (`_markiere_inhaltsart`) brach ab, sobald irgendein
   `hinweis_inhaltsart` stand — folgenlos, solange nur Abenteuerbände markiert wurden (es
