@@ -204,6 +204,18 @@ die Antwort ist die Erklärung, nicht der Datenbank-Auszug —, kein Charakterbo
 - ✅ **DC1–DC3 im Eval**: die ersten Fälle, die den Prompt messen, den der Bot wirklich
   fährt (Projektanweisung **plus** `config/discord_zusatz.md`). Bisher war nur der
   Prompt-*Text* geprüft, nicht das Verhalten.
+- ✅ **`/hilfe`**: statische, ephemere Kurzanleitung aller Wege zum Bot (Befehle,
+  Mention, Thread-Nachfragen, Kontextmenü) — ohne API-Kosten.
+- ✅ **Kontextmenü „Foliant fragen"** (Rechtsklick auf eine Nachricht → Apps): prüft
+  deren Text als Regelfrage über denselben Weg wie `/regel`; der Spieltisch-Fall
+  „stimmt das überhaupt?" ohne Abtippen.
+- ✅ **`fassung`-Option an `/regel` und `/regel-privat`** (2024/2014): wandert nur als
+  Klartext in die Frage, Standard bleibt 2024.
+- ✅ **Drei Robustheits-Fixes** (Review 02.08.2026): Prüfen+Reservieren der
+  Ein-Anfrage-Regel atomar (vorher schlüpften zwei schnelle Nachrichten desselben
+  Nutzers durch); Kanal-Fallback, wenn Discord den Thread verweigert (vorher war die
+  bezahlte Antwort weg); Rebuild-Randfälle (allein stehende max_tokens-Meldung galt
+  als Antwort, „vollständig" zählte auf der gefilterten Historie).
 - ⬜ Eval-Lauf der DC-Fälle gegen den Pi-Vollbestand:
   `make eval-verhalten-pi EVAL_ARGS="--nur DC1,DC2,DC3"` (kostet Tokens, deshalb gezielt)
 - ⬜ Echttest in der Guild: Frage stellen → `docker compose restart discord` → Folgefrage
