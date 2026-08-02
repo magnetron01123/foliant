@@ -65,7 +65,8 @@ def test_ersatzfrage_gilt_nur_am_anfang():
 
 def test_meldungen_sind_keine_antworten():
     for meldung in (antwort.FEHLER_API, antwort.FEHLER_RUNDEN_CAP,
-                    antwort.FEHLER_REFUSAL, antwort.HINWEIS_VERGESSEN,
+                    antwort.FEHLER_MAX_TOKENS, antwort.FEHLER_REFUSAL,
+                    antwort.HINWEIS_VERGESSEN,
                     schranken.ABGELEHNT_COOLDOWN, schranken.ABGELEHNT_TAGESDECKEL,
                     schranken.ABGELEHNT_LAEUFT):
         assert rebuild.baue_verlauf([(NUTZER, "Frage?"), (BOT, meldung)]) == [], meldung

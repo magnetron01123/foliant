@@ -39,9 +39,13 @@ class Schranken:
             return False
         return not self._kanal_ids or kanal_id in self._kanal_ids
 
-    def ablehnungsgrund(self, nutzer_id: int) -> str | None:
-        """None = darf starten. Reihenfolge: laufende Anfrage vor Cooldown vor Deckel -
-        die spezifischste Meldung zuerst."""
+    def beginne(self, nutzer_id: int) -> str | None:
+        """Pruefen und reservieren in EINEM Schritt: None = darf laufen und gilt ab
+        sofort als laufend. Getrennt (erst pruefen, spaeter reservieren) waren beide
+        Schritte in bot.py durch awaits getrennt - zwei schnelle Nachrichten desselben
+        Nutzers passierten die Pruefung gemeinsam und liefen doch parallel.
+        Reihenfolge: laufende Anfrage vor Cooldown vor Deckel - die spezifischste
+        Meldung zuerst. Eine Ablehnung reserviert nichts und zaehlt nicht."""
         self._rolle_tag()
         if nutzer_id in self._laufend:
             return ABGELEHNT_LAEUFT
@@ -50,12 +54,9 @@ class Schranken:
             return ABGELEHNT_COOLDOWN
         if self._tageszaehler >= self._tagesdeckel:
             return ABGELEHNT_TAGESDECKEL
-        return None
-
-    def beginne(self, nutzer_id: int) -> None:
-        self._rolle_tag()
         self._laufend.add(nutzer_id)
         self._tageszaehler += 1
+        return None
 
     def beende(self, nutzer_id: int) -> None:
         self._laufend.discard(nutzer_id)

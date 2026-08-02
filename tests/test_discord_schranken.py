@@ -31,30 +31,43 @@ def test_guild_und_kanal_gate():
 
 
 def test_nur_eine_laufende_anfrage_pro_nutzer():
+    """beginne() prueft und reserviert atomar: der zweite Aufruf desselben Nutzers
+    scheitert, OHNE dass zwischen Pruefung und Reservierung Platz fuer ein await ist."""
     s, _ = _schranken()
-    assert s.ablehnungsgrund(1) is None
-    s.beginne(1)
-    assert s.ablehnungsgrund(1) == sch.ABGELEHNT_LAEUFT
-    assert s.ablehnungsgrund(2) is None                  # andere Nutzer unberuehrt
+    assert s.beginne(1) is None
+    assert s.beginne(1) == sch.ABGELEHNT_LAEUFT
+    assert s.beginne(2) is None                          # andere Nutzer unberuehrt
 
 
 def test_cooldown_nach_abschluss():
     s, uhr = _schranken()
-    s.beginne(1)
+    assert s.beginne(1) is None
     uhr.t = 5
     s.beende(1)
-    assert s.ablehnungsgrund(1) == sch.ABGELEHNT_COOLDOWN
+    assert s.beginne(1) == sch.ABGELEHNT_COOLDOWN
     uhr.t = 15.1                                         # 10 s nach beende()
-    assert s.ablehnungsgrund(1) is None
+    assert s.beginne(1) is None
+
+
+def test_abgelehnter_beginn_reserviert_nichts():
+    """Eine Ablehnung darf weder als 'laufend' haengenbleiben noch den Tagesdeckel
+    verbrauchen - sonst sperrte ein Cooldown-Treffer den Nutzer dauerhaft."""
+    s, uhr = _schranken(tagesdeckel=2)
+    assert s.beginne(1) is None
+    s.beende(1)
+    assert s.beginne(1) == sch.ABGELEHNT_COOLDOWN        # zaehlt nicht als laufend...
+    uhr.t = 15.1
+    assert s.beginne(1) is None                          # ...und nicht gegen den Deckel
+    s.beende(1)
 
 
 def test_tagesdeckel_und_utc_rollover():
     heute = {"d": date(2026, 7, 26)}
     s, uhr = _schranken(utc_datum=lambda: heute["d"])
     for nutzer in (1, 2):                                # Deckel 2 ausschoepfen
-        s.beginne(nutzer)
+        assert s.beginne(nutzer) is None
         s.beende(nutzer)
     uhr.t = 100                                          # Cooldowns abklingen lassen
-    assert s.ablehnungsgrund(3) == sch.ABGELEHNT_TAGESDECKEL
+    assert s.beginne(3) == sch.ABGELEHNT_TAGESDECKEL
     heute["d"] = date(2026, 7, 27)                       # UTC-Mitternacht
-    assert s.ablehnungsgrund(3) is None
+    assert s.beginne(3) is None

@@ -666,10 +666,17 @@ als es zu löschen, und baut danach neu.
    dem Fragenden (ephemer, deshalb ohne Thread für Nachfragen) — ein **eigener Befehl**
    statt eines Schalters an `/regel`, weil Discord bei der Eingabe von „/regel" beide
    Namen mit Beschreibung anzeigt und die Wahl damit vor dem Tippen steht; der Schalter
-   war nur zu finden, wenn man ihn schon kannte. Der Verlauf bleibt
+   war nur zu finden, wenn man ihn schon kannte. Beide Befehle tragen eine optionale
+   `fassung`-Wahl (2024/2014), die nur als Klartext an die Frage wandert — die
+   Regelversion steuert das Modell über die `edition`-Filter der Tools. Dazu
+   `/hilfe` (statische, ephemere Kurzanleitung ohne API-Kosten) und das
+   **Kontextmenü „Foliant fragen"** (Rechtsklick auf eine Nachricht → Apps): prüft
+   deren Text als Regelfrage über denselben Weg wie `/regel`. Der Verlauf bleibt
    bewusst in-memory, ein Neustart löscht ihn — der Bot liest den Thread dann aber aus
    der Discord-Historie zurück (`app/discord_bot/rebuild.py`, max. 40 Nachrichten); nur
    wenn dort nichts Verwertbares steht, sagt er im Thread, dass er vergessen hat.
+   Verweigert Discord einen Thread (fehlendes Recht, Nachricht trägt schon einen),
+   fällt die Antwort in den Kanal zurück, statt verloren zu gehen.
 5. **Kontrolle:** Discord-Anfragen erscheinen im Abfrage-Protokoll
    (`admin suchbericht`) — derselbe Kurations-Kreislauf wie beim MCP.
 6. **Für die Runde erklärt** ist der Bot auf der Website (Karte „Foliant in Discord",
