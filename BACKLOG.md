@@ -217,7 +217,24 @@ die Antwort ist die Erklärung, nicht der Datenbank-Auszug —, kein Charakterbo
   bezahlte Antwort weg); Rebuild-Randfälle (allein stehende max_tokens-Meldung galt
   als Antwort, „vollständig" zählte auf der gefilterten Historie).
 - ⬜ Eval-Lauf der DC-Fälle gegen den Pi-Vollbestand:
-  `make eval-verhalten-pi EVAL_ARGS="--nur DC1,DC2,DC3"` (kostet Tokens, deshalb gezielt)
+  `make eval-verhalten-pi EVAL_ARGS="--nur DC1,DC2,DC3,DC4"` (kostet Tokens, deshalb gezielt)
+- ⬜ **10 gemeldete Facetten-Widersprüche einzeln prüfen** (Stand 01.08.2026, Liste über
+  `admin import --quelle facetten`). Der Fassungsabgleich korrigiert sie bewusst nicht —
+  jeder Fall braucht eine eigene Entscheidung:
+  - `Tasha's Hideous Laughter` / `Mind Spike` in `ddb-br-2024-en`: Kopfzeile sagt
+    „Evocation Cantrip", die PHB-Fassung Grad 1 bzw. 2 → sehr wahrscheinlich
+    Import-/Chunking-Schaden in dieser Quelle.
+  - `Summon Celestial/Elemental/Fey` (PHB, Grad 5/4/3) gegen die deutschen SRD-Einträge
+    „Celestisches Wesen beschwören" & Co. (Grad 7/6/5): erst klären, ob die Glossarzeile
+    (Quelle: *Tashas Kessel mit Allem*, 2014) hier überhaupt dieselben Zauber verbindet.
+  - `Krabbe`/`Crab` und `Riesenhai`/`Giant Shark`: deutsche und englische Fassung nennen
+    verschiedene HG — eine der beiden hat den Wert des Nachbar-Statblocks erwischt.
+- ⬜ **9 verschmolzene Statblöcke im `srd-de`-Import** (Ghul, Dschinni, Worg, Lemure,
+  Priester, Schreckhahn, Gruftschrecken, Hobgoblin-Hauptmann, Junger Bronzedrache): Der
+  Text enthält jeweils Teile des Nachbareintrags. Die **Facetten** sind seit dem
+  Fassungsabgleich richtig, der **Text** bleibt beschädigt — das Modell muss ihn beim
+  Vorlesen auseinanderhalten (im Simulationslauf hat es das getan und dazugesagt).
+  Saubere Lösung ist eine Chunking-Korrektur im Importer, nicht im Serving-Pfad.
 - ⬜ Echttest in der Guild: Frage stellen → `docker compose restart discord` → Folgefrage
   im Thread wird **mit** Kontext beantwortet
 
