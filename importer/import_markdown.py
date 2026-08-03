@@ -235,6 +235,159 @@ def _srd_de_wortrisse(markdown: str) -> str:
     return markdown
 
 
+_K4 = re.compile(r"^####\s+.+?$", re.M)
+# Der Statblock-Kopf in BEIDEN Formen, die der Druck liefert: als eigene Zeile
+# ('**RK** 13 **Initiative** …') und als Tabellenzelle ('|**RK**18||**I**|**nitiative**|').
+# Wer hier nur eine Form fasst, sieht die Haelfte der Faelle nicht.
+_RK_KOPF = re.compile(r"\*\*RK\*\*")
+# Die Typzeile ueber jedem Statblock ('_Kleines Tier, gesinnungslos_').
+_TYPZEILE = re.compile(r"^_[A-ZÄÖÜ][^_\n]{5,70}_\s*$", re.M)
+
+
+def _srd_de_statblock_paare(markdown: str) -> str:
+    """Heilt die Statblock-Verschraenkung des zweispaltigen srd-de-Drucks.
+
+    DER SCHADEN: pymupdf4llm liest den zweispaltigen Satz in Druckreihenfolge, nicht in
+    Lesereihenfolge. Dabei rutscht eine Ueberschrift regelmaessig VOR den Rest des
+    Vorgaengers, und ihr eigener Statblock landet am Ende eines spaeteren Eintrags. Das
+    Ergebnis stand bis zum 03.08.2026 im Bestand: Wer 'Oktopus' nachschlug, bekam den
+    Text des MAULTIERS ('Das Maultier gilt hinsichtlich seiner Traglast …'), waehrend der
+    Oktopus-Statblock hinten am 'Nashorn' hing. Zehn Monsterpaare waren betroffen.
+
+    DIE FORM IST REGELMAESSIG, und nur deshalb ist das automatisierbar: Ein Eintrag ohne
+    JEDEN Statblock-Kopf wird von einem Eintrag mit GENAU ZWEI gefolgt (unmittelbar oder
+    mit einem vollstaendigen Eintrag dazwischen). Der zweite Kopf gehoert dem kopflosen.
+
+    DIE REPARATUR IST EINE EINZIGE BEWEGUNG: Die Ueberschrift wandert an ihren Statblock -
+    nicht der Text an die Ueberschrift. Damit faellt der Fremdtext von selbst an den
+    Vorgaenger zurueck, zu dem er gehoert, und es entsteht kein Schnitt mitten im Text.
+
+    WARUM SO ENG GESCHNITTEN: Eine Regel, die zwei Statbloecke zusammenfuehrt, kann zwei
+    Monster zu einem verschmelzen - und ein verschmolzener Statblock sieht vollstaendig
+    aus und ist falsch. Deshalb greift diese hier nur bei exakt 0 und exakt 2 Koepfen.
+    Der Zauber 'Rieseninsekt' fuehrt vier Kreatur-Statbloecke in einem Eintrag und bleibt
+    dadurch unberuehrt, wie er soll.
+
+    BELEGT, NICHT GERATEN: Alle zwanzig betroffenen Eintraege wurden nach der Reparatur
+    gegen ihre englische Fassung im Bestand geprueft (RK und TP aus open5e-srd-2024) -
+    20 von 20 stimmen ueberein.
+    """
+    koepfe = list(_K4.finditer(markdown))
+    if not koepfe:
+        return markdown
+    grenzen = [m.start() for m in koepfe] + [len(markdown)]
+    anzahl = [len(_RK_KOPF.findall(markdown[grenzen[i]:grenzen[i + 1]]))
+              for i in range(len(koepfe))]
+
+    paare: list[tuple[int, int]] = []
+    for i, n in enumerate(anzahl):
+        if n != 0:
+            continue
+        for j in range(i + 1, min(i + 3, len(anzahl))):
+            if anzahl[j] == 2 and all(anzahl[k] == 1 for k in range(i + 1, j)):
+                paare.append((i, j))
+                break
+    if not paare:
+        # Greift die Erkennung gar nicht mehr, hat sich das PDF oder der Konverter
+        # geaendert - das soll auffallen, nicht stillschweigend durchlaufen.
+        _BILANZ.greift_nicht("_srd_de_statblock_paare (keine verschraenkten Paare gefunden)")
+        return markdown
+
+    # Von HINTEN nach vorn, damit die bereits berechneten Offsets gueltig bleiben.
+    for i, j in reversed(paare):
+        kopf = koepfe[i]
+        y_start = grenzen[j]
+        y = markdown[y_start:grenzen[j + 1]]
+        zweite = list(_RK_KOPF.finditer(y))[1].start()
+        zeilenanfang = y.rfind("\n", 0, zweite)
+        zweite = 0 if zeilenanfang < 0 else zeilenanfang + 1
+        typ = [m for m in _TYPZEILE.finditer(y) if m.start() < zweite]
+        # Die Typzeile nur mitnehmen, wenn sie UNMITTELBAR vor dem Kopf steht - sonst
+        # gehoert sie zum ersten Statblock und der Schnitt saesse zu weit oben.
+        if typ and not y[typ[-1].end():zweite].strip():
+            einfuege = y_start + typ[-1].start()
+            mitnehmen = 0
+        else:
+            einfuege = y_start + zweite
+            # Der Statblock am Ziel hat KEINE Typzeile - dann ist sie am alten Platz der
+            # Ueberschrift stehengeblieben (der Druck trennt beide). Sie gehoert zum
+            # Statblock, nicht zum Vorgaenger: nimmt man sie nicht mit, bleibt ein
+            # 44-Zeichen-Torso im Bestand, der die Kreaturenart des Eintrags vermissen
+            # laesst - beim Ankylosaurus war das real der Fall.
+            nach_kopf = markdown[kopf.end():]
+            eigene = _TYPZEILE.match(nach_kopf.lstrip("\n"))
+            mitnehmen = (len(nach_kopf) - len(nach_kopf.lstrip("\n"))
+                         + eigene.end()) if eigene else 0
+        zeile = markdown[kopf.start():kopf.end() + mitnehmen].strip()
+        rest = markdown[:kopf.start()] + markdown[kopf.end() + mitnehmen:].lstrip("\n")
+        ziel = einfuege - (len(markdown) - len(rest))
+        markdown = rest[:ziel] + zeile + "\n\n" + rest[ziel:]
+    return markdown
+
+
+_H3 = re.compile(r"^###\s+(?!#)(.+?)$", re.M)
+_H4_ANFANG = re.compile(r"^####\s+", re.M)
+
+
+def _familienkoepfe(markdown: str) -> str:
+    """Dieselbe Verschraenkung eine Ebene hoeher: die FAMILIEN-Ueberschrift.
+
+    Auch '### Solar' oder '### Zombies' steht im Druck regelmaessig VOR einem
+    Absatzblock, statt direkt vor ihrem ersten Eintrag. Im Bestand entstand daraus je ein
+    zusaetzlicher Monster-Eintrag ohne Werte, der bloss diesen Block trug - und der stand
+    gleichnamig neben dem echten in der Trefferliste.
+
+    ZWEI FAELLE, und sie brauchen GEGENSAETZLICHE Reparaturen - das ist der Grund, warum
+    die erste Fassung dieser Funktion falsch war und den Solar seine Merkmale kostete:
+      (a) Der Block gehoert der Familie SELBST ('Der Solar ist bei Rettungswuerfen …',
+          'Die Dryade fuehrt …'): Sein Statblock steht dahinter, der Schwanz davor. Er
+          muss ANS ENDE dieses Eintrags.
+      (b) Der Block gehoert dem VORGAENGER ('Der Zaehe ist …' unter '### Zombies',
+          'Die Vettel wirkt …' unter '### Silberdrachen'): Dann wandert die
+          Ueberschrift hinter ihn, und er faellt an den Eintrag davor zurueck.
+
+    DIE UNTERSCHEIDUNG STEHT IM TEXT, sie wird nicht geraten: Deutsche Statblock-Merkmale
+    nennen ihre Kreatur beim Namen. Traegt der Block den Stamm der Familienueberschrift,
+    ist es Fall (a), sonst (b). An allen fuenf Vorkommen des Vollbestands geprueft.
+
+    HARTE BEREICHSGRENZE am Kapitelkopf: In den Regelkapiteln darf eine '###'-Ueberschrift
+    sehr wohl eigenen Einleitungstext tragen. Eine erste Fassung wollte das ueber
+    inhaltliche Bedingungen abfangen und verschob prompt fuenfzehn Regel-Ueberschriften
+    ('Fallen', 'Gift', 'Zauber wirken') - Fallen und magische Gegenstaende fuehren
+    naemlich ebenfalls eine Ruestungsklasse."""
+    kapitel = re.search(r"(?m)^#\s+\*\*Monster von A–Z\*\*", markdown)
+    if not kapitel:
+        _BILANZ.greift_nicht("_familienkoepfe (Kapitel 'Monster von A–Z' nicht gefunden)")
+        return markdown
+    for kopf in reversed([m for m in _H3.finditer(markdown) if m.start() >= kapitel.start()]):
+        naechstes = _H4_ANFANG.search(markdown, kopf.end())
+        if not naechstes:
+            continue
+        zwischen = markdown[kopf.end():naechstes.start()]
+        if len(zwischen.strip()) <= 30 or _RK_KOPF.search(zwischen):
+            continue
+        # Der Wortstamm der Familie ohne deutsche Pluralendung ('Zombies' -> 'Zombie',
+        # 'Silberdrachen' -> 'Silberdrache', 'Hobgoblins' -> 'Hobgoblin').
+        familie = re.sub(r"</?\w+>|[*]", "", kopf.group(1)).strip()
+        stamm = re.sub(r"(en|n|s)$", "", familie)
+        if len(stamm) >= 4 and stamm in zwischen:
+            # (a) eigener Schwanz -> ans Ende des zugehoerigen Eintrags
+            danach = _H4_ANFANG.search(markdown, naechstes.end())
+            weiter = re.search(r"(?m)^###\s+(?!#)", markdown[naechstes.end():])
+            ende = min(x for x in (danach.start() if danach else len(markdown),
+                                   naechstes.end() + weiter.start() if weiter else len(markdown)))
+            block = zwischen.strip()
+            markdown = (markdown[:kopf.end()] + "\n\n" + markdown[naechstes.start():ende].rstrip()
+                        + "\n\n" + block + "\n\n" + markdown[ende:])
+        else:
+            # (b) fremder Schwanz -> Ueberschrift dahinter, er faellt an den Vorgaenger
+            zeile = markdown[kopf.start():kopf.end()].strip()
+            rest = markdown[:kopf.start()] + markdown[kopf.end():].lstrip("\n")
+            ziel = naechstes.start() - (len(markdown) - len(rest))
+            markdown = rest[:ziel] + zeile + "\n\n" + rest[ziel:]
+    return markdown
+
+
 def _srd_de_reparatur(markdown: str) -> str:
     """Kuratierte Strukturreparaturen des dt. SRD 5.2.1 (Review-/Synthese-Funde
     2026-07-12, alle am gerenderten PDF bzw. am englischen SRD 5.2 gegengeprueft).
@@ -325,6 +478,33 @@ def _srd_de_reparatur(markdown: str) -> str:
     markdown = re.sub(r"(?m)^(\|\*\*Attributswurf\*\*\|\*\*Interaktion\*\*\|)",
                       "###### **Attributswürfe zum Beeinflussen**\n\n\\1",
                       markdown, count=1)
+    # (b6) Gruftschrecken/Grul: dieselbe Spaltenverschraenkung, aber ueber eine
+    # FAMILIEN-Ueberschrift hinweg - deshalb greift die generische Paar-Reparatur
+    # (_srd_de_statblock_paare) hier nicht, die nur '#### ohne Kopf' + '#### mit zwei
+    # Koepfen' kennt. Der Druck lieferte:
+    #     ### Gruftschrecken   -> nur der SCHWANZ des Gruftschreckens (Sonnenlicht,
+    #                             Nekrotisches Schwert, Lebensentzug)
+    #     ### Grul / #### Grul -> Grul-Kopf (RK 13, TP 36)
+    #     #### Gruftschrecken  -> Gruftschrecken-KOPF (RK 14, TP 82) + Gruls Schwanz
+    #                             (Gestank, Biss, Klauen)
+    # Ergebnis im Bestand: zwei Eintraege 'Gruftschrecken' - einer ohne Werte, einer mit
+    # fremdem Grul-Anhang. Ein blosses Zusammenfuehren der beiden haette den Grul in den
+    # Gruftschrecken hineingemergt; richtig ist, den KOPF zu seiner Familienueberschrift
+    # zu holen, dann faellt Gruls Schwanz von selbst an den Grul zurueck.
+    # Belegt gegen die englische Fassung im Bestand (open5e 'Wight' RK 14/TP 82,
+    # 'Ghast' RK 13/TP 36).
+    markdown = re.sub(
+        r"(#### \*\*<mark>Gruftschrecken</mark>\*\*\s*\n)\s*\n###### \*\*Resistenzen\*\* "
+        r"Nekrotisch\s*\n", r"\1", markdown, count=1)
+    # Der Schnitt liegt an Gruls WERTE-Zeile, nicht erst an seiner Merkmale-Ueberschrift:
+    # Sinne/Sprachen/HG stehen im Druck noch vor den Merkmalen, und ein Schnitt darunter
+    # liess den Grul ohne Herausforderungsgrad zurueck (erste Fassung dieser Reparatur).
+    markdown = _verschiebe(
+        markdown,
+        r"#### \*\*<mark>Gruftschrecken</mark>\*\*",
+        r"\*\*Immunitäten\*\* Gift; Bezaubert, Erschöpft, Vergiftet \*\*Sinne\*\*",
+        r"### \*\*Gruftschrecken\*\*",
+        ziel_naechstes_re=r"###### <u>Merkmale</u>")
     return markdown
 
 
@@ -446,7 +626,15 @@ BEREINIGUNG: dict[str, list] = {
     # danach Textpolitur. Reihenfolge: Struktur zuerst (Anker enthalten Laufkopf-freie
     # Absaetze nicht zwingend), dann Laufkopf/Risse.
     "srd-de": [
+        # VOR _srd_de_reparatur: Der Statblock-Zuschnitt muss stimmen, bevor die
+        # kuratierten Einzelverschiebungen ihre Anker suchen.
+        _srd_de_statblock_paare,
         _srd_de_reparatur,
+        # NACH den kuratierten Reparaturen: Der Gruftschrecken/Grul-Fall wird dort
+        # aufgeloest, und eine Familien-Ueberschrift, die vorher noch fremden Text trug,
+        # ist danach sauber - liefe die Regel davor, verschoebe sie den Wight-Schwanz
+        # in den Grul hinein (real passiert, 03.08.2026).
+        _familienkoepfe,
         # Laufkopf 'Systemreferenzdokument 5.2.1' + fette Seitenzahl standen in 374
         # Eintraegen MITTEN im Regeltext (das Seitenzitat kommt aus den Markern).
         r"^\*\*\d{1,3}\*\* Systemreferenzdokument 5\.2\.1\s*$",
@@ -456,6 +644,19 @@ BEREINIGUNG: dict[str, list] = {
         # ('TP150 (20W1|0+40)', '**I**|**nitiative**' - claude DND-004, verifiziert).
         (r"\((\d+W\d*)\|(\d[\d+\-−]*\))", r"(\1\2)"),
         (r"\*\*([A-ZÄÖÜ][a-zäöüß]{1,14})\*\*\|\*\*([a-zäöüß]{1,12})\*\*", r"**\1\2**"),
+        # Dieselbe Zellriss-Klasse, zwei Formen, die die obigen Regeln nicht fassen
+        # (Datenbank-Audit 03.08.2026 - beide am Vollbestand gegengezaehlt: je GENAU ein
+        # Treffer, null Fehlalarme, Sollwert aus der englischen Fassung im Bestand belegt):
+        #
+        # 1. Der WERT hinter einem Statblock-Label ist zerrissen: '|**RK**1|3|' meint RK 13.
+        #    Die Facetten-Regex las bis zum Zellentrenner und schrieb rk=1 - vier Tiere
+        #    (Falke/Pavian/Skorpion/Wiesel) trugen dadurch eine unmoegliche Ruestungsklasse.
+        #    Bewusst ENG: genau EINE Ziffer, dann EIN Trenner, dann Ziffern. Die weiter
+        #    gefasste Form ('RK <ganze Zahl>|') kaeme 25-mal vor und zerstoerte heile Werte.
+        (r"\*\*(RK|TP)\*\*(\d)\|(\d+)(?=\|)", r"**\1**\2\3"),
+        # 2. Ein Wuerfelausdruck ueber ZWEI Zellgrenzen: '(1|0W1|2+40|)' meint (10W12+40).
+        #    Beim Huegelriesen ergab die zerrissene Formel rechnerisch 0,5 statt 105 TP.
+        (r"\((\d)\|(\d+W\d)\|(\d[+\-−]\d+)\|?\)", r"(\1\2\3)"),
         # Kapitaelchen-Garbles in EINTRAGSNAMEN (claude DND-009; entgegen der alten
         # Macken-Notiz nicht nur Body-Kosmetik):
         ("Ausrüstung verKAufen", "Ausrüstung verkaufen"),

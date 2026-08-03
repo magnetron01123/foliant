@@ -480,3 +480,153 @@ def test_errata_muster_meldet_sich_wenn_es_nicht_greift():
     _errata_headings("## Chapter 1\n\nEine Korrektur ganz ohne fetten Kopf.\n")
     assert any("_errata_headings" in w for w in letzte_bilanz().wirkungslos)
     letzte_bilanz().wirkungslos.clear()
+
+
+# ---------------------------------------------------------------------------------------
+# Zellrisse in srd-de-Statblocktabellen (Datenbank-Audit 03.08.2026)
+#
+# Die PDF-Tabellenextraktion zerreisst gelegentlich eine ZAHL an einer Zellgrenze. Das
+# faellt nicht auf, weil der Text weiterhin plausibel aussieht - aber die Facetten-Regex
+# liest bis zum Trenner und schreibt einen unmoeglichen Wert in monster_meta. Vier Tiere
+# trugen so Ruestungsklasse 1, der Huegelriese eine TP-Formel, die 0,5 statt 105 ergibt.
+#
+# Beide Regeln sind bewusst ENG geschnitten und am Vollbestand gegengezaehlt: je genau ein
+# Treffermuster, null Fehlalarme. Die naheliegende weiter gefasste Form ('RK <ganze Zahl>|')
+# kaeme 25-mal vor und wuerde heile Werte zerstoeren - deshalb die Negativfaelle unten.
+# ---------------------------------------------------------------------------------------
+
+def _bereinige_srd_de(markdown: str) -> str:
+    """Nur die Regex-/Tupelschritte von BEREINIGUNG['srd-de'] - ohne die Callables, die
+    ganze Kapitel verschieben und hier nichts zu suchen haetten."""
+    import re as _re
+
+    from importer.import_markdown import BEREINIGUNG
+
+    for eintrag in BEREINIGUNG["srd-de"]:
+        if callable(eintrag):
+            continue
+        muster, ersatz = eintrag if isinstance(eintrag, tuple) else (eintrag, "")
+        markdown = _re.sub(muster, ersatz, markdown, flags=_re.MULTILINE)
+    return markdown
+
+
+def test_zerrissener_label_wert_wird_zusammengefuegt():
+    """'|**RK**1|3|' meint Ruestungsklasse 13 (Falke) - belegt durch die englische Fassung
+    im Bestand (open5e 'Hawk': AC 13)."""
+    assert "**RK**13" in _bereinige_srd_de("|**RK**1|3|||**I**|**nitiat**|")
+    assert "**RK**11" in _bereinige_srd_de("|**RK**1|1||**Initiative**+0 (10)|")
+
+
+def test_heile_label_werte_bleiben_unberuehrt():
+    """Der teure Fehlerfall: Ein Zellwechsel NACH einer vollstaendigen Zahl ist normal und
+    kommt 25-mal vor. Wuerde die Regel ihn mitnehmen, entstuenden aus RK 18 eine RK 18x."""
+    for heil in ("|**RK**18||**I**|**nitiat**|", "|**RK**5||**Initiative**|",
+                 "|**RK**12||||**I**|**nitiative**|"):
+        assert _bereinige_srd_de(heil) == heil, heil
+
+
+def test_zerrissener_wuerfelausdruck_wird_zusammengefuegt():
+    """'(1|0W1|2+40|)' meint (10W12+40) - Huegelriese, belegt durch open5e und DDB
+    (beide 'HP 105 (10d12 + 40)'). Die zerrissene Form ergibt rechnerisch 0,5 TP."""
+    assert "(10W12+40)" in _bereinige_srd_de("|**TP**105 (1|0W1|2+40|)||||||")
+
+
+def test_heiler_wuerfelausdruck_bleibt_unberuehrt():
+    heil = "|**TP** 65 (10W8+30)|"
+    assert _bereinige_srd_de(heil) == heil
+
+
+def test_reparierte_werte_sind_rechnerisch_stimmig():
+    """Die Gegenprobe, die den Test von einer Behauptung zu einem Beleg macht: Nach der
+    Reparatur geht die TP-Formel auf, vorher nicht."""
+    from app import logikpruefung as lp
+
+    roh = "|**TP**105 (1|0W1|2+40|)|"
+    assert lp.pruefe_wuerfel(roh), "die zerrissene Form muss auffallen"
+    assert lp.pruefe_text(_bereinige_srd_de(roh)) == []
+
+
+# ---------------------------------------------------------------------------------------
+# Statblock-Verschraenkung des zweispaltigen srd-de-Drucks (Datenbank-Audit 03.08.2026)
+#
+# Der Konverter liest den Satz in DRUCK-, nicht in Lesereihenfolge. Dabei rutschte eine
+# Ueberschrift regelmaessig vor den Rest ihres Vorgaengers, und ihr eigener Statblock
+# landete am Ende eines spaeteren Eintrags. Im Bestand hiess das: Wer 'Oktopus' nachschlug,
+# bekam den Text des MAULTIERS. Zehn Monsterpaare waren betroffen.
+#
+# Die Reparatur ist EINE Bewegung - die Ueberschrift wandert an ihren Statblock -, und sie
+# ist bewusst nur auf die exakte Form geschnitten (null Koepfe, gefolgt von genau zwei).
+# Der Zauber 'Rieseninsekt' fuehrt legitim VIER Statbloecke und muss unberuehrt bleiben:
+# eine Regel, die zwei Statbloecke zusammenfuehrt, kann zwei Monster zu einem verschmelzen,
+# und ein verschmolzener Statblock sieht vollstaendig aus und ist falsch.
+# ---------------------------------------------------------------------------------------
+
+_VERSCHRAENKT = """#### **<mark>Oktopus</mark>**
+
+**_Lasttier:_** Das Maultier gilt hinsichtlich seiner Traglast als eine Größe größer.
+
+#### **<mark>Nashorn</mark>**
+
+_Großes Tier, gesinnungslos_
+
+**RK** 13 **Initiative** –1 (9) **TP** 45 (6W10+12) **Bewegungsrate** 12 m
+
+**_Zerfleischen:_** _Nahkampfangriffswurf:_ +7, Reichweite 1,5 m.
+
+_Kleines Tier, gesinnungslos_
+
+**RK** 12 **Initiative** +2 (12) **TP** 3 (1W6) **Bewegungsrate** 1,5 m
+
+**_Tentakel:_** _Nahkampfangriffswurf:_ +4, Reichweite 1,5 m.
+"""
+
+
+def _paare(markdown: str) -> str:
+    from importer.import_markdown import _srd_de_statblock_paare
+
+    return _srd_de_statblock_paare(markdown)
+
+
+def test_verschraenkter_statblock_kommt_zu_seiner_ueberschrift():
+    """Der Kernfall: Nach der Reparatur traegt 'Oktopus' RK 12/TP 3 und der Maultier-Text
+    faellt an den Vorgaenger zurueck, statt unter dem falschen Namen zu stehen."""
+    neu = _paare(_VERSCHRAENKT)
+    oktopus = neu[neu.index("<mark>Oktopus</mark>"):]
+    assert "**RK** 12" in oktopus and "**TP** 3 (1W6)" in oktopus
+    assert "Tentakel" in oktopus
+    # Der Fremdtext steht jetzt VOR der Oktopus-Ueberschrift, gehoert also dem Vorgaenger.
+    assert neu.index("Maultier") < neu.index("<mark>Oktopus</mark>")
+    # Und das Nashorn behaelt seinen eigenen Statblock.
+    nashorn = neu[neu.index("<mark>Nashorn</mark>"):neu.index("<mark>Oktopus</mark>")]
+    assert "**RK** 13" in nashorn and "Zerfleischen" in nashorn
+
+
+def test_typzeile_wandert_mit():
+    """Die Typzeile ('_Kleines Tier, gesinnungslos_') gehoert zum Statblock. Bleibt sie
+    zurueck, faengt der Eintrag mitten in der RK-Zeile an und die Kreaturenart fehlt."""
+    neu = _paare(_VERSCHRAENKT)
+    oktopus = neu[neu.index("<mark>Oktopus</mark>"):]
+    assert oktopus.index("_Kleines Tier") < oktopus.index("**RK** 12")
+
+
+def test_vollstaendige_eintraege_bleiben_unberuehrt():
+    """Ein Abschnitt, in dem jeder Eintrag genau einen Statblock hat, darf sich um kein
+    Zeichen aendern - sonst waere die Regel zu weit gefasst."""
+    heil = _VERSCHRAENKT.replace("\n_Kleines Tier, gesinnungslos_\n\n"
+                                 "**RK** 12 **Initiative** +2 (12) **TP** 3 (1W6) "
+                                 "**Bewegungsrate** 1,5 m\n\n"
+                                 "**_Tentakel:_** _Nahkampfangriffswurf:_ +4, Reichweite 1,5 m.\n", "")
+    heil = heil.replace("#### **<mark>Oktopus</mark>**\n\n"
+                        "**_Lasttier:_** Das Maultier gilt hinsichtlich seiner Traglast "
+                        "als eine Größe größer.\n\n", "")
+    assert _paare(heil) == heil
+
+
+def test_mehr_als_zwei_statbloecke_bleiben_unberuehrt():
+    """Der Zauber 'Rieseninsekt' fuehrt vier Kreatur-Statbloecke in EINEM Eintrag. Eine
+    Regel, die dort zuschlaegt, zerlegt einen korrekten Eintrag."""
+    vier = ("#### **<mark>Leerer Eintrag</mark>**\n\nnur Text.\n\n"
+            "#### **<mark>Rieseninsekt</mark>**\n\n"
+            + "".join(f"_Grosses Tier, gesinnungslos_\n\n**RK** 1{i} **TP** {i}0 (2W8)\n\n"
+                      for i in range(4)))
+    assert _paare(vier) == vier

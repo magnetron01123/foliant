@@ -278,3 +278,153 @@ def test_golden_suchtreffer_tragen_grad_und_hg():
     assert s["treffer"] and s["treffer"][0].get("kurzinfo", "").startswith("Grad"), s["treffer"][:1]
     m = su.foliant_suche_bestand("Goblin", kategorie="monster")
     assert any((t.get("kurzinfo") or "").startswith("HG") for t in m["treffer"]), m["treffer"]
+
+
+# ---------------------------------------------------------------------------------------
+# ERRATA am echten Bestand (Datenbank-Audit 03.08.2026)
+#
+# Die Suite hatte bis dahin NULL Errata-Faelle: Der ganze Revisions-Layer war nur gegen
+# Fixtures geprueft. Am Vollbestand haengt aber das, was Fixtures nicht nachstellen - die
+# Glossar-Bruecke (alle 46 Errata-Zeilen tragen name_de = NULL, der deutsche Grundtext
+# traegt name_en = NULL) und die Praezedenz gegen 17 andere Quellen.
+# ---------------------------------------------------------------------------------------
+
+def _errata_da() -> bool:
+    con = adb.connect_readonly(str(adb.standard_pfad()))
+    try:
+        return bool(con.execute("SELECT 1 FROM quellen WHERE inhaltsart = 'errata'"
+                                ).fetchone())
+    finally:
+        con.close()
+
+
+golden_errata = pytest.mark.skipif(not _errata_da(),
+                                   reason="keine Errata-Quelle in dieser Datenbank")
+
+
+@golden_errata
+def test_golden_errata_haengt_am_deutschen_grundtext():
+    """Der Kernfall des Audits: Wer den deutschen Zauber laedt, erfaehrt von der
+    englischen Korrektur. Ueber die Glossar-Bruecke Verwandlung<->Polymorph - ohne sie
+    faende der Abgleich nur die zufaellig gleichlautenden Namen (Balor, Kraken)."""
+    d = ns.foliant_hol_eintrag("zauber", "Verwandlung")
+    revisionen = d.get("revisionen") or []
+    assert [r["quelle_kuerzel"] for r in revisionen] == ["errata-phb-2024-en"], d.keys()
+    assert "S. 306 im Grundbuch" in revisionen[0]["text_md"]
+    assert "📌" in d["hinweis_revision"]
+    # Der Grundtext bleibt der Grundtext - das Erratum ersetzt ihn nie.
+    assert "Verwandlungszauber" in d["regeltext_md"]
+
+
+@golden_errata
+def test_golden_errata_ueberlebt_den_kategorie_filter():
+    """Alle 43 Korrekturen tragen kategorie='regel'. Eine Suche mit kategorie='zauber'
+    filterte sie deshalb heraus - samt 📌-Hinweis. Sie haengen jetzt als 'revisionen' an."""
+    s = su.foliant_suche_bestand("Verwandlung", kategorie="zauber")
+    assert "errata-phb-2024-en" not in [t["quelle_kuerzel"] for t in s["treffer"]]
+    assert any(r["quelle_kuerzel"] == "errata-phb-2024-en"
+               for r in s.get("revisionen", [])), s.get("revisionen")
+
+
+@golden_errata
+def test_golden_errata_steht_in_der_ungefilterten_suche_hinter_dem_grundtext():
+    """Band 70: Die Korrektur steht NEBEN dem Grundtext, nie vor ihm - und verschwindet
+    nicht in 'weitere_fassungen'."""
+    s = su.foliant_suche_bestand("Polymorph")
+    kuerzel = [t["quelle_kuerzel"] for t in s["treffer"]]
+    assert "errata-phb-2024-en" in kuerzel, kuerzel
+    assert kuerzel.index("srd-de") < kuerzel.index("errata-phb-2024-en"), kuerzel
+    assert "📌" in s.get("hinweis_inhaltsart", "")
+
+
+@golden_errata
+def test_golden_errata_talent_und_monster():
+    """Zwei weitere Kategorien, die je einen eigenen Bruecken-Weg nehmen: das Talent ueber
+    das Glossar (Ringer<->Grappler), das Monster ueber den gleichlautenden Namen."""
+    t = ns.foliant_hol_eintrag("talent", "Ringer")
+    assert "Fast Wrestler" in (t.get("revisionen") or [{}])[0].get("text_md", ""), t.keys()
+    m = ns.foliant_hol_eintrag("monster", "Balor")
+    assert any("23d12" in r["text_md"] for r in m.get("revisionen", [])), m.keys()
+
+
+@golden_errata
+def test_golden_errata_liste_bleibt_frei_von_nachtraegen():
+    """foliant_liste_optionen zeigt WAEHLBARE Optionen - ein Erratum ist keine."""
+    from app.tools import charakter as ch
+    optionen = ch.foliant_liste_optionen("talent")
+    kuerzel = {o["quelle_kuerzel"] for o in optionen.get("talente", [])}
+    assert not any(k.startswith("errata-") for k in kuerzel), kuerzel
+
+
+def test_golden_bekannte_quellfehler_stehen_neben_dem_text():
+    """Die zwei Druckfehler des deutschen SRD (config/quellfehler.py): Der Regeltext geht
+    WOERTLICH raus, die belegte Korrektur steht daneben. Wer den Text still korrigierte,
+    haette den Bestand vom Buch abgekoppelt."""
+    d = ns.foliant_hol_eintrag("monster", "Balor")
+    assert "23W12+161" in d["regeltext_md"], "der Quelltext wurde veraendert"
+    assert "23W12+138" in d.get("hinweis_quellfehler", ""), d.keys()
+
+
+def test_golden_zerrissene_statblock_werte_repariert():
+    """Der Zellriss '**RK**1|3' liess vier Tiere mit einer unmoeglichen Ruestungsklasse 1
+    im Bestand stehen, der Huegelriese mit einer TP-Formel, die 0,5 statt 105 ergab
+    (Audit 03.08.2026, Sollwerte aus der englischen Fassung im Bestand belegt)."""
+    for name, rk in (("Falke", 13), ("Pavian", 12), ("Skorpion", 11),
+                     ("Wiesel", 13), ("Hügelriese", 13)):
+        d = ns.foliant_hol_eintrag("monster", name)
+        assert (d.get("facetten") or {}).get("rk") == rk, (name, d.get("facetten"))
+    con = adb.connect_readonly(str(adb.standard_pfad()))
+    try:
+        zu_klein = con.execute("SELECT count(*) FROM monster_meta WHERE rk < 5").fetchone()[0]
+    finally:
+        con.close()
+    assert zu_klein == 0, f"{zu_klein} Monster mit unmoeglicher Ruestungsklasse"
+
+
+def test_golden_verschraenkte_statbloecke_entwirrt():
+    """Zehn Monsterpaare des zweispaltigen srd-de-Drucks trugen den Statblock des jeweils
+    anderen (Datenbank-Audit 03.08.2026). Der teuerste Fall: Wer 'Oktopus' nachschlug,
+    bekam den Text des MAULTIERS, weil die Ueberschrift vor dem Rest des Vorgaengers
+    stand und der Oktopus-Statblock hinten am 'Nashorn' hing.
+
+    Die Sollwerte stammen NICHT aus dem Gedaechtnis, sondern aus der englischen Fassung
+    im Bestand (open5e-srd-2024) - dieselbe Kreatur, dieselben Strukturwerte."""
+    paare = {"Oktopus": "Octopus", "Nashorn": "Rhinoceros", "Dogge": "Mastiff",
+             "Dachs": "Badger", "Elefant": "Elephant", "Elch": "Elk",
+             "Rabenschwarm": "Swarm of Ravens", "Rabe": "Raven",
+             "Riesenhyäne": "Giant Hyena", "Riesenhai": "Giant Shark",
+             "Allosaurus": "Allosaurus", "Vampirbrut": "Vampire Spawn",
+             "Vampir-Vertrauter": "Vampire Familiar", "Dschinni": "Djinni",
+             "Hobgoblin-Hauptmann": "Hobgoblin Captain",
+             # Der Sonderfall mit dem Dreier-Verschnitt: Gruftschrecken (Wight) und Grul
+             # (Ghast) teilten sich zwei Eintraege, einer davon ganz ohne Werte.
+             "Gruftschrecken": "Wight", "Grul": "Ghast"}
+    con = adb.connect_readonly(str(adb.standard_pfad()))
+    try:
+        for deutsch, englisch in paare.items():
+            soll = con.execute(
+                "SELECT m.rk, m.tp FROM eintraege e JOIN monster_meta m ON m.eintrag_id = e.id "
+                "JOIN quellen q ON q.id = e.quelle_id "
+                "WHERE q.kuerzel = 'open5e-srd-2024' AND e.name_en = ?", (englisch,)).fetchone()
+            if not soll:
+                continue                       # nicht in jeder Datenbank vorhanden
+            ist = con.execute(
+                "SELECT m.rk, m.tp FROM eintraege e JOIN monster_meta m ON m.eintrag_id = e.id "
+                "JOIN quellen q ON q.id = e.quelle_id "
+                "WHERE q.kuerzel = 'srd-de' AND e.name_de = ?", (deutsch,)).fetchall()
+            assert len(ist) == 1, f"{deutsch}: {len(ist)} Eintraege mit Statblock statt einem"
+            assert tuple(ist[0]) == tuple(soll), (deutsch, englisch, tuple(ist[0]), tuple(soll))
+        # Der Fremdtext ist weg: Im Oktopus darf kein Maultier mehr stehen.
+        body, = con.execute(
+            "SELECT e.body_md FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "WHERE q.kuerzel = 'srd-de' AND e.name_de = 'Oktopus'").fetchone()
+        assert "Maultier" not in body and "Tentakel" in body, body[:200]
+        # Und kein srd-de-Monster steht mehr ohne eigenen Statblock da.
+        ohne = con.execute(
+            "SELECT count(*) FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "LEFT JOIN monster_meta m ON m.eintrag_id = e.id "
+            "WHERE q.kuerzel = 'srd-de' AND e.kategorie = 'monster' AND m.rk IS NULL"
+        ).fetchone()[0]
+        assert ohne == 0, f"{ohne} srd-de-Monster ohne Ruestungsklasse"
+    finally:
+        con.close()
