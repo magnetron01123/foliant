@@ -11,7 +11,7 @@ Kurationsschleife lief gegen echte Nutzungsdaten. Am 31.07./01.08.2026 kam die
 Datenqualitäts-Schicht dazu — Revisions-Layer, Quellen-Provenienz, Prioritätsbänder und
 das Register der deutschen Abkürzungen (PR #80, Schema v3, auf dem Pi deployed). Das
 DB-Vollaudit vom 03.08.2026 (technisch + fachlich, Schwerpunkt Errata) bestätigte den
-Bestand als solide; seine Nacharbeiten stehen als M8.
+Bestand als solide; seine Nacharbeiten (M8) sind abgeschlossen und deployt.
 
 Von den verbliebenen Punkten hängen **fast alle an einer Entscheidung oder Handlung von
 David**, nicht an Code:
@@ -19,7 +19,6 @@ David**, nicht an Code:
 | offen | wartet auf |
 |---|---|
 | **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — derzeit liegen Bestand *und* alle Sicherungen auf derselben SD-Karte. **Das einzige Risiko mit unwiederbringlichem Schaden** |
-| **M8** open5e-Octopus verwerfen (§1) | einen open5e-Re-Import, den man ohnehin fahren will — der Rest des Audits ist umgesetzt und deployt |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
 | **M6** Discord-Bot | Token im Entwicklerportal, Erst-Test in der Guild |
 | **M7** Discord-Ausbau | Eval-Lauf mit den DC-Fällen, Echttest nach einem Neustart |
@@ -201,7 +200,7 @@ die Tokens bzw. eine echte Guild brauchen:
 **Gate:** eine Folgefrage nach einem Neustart wird mit Kontext beantwortet, und der
 DC-Lauf steht im Eval-Report.
 
-### M8 — Nacharbeiten aus dem DB-Audit · *03.08.2026 · umgesetzt bis auf eine Kuration*
+### M8 — Nacharbeiten aus dem DB-Audit · *03.08.2026 · abgeschlossen*
 
 Vollaudit der Datenbank gegen den Pi-Vollbestand (technisch + fachlich, Schwerpunkt
 Errata): Die Errata-Integration ist **vollständig und wortgetreu** (43/43 gegen die drei
@@ -217,16 +216,9 @@ tragenden Begründungen stehen als drei Entscheidungen in [CONCEPT.md](CONCEPT.m
 bleiben `regel`). Offen bleibt ein Posten, den das Audit **größer gemacht hat, als er im
 Befund stand**:
 
-- ⬜ **open5e „Octopus"** bleibt im Bestand korrupt (KON 0, CHA −3, Rettungswurf +30) —
-  ein Datenfehler der API-Quelle, kein Importfehler. Er ist über `config/quellfehler.py`
-  gekennzeichnet, trägt also in jeder Auskunft den belegten Sollwert, und ein NEUER Fall
-  dieser Art bricht den Deploy. Ihn beim Import zu **verwerfen** wäre jetzt möglich (der
-  deutsche „Oktopus" ist seit dem 03.08.2026 vollständig), kostet aber einen
-  open5e-Re-Import gegen den heutigen API-Stand — also mit unkontrollierter Drift bei 982
-  Einträgen. Lohnt erst, wenn ohnehin ein open5e-Import ansteht.
-
-**Gate:** ✅ srd-de führt kein Monster mehr ohne eigenen Statblock (waren 13), keine
-Namensdubletten, Facetten-Deckung Monster 667/667; `make check-pi` grün.
+**Gate erfüllt:** srd-de führt kein Monster mehr ohne eigenen Statblock (waren 13), keine
+Namensdubletten, Facetten-Deckung Monster 100 %, der korrupte Open5e-Datensatz wird beim
+Import verworfen statt gekennzeichnet — `make check-pi` und die Golden-Suite grün.
 
 ### Offene Anforderungen im Überblick
 Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11/S12, V1–V6/V8, NF1–NF3/NF5–NF7,
