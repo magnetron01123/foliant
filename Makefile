@@ -56,11 +56,17 @@ _pi-ziel:
 # den Vollbestand ist laut CONCEPT.md §11 Pflicht NACH jedem Deploy - deshalb haengt sie
 # hier dran, statt vergessen werden zu koennen.
 .PHONY: deploy-pi
+# ALLE drei Dienste, die Code aus dem Repo backen (build: .) - foliant, web, discord.
+# Bis zum 03.08.2026 stand hier nur `foliant`: Nach einem Deploy liefen Bot und Website
+# still mit dem ALTEN Image weiter, obwohl das Image den Code per COPY einbackt. Real
+# passiert: der /regel-Absturz war im Repo behoben, deployt - und in Discord trotzdem
+# noch da, weil der discord-Container nie neu gebaut wurde. `--no-deps`, damit
+# depends_on nicht gateway/cloudflared mit durchstartet (Gotcha in CONCEPT.md par. 12).
 deploy-pi: _pi-ziel
 	rsync -a --exclude '.git' --exclude '.venv*' --exclude 'data' --exclude 'quellen' \
 	      --exclude 'config/foliant.toml' --exclude '.env' --exclude '.claude' \
 	      ./ $(PI):~/foliant/
-	ssh $(PI) 'cd ~/foliant && docker compose up -d --build foliant'
+	ssh $(PI) 'cd ~/foliant && docker compose up -d --build --no-deps foliant web discord'
 	@echo "--- Rebuild durch, jetzt die Pflicht-Pruefung am Vollbestand ---"
 	$(MAKE) test-golden-pi PI=$(PI)
 	@echo "--- Regel-Semantik ok, jetzt die DATENQUALITAET am Vollbestand ---"

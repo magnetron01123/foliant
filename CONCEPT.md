@@ -694,11 +694,18 @@ Einmal aus- und wieder einloggen. Test: `docker run --rm hello-world`.
 ```sh
 make deploy-pi
 ```
-Das ist der **eine** Weg: rsync → `docker compose up -d --build foliant` → Golden-Suite am
-Vollbestand → **`admin check` am Vollbestand** (`make check-pi`). Alle vier Schritte hängen
-zusammen, weil das Weglassen jedes einzelnen schon schiefgegangen ist (Rebuild vergessen →
-alter Code meldet „Erfolg"; Golden vergessen → korpusabhängige Regression bleibt
-unentdeckt).
+Das ist der **eine** Weg: rsync → `docker compose up -d --build --no-deps foliant web
+discord` → Golden-Suite am Vollbestand → **`admin check` am Vollbestand** (`make check-pi`).
+Alle vier Schritte hängen zusammen, weil das Weglassen jedes einzelnen schon schiefgegangen
+ist (Rebuild vergessen → alter Code meldet „Erfolg"; Golden vergessen → korpusabhängige
+Regression bleibt unentdeckt).
+
+**Alle drei Code-Dienste, nicht nur `foliant`** (Befund 03.08.2026): `web` und `discord`
+backen dasselbe Image aus demselben Repo. Bis dahin baute das Ziel nur `foliant` — Bot und
+Website liefen nach einem Deploy still mit dem alten Stand weiter. Real passiert: Der
+`/regel`-Absturz war behoben und deployt und trat in Discord trotzdem weiter auf, weil der
+`discord`-Container nie neu gebaut wurde. `--no-deps` verhindert dabei, dass `depends_on`
+den Tunnel mit durchstartet (§12).
 
 **Warum der Check seit dem 01.08.2026 dazugehört:** `make test` fährt ihn lokal, aber die
 Dev-DB ist ein **Subset** (4 von 15 Quellen). Alles, was erst am Vollbestand sichtbar wird,
