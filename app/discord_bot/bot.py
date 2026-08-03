@@ -193,7 +193,7 @@ class FoliantBot(discord.Client):
             nachricht = await interaction.followup.send(teile[0], wait=True)
             thread = None
             if isinstance(kanal, discord.TextChannel):
-                thread = await self._eroeffne_thread(nachricht, frage)
+                thread = await self._eroeffne_thread(kanal, nachricht, frage)
             if thread is not None:
                 for teil in teile[1:]:
                     await thread.send(teil)
@@ -208,16 +208,28 @@ class FoliantBot(discord.Client):
         finally:
             self.schranken.beende(interaction.user.id)
 
-    async def _eroeffne_thread(self, nachricht: discord.Message,
+    async def _eroeffne_thread(self, kanal, nachricht,
                                frage: str) -> discord.Thread | None:
         """Thread zur Nachricht; None statt Ausnahme, wenn Discord ihn verweigert
         (fehlendes Thread-Recht, Nachricht traegt schon einen). Die bezahlte Antwort
-        steht dann bereits im Kanal und darf nicht an der Komfortfunktion scheitern."""
+        steht dann bereits im Kanal und darf nicht an der Komfortfunktion scheitern.
+
+        Ueber den KANAL, nicht ueber die Nachricht (Live-Befund 03.08.2026): Die Antwort auf
+        einen Slash-Befehl kommt aus `interaction.followup.send(wait=True)` und ist damit
+        eine `WebhookMessage` - die traegt KEINE Guild-Referenz, und
+        `Message.create_thread()` wirft deshalb `ValueError`, noch bevor ein HTTP-Aufruf
+        passiert. Das lief am `except discord.HTTPException` vorbei und riss `/regel` im
+        Kanal mit: Teil 1 der Antwort stand da, dann brach der Befehl ab - kein Thread,
+        keine Folgeteile, kein Gespraechskontext. `TextChannel.create_thread(message=...)`
+        nimmt jeden Snowflake, also genuegt die ID; damit ist der Weg fuer Slash-Antwort und
+        @Mention derselbe. `ValueError` wird zusaetzlich gefangen, damit ein kuenftiger Fall
+        dieser Art wieder nur die Komfortfunktion kostet, nie die Antwort."""
         try:
-            return await nachricht.create_thread(name=antwort.thread_titel(frage))
-        except discord.HTTPException as fehler:
+            return await kanal.create_thread(name=antwort.thread_titel(frage),
+                                             message=nachricht)
+        except (discord.HTTPException, ValueError) as fehler:
             _log.warning("Thread zu Nachricht %s nicht erstellbar: %s",
-                         nachricht.id, type(fehler).__name__)
+                         getattr(nachricht, "id", "?"), type(fehler).__name__)
             return None
 
     async def on_message(self, nachricht: discord.Message) -> None:
@@ -403,7 +415,8 @@ class FoliantBot(discord.Client):
                 # Thread auf der NUTZER-Nachricht: die Frage steht sichtbar ueber dem
                 # Gespraech, der Kanal bleibt aufgeraeumt. Verweigert Discord den
                 # Thread, geht die Antwort in den Kanal statt verloren.
-                ziel = (await self._eroeffne_thread(nachricht, frage)
+                ziel = (await self._eroeffne_thread(nachricht.channel, nachricht,
+                                                    frage)
                         or nachricht.channel)
             for teil in teile:
                 await ziel.send(teil)
