@@ -781,7 +781,8 @@ Nutzers). `DISCORD_GUILD_ID` ist Pflicht — ohne sie startet der Bot nicht.
 **Nutzung und Betrieb:**
 - Logs: `docker compose logs -f discord`.
 - Befehle: `/regel <frage>`, `/regel-privat <frage>` (ephemer, ohne Thread), `/hilfe`
-  (statisch, ohne API-Kosten), Kontextmenü „Foliant fragen", @Mention. Beide `/regel`-Formen
+  (statisch, ohne API-Kosten), `/bestand` (Bücherliste, ephemer, ohne API-Kosten),
+  Kontextmenü „Foliant fragen", @Mention. Beide `/regel`-Formen
   tragen eine optionale `fassung`-Wahl (2024/2014). Was die Befehle können und **warum sie so
   geschnitten sind**, steht im Entscheidungsregister (§10).
 - **Rückmeldung der Runde:** Eine **👎-Reaktion** auf eine Bot-Antwort macht sie zum
@@ -1126,6 +1127,7 @@ nicht der Datenbank-Auszug —, kein Charakterbogen-Upload (der bleibt auf der W
 | **Thread-Rebuild aus der Discord-Historie statt persistentem Verlauf** | Der Verlauf ist in-memory, ein Neustart löscht ihn. `app/discord_bot/rebuild.py` liest den Thread dann aus der Historie zurück (max. 40 Nachrichten) — **kein neuer State**, die Historie *ist* die Persistenz. Der Vergessen-Hinweis bleibt für den Fall, dass dort nichts Verwertbares steht |
 | **`fassung` (2024/2014) wandert nur als Klartext in die Frage** | Die Regelversion steuert das Modell über die `edition`-Filter der Tools. Ein zweiter Steuerweg hätte dieselbe Regel ein zweites Mal behauptet |
 | **`/hilfe` ist statisch und ephemer** | Eine Kurzanleitung braucht kein Modell — so kostet der häufigste Erstkontakt keine API-Token |
+| **`/bestand` liest die DB direkt, statt das Modell zu fragen** (03.08.2026) | „Steht das Buch überhaupt drin?" ist keine Regelfrage, sondern eine Abfrage über den Schrank — eine Modellschleife dafür kostet Token und könnte die Liste zusätzlich falsch zusammenfassen. Ephemer und ohne Schranken wie `/hilfe`. Die Gruppierung (Regelwerke / Errata / Abenteuer) und die Beschriftung teilt sich der Befehl mit der Website-Karte über **`app/bestand.py`**: Zwei Oberflächen auf dieselbe Frage sind zwei Stellen, an denen eine Einordnung driften kann — und ein Abenteuerband, der im Bot unter „Regelwerke" stünde, wäre eine falsche Ansage darüber, wozu Foliant aus ihm antwortet (Spoiler-Schutz). Darstellung bleibt getrennt: HTML dort, Codeblock-Tabelle hier, weil Discord keine Markdown-Tabellen rendert |
 | **Kontextmenü „Foliant fragen"** (Rechtsklick → Apps) | Der Spieltisch-Fall „stimmt das überhaupt?" ohne Abtippen; läuft über denselben Weg wie `/regel` |
 | **Schranken fallen fail-soft, nie still aus** | Ein ungültiges `DISCORD_COOLDOWN_S` fällt auf den Standard zurück, statt die Schranke abzuschalten |
 | **Threads entstehen über den KANAL, nicht über die Nachricht** (Live-Befund 03.08.2026) | Die Antwort auf einen Slash-Befehl kommt aus `interaction.followup.send(wait=True)` und ist damit eine `WebhookMessage` — **ohne Guild-Referenz**. `Message.create_thread()` wirft dort `ValueError`, noch **vor** jedem HTTP-Aufruf, und lief damit am `except discord.HTTPException` vorbei: `/regel` im Kanal lieferte Teil 1 der Antwort und brach dann ab — kein Thread, keine Folgeteile, kein Gesprächskontext. Der @Mention-Weg war nicht betroffen (echte Message), **deshalb fiel es nicht auf**. `TextChannel.create_thread(message=…)` nimmt jeden Snowflake, also genügt die ID — ein Weg für beide Einstiege. Lehre: Ein Fallback, der nur `HTTPException` fängt, deckt eine Bibliothek nicht ab, die auch vor dem Netz schon werfen kann |
