@@ -1,8 +1,9 @@
 # Foliant — Spezifikation (das verbindliche „Was")
 
 **D&D-5e-Regelassistent (Fassung 2024), Deutsch-first · self-hosted MCP-Server**
-**Rev. 9 · Stand: 25.07.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
-Widersprüche aufgelöst, Charakterbogen-Übersetzer aufgenommen)*
+**Rev. 10 · Stand: 03.08.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
+Widersprüche aufgelöst, Charakterbogen-Übersetzer aufgenommen; Rev. 10: Datenqualitäts-Schicht
+— S12, V9, V10, B11 — und die Nummerierung aus Rev. 8 geheilt)*
 
 Dieses Dokument definiert, **was** Foliant können muss und **wie es sich verhalten muss** —
 nicht, wie es gebaut ist (das steht in [CONCEPT.md](CONCEPT.md)). Bei fachlichen Fragen gilt
@@ -25,15 +26,15 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
 | Quellen-Import: eigene PDFs, D&D Beyond (Bücher), Open5e | Würfel-Tool, Initiative-Tracker |
 | Deutsch-Ausgabe mit Begriffs-/Quellenregeln | Hausregeln-Overlay |
 | Regelversion bei jeder Ablage | Charakter-Speicherung / Gedächtnis |
-| **Charakterbogen-Übersetzer** (eigene Website, §17) | |
+| **Charakterbogen-Übersetzer** (eigene Website, §14) | |
 
 ### Leitprinzipien (übergreifend)
 - **P1 — Aktuelle Regeln zuerst:** Standard ist D&D 2024 („5.5e"). Ältere Stände werden nie
   stillschweigend beigemischt.
 - **P2 — Version immer sichtbar:** Jede gespeicherte Regel trägt ihre Regelversion; jede
-  Auskunft nennt sie (§3).
+  Auskunft nennt sie (§4).
 - **P3 — Deutsch-first, offiziell:** offizielle deutsche Begriffe, nicht wörtlich übersetzt;
-  englisches Original **immer** in Klammern; fehlt offizielles Deutsch → `*` (§2).
+  englisches Original **immer** in Klammern; fehlt offizielles Deutsch → `*` (§3).
 - **P4 — Belegt:** jede Regelauskunft mit **Quelle** (immer); **Seite** nur, wenn die Quelle
   eine hat.
 - **P5 — So einfach wie möglich:** keine Features über den definierten Umfang hinaus.
@@ -66,7 +67,7 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
 
 ---
 
-## 3. Sprache & Übersetzung (§5-Regeln)
+## 3. Sprache & Übersetzung
 
 - **S1 — Sprache:** Antworten in korrektem Spieldeutsch.
 - **S2 — Korrekte, nicht wörtliche Begriffe:** die **offiziellen** deutschen Begriffe, keine
@@ -103,16 +104,12 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
 - **S12 — Abkürzungen: deutsch schreiben, englisch verstehen.** Wo eine Auskunft abkürzt,
   gilt die **offizielle deutsche** Form (RK, TP, SG, HG, EP, ÜB, W20 …) — nie die
   englische (AC, HP, DC, CR, XP, PB, d20). Eine englische Abkürzung in der **Anfrage**
-  muss dagegen verstanden werden und zum deutschen Eintrag führen. Das Register steht in
-  `config/abkuerzungen.py`; jede empfohlene Form ist im deutschen SRD 5.2.1 belegt und
-  wird dagegen getestet — erfunden wird keine (Regel 1).
-  Die Regel läuft über **alle drei Kanäle** (§7), und das ist hier nicht Redundanz,
-  sondern die eigentliche Zusage: Die Projektanweisung muss jede Person selbst
-  einrichten — wer das nicht tut, bekäme sonst keine. Deshalb trägt sie erstens jede
-  Tool-Ausgabe (`hinweis_abkuerzungen`), zweitens die Tool-Beschreibungen, die der Server
-  mit dem Schema ausliefert, und drittens die Instruktion. Zusätzlich löst die Ausgabe
-  englische Kürzel, die im Regeltext stehen, in `begriffe_deutsch` auf — aus „AC 17,
-  CR 10" wird die Zuordnung mitgeliefert, statt sie nur anzumahnen.
+  muss dagegen verstanden werden und zum deutschen Eintrag führen. Jede empfohlene Form ist
+  im deutschen SRD 5.2.1 belegt und wird dagegen getestet — erfunden wird keine (Regel 1).
+  Die Regel muss über **alle drei Kanäle** (§7) laufen, und das ist hier keine Redundanz,
+  sondern die eigentliche Zusage: Die Projektanweisung richtet jede Person selbst ein — wer
+  das nicht tut, bekäme sonst keine. Register und Durchsetzung:
+  [CONCEPT.md](CONCEPT.md) §5.
 
 > **Beispiel:** Inhalt aus „Ravenloft: Horrors Within" (EN, nicht übersetzt) → der Regeltext
 > bleibt englisch mit seiner Regelversion. Die deutschen Begriffe kommen aus „Van Richtens
@@ -137,18 +134,17 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
 - **V8 — Altregeln bewusst nutzbar:** Ältere Inhalte dürfen aufgenommen und durchsucht werden
   — gerade Regeln ohne 2024-Entsprechung. Bei Ausgabe **immer** deutlicher Hinweis (V4).
 - **V9 — Offizielle Nachträge stehen NEBEN dem Grundtext, nie darin.** Errata und
-  offizielle Regelauslegungen (Sage Advice) werden als **eigene Quellen** geführt
-  (`inhaltsart = "errata"` bzw. `"regelauslegung"`), nicht in den Buchtext eingerechnet.
-  Begründung: Ein eingerechneter Text wäre nicht mehr der Buchtext — die Provenienz ginge
-  verloren, `body_md` und damit der korpusweite `inhalts_hash` verschöben sich bei jedem
-  Errata-Update, und niemand könnte mehr sagen, was im Buch steht und was korrigiert wurde.
-  Die Ausgabe unterscheidet deshalb drei Dinge: **Regeltext**, **offizielle Errata** (📌,
-  die Korrektur gilt) und **offizielle Regelauslegung** (⚖️, kein Regelwortlaut).
-- **V10 — Quellen-Provenienz:** Eine Quelle kann festhalten, WELCHE Fassung im Bestand
-  steckt und woher sie kam: `versions_stand` (Errata-/Druckstand), `quell_url`,
-  `quell_hash` (sha256 der Quelldatei) und `importiert_am`. Alle vier sind optional —
-  eine Quelle ohne sie bleibt gültig, sie kann nur weniger über sich sagen. Geraten wird
-  nichts (Regel 1).
+  offizielle Regelauslegungen (Sage Advice) werden als **eigene Quellen** geführt, nicht in
+  den Buchtext eingerechnet: Ein eingerechneter Text wäre nicht mehr der Buchtext, und
+  niemand könnte mehr sagen, was im Buch steht und was korrigiert wurde. Die Ausgabe
+  unterscheidet deshalb drei Dinge: **Regeltext**, **offizielle Errata** (📌, die Korrektur
+  gilt) und **offizielle Regelauslegung** (⚖️, kein Regelwortlaut).
+  Umsetzung: [CONCEPT.md](CONCEPT.md) §3.
+- **V10 — Quellen-Provenienz:** Eine Quelle muss festhalten können, WELCHE Fassung im
+  Bestand steckt und woher sie kam — Errata-/Druckstand, Herkunfts-URL, Prüfsumme der
+  Quelldatei, Importzeitpunkt. Alle Angaben sind **optional**: eine Quelle ohne sie bleibt
+  gültig. Geraten wird nichts (Regel 1). Felder und Migrationsweg:
+  [CONCEPT.md](CONCEPT.md) §3.
 
 **Verbindlich:** Editionen werden **NIE geraten.** Beim DDB-Import autoritativ aus der
 Buch-Datenbank, bei PDFs pro Buch explizit gesetzt. Unklar = **nicht importieren**.
@@ -162,7 +158,7 @@ Buch-Datenbank, bei PDFs pro Buch explizit gesetzt. Unklar = **nicht importieren
 - **NF3 — Privat:** ausschließlich für die eigene Runde; keine öffentliche Bereitstellung.
 - **NF4 — Legale Quellen:** frei lizenziertes SRD (CC-BY-4.0) und eigene, legal erworbene
   Inhalte. DDB-Extraktion nur privat (ToS-Grauzone, bewusst akzeptiert).
-- **NF5 — Kosten:** keine laufenden Kosten außer Strom. *(Ausnahme seit §17: der
+- **NF5 — Kosten:** keine laufenden Kosten außer Strom. *(Ausnahme seit §14: der
   Charakterbogen-Übersetzer verbraucht pro Konvertierung Anthropic-API-Guthaben; harter
   Kostendeckel per Spend-Limit im eigenen Workspace.)*
 - **NF6 — Nur so komplex wie nötig.**
@@ -188,7 +184,7 @@ Buch-Datenbank, bei PDFs pro Buch explizit gesetzt. Unklar = **nicht importieren
   bleiben strikt privat.
 - **Q7 — Nachschlagen ohne externe Abhängigkeit.** DDB- und Open5e-Quellen werden **einmalig
   importiert**, nie zur Laufzeit abgefragt; das Regel-Nachschlagen funktioniert vollständig
-  **offline**. *(Gilt für den MCP-Server. Zur Abgrenzung beim Charakterbogen siehe §17.)*
+  **offline**. *(Gilt für den MCP-Server. Zur Abgrenzung beim Charakterbogen siehe §14.)*
 
 ---
 
@@ -235,10 +231,13 @@ dreifach:
 
 | Kanal | Wer | Wirkung |
 |---|---|---|
-| **Grounding-Hinweise in den Tool-AUSGABEN** | Server | **zuverlässigster Kanal** — die Hinweise stehen bei jeder Antwort im Kontext |
-| Server-Instruktionen (`config/stil.py`) + Tool-Beschreibungen | Server | Grundverhalten je Verbindung |
-| **Projektanweisung im Claude-Projekt** (§8) | Betreiber | System-Prompt-Ebene: stärkster Hebel für Priorität, Format, Spoiler |
-| Websuche-Schalter aus | Betreiber | der einzige **harte** Garant gegen Web-Vermischung |
+| 1. **Grounding-Hinweise in den Tool-AUSGABEN** | Server | **zuverlässigster Kanal** — die Hinweise stehen bei jeder Antwort im Kontext |
+| 2. Server-Instruktionen (`config/stil.py`) + Tool-Beschreibungen | Server | Grundverhalten je Verbindung |
+| 3. **Projektanweisung im Claude-Projekt** (§8) | Betreiber | System-Prompt-Ebene: stärkster Hebel für Priorität, Format, Spoiler |
+
+Der **Websuche-Schalter** (Betreiber, Claude-Einstellungen) zählt bewusst nicht als vierter
+Kanal: Er steuert kein Verhalten, sondern ist der einzige **harte** Garant gegen
+Web-Vermischung. Wer „drei Kanäle" liest, meint immer die drei oben.
 
 ---
 
@@ -326,8 +325,8 @@ Alle docken laut Datenmodell ohne Neuaufbau an (NF7). Details: [BACKLOG.md](BACK
 
 ## 12. Aufgelöste Widersprüche (Rev. 9)
 
-Beim Zusammenführen der bis dahin 18 Dokumente traten fünf echte Konflikte zutage. So sind
-sie entschieden:
+Beim Zusammenführen der bis dahin 18 Dokumente traten fünf echte Konflikte zutage (Nr. 1–5).
+So sind sie entschieden — Nr. 6 ist ein späterer Nachtrag:
 
 1. **NF3 „privat, keine öffentliche Bereitstellung" vs. Bereitstellung an die Runde.**
    NF3 ist zu lesen als **„nicht öffentlich"**, nicht als „nur für eine Person". Die
@@ -337,19 +336,18 @@ sie entschieden:
    Weitergabe von URL und Inhalten über die Runde hinaus bleibt untersagt.
 
 2. **Frühere Annahme „DDB-Extraktion über die MrPrimate-Toolchain" — überholt.** Der
-   `ddb-proxy` kann **keine Buchinhalte** liefern (nur Charaktere, Zauber, Items, Monster) —
-   F5 wäre damit unerfüllbar. Umgesetzt ist ein **eigener kurzlebiger Exporter** über die
-   DDB-Mobile-API mit SQLCipher-Entschlüsselung. Begründung: [CONCEPT.md](CONCEPT.md) §10,
-   ADR. Der Proxy-Weg ist ausdrücklich verworfen und wird nicht wieder geöffnet.
+   `ddb-proxy` kann **keine Buchinhalte** liefern, F5 wäre damit unerfüllbar. Umgesetzt ist
+   ein **eigener kurzlebiger Exporter**. Der Proxy-Weg ist ausdrücklich verworfen und wird
+   nicht wieder geöffnet — Belege und Rückfallebene: [CONCEPT.md](CONCEPT.md) §10 (ADR).
 
 3. **Q7/F5b „kein Laufzeit-API-Aufruf" vs. dem Charakterbogen-Übersetzer.** Q7 gilt
    unverändert für den **MCP-Server**: Regel-Nachschlagen ist vollständig offline. Der
-   Charakterbogen-Übersetzer (§17) ist ein **separater Dienst** und ruft bewusst zur Laufzeit
+   Charakterbogen-Übersetzer (§14) ist ein **separater Dienst** und ruft bewusst zur Laufzeit
    zwei externe Dienste: die Anthropic-API (Übersetzung) und dnddeutsch.de (Glossar-
    Nachschlagen bei unbelegten Begriffen). Beide sind auf diesen Dienst begrenzt; fällt einer
    aus, bleibt der MCP unberührt.
 
-4. **§8-Nicht-Ziel „kein DDB-Charakter-Abruf" vs. dem Charakterbogen-Übersetzer.** Kein
+4. **§1-Nicht-Ziel „kein DDB-Charakter-Abruf" vs. dem Charakterbogen-Übersetzer.** Kein
    Widerspruch: A1 meint das **Laden von Charakteren aus DDB** über dessen API. Der
    Übersetzer verarbeitet ein **vom Nutzer selbst hochgeladenes PDF**; es besteht keine
    Verbindung zu DDB. B8 bleibt gewahrt — nichts wird gespeichert.
@@ -392,14 +390,14 @@ sie entschieden:
 
 ---
 
-## 14. Charakterbogen-Übersetzer (Zusatz-Feature, §17)
+## 14. Charakterbogen-Übersetzer (Zusatz-Feature)
 
 Neben dem MCP-Server läuft ein zweiter Dienst: Ein englischer D&D-Beyond-PDF-Export wird
 ausgelesen, übersetzt und auf den **offiziellen deutschen WotC-Charakterbogen (2024)**
 übertragen — als druckbares PDF.
 
 **Verbindliche Regeln:**
-- **C1 — §5 gilt unverändert.** Ausgabe immer `Deutscher Begriff (English Original)`, `*` nur
+- **C1 — S1–S12 gelten unverändert.** Ausgabe immer `Deutscher Begriff (English Original)`, `*` nur
   bei fehlendem exaktem, belegtem Glossartreffer. Nie nur Englisch.
 - **C2 — Zahlen laufen nie durch das Sprachmodell.** Würfel, Modifikatoren, Rettungswürfe,
   Preise und Gewichte werden deterministisch übertragen.
