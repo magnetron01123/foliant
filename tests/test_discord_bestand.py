@@ -2,9 +2,10 @@
 
 Zwei Dinge sind hier zu pruefen, und das zweite ist das wichtigere:
 
-1. Die Tabelle beantwortet je Buch dieselben drei Fragen (Sprache, Regelstand, Umfang) in
-   eigenen Spalten - der Beschriftungs-Standard (importer/quellen.py), nur in
-   Festbreitenschrift statt in HTML.
+1. Jede Zeile beantwortet dieselben drei Fragen (Sprache, Regelstand, Umfang) - der
+   Beschriftungs-Standard (importer/quellen.py), als Fliesstext-Liste. KEINE
+   Codeblock-Tabelle: Discord bricht Codebloecke am Handy bei ~40 Zeichen hart um,
+   die Spalten des ersten Wurfs zerfielen dort (Rueckmeldung 03.08.2026).
 2. Sie sagt dasselbe wie die WEBSITE. Zwei Oberflaechen auf dieselbe Frage sind zwei
    Stellen, an denen eine Gruppierung driften kann - und eine Quelle, die auf der Seite
    unter "Abenteuer & Settings" steht (Spoiler-Ansage!) und im Bot unter "Regelwerke",
@@ -33,25 +34,22 @@ QUELLEN = [
 
 
 def test_jede_zeile_traegt_buch_sprache_regelstand_und_zahl():
-    """Die vier Angaben der Website-Zeile, in Festbreitenschrift untereinander. Die
-    Zahl deutsch gesetzt (1.616, nicht 1,616) wie ueberall sonst im Projekt."""
-    block = d_bestand.tabelle(QUELLEN[:2])
-    assert block.startswith("```\n") and block.endswith("\n```")
-    kopf, *zeilen = block.strip("`\n").splitlines()
-    assert kopf.split() == ["Buch", "Sprache", "Regelstand", "Einträge"]
-    assert "System Reference Document 5.2.1" in zeilen[0]
-    assert "Deutsch" in zeilen[0] and "Regeln 2024" in zeilen[0] and "1.616" in zeilen[0]
-    assert "Regeln 2014" in zeilen[1]
-    # Spalten stehen untereinander: gleiche Startposition trotz verschieden langer Titel.
-    assert zeilen[0].index("Deutsch") == zeilen[1].index("Deutsch")
+    """Die vier Angaben der Website-Zeile, als EINE Fliesstextzeile mit fettem Titel.
+    Die Zahl deutsch gesetzt (1.616, nicht 1,616) wie ueberall sonst im Projekt."""
+    zeile = d_bestand.zeile(QUELLEN[0])
+    assert zeile.startswith("• **System Reference Document 5.2.1** — ")
+    assert "Deutsch" in zeile and "Regeln 2024" in zeile and "1.616 Einträge" in zeile
+    assert "\n" not in zeile                  # eine Zeile, die weich umbrechen darf
+    assert "```" not in d_bestand.text(QUELLEN), (
+        "Codeblock - der bricht am Handy bei ~40 Zeichen um und zerlegt die Spalten")
 
 
 def test_errata_stand_steht_an_der_regelversion_nicht_am_titel():
     """Ein Errata-Band praezisiert die Regelversion, nicht den Werktitel - dieselbe
     Zuordnung wie auf der Seite (app/bestand.py: regelstand)."""
-    zeile = d_bestand.tabelle([QUELLEN[3]]).splitlines()[2]
+    zeile = d_bestand.zeile(QUELLEN[3])
+    assert "**Monster Manual — Errata**" in zeile
     assert "Regeln 2024 · Errata Version 1.0" in zeile
-    assert "Monster Manual — Errata" in zeile.split("Englisch")[0]
 
 
 def test_gruppen_trennen_abenteuer_und_errata_mit_ihrer_ansage():
@@ -63,10 +61,18 @@ def test_gruppen_trennen_abenteuer_und_errata_mit_ihrer_ansage():
     assert f"**{bestand.ABENTEUER}**" in text
     abenteuer_teil = text.split(f"**{bestand.ABENTEUER}**")[1]
     assert "Forgotten Realms: Heroes of Faerûn" in abenteuer_teil
-    assert "Handlung" in abenteuer_teil and "Geheimnisse" in abenteuer_teil
+    assert "Spoiler-Schutz" in abenteuer_teil
     # Das Regelwerk steht NICHT im Abenteuerblock (Reihenfolge: Regelwerke zuerst).
     assert "Spielerhandbuch" not in abenteuer_teil
-    assert "**4 Büchern**" in text and "**3.461 Einträgen**" in text
+    assert "**4 Bücher**" in text and "3.461 Einträgen" in text
+
+
+def test_erklaertext_bleibt_ein_halbsatz():
+    """Die Saetze der Website wirkten in Discord aufgesagt (Rueckmeldung 03.08.2026) -
+    je Gruppe bleibt genau ein Halbsatz an der Ueberschrift. Waechst er wieder zu
+    Prosa, gehoert er auf die Website, nicht in jede Bot-Antwort."""
+    for satz in d_bestand.ERKLAERUNG.values():
+        assert len(satz) <= 60 and "." not in satz
 
 
 def test_gruppe_ohne_quellen_faellt_weg():
@@ -75,30 +81,39 @@ def test_gruppe_ohne_quellen_faellt_weg():
     assert bestand.ABENTEUER not in text and bestand.REVISION not in text
 
 
-def test_leerer_bestand_sagt_es_ehrlich_statt_leerer_tabelle():
-    """B1: nichts da heisst "nichts da" - keine leere Tabelle, die nach einem Bestand
+def test_einzahl_bleibt_einzahl():
+    """'1 Bücher' und '1 Einträge' waeren der Sorte Fehler, die jede Antwort traegt."""
+    text = d_bestand.text([dict(QUELLEN[0], eintraege=1)])
+    assert "**1 Buch**" in text and "1 Eintrag" in text and "1 Einträge" not in text
+
+
+def test_leerer_bestand_sagt_es_ehrlich_statt_leerer_liste():
+    """B1: nichts da heisst "nichts da" - keine leere Liste, die nach einem Bestand
     ohne Buecher aussieht."""
     assert d_bestand.text([]) == d_bestand.LEER
     assert d_bestand.LEER.startswith("❌")
 
 
 def test_ausgabe_passt_durch_das_discord_splitting():
-    """Discord kappt bei 2000 Zeichen. Ein grosser Bestand (30 Buecher) muss deshalb
-    durch `antwort.teile` gehen - und dabei duerfen keine offenen Codeblock-Zaeune
-    zurueckbleiben, sonst rendert der Rest der Nachricht als Code."""
+    """Discord kappt bei 2000 Zeichen. Ein grosser Bestand (32 Buecher) muss deshalb
+    durch `antwort.teile` gehen, und die Schnitte fallen an Absatzgrenzen - keine
+    zerrissene Buchzeile."""
     viele = [dict(q, titel=f"{q['titel']} {i}") for i in range(8) for q in QUELLEN]
     teile = antwort.teile(d_bestand.text(viele))
     assert len(teile) > 1, "Testdaten zu klein - der Splitpfad wird gar nicht geprueft"
     for teil in teile:
         assert len(teil) <= antwort.LIMIT
-        assert teil.count("```") % 2 == 0, f"offener Codeblock in Teil:\n{teil}"
+    zeilen = [z for teil in teile for z in teil.split("\n") if z.startswith("•")]
+    assert len(zeilen) == len(viele), "eine Buchzeile wurde beim Split zerrissen"
 
 
-def test_lange_titel_werden_gekuerzt_statt_die_tabelle_zu_sprengen():
-    lang = [{"titel": "X" * 90, "sprache": "de", "edition": "2024",
-             "inhaltsart": "regelwerk", "versions_stand": None, "eintraege": 5}]
-    zeile = d_bestand.tabelle(lang).splitlines()[2]
-    assert "…" in zeile and len(zeile) < 70
+def test_lange_titel_bleiben_ganz():
+    """Ohne Spaltenzwang gibt es keinen Grund mehr zu kuerzen - der Titel ist die
+    Antwort auf die Frage, ob das Buch drinsteht, und bricht am Handy weich um."""
+    lang = "Ein wirklich ausufernd langer Buchtitel mit Untertitel und allem Drum und Dran"
+    assert lang in d_bestand.zeile({"titel": lang, "sprache": "de", "edition": "2024",
+                                    "inhaltsart": "regelwerk", "versions_stand": None,
+                                    "eintraege": 5})
 
 
 def test_website_und_discord_ordnen_dieselbe_quelle_gleich_ein():
