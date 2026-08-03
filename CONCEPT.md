@@ -185,9 +185,27 @@ justieren über `SPLIT_REGELN` / `MERGE_REGELN` / `BEREINIGUNG` je Quelle in
 Nach jedem Import: **FTS `rebuild`** (macht der Importer selbst). Re-Import ist **atomar**
 (Kandidat → Prüfung → `os.replace`), idempotent, mit Schrumpf-Schutz.
 
+**Quellbezug: fehlt die Datei, holt der Import sie** (`importer/quellbezug.py`). Führt ein
+`[[quelle]]`-Block eine `quell_url` und liegt unter `dateipfad` nichts, lädt der Import die
+Datei dorthin — der Weg für frei verteilte PDFs (die drei Errata-Bände). Netz ist hier nichts
+Neues: `glossar` und `open5e` rufen an derselben Stelle APIs, die Laufzeit bleibt offline (Q7).
+
+**Die tragende Regel: eine VORHANDENE Datei wird nie angefasst.** Nicht überschrieben, nicht
+verglichen, nicht „aktualisiert". Unter `quellen/` liegen kuratierte und reparierte PDFs — ein
+Bezug, der die Originaldatei ersetzt, macht stundenlange Handarbeit lautlos zunichte, und zwar
+genau dann, wenn jemand routiniert einen Re-Import fährt. Wer eine neue Auflage will, löscht
+die Datei bewusst. Dazu drei Prüfungen, bevor eine Antwort als Quelldatei gilt: **https**,
+ein Größen-Deckel und die **magischen Bytes** — nicht der Content-Type, denn ein Portal, das
+eine Anmelde- oder Cloudflare-Seite mit HTTP 200 ausliefert, ist der Normalfall, und ein
+HTML-Dokument namens `PHB-2024_v1.pdf` fiele sonst erst im PDF-Parser auf. Führt die Config
+einen `quell_hash`, ist er ein **Pin** (V10): passt er nicht, liegt an derselben URL ein
+anderer Inhalt — dann bricht der Import ab, statt `versions_stand` zu einer falschen Aussage
+über den Bestand zu machen.
+
 | Quelle | Weg |
 |---|---|
 | **Born-digital-PDF** (dt. SRD) | `[[quelle]]`-Block in `config/foliant.toml` → `admin import --quelle <kuerzel>` |
+| **Frei verteilte PDFs** (Errata) | dasselbe, plus `quell_url` (+ `quell_hash` als Pin) — die Datei holt der Import |
 | **Scans MIT OCR-Textschicht** (dt. 2014-Bücher) | Triage meldet „DIGITAL“ — misst aber nur, OB Text da ist, nicht die Chunk-Struktur: `pymupdf4llm` vergibt Heading-Ebenen relativ zum Gesamtdokument, dort liegt der Inhalt komplett auf H6 → eigene `SPLIT_REGELN` mit Level 6 nötig (sonst 3 Riesen-Chunks je Buch, Befund 27.07.2026). **Folgefalle:** auf H6 landet dann auch der Zauberkopf; `_LABEL_HEADING` fing nur die **fette** Form (`**Reichweite:** 9 m`), die Scans setzen sie blank → `KOPF_HEADING` |
 | **Gescannte PDFs** | `admin pdf-triage` (Befund) → `admin ocr-pdf` (`--redo` bei Alt-OCR, `--voll` = Neuaufbau) → normale Pipeline |
 | **Browser-Druck-PDFs** (DDB-Ausdrucke) | reparierte Original-Schicht **oder** Voll-OCR, je nach Schaden; Konvertierung am Mac |
@@ -466,6 +484,9 @@ Golden-Tests laufen gegen sie und sind ebenfalls gitignored.
 python db/init_db.py data/foliant.sqlite
 python -m app.admin import --quelle srd-de              # dt. SRD (Reparaturpaket greift)
 python -m app.admin import --quelle open5e-srd-2024     # Open5e-API
+python -m app.admin import --quelle errata-phb-2024-en  # offizielle Korrekturen, PDF wird geholt
+python -m app.admin import --quelle errata-dmg-2024-en
+python -m app.admin import --quelle errata-mm-2025-en
 python -m app.admin import --quelle glossar             # inkl. Kern-Singulare
 ```
 Reihenfolge: **Bestand → Facetten → Glossar.** Die Facetten laufen automatisch am Ende jedes
@@ -528,6 +549,10 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
   ```
   docker compose exec -T foliant python -m app.admin suchbericht        # --tage 30 --json
   ```
+  **Zwei Signalarten, und die erste ist die stärkere.** Ganz oben stehen die von der Runde
+  **markierten Antworten** (👎 in Discord → Tabelle `rueckmeldungen`, §9): ein Urteil, kein
+  Messwert — genau die Fehlerklasse, die *gefunden* hat und trotzdem falsch war und deshalb
+  in keiner Statistik auftaucht. Danach die gemessenen:
   Nulltreffer/Fuzzy-Landungen/Mehrdeutigkeiten/Übersetzungs-Lücken sind die
   Kuratier-Kandidaten für Glossar-Paare und Chunking-Korrekturen; der Kopf liefert die
   B9-Antwortzeiten (p50/p95). Die Log-DB liegt bewusst außerhalb von Backup-Glob und
@@ -546,7 +571,7 @@ check         Integritaet, FK, FTS-Suchbarkeit, Editionen, Textqualitaet, Facett
 qualitaet-basis  Basiswert bekannter Datenmaengel neu erheben [--schreiben] - nur am Vollbestand sinnvoll
 glossar-audit Glossar-Stand und -Herkunft pruefen
 glossar-paare Kandidaten fuer neue Glossar-Paare zeigen [--nur-neue] [--json]
-suchbericht   Auswertung des Abfrage-Protokolls: Nulltreffer, Fuzzy, Mehrdeutigkeiten
+suchbericht   Kuratier-Signale: MARKIERTE Antworten, Nulltreffer, Fuzzy, Mehrdeutigkeiten
 backup        konsistentes, verifiziertes Online-Backup mit Rotation
 ddb-pruefe | ddb-import | ddb-import-all | ddb-remove
 ```
@@ -561,21 +586,46 @@ ssh -L 8001:localhost:8001 <nutzer>@<pi-ip>     # dann http://localhost:8001
 ### Errata importieren (offizielle Korrekturen)
 
 Die drei Errata-PDFs (PHB 2024, DMG 2024, MM 2025) bietet WotC frei zum Herunterladen an;
-die `[[quelle]]`-Blöcke stehen fertig in `config/foliant.toml` (`errata-*`, `inhaltsart =
-"errata"`, Band 70). Ablauf: PDF nach `quellen/errata/` legen, dann
+die drei `[[quelle]]`-Blöcke liegen **einsatzbereit in
+[`config/foliant.example.toml`](config/foliant.example.toml)** (`errata-*`, `inhaltsart =
+"errata"`, Band 70, `quell_url` + gepinnter `quell_hash`) — dort und nicht in
+`config/foliant.toml`, weil die echte Config gitignored **und** vom Deploy-Rsync
+ausgeschlossen ist: jedes Gerät führt seine eigene. Die Blöcke enthalten nichts Privates
+(freie WotC-URLs plus Prüfsummen), also einmal in die eigene `foliant.toml` übernehmen.
+Danach **ein Befehl je Band, die PDF holt der Import selbst** (§4 „Quellbezug"):
 
 ```
 .venv/bin/python -m app.admin import --quelle errata-phb-2024-en
+.venv/bin/python -m app.admin import --quelle errata-dmg-2024-en
+.venv/bin/python -m app.admin import --quelle errata-mm-2025-en
 ```
 
-**Beim ERSTEN Import die Bilanzzeile lesen.** Errata-PDFs haben keine Heading-Struktur,
-die der Konverter erkennen könnte — jede Korrektur ist ein Absatz mit fettem Kopf
-(`**Jumping (p. 30).** …`). `_errata_headings` in `importer/import_markdown.py` macht
-daraus `### Jumping`; ohne diesen Schritt entstünde **ein Riesen-Chunk je Rubrik**, in dem
-die Suche nichts findet (derselbe Fehler wie bei den 2014-Scans, 27.07.2026). Das Muster
-ist aus dem veröffentlichten Aufbau abgeleitet, aber **nie an den echten Dateien
-justiert** (sie lagen bei der Umsetzung nicht vor). Greift es nicht, meldet die Bilanz das
-als `WIRKUNGSLOS` — dann das Muster nachziehen, statt den Riesen-Chunk zu importieren.
+Errata-PDFs haben keine Heading-Struktur, die der Konverter erkennen könnte — jede
+Korrektur ist ein Absatz mit fettem Kopf (`**_Polymorph (p. 306)._**`).
+`_errata_headings` in `importer/import_markdown.py` macht daraus `### Polymorph`; ohne
+diesen Schritt entstünde **ein Riesen-Chunk je Rubrik**, in dem die Suche nichts findet
+(derselbe Fehler wie bei den 2014-Scans, 27.07.2026).
+
+**Am echten Dokument justiert (03.08.2026).** Bis dahin war das Muster nur aus dem
+veröffentlichten Aufbau abgeleitet, und der erste echte Import zeigte, warum das nicht
+reicht — mit zwei Befunden, von denen der zweite der schlimmere war:
+
+1. **Vier der 17 PHB-Korrekturen beginnen mitten in der Zeile,** direkt hinter dem
+   Satzende der vorigen (`… to move”. **_Poisoner (p. 206)._** In the Brew Poison …`).
+   Der Kopf-Regex verlangte den Zeilenanfang — Poisoner, Conjure Fey, Polymorph und
+   Shapechange fehlten stumm im Bestand. `_ERRATA_KOPF_MITTEN` setzt sie jetzt zuerst auf
+   eigene Zeilen.
+2. **Die Bilanz zählte falsch — blind und laut zugleich.** Kandidat war „fetter Lauf am
+   Zeilenanfang": die vier verpassten Köpfe waren damit *nie* Kandidaten, dafür galt der
+   Dokumenttitel (`**Player’s Handbook (2024)**`) als verpasster Kopf. Gemeldet wurde
+   „1 von 14" — ein Fehlalarm, während der echte Ausfall unerwähnt blieb. **Das ist die
+   Lehre für jede Zählung dieser Art:** Sie muss messen, was gesucht wird (Köpfe *mit
+   Seitenangabe*, wo immer sie stehen), nicht, was leicht zu zählen ist.
+
+Endstand: **43 Korrekturen** aus drei PDFs (PHB 17, MM 24, DMG 2 — der DMG-Band ist
+wirklich so klein), Bilanz still. Greift das Muster bei einer künftigen Fassung nicht,
+meldet die Bilanz `WIRKUNGSLOS` — dann das Muster nachziehen, statt den Riesen-Chunk zu
+importieren.
 
 Zwei Dinge, die dabei bewusst so sind: Der **Eintragsname ist die betroffene Regel**
 („Fireball") — nur so findet das Erratum, wer nach der Regel sucht; die Kollision mit dem
@@ -701,6 +751,19 @@ Nutzers). `DISCORD_GUILD_ID` ist Pflicht — ohne sie startet der Bot nicht.
   (statisch, ohne API-Kosten), Kontextmenü „Foliant fragen", @Mention. Beide `/regel`-Formen
   tragen eine optionale `fassung`-Wahl (2024/2014). Was die Befehle können und **warum sie so
   geschnitten sind**, steht im Entscheidungsregister (§10).
+- **Rückmeldung der Runde:** Eine **👎-Reaktion** auf eine Bot-Antwort macht sie zum
+  Kurations-Kandidaten; der Bot bestätigt mit 📝, das Zurücknehmen löscht den Eintrag.
+  Warum das gebaut ist: Der Suchbericht sieht Nulltreffer, Fuzzy-Landungen und
+  Mehrdeutigkeiten — **er sieht nicht die Antwort, die gefunden hat und trotzdem falsch
+  war.** Genau die erkennen die Spieler sofort und hatten dafür keinen Weg außer „David
+  sagen". Eine Reaktion ist der kürzeste denkbare Meldeweg: kein Befehl, keine API-Kosten,
+  kein neuer State. Logik discord-frei in `app/discord_bot/rueckmeldung.py`, Ablage in
+  `protokoll.rueckmeldungen` (was dort steht und was nicht: §13), Ausgabe als erster
+  Abschnitt von `admin suchbericht` — vor jeder Statistik, weil ein Urteil der Runde der
+  stärkste Kandidat ist, den der Bericht kennt.
+  Das Recht *Add Reactions* trägt nur die Bestätigung: fehlt es, wird die Markierung
+  dennoch notiert. `deploy/discord_einrichten.sh` fordert es an; wer den Bot vorher
+  eingeladen hat, ruft den Einladungslink erneut auf.
 - **Kontrolle:** Discord-Anfragen erscheinen im Abfrage-Protokoll (`admin suchbericht`) —
   derselbe Kurations-Kreislauf wie beim MCP.
 - **Für die Runde erklärt** ist der Bot auf der Website (Karte „Foliant in Discord",
@@ -1117,6 +1180,12 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   verschiebt Glossar-Paare. Für die Facetten gibt es deshalb `kopf_felder()` mit
   auszeichnungsfreiem Kopf und wortgrenzen-festen Labeln — `tests/test_facetten_seeder.py`
   hält fest, dass der Abdruck sich dabei nicht bewegt.
+- **Der Quellbezug ersetzt NIE eine vorhandene Datei.** Wer `quell_url` als „hol die
+  aktuelle Fassung" liest, liegt falsch: Der Schritt greift nur, wenn unter `dateipfad`
+  nichts liegt. Das ist Absicht — unter `quellen/` stehen kuratierte und reparierte PDFs,
+  und ein Bezug, der sie überschreibt, vernichtet Handarbeit beim routinierten Re-Import.
+  Eine neue Auflage kommt herein, indem man die Datei bewusst löscht (und dann `quell_hash`
+  UND `versions_stand` nachzieht, sonst bricht der Pin den Import ab — richtig so).
 - **Ein Re-Import spielt die rohen OCR-Namen wieder ein** und macht die Namensreparatur der
   betroffenen Quelle zunichte. Facetten deshalb nie über einen Re-Import nachziehen, sondern
   mit `import --quelle facetten`. Musste ein Re-Import doch sein (z. B. nach einem
@@ -1174,6 +1243,13 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Suchbegriffe, Filter und Zeiten — keine Nutzerkennungen, IPs oder Gesprächsinhalte. Es
   ist die einzige Schreib-Ausnahme des Serving-Pfads und liegt deshalb in einer eigenen
   Datei; die bediente Korpus-DB bleibt strikt `mode=ro`.
+  Dieselbe Zusage gilt für die Tabelle `rueckmeldungen` (§9): Sie hält die **Frage** —
+  dieselbe Datenklasse wie `suchbegriff` — und einen **Nachrichten-Link**. Bewusst *nicht*
+  den Antworttext (das wäre Gesprächsinhalt in einer Log-Datei, und der Link führt in einem
+  Klick dorthin, wo die Antwort ohnehin steht) und **keine Nutzerkennung**: Wer markiert
+  hat, ist für die Kuration ohne Bedeutung, und die Markierung soll kein Sozialprotokoll
+  werden. Deshalb zählt auch nicht, wie oft markiert wurde — `UNIQUE(art, verweis)` ist die
+  Entdopplung, die ohne Nutzer-Identität funktioniert.
 - **Laufzeit offline** (MCP), read-only auf legal erworbenen Daten; Admin-Funktionen **nie**
   über den Tunnel, nur lokal/SSH.
 - **Discord-Bot:** keine eingehende HTTP-Fläche (nur ausgehend zu Discord/Anthropic);
@@ -1239,8 +1315,10 @@ P2-008 Agentenrechte eingedampft · P2-009 meta-Tabellen + CHECK-Constraints.
 
 ### P3 — bewusste Ausbaustufen (offen, nicht rundenblockierend)
 P3-001 strukturelle Rollen-/Spoiler-Isolation · P3-002 Regelbeziehungsgraph ·
-**P3-003 Errata-/Revisionstracking — Grundlage seit 31.07.2026 umgesetzt** (eigene
-`inhaltsart`-Werte `errata`/`regelauslegung`, Kennzeichnung 📌/⚖️ in beiden Ausgabewegen,
-Dedupe-Schutz gegen Verdrängung des Grundtexts, Prioritätsband 70, Chunking und
-Config-Blöcke; es fehlen die PDFs selbst — [BACKLOG.md](BACKLOG.md) §4) ·
+**P3-003 Errata-Tracking — seit 03.08.2026 mit Inhalt** (eigene `inhaltsart`-Werte
+`errata`/`regelauslegung`, Kennzeichnung 📌/⚖️ in beiden Ausgabewegen, Dedupe-Schutz gegen
+Verdrängung des Grundtexts, Prioritätsband 70, Chunking am echten Dokument justiert und
+**43 Korrekturen aus den drei WotC-Errata importiert**, deren PDFs der Import selbst holt).
+Offen bleibt die **Regelauslegung**: Sage Advice ist noch nicht eingebunden, und der
+bediente Pi-Bestand trägt die Errata erst nach einem Deploy — [BACKLOG.md](BACKLOG.md) §4 ·
 P3-004 Hausregeln-Overlay. Siehe [BACKLOG.md](BACKLOG.md) §4.

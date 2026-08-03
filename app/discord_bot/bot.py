@@ -16,8 +16,8 @@ import discord
 import httpx
 from discord import app_commands
 
-from app import llm
-from app.discord_bot import antwort, rebuild
+from app import llm, protokoll
+from app.discord_bot import antwort, rebuild, rueckmeldung
 from app.discord_bot.gespraech import GespraechsSpeicher, verlaufsschluessel
 from app.discord_bot.schranken import Schranken
 
@@ -240,6 +240,85 @@ class FoliantBot(discord.Client):
             await self._thread_folgefrage(nachricht)
         elif erwaehnt:
             await self._mention_frage(nachricht, ist_thread)
+
+    # --- Rueckmeldungen der Runde (O4/M5) -----------------------------------------
+
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
+        """👎 auf eine eigene Antwort -> Kurations-Kandidat im Abfrage-Protokoll.
+
+        RAW statt `on_reaction_add`: Das gecachte Ereignis feuert nur fuer Nachrichten, die
+        der Bot noch im Speicher hat. Nach einem Neustart - und genau dann liegen die
+        interessanten Antworten schon im Kanal - blieben Markierungen sonst stumm."""
+        markierung = await self._markierte_antwort(payload)
+        if markierung is None:
+            return
+        nachricht, kanal = markierung
+        frage = await self._frage_zur_antwort(nachricht, kanal)
+        protokoll.merke_rueckmeldung(
+            art=rueckmeldung.ART, frage=frage,
+            verweis=rueckmeldung.verweis(payload.guild_id, payload.channel_id,
+                                         payload.message_id))
+        try:
+            await nachricht.add_reaction(rueckmeldung.BESTAETIGUNG)
+        except discord.HTTPException as fehler:
+            # Fehlt das Reaktions-Recht, ist die Markierung TROTZDEM notiert - nur die
+            # Bestaetigung bleibt aus. Deshalb erst schreiben, dann bestaetigen.
+            _log.warning("Bestaetigung nicht setzbar: %s", type(fehler).__name__)
+
+    async def on_raw_reaction_remove(self,
+                                     payload: discord.RawReactionActionEvent) -> None:
+        """Markierung zurueckgenommen -> Zeile weg. Ein Fehlgriff soll die Kurationsliste
+        nicht dauerhaft belasten. Die Bestaetigung des Bots bleibt bewusst stehen: sie
+        wieder wegzunehmen hiesse zu wissen, ob NIEMAND mehr markiert hat - und dafuer
+        muesste der Bot Nutzer auseinanderhalten."""
+        if not rueckmeldung.ist_markierung(str(payload.emoji)):
+            return
+        if payload.guild_id != self._guild.id:
+            return
+        protokoll.loesche_rueckmeldung(
+            art=rueckmeldung.ART,
+            verweis=rueckmeldung.verweis(payload.guild_id, payload.channel_id,
+                                         payload.message_id))
+
+    async def _markierte_antwort(self, payload: discord.RawReactionActionEvent):
+        """(Nachricht, Kanal), wenn das Ereignis eine Markierung an einer EIGENEN Antwort
+        im richtigen Ort ist - sonst None. Die Reihenfolge der Pruefungen ist
+        Sparsamkeit: Emoji und Guild kosten nichts, das Nachladen der Nachricht einen
+        API-Aufruf."""
+        if not rueckmeldung.ist_markierung(str(payload.emoji)):
+            return None
+        if payload.guild_id != self._guild.id:
+            return None
+        try:
+            kanal = (self.get_channel(payload.channel_id)
+                     or await self.fetch_channel(payload.channel_id))
+            ort_id = getattr(kanal, "parent_id", None) or payload.channel_id
+            if not self.schranken.richtiger_ort(payload.guild_id, ort_id):
+                return None
+            nachricht = await kanal.fetch_message(payload.message_id)
+        except discord.HTTPException as fehler:
+            _log.warning("Reaktion nicht aufloesbar: %s", type(fehler).__name__)
+            return None
+        if nachricht.author.id != (self.user and self.user.id):
+            return None                      # fremde Nachricht: nicht unsere Auskunft
+        return nachricht, kanal
+
+    async def _frage_zur_antwort(self, nachricht: discord.Message, kanal) -> str | None:
+        """Die Frage, auf die die markierte Antwort geantwortet hat. Best effort - ein
+        leeres Ergebnis verwirft die Markierung NICHT (rueckmeldung.frage_aus_umgebung)."""
+        try:
+            vorlauf = [(n.author.bot, n.content)
+                       async for n in kanal.history(limit=6, before=nachricht)]
+            vorlauf.reverse()                # history() liefert neueste zuerst
+        except discord.HTTPException:
+            vorlauf = []
+        if isinstance(kanal, discord.Thread):
+            titel = kanal.name
+        else:
+            # /regel antwortet IM KANAL und haengt den Thread an diese Nachricht - der
+            # Titel traegt dort die Frage, die als Slash-Parameter nirgends steht.
+            titel = getattr(nachricht.thread, "name", None)
+        return rueckmeldung.frage_aus_umgebung(vorlauf, titel)
 
     async def _stelle_verlauf_her(self, thread: discord.Thread) -> bool:
         """Verlauf eines eigenen Threads aus der Discord-Historie rekonstruieren.

@@ -43,6 +43,9 @@ HILFE = (
     "Erwaehnung.\n"
     "- Rechtsklick auf eine Nachricht → Apps → **Foliant fragen** prueft deren "
     "Aussage als Regelfrage.\n\n"
+    "**War eine Antwort falsch?** Reagiere mit 👎 darauf. Foliant merkt sich die Frage "
+    "als Korrektur-Kandidat (📝 heisst: notiert) - so wird der Bestand genau dort besser, "
+    "wo er heute daneben liegt. Reaktion wieder wegnehmen loescht den Eintrag.\n\n"
     "Foliant antwortet nur aus dem Regelbestand der Runde, nennt immer Quelle und "
     "Regelversion und verraet nichts aus Abenteuern (Spoiler-Schutz)."
 )

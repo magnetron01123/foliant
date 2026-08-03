@@ -76,6 +76,10 @@ nach einem Server-Neustart, denn der Bot liest den Thread dann aus der Discord-H
 zurück. Wer nur für sich nachschlagen möchte, nimmt **`/regel-privat <frage>`**: die
 Antwort sieht dann niemand sonst, dafür gibt es keinen Thread für Nachfragen. Es gilt ein
 gemeinsames Tageslimit als Kostendeckel.
+
+**War eine Antwort falsch?** Mit 👎 darauf reagieren — Foliant merkt sich die Frage als
+Korrektur-Kandidaten (📝 heißt: notiert) und wird genau dort besser, wo er heute daneben
+liegt. Reaktion wegnehmen löscht den Eintrag.
 Einrichtung (einmalig, Betreiber): [CONCEPT.md](CONCEPT.md) §9 „Discord-Bot einrichten".
 
 Betrieb, Deployment und die Import-Wege im Detail: [CONCEPT.md](CONCEPT.md) §8–9.

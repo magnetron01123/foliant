@@ -403,16 +403,69 @@ def test_errata_erkennt_beide_fettformen():
     assert "S. 30" in aus and "S. 182" in aus, aus
 
 
-def test_errata_meldet_auch_einen_TEILtreffer():
+def test_errata_kopf_mitten_in_der_zeile_wird_eigener_eintrag():
+    """Befund 03.08.2026, erster Import an der ECHTEN Datei: Vier der 17 PHB-Korrekturen
+    beginnen nicht am Zeilenanfang, sondern direkt hinter dem Satzende der vorigen
+    ('… to move”. **_Poisoner (p. 206)._** In the Brew Poison …'). Sie hingen stumm am
+    Vorgaenger - Poisoner, Conjure Fey, Polymorph und Shapechange fehlten im Bestand.
+
+    Der Wortlaut hier ist aus dem echten PDF genommen, nicht erfunden."""
+    from importer.import_markdown import _errata_headings
+
+    echt = ("**_Grappler (p. 204)._** In the Fast Wrestler benefit, "
+            "“extra movement to move” is now “You don’t have to spend extra movement "
+            "to move”. **_Poisoner (p. 206)._** In the Brew Poison benefit, the text "
+            "is corrected.")
+    aus = _errata_headings(echt)
+    assert "### Grappler" in aus and "### Poisoner" in aus, aus
+    assert "S. 204" in aus and "S. 206" in aus, aus
+    # Die zweite Ueberschrift muss am ZEILENANFANG stehen - mitten in der Zeile waere
+    # '### Poisoner' fuer Markdown keine Ueberschrift, sondern Text mit Rauten.
+    assert "\n### Poisoner" in aus, aus
+
+
+def test_errata_kopf_mitten_im_satz_wird_NICHT_abgetrennt():
+    """Ein fetter Name mit Seitenangabe mitten im Satz ist eher ein Querverweis als eine
+    neue Korrektur. Abtrennen wuerde den Satz zerreissen und einen Scheineintrag bauen.
+    Er faellt dafuer in der Bilanz auf (siehe test_errata_bilanz_zaehlt_...)."""
+    from importer.import_markdown import _errata_headings
+
+    aus = _errata_headings("**Cover (p. 30).** Siehe auch **Jumping (p. 12).** dazu.")
+    assert aus.count("###") == 1, aus
+
+
+def test_errata_kursivmarke_landet_nicht_im_body():
+    """Das echte Errata setzt '**_Polymorph (p. 306)._**'. Die schliessende Kursiv-Marke
+    stand als einzelnes '_' am Anfang JEDES Bodys ('… im Grundbuch.** _ In the …') -
+    kosmetisch, aber in fast jedem Eintrag."""
+    from importer.import_markdown import _errata_headings
+
+    aus = _errata_headings("**_Polymorph (p. 306)._** In the spell description ...")
+    assert "Grundbuch.** In the spell" in aus, aus
+
+
+def test_errata_bilanz_zaehlt_kopfFORMEN_nicht_zeilenanfaenge():
     """Der gefaehrlichere Fall als 'gar nichts erkannt': der Import laeuft durch, ein Teil
-    der Korrekturen hat aber keinen eigenen Eintrag. Ohne Zaehlung faellt das niemandem
-    auf - die Bilanz meldete frueher nur, wenn KEIN Kopf passte."""
+    der Korrekturen hat aber keinen eigenen Eintrag.
+
+    Die Zaehlung war bis zum 03.08.2026 gleichzeitig BLIND und LAUT: Kandidat war 'fetter
+    Lauf am Zeilenanfang'. Die vier verpassten Koepfe standen mitten in der Zeile, waren
+    also nie Kandidaten - dafuer galt der Dokumenttitel ('**Player's Handbook (2024)**')
+    als verpasster Kopf. Gemeldet wurde '1 von 14': ein Fehlalarm, waehrend der echte
+    Ausfall unerwaehnt blieb. Gezaehlt wird jetzt, was wie ein Korrektur-Kopf AUSSIEHT."""
     from importer.import_markdown import _errata_headings, letzte_bilanz
 
+    # (a) Ein Titel in Klammern OHNE Seitenangabe ist kein Kandidat - kein Fehlalarm.
     letzte_bilanz().wirkungslos.clear()
-    _errata_headings("**Cover (p. 30).** Erste.\n\n**Kapitel 2**\n\n**Ohne Seite** Text.")
+    _errata_headings("**Player’s Handbook (2024)**\n\n**Cover (p. 30).** Text.")
+    assert not letzte_bilanz().wirkungslos, letzte_bilanz().wirkungslos
+
+    # (b) Ein Kopf, dessen Seitenangabe unlesbar ist, IST ein Kandidat - und faellt auf.
+    letzte_bilanz().wirkungslos.clear()
+    _errata_headings("**Cover (p. 30).** Erste.\n\n"
+                     "**Weapons (p. 12 and see also 40).** Zweite.")
     meldung = " ".join(letzte_bilanz().wirkungslos)
-    assert "_errata_headings" in meldung and "2 von 3" in meldung, meldung
+    assert "_errata_headings" in meldung and "1 von 2" in meldung, meldung
     letzte_bilanz().wirkungslos.clear()
 
 

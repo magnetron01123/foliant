@@ -17,7 +17,7 @@ David**, nicht an Code:
 | offen | wartet auf |
 |---|---|
 | **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — derzeit liegen Bestand *und* alle Sicherungen auf derselben SD-Karte. **Das einzige Risiko mit unwiederbringlichem Schaden** |
-| **Errata-PDFs** (§4) | drei Downloads — der Revisions-Layer steht, trägt aber noch null Einträge |
+| **Errata auf dem Pi** (§4) | einen Deploy + drei Import-Befehle — lokal sind die 43 Korrekturen drin, der bediente Bestand hat sie noch nicht |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
 | **M6** Discord-Bot | Token im Entwicklerportal, Erst-Test in der Guild |
 | **M7** Discord-Ausbau | Eval-Lauf mit den DC-Fällen, Echttest nach einem Neustart |
@@ -71,10 +71,22 @@ Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
 
 **Gate:** Backup liegt außerhalb des Pi, Dienst übersteht Neustart, Monitoring meldet Ausfälle.
 
-### M4 — Onboarding & Pilot-Session · *klein*
-Spielerfeste Kurzanleitung für den **MCP-Connector** (URL eintragen, aktivieren,
-Beispielfragen, Fallback-Hinweis — Custom Connectors sind Beta). Muster und Tonfall: die
-Charakterbogen-Anleitung in [README.md](README.md). Danach eine Pilot-Session mit 1–2 Spielern.
+### M4 — Onboarding & Pilot-Session · *klein · Anleitung ✅, Pilot offen*
+- ✅ **Spielerfeste Kurzanleitung** (03.08.2026) — auf der Charakterbogen-Website, dort wo
+  die Spieler ohnehin Link und Projektanweisung holen. Der B10-Fallback („Connectoren sind
+  Beta → Link neu hinzufügen, sonst nimm Discord") steht als **eine Zeile** unter der
+  Einrichtung.
+- ✅ **Die Seite gekürzt statt erweitert** (Eigentümer-Entscheidung 03.08.2026). Der erste
+  Anlauf hatte sieben geprüfte Beispielfragen und einen vierteiligen Fehler-Fahrplan — beides
+  fachlich richtig und **trotzdem falsch**: Wer eine Regelfrage im Spiel hat, liest keine
+  Bedienungsanleitung. Gestrichen wurden Beispielfragen, Fehler-Fahrplan, der
+  „mit/ohne Foliant"-Vergleich, die Pipeline-Erklärung des Übersetzers und drei
+  Discord-Blöcke; der sichtbare Text der Seite halbierte sich (5900 → 2885 Zeichen ohne
+  Projektanweisung). **Maßstab bleibt: so viel wie nötig, so wenig wie möglich** — was der
+  Bot im richtigen Moment selbst sagt (Tageslimit erreicht, Faden vergessen), braucht nicht
+  vorab auf der Seite zu stehen.
+- ⬜ **Pilot-Session mit 1–2 Spielern** (David) — das eigentliche Gate.
+
 **Gate:** ein nicht-technischer Mitspieler verbindet sich eigenständig und nutzt es im Spiel.
 
 ### M1 — Immersion / deutsche Bücher · *Hebel #1 · wartet auf PDFs*
@@ -110,8 +122,10 @@ die Entscheidung noch einmal zu prüfen ist.*
 ### M5 — Feedback & Iteration · *laufend, kein Gate*
 
 **Der Durchgang, wie er läuft:** `docker compose exec -T foliant python -m app.admin
-suchbericht` listet Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten und Übersetzungs-Lücken
-als Kuratier-Kandidaten (inkl. Antwortzeit p50/p95 → B9/M3). Aus einem Kandidaten wird ein
+suchbericht` listet die von der Runde **markierten Antworten** (👎 in Discord, seit
+03.08.2026 — der stärkste Kandidat und deshalb der erste Abschnitt), dazu Nulltreffer,
+Fuzzy-Landungen, Mehrdeutigkeiten und Übersetzungs-Lücken (inkl. Antwortzeit p50/p95 →
+B9/M3). Aus einem Kandidaten wird ein
 Glossar-Paar über `admin glossar-paare --nur-neue` (Struktur-Abgleich mit Beweisstufe, Review
 **vor** `import --quelle glossar`); danach dürfen die **echten** Konflikte in
 `admin glossar-audit` nicht zunehmen — editionsgetrennte Formen regelt S8 selbst, und die
@@ -128,6 +142,13 @@ geprüften Homonyme stehen als Beleg in `GEPRUEFTE_HOMONYME` ([CONCEPT.md](CONCE
 `gelegenheitsangriff` war 5× mehrdeutig, weil Singular und Plural im Glossar zwei Inseln sind
 (behoben, Mechanik und Grenze in [CONCEPT.md](CONCEPT.md) §12). Offen als echte Kandidaten
 bleiben `samurai`, `soul cage`, `erzwungene bewegung`.
+
+**Beim Prüfen von Beispielfragen aufgefallen (03.08.2026):** `umklammern` liefert
+**null Treffer**, während `Gepackt` und `grappled` beide auf den Zustand führen. Das ist
+kein Bestandsmangel, sondern eine fehlende Suchvariante — und ein Wort, das am Tisch
+fallen dürfte. Kandidat für ein `offiziell = 0`-Paar; **am Pi-Vollbestand
+gegenzuprüfen**, bevor daraus ein Eintrag wird: das Mac-Glossar ist ein Subset
+(`make glossar-vom-pi`).
 
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking und
 Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
@@ -161,6 +182,13 @@ die Tokens bzw. eine echte Guild brauchen:
   geprüft, nicht das Verhalten.
 - ⬜ Echttest in der Guild: Frage stellen → `docker compose restart discord` → Folgefrage
   im Thread wird **mit** Kontext beantwortet
+- ✅ **Rückmeldung per 👎-Reaktion** (03.08.2026): macht eine falsche Antwort zum
+  Kurations-Kandidaten, ohne Befehl und ohne API-Kosten — der Meldeweg, der die eine
+  Fehlerklasse findet, die keine Statistik zeigt. Begründung und Datenschutz-Schnitt:
+  [CONCEPT.md](CONCEPT.md) §9/§13.
+- ⬜ Echttest des Meldewegs in der Guild: 👎 auf eine Antwort → 📝 erscheint → die Zeile
+  steht im `admin suchbericht`. Prüft zugleich, ob das Recht *Add Reactions* gesetzt ist
+  (fehlt es, wird die Markierung notiert, aber nicht bestätigt).
 
 **Gate:** eine Folgefrage nach einem Neustart wird mit Kontext beantwortet, und der
 DC-Lauf steht im Eval-Report.
@@ -174,11 +202,11 @@ B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
 | **S10** | Deutscher Regeltext primär (dt. 2024-Grundregelwerke) | ⬜ | M1 |
 | V7 | Erweiterbares Versionsschema | 🟡 | `edition` ist ein Textfeld — reicht heute, feinere Granularität ohne Migration nachrüstbar |
 | NF4 | Legale Quellen; DDB nur privat | 🟡 | bewusste Entscheidung, siehe [SPEC.md](SPEC.md) §12 Nr. 1 |
-| NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | ⬜ | M4 |
+| NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | 🟡 | Anleitung inkl. Beta-Fallback steht (M4); offen ist nur der Nachweis am echten Mitspieler |
 | B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln **und unter Sessionlast** belegt — Zahlen in §1/M3; `make lasttest-pi` hält sie als Wächter fest (bricht bei p95 > 1000 ms ab) |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
-| V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Layer steht (Schema, Kennzeichnung 📌/⚖️, Dedupe-Schutz, Band 70); es fehlen die **PDFs selbst** — §4 |
+| V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Errata erfüllt (43 Korrekturen lokal importiert, 📌 greift); offen: Import auf dem Pi und die Regelauslegung (Sage Advice) — §4 |
 | V10 | Quellen-Provenienz (`versions_stand`, `quell_url`, `quell_hash`, `importiert_am`) | ✅ | Schema v3; alle vier optional, nichts wird geraten |
 
 ---
@@ -354,20 +382,49 @@ Regressionstest verankert.*
 
 Was noch fehlt:
 
-- ⬜ **Die drei Errata-PDFs ablegen und importieren** (PHB 2024, DMG 2024, MM 2025). Die
-  `[[quelle]]`-Blöcke stehen fertig in `config/foliant.toml`, die Dateien fehlen. Beim
-  ersten Import die **Bilanzzeile lesen**: das Chunking-Muster (`_errata_headings`) ist aus
-  dem veröffentlichten Aufbau abgeleitet, aber nie an den echten Dateien justiert. Die
-  Bilanz meldet zwei Fälle — `kein Korrektur-Kopf mit Seitenangabe` (Muster passt gar
-  nicht) und `N von M fetten Koepfen ohne erkennbare Seitenangabe` (Teiltreffer, der
-  gefährlichere Fall: der Import läuft durch, ein Teil der Korrekturen hängt stumm am
-  Vorgänger).
+- ✅ **Die drei Errata-PDFs sind importiert** — 43 Korrekturen (PHB 17, MM 24, DMG 2), am
+  Mac verifiziert. Der Download ist Teil des Imports (`quell_url` + gepinnter `quell_hash`,
+  [CONCEPT.md](CONCEPT.md) §4); das Chunking-Muster ist am echten Dokument justiert und die
+  Bilanz-Zählung korrigiert — beide Befunde stehen in [CONCEPT.md](CONCEPT.md) §8.
+- ⬜ **Auf dem Pi nachziehen** (David). Der Pi-Bestand trägt die Errata noch **nicht** —
+  bis dahin sieht die Runde die Korrekturen nicht. `make deploy-pi` allein reicht nicht:
+  `config/foliant.toml` ist vom rsync **ausgeschlossen** (jedes Gerät führt seine eigene).
+  Die drei `[[quelle]]`-Blöcke stehen deshalb einsatzbereit in
+  [`config/foliant.example.toml`](config/foliant.example.toml) — mit Pins, ohne Privates.
+  ```sh
+  make deploy-pi
+  ssh $PI 'cd ~/foliant && sed -n "/errata-phb-2024-en/,/^# ---/p" \
+      config/foliant.example.toml >> config/foliant.toml'   # oder von Hand kopieren
+  for b in errata-phb-2024-en errata-dmg-2024-en errata-mm-2025-en; do \
+      ssh $PI "cd ~/foliant && docker compose exec -T foliant \
+               python -m app.admin import --quelle $b"; done
+  make test-golden-pi
+  ```
+  Die PDFs brauchst du **nicht** mitzuschicken (`quellen/` ist ebenfalls ausgeschlossen) —
+  der Import holt sie auf dem Pi selbst. Erwartet: 17 / 2 / 24 Korrekturen, Bilanz still.
 - ⬜ **Sage Advice Compendium** einbinden. Der `[[ddb.buch]]`-Block liegt auskommentiert in
   der Config; ungeklärt ist, ob der DDB-Account den Band führt (`ddb-exporter list-owned`).
   Wenn nicht: freies PDF über den `[[quelle]]`-Weg mit `inhaltsart = "regelauslegung"`.
-- ⬜ **Errata-Kategorien verfeinern.** Alle Errata-Einträge tragen heute `kategorie =
-  "regel"`. Zeigen die PDFs saubere Rubriken („Spells", „Monsters"), lässt sich das über
-  `SPLIT_REGELN` schärfen — geraten wird es nicht.
+- ⬜ **Errata-Kategorien verfeinern** — *die Frage von damals ist beantwortet, die
+  Entscheidung offen.* Alle 43 Errata-Einträge tragen heute `kategorie = "regel"`. Die
+  Vermutung war, dass die PDFs saubere Rubriken führen; **am 03.08.2026 an den echten
+  Dateien nachgesehen: sie tun es**, als H2-Überschriften. Vier von sechs mappen eindeutig
+  auf eine Kategorie, eine tut es nicht:
+
+  | Rubrik im PDF | Kategorie |
+  |---|---|
+  | „Spells" (PHB) | `zauber` |
+  | „Creature Stat Blocks" (PHB) · „Monsters A to Z" (MM) | `monster` |
+  | „Equipment" (PHB) | `gegenstand` |
+  | „Feats" (PHB) | `talent` |
+  | „Rules Glossary" (PHB) · „DM's Toolbox" / „Creating Adventures" (DMG) | `regel` |
+  | **„Character Origins" (PHB)** | **nicht ableitbar** — das Kapitel führt Spezies *und* Hintergründe *und* Herkunftstalente. Eine Zuordnung wäre geraten (Regel 1), also bleibt es `regel` |
+
+  **Was es bringt und was es kostet:** Der Detailabruf verlangt `kategorie` als Pflichtfeld —
+  wer das Erratum zu einem Zauber über `foliant_hol_eintrag(kategorie="zauber")` sucht, findet
+  es heute nicht. Die Suche ohne Kategorie findet es (geprüft). Umsetzung wären `SPLIT_REGELN`
+  je Rubrik; Preis ist ein Re-Import der drei Bände, der hier gefahrlos ist (keine
+  Namensreparatur an den Errata). **Deine Entscheidung** — die Datengrundlage steht jetzt.
 - ⬜ **Conversion Guide SRD 5.1→5.2.1** als Beleg für die kuratierten Begriffspaare
   (`SRD_2024_BEGRIFFSPAARE` in `importer/import_glossar.py`). Er klassifiziert
   Umbenennungen offiziell und wäre damit ein stärkerer Beleg als die eigene Auszählung am

@@ -334,6 +334,17 @@ _ERRATA_FETTKOPF = re.compile(r"^\*\*(?P<fett>[^*\n]+?)\*\*(?P<rest>[^\n]*)", re
 # Eine Seitenangabe in Klammern: '(p. 30)', '(pp. 27-28)', '(page 30)', '(pp. 12, 40)'.
 _ERRATA_SEITE = re.compile(r"\(\s*(?:pp?\.|page)\s*([\d–—,\s-]+?)\s*\)")
 
+# Wie ein Korrektur-Kopf AUSSIEHT - unabhaengig davon, wo in der Zeile er steht. Zwei
+# reale Formen: Seitenangabe innerhalb der Fettung und dahinter.
+_ERRATA_KOPF_FORM = (r"\*\*_?[^*\n]{1,80}?\(\s*(?:pp?\.|page)"
+                     r"|\*\*_?[^*\n]{1,80}?_?\*\*\s*\(\s*(?:pp?\.|page)")
+_ERRATA_KOPF_KANDIDAT = re.compile(_ERRATA_KOPF_FORM)
+# Ein Kopf, der MITTEN in der Zeile beginnt - unmittelbar hinter dem Satzende der vorigen
+# Korrektur. Genau so setzt das echte PHB-Errata 4 seiner 17 Korrekturen (Befund
+# 03.08.2026, erster Import an der echten Datei).
+_ERRATA_KOPF_MITTEN = re.compile(
+    rf"(?<=[.!?”’\"')\]])[ \t]+(?=(?:{_ERRATA_KOPF_FORM}))")
+
 
 def _errata_headings(markdown: str) -> str:
     """Aus den fetten Absatzkoepfen eines Errata-PDFs echte Ueberschriften machen.
@@ -363,21 +374,43 @@ def _errata_headings(markdown: str) -> str:
     backtrackte dort bis zur letzten und schrieb sowohl den falschen Namen als auch die
     falsche Buchseite in den Eintrag.
 
-    ACHTUNG, an echten Daten noch nicht justiert (31.07.2026): Die drei Errata-PDFs lagen
-    bei der Umsetzung nicht vor, das Muster ist aus dem veroeffentlichten Aufbau
-    abgeleitet. Deshalb zaehlt die Bilanz KANDIDATEN gegen ERKANNTE: ein Kopf, der nicht
-    passt, faellt so auf, statt still im vorherigen Eintrag zu landen. Beim ersten echten
-    Import die Bilanzzeile lesen."""
-    erkannt = kandidaten = 0
+    AN DER ECHTEN DATEI JUSTIERT (03.08.2026). Das Muster war bis dahin nur aus dem
+    veroeffentlichten Aufbau abgeleitet, und der erste echte Import zeigte ZWEI Defekte:
+
+    1. Vier der 17 PHB-Korrekturen beginnen MITTEN IN DER ZEILE, direkt hinter dem
+       Satzende der vorigen ('… to move”. **_Poisoner (p. 206)._** In the Brew Poison …').
+       `_ERRATA_FETTKOPF` verlangt aber den Zeilenanfang - Poisoner, Conjure Fey,
+       Polymorph und Shapechange hingen also stumm am Vorgaenger. Deshalb setzt
+       `_ERRATA_KOPF_MITTEN` sie ZUERST auf eigene Zeilen; danach laeuft die bewaehrte
+       Zeilenanfang-Logik unveraendert. Ein Kopf ohne Satzende davor wird bewusst NICHT
+       abgetrennt - mitten im Satz ist ein fetter Name mit Seitenangabe eher ein
+       Querverweis ('see **Jumping** (p. 30)') als eine neue Korrektur. Er faellt dann
+       aber in der Bilanz auf, statt zu verschwinden.
+
+    2. Die Bilanz zaehlte FETTE LAEUFE AM ZEILENANFANG als Kandidaten - und war damit
+       gleichzeitig blind und laut: Die vier verpassten Koepfe waren nie Kandidaten, dafuer
+       galt der Dokumenttitel ('**Player's Handbook (2024)**') als verpasster Kopf. Sie
+       meldete '1 von 14' - der Fehlalarm - waehrend der echte Ausfall unerwaehnt blieb.
+       Gezaehlt wird jetzt, was wie ein Korrektur-Kopf AUSSIEHT (`_ERRATA_KOPF_KANDIDAT`,
+       positionsunabhaengig): fett + Seitenangabe. Ein Titel in Klammern ohne 'p.' ist
+       damit kein Kandidat, ein unlesbares '(p. 12 and see also 40)' schon."""
+    kandidaten = len(_ERRATA_KOPF_KANDIDAT.findall(markdown))
+    markdown = _ERRATA_KOPF_MITTEN.sub("\n\n", markdown)
+    erkannt = 0
 
     def ersetze(m: re.Match) -> str:
-        nonlocal erkannt, kandidaten
-        kandidaten += 1
+        nonlocal erkannt
         fett, rest = m.group("fett"), m.group("rest")
         treffer = _ERRATA_SEITE.search(fett)
         if treffer:                                   # Seite innerhalb der Fettung
             name, seite = fett[:treffer.start()], treffer.group(1)
-            schwanz = fett[treffer.end():].lstrip(" .") + rest
+            # `_*` mitstrippen, aber NUR am kopf-internen Rest: das echte Errata setzt
+            # '**_Polymorph (p. 306)._**', und die schliessende Kursiv-Marke stand sonst
+            # als einzelnes '_' am Anfang jedes Bodys ('… im Grundbuch.** _ In the …').
+            # `rest` (die Prosa hinter der Fettung) bleibt unangetastet - dort waere ein
+            # fuehrender Unterstrich eine echte Kursivierung, und sie zu kappen liesse
+            # ihre schliessende Marke unpaarig zurueck.
+            schwanz = fett[treffer.end():].lstrip(" ._*") + rest
         else:                                         # Seite direkt hinter der Fettung
             vorne = rest.lstrip()
             treffer = _ERRATA_SEITE.match(vorne)
@@ -400,8 +433,8 @@ def _errata_headings(markdown: str) -> str:
         # Teiltreffer sind der gefaehrlichere Fall: der Import laeuft durch, ein Teil der
         # Korrekturen hat aber keinen eigenen Eintrag und haengt am Vorgaenger.
         _BILANZ.greift_nicht(
-            f"_errata_headings ({kandidaten - erkannt} von {kandidaten} fetten Koepfen "
-            f"ohne erkennbare Seitenangabe)")
+            f"_errata_headings ({kandidaten - erkannt} von {kandidaten} Korrektur-Koepfen "
+            f"nicht als Eintrag erkannt)")
     return ergebnis
 
 

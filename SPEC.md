@@ -274,10 +274,14 @@ der Gefahr, die Markdown-Fences zu zerreißen, an denen die Website und die Test
 - **O3 — Import-Qualitätsprüfung vor Freigabe.** Neu importierter Inhalt wird
   stichprobenartig geprüft (korrekte Zahlen, Leserichtung, keine zerrissenen Statblöcke).
 - **O4 — Feedback-/Korrekturschleife.** Schlechte Treffer und falsche Auskünfte werden
-  gesammelt und nachgezogen. Server-seitig erledigt: das Abfrage-Protokoll loggt jede
-  Nachschlage-Anfrage (Suchweg, Trefferzahl, Dauer), `admin suchbericht` macht daraus
-  Kuratier-Kandidaten (Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten,
-  Übersetzungs-Lücken). *(Regelmäßiges Sichten: BACKLOG M5.)*
+  gesammelt und nachgezogen. Zwei Meldewege, weil sie verschiedene Fehler finden:
+  **gemessen** — das Abfrage-Protokoll loggt jede Nachschlage-Anfrage, `admin suchbericht`
+  macht daraus Kuratier-Kandidaten (Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten,
+  Übersetzungs-Lücken); und **gemeldet** — die Runde markiert eine falsche Antwort direkt
+  im Client, ohne Umweg über den Betreiber. Der zweite Weg ist kein Komfort: Eine Auskunft,
+  die technisch gefunden hat und inhaltlich daneben lag, erzeugt **kein** Messsignal — sie
+  fällt nur einem Menschen auf. *(Umsetzung: [CONCEPT.md](CONCEPT.md) §9. Regelmäßiges
+  Sichten: BACKLOG M5.)*
 - **O5 — Secrets sicher halten.** Zugangsdaten (v. a. der DDB-Cobalt-Cookie) nur
   server-seitig, erneuerbar. Ohne gültigen Cookie schlägt nur der DDB-*Import* fehl, nicht
   der laufende Betrieb.

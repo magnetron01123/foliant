@@ -215,7 +215,11 @@ def test_mcp_link_erscheint_nur_hinter_dem_login(tmp_path):
     assert MCP_URL_TEST in r.text                    # kopierbares Feld mit dem Link
     assert "Foliant im Claude-Chat" in r.text        # eigener Inhaltspunkt
     assert "Kopieren" in r.text
-    assert "ohne Foliant" in r.text                  # Vergleich mit/ohne MCP
+    # B10 (Custom Connectors sind Beta): ein Ausweg muss dastehen, sonst steht ein Spieler
+    # bei einem verschwundenen Connector ohne alles da. Geprueft wird die ZUSAGE, nicht der
+    # Wortlaut - der Vergleichskasten "mit/ohne Foliant" stand hier mal und ist bewusst
+    # gestrichen (03.08.2026, Eigentuemer-Wunsch: so viel wie noetig, so wenig wie moeglich).
+    assert "Beta" in r.text and "Discord" in r.text
     assert "{{MCP_URL}}" not in r.text               # Platzhalter vollständig ersetzt
 
 
@@ -301,7 +305,12 @@ def test_discord_abschnitt_erklaert_den_bot(client):
     assert 'id="discord"' in r.text
     assert 'href="#discord"' in r.text                    # im Seitenkopf verlinkt
     assert "/regel" in r.text and "/regel-privat" in r.text
-    assert "Discord hebt Nachrichten auf" in r.text
+    assert "/hilfe" in r.text                             # der eine Befehl zum Merken
+    # Die PERSISTENZ-Zusage, nicht ihr Wortlaut: Discord laesst Antworten dauerhaft im
+    # Kanal stehen, und der Spieler muss den privaten Weg kennen. Vorher pinnte dieser
+    # Test einen ganzen Satz - und schlug bei jeder Kuerzung der Seite fehl, obwohl die
+    # Aussage noch dastand.
+    assert "lesbar" in r.text and "/regel-privat" in r.text
 
 
 def test_bestandsuebersicht_zeigt_die_buecher(tmp_path):
