@@ -47,11 +47,21 @@ def bestand(tmp_path, monkeypatch):
          (2, "zauber", None, "Fireball", "en", "2024", "2",
           "Fireball (p. 275). The spell's damage is 8d6, not 6d6."),
          (3, "regel", None, "Fireball", "en", "2014", "12",
-          "Q: Does Fireball ignite worn items? A: Only unattended objects.")])
+          "Q: Does Fireball ignite worn items? A: Only unattended objects."),
+         # Zweites Paar, das den ECHTEN Bestand nachbildet (Audit 03.08.2026): Alle 43
+         # Errata tragen kategorie='regel' und kein name_de - die Bruecke zum deutschen
+         # Grundtext laeuft allein ueber das Glossar. Genau diese Form verlor der
+         # Kategorie-Filter, und genau an ihr haengt der Rueckweg unten.
+         (1, "zauber", "Verwandlung", None, "de", "2024", "191",
+          "Das Ziel verwandelt sich in ein Tier."),
+         (2, "regel", None, "Polymorph", "en", "2024", "1",
+          "**Offizielle Korrektur zu S. 306 im Grundbuch.** These Temporary Hit Points "
+          "vanish if any remain when the spell ends.")])
     con.executemany(
         "INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle,seite) "
         "VALUES (?,?,?,?,?,?)",
-        [("Fireball", "Feuerball", 1, "SRD 5.2.1", "2024", "139")])
+        [("Fireball", "Feuerball", 1, "SRD 5.2.1", "2024", "139"),
+         ("Polymorph", "Verwandlung", 1, "SRD 5.2.1", "2024", "191")])
     con.commit()
     con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
     con.commit()
@@ -293,3 +303,87 @@ def test_erratum_ist_keine_uebersetzungsvariante(bestand):
     s = su.foliant_suche_bestand("Feuerball")
     assert any(t["quelle_kuerzel"] == "errata-phb-2024-en" for t in s["treffer"])
     assert "📌" in (s.get("hinweis_inhaltsart") or "")
+
+
+# ---------------------------------------------------------------------------------------
+# Der RUECKWEG (Datenbank-Audit 03.08.2026): vom Grundtext zu seinem Nachtrag
+#
+# Bis dahin kannte der Bestand nur die Gegenrichtung - drei Stellen nehmen Revisionsquellen
+# aus etwas HERAUS. Dass es zu einem Eintrag eine Korrektur GIBT, erfuhr man allein dadurch,
+# dass die Volltextsuche sie zufaellig danebenspuelte. Das fiel weg, sobald ein
+# Kategorie-Filter griff oder der Eintrag direkt geladen wurde - also ausgerechnet in den
+# beiden Faellen, in denen jemand GEZIELT nach der Regel fragt.
+# ---------------------------------------------------------------------------------------
+
+def test_direktabruf_nennt_den_nachtrag(bestand):
+    """foliant_hol_eintrag lieferte den Grundtext ohne jeden Hinweis auf sein Erratum -
+    der Posten, mit dem dieser Abschnitt anfing."""
+    d = ns.foliant_hol_eintrag("zauber", "Feuerball")
+    assert d["gefunden"] is True
+    revisionen = d.get("revisionen") or []
+    assert [r["quelle_kuerzel"] for r in revisionen] == ["errata-phb-2024-en"], d.keys()
+    assert "8d6" in revisionen[0]["text_md"]
+    assert "📌" in d["hinweis_revision"]
+
+
+def test_direktabruf_ohne_nachtrag_traegt_kein_leeres_feld(bestand):
+    """Ein Feld, das immer da ist, sagt nichts mehr. Gibt es keinen Nachtrag, fehlt es -
+    dieselbe Zusage wie bei hinweis_gekuerzt (tests/test_tool_vertrag.py)."""
+    d = ns.foliant_hol_eintrag("zauber", "Feuerball", edition="2014")
+    assert "revisionen" not in d and "hinweis_revision" not in d
+
+
+def test_erratum_verweist_nicht_auf_sich_selbst(bestand):
+    """Wer das Erratum direkt laedt, bekommt keinen Selbstverweis - seine eigene
+    Kennzeichnung (hinweis_inhaltsart) sagt bereits, was zu tun ist."""
+    treffer = [t for t in su.foliant_suche_bestand("Fireball")["treffer"]
+               if t["quelle_kuerzel"] == "errata-phb-2024-en"]
+    d = ns.foliant_hol_eintrag("zauber", eintrag_id=treffer[0]["eintrag_id"])
+    assert "revisionen" not in d, d.get("revisionen")
+    assert "📌" in d["hinweis_inhaltsart"]
+
+
+def test_kategorie_filter_verliert_den_nachtrag_nicht(bestand):
+    """Der Befund aus dem Audit: Eine Suche mit kategorie='zauber' filterte das Erratum
+    heraus - es traegt kategorie='regel' - und mit ihm den 📌-Hinweis. Der Filter bleibt
+    hart (er ist eine Zusage), aber der Nachtrag haengt jetzt an der Antwort.
+
+    Zugleich der Beleg, dass die Bruecke ohne name_de traegt: Gesucht wird deutsch
+    ('Verwandlung'), das Erratum heisst englisch ('Polymorph')."""
+    s = su.foliant_suche_bestand("Verwandlung", kategorie="zauber")
+    assert "errata-phb-2024-en" not in [t["quelle_kuerzel"] for t in s["treffer"]]
+    assert [r["anzeige_name"] for r in s.get("revisionen", [])] == ["Verwandlung (Polymorph)"]
+    assert "📌" in s.get("hinweis_revision", "")
+
+
+def test_nachtrag_findet_den_deutschen_grundtext_ueber_das_glossar(bestand):
+    """Der Direktabruf des deutschen Zaubers nennt das englisch benannte Erratum. Ohne
+    Glossar-Bruecke fielen 27 der 46 Errata-Zeilen aus - alle, deren Grundtext deutsch
+    heisst."""
+    d = ns.foliant_hol_eintrag("zauber", "Verwandlung")
+    assert [r["quelle_kuerzel"] for r in d.get("revisionen", [])] == ["errata-phb-2024-en"]
+    assert "S. 306 im Grundbuch" in d["revisionen"][0]["text_md"]
+
+
+def test_nachtrag_erscheint_nicht_doppelt(bestand):
+    """Steht das Erratum ohnehin schon als eigener Treffer, wird es nicht zusaetzlich als
+    Nachtrag angehaengt - sonst stuende derselbe Eintrag zweimal in einer Antwort."""
+    s = su.foliant_suche_bestand("Feuerball")
+    gezeigt = {t["eintrag_id"] for t in s["treffer"]}
+    assert not ({r["eintrag_id"] for r in s.get("revisionen", [])} & gezeigt)
+
+
+def test_nachtrag_ueberschreibt_die_spoiler_kennzeichnung_nicht(bestand):
+    """Derselbe Erosionspfad wie beim Review 31.07.2026, nur ueber das neue Feld: Der
+    Revisionshinweis darf nicht in hinweis_inhaltsart landen - sonst filtert
+    _markiere_inhaltsart am Symbol eine ECHTE Kennzeichnung wieder heraus."""
+    d = ns.foliant_hol_eintrag("zauber", "Feuerball")
+    assert "📌" in d.get("hinweis_revision", "")
+    assert "hinweis_inhaltsart" not in d, d.get("hinweis_inhaltsart")
+
+
+def test_nachtrag_nur_bei_gleicher_regelversion(bestand):
+    """Die Regelauslegung im Bestand ist 2014 - sie sagt nichts ueber den 2024-Zauber.
+    Ein Nachtrag ueber Editionsgrenzen hinweg waere eine Behauptung, keine Auskunft."""
+    d = ns.foliant_hol_eintrag("zauber", "Feuerball")
+    assert "ddb-sac-en" not in [r["quelle_kuerzel"] for r in d.get("revisionen", [])]

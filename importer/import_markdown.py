@@ -456,6 +456,19 @@ BEREINIGUNG: dict[str, list] = {
         # ('TP150 (20W1|0+40)', '**I**|**nitiative**' - claude DND-004, verifiziert).
         (r"\((\d+W\d*)\|(\d[\d+\-−]*\))", r"(\1\2)"),
         (r"\*\*([A-ZÄÖÜ][a-zäöüß]{1,14})\*\*\|\*\*([a-zäöüß]{1,12})\*\*", r"**\1\2**"),
+        # Dieselbe Zellriss-Klasse, zwei Formen, die die obigen Regeln nicht fassen
+        # (Datenbank-Audit 03.08.2026 - beide am Vollbestand gegengezaehlt: je GENAU ein
+        # Treffer, null Fehlalarme, Sollwert aus der englischen Fassung im Bestand belegt):
+        #
+        # 1. Der WERT hinter einem Statblock-Label ist zerrissen: '|**RK**1|3|' meint RK 13.
+        #    Die Facetten-Regex las bis zum Zellentrenner und schrieb rk=1 - vier Tiere
+        #    (Falke/Pavian/Skorpion/Wiesel) trugen dadurch eine unmoegliche Ruestungsklasse.
+        #    Bewusst ENG: genau EINE Ziffer, dann EIN Trenner, dann Ziffern. Die weiter
+        #    gefasste Form ('RK <ganze Zahl>|') kaeme 25-mal vor und zerstoerte heile Werte.
+        (r"\*\*(RK|TP)\*\*(\d)\|(\d+)(?=\|)", r"**\1**\2\3"),
+        # 2. Ein Wuerfelausdruck ueber ZWEI Zellgrenzen: '(1|0W1|2+40|)' meint (10W12+40).
+        #    Beim Huegelriesen ergab die zerrissene Formel rechnerisch 0,5 statt 105 TP.
+        (r"\((\d)\|(\d+W\d)\|(\d[+\-−]\d+)\|?\)", r"(\1\2\3)"),
         # Kapitaelchen-Garbles in EINTRAGSNAMEN (claude DND-009; entgegen der alten
         # Macken-Notiz nicht nur Body-Kosmetik):
         ("Ausrüstung verKAufen", "Ausrüstung verkaufen"),

@@ -23,6 +23,7 @@ import sqlite3
 from app import db as _db
 from app import facetten as _facetten
 from app import glossar as _glossar
+from config import quellfehler as _quellfehler
 
 
 HINWEIS_LEER = ("Nichts im Bestand gefunden. Sag das ehrlich mit ❌ ('Dazu finde ich nichts "
@@ -205,6 +206,143 @@ def _markiere_inhaltsart(con: sqlite3.Connection, antwort: dict, *listen: list[d
              if art in betroffen]
     if teile:
         antwort["hinweis_inhaltsart"] = " | ".join(([schon] if schon else []) + teile)
+
+def _revisions_eintraege(con: sqlite3.Connection) -> list[dict]:
+    """Alle Eintraege aus Revisionsquellen (Errata, offizielle Regelauslegung) - eine
+    Abfrage ueber ~46 Zeilen.
+
+    Die Unterabfrage auf `quellen` ist nicht Geschmackssache: `WHERE q.inhaltsart IN (...)`
+    im JOIN erzwingt einen Scan ueber alle 12 500 Eintraege (gemessen 4,5 ms), die
+    Unterabfrage nutzt idx_eintraege_quelle (0,08 ms). Bei einer Verbindung je Tool-Aufruf
+    ist das der Unterschied zwischen unmessbar und spuerbar.
+
+    Ungecacht - dieselbe Begruendung wie bei db._revisions_kuerzel: Der Glossar-Cache faellt
+    an der Zeilenzahl des Glossars, und eine neu importierte Errata-Quelle aendert die
+    nicht. Ein Cache mit dem falschen Ausloeser waere schlimmer als keiner.
+
+    Defensiv gegen Bestands-DBs ohne `inhaltsart`/`kontext`: der Serving-Pfad migriert nie."""
+    try:
+        return [dict(r) for r in con.execute("""
+            SELECT e.id, e.kategorie, e.name_de, e.name_en, e.sprache, e.edition, e.seite,
+                   e.body_md, q.kuerzel AS quelle, q.titel AS quelle_titel, q.inhaltsart
+            FROM eintraege e JOIN quellen q ON q.id = e.quelle_id
+            WHERE e.quelle_id IN (SELECT id FROM quellen
+                                  WHERE inhaltsart IN ('errata','regelauslegung'))
+            ORDER BY e.id""")]
+    except sqlite3.OperationalError:
+        return []
+
+
+def _revisionen_zu(con: sqlite3.Connection, eintraege: list[dict],
+                   ausser_ids: frozenset[int] = frozenset(),
+                   max_treffer: int = 3) -> list[dict]:
+    """Die offiziellen Nachtraege zu den uebergebenen Eintraegen (B11/V9).
+
+    WARUM ES DIESE FUNKTION GIBT: Der Bestand kannte bisher nur die Gegenrichtung - drei
+    Stellen nehmen Revisionsquellen aus etwas HERAUS (db._dedupe_und_sortiere,
+    nachschlagen._quellabweichungen, charakter._eintraege). Dass es zu einem Eintrag eine
+    Korrektur GIBT, erfuhr man allein dadurch, dass die Volltextsuche sie zufaellig
+    danebenspuelte - und das fiel weg, sobald ein Kategorie-Filter griff oder der Eintrag
+    direkt per foliant_hol_eintrag geladen wurde (Datenbank-Audit 03.08.2026).
+
+    Der Abgleich laeuft ueber NAMEN, nicht ueber Kategorie:
+    - Namensvarianten kommen aus glossar._eintrag_namen, der EINEN Definition (A3) - keine
+      zweite Normalisierung; eine eigene Kopie war genau der Fehler, den A3 beseitigt hat.
+    - Dazu die Glossar-Bruecke (db._brueckennamen, gecacht): Errata heissen englisch
+      ('Polymorph'), der kanonische Grundtext deutsch ('Verwandlung'). Ohne Bruecke faende
+      man nur die zufaellig gleichlautenden Faelle.
+    - Die EDITION muss uebereinstimmen: ein 2024-Erratum sagt nichts ueber einen
+      2014-Eintrag.
+    - Die KATEGORIE wird bewusst NICHT verglichen. Alle 43 Errata tragen heute
+      kategorie='regel', weil die PDF-Rubriken nicht durchgaengig auf eine Kategorie
+      abbildbar sind (BACKLOG §4). Ein Kategorie-Vergleich wuerde deshalb jeden Treffer
+      wegwerfen. Faellt diese Entscheidung spaeter anders, entfaellt hier nur dieser Absatz.
+
+    `ausser_ids` laesst Nachtraege weg, die im selben Aufruf schon als eigener Treffer
+    stehen - die ungefilterte Suche zeigt das Erratum ohnehin, und ein Eintrag soll nicht
+    zweimal in derselben Antwort erscheinen."""
+    revisionen = _revisions_eintraege(con)
+    if not revisionen:
+        return []
+    eigene = _db._revisions_kuerzel(con)
+    ziele = [e for e in eintraege if e.get("quelle") not in eigene
+             and e.get("quelle_kuerzel") not in eigene]
+    if not ziele:
+        return []                          # ein Erratum verweist nicht auf sich selbst
+    bruecke = _db._brueckennamen(con)
+
+    def namen_von(zeile: dict) -> set[str]:
+        namen = _glossar._eintrag_namen(zeile)
+        return namen | {b for n in namen for b in bruecke.get(n, set())}
+
+    ziel_namen = [(e, namen_von(e)) for e in ziele]
+    gefunden: dict[int, dict] = {}
+    for rev in revisionen:
+        if rev["id"] in ausser_ids:
+            continue
+        rev_namen = namen_von(rev)
+        for ziel, namen in ziel_namen:
+            if ziel.get("edition") != rev["edition"] or not (namen & rev_namen):
+                continue
+            eintrag = {
+                "eintrag_id": rev["id"],
+                "anzeige_name": _anzeige_name(con, rev),
+                "inhaltsart": rev["inhaltsart"],
+                "kategorie": rev["kategorie"],
+                "edition": rev["edition"],
+                "quelle": rev["quelle_titel"],
+                "quelle_kuerzel": rev["quelle"],
+                "zitat": _zitat(rev),
+                "text_md": _db.KONTEXT_ZEILE.sub("", rev["body_md"] or "",
+                                                 count=1).strip()[:600],
+                "betrifft_eintrag_id": ziel.get("id") or ziel.get("eintrag_id"),
+            }
+            if rev.get("seite"):
+                eintrag["seite"] = rev["seite"]
+            gefunden.setdefault(rev["id"], eintrag)
+            break
+    return [gefunden[i] for i in sorted(gefunden)][:max_treffer]
+
+
+def _hinweis_revision(arten: set[str]) -> str:
+    """Der Begleittext zu `revisionen` - gebaut aus INHALTSART_HINWEISE, nicht neu
+    formuliert. Dritte Satzform neben 'N Treffer stammen aus ...' (Trefferliste) und
+    'Dieser Eintrag stammt aus ...' (Einzelabruf).
+
+    Er geht bewusst NICHT nach `hinweis_inhaltsart`: dort entscheidet _markiere_inhaltsart
+    am SYMBOL, welche Art schon genannt ist. Stuende dort ein 📌 aus diesem Nachschlag,
+    fiele ein ECHTES Erratum in den Nebenlisten aus dem Sammelhinweis - genau der
+    Erosionspfad, den CONCEPT.md §12 beschreibt ('Eine Kennzeichnung, die eine andere
+    unterdrueckt, ist kein Schutz')."""
+    teile = [f"{symbol} Zu diesem Eintrag gibt es einen Nachtrag aus {woraus}: {folge}"
+             for art, (symbol, woraus, folge) in INHALTSART_HINWEISE.items()
+             if art in arten]
+    return " | ".join(teile) + (
+        " Der Nachtrag steht in 'revisionen' (Feld 'text_md'; der volle Eintrag ist per "
+        "eintrag_id ladbar). Grundtext UND Nachtrag zusammen wiedergeben - weder "
+        "verschweigen noch als eigene Regel zitieren (B11/V9).")
+
+
+def _haenge_revisionen_an(con: sqlite3.Connection, antwort: dict,
+                          *listen: list[dict]) -> None:
+    """Die Nachtraege zu den gezeigten Treffern an die SUCHANTWORT haengen.
+
+    Der Anhang ist das Gegenstueck zum harten Kategorie-Filter: `kategorie='zauber'`
+    filtert das Erratum zum Zauber heraus (es traegt kategorie='regel'), und ohne diesen
+    Anhang saehe niemand mehr, dass es existiert - der Filter machte die Antwort also
+    stiller, statt sie zu schaerfen. Den Filter selbst aufzuweichen waere der schlechtere
+    Weg: er ist eine Zusage, und eine Monstersuche soll nicht mit Regelglossar-Errata
+    volllaufen.
+
+    Bewusst NICHT ueber _markiere_inhaltsart: das schriebe einen 📌-Sammelsatz nach
+    `hinweis_inhaltsart` und vermischte 'was der Treffer IST' mit 'was es dazu GIBT'."""
+    gezeigt = frozenset(k.get("eintrag_id") for liste in listen for k in liste)
+    rev = _revisionen_zu(con, [k for liste in listen for k in liste],
+                         ausser_ids=gezeigt, max_treffer=5)
+    if rev:
+        antwort["revisionen"] = rev
+        antwort["hinweis_revision"] = _hinweis_revision({r["inhaltsart"] for r in rev})
+
 
 def _reichere_facetten_an(con: sqlite3.Connection, *treffer_listen: list[dict]) -> None:
     """#2: knappe Zauber-/Monster-Treffer um eine kompakte Facette ('Grad 3' bzw. 'HG 1')
@@ -395,6 +533,27 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
     fac = _facetten_von(con, e)
     if fac:
         d["facetten"] = fac
+    # B11/V9: Gibt es zu diesem Eintrag einen offiziellen Nachtrag, steht er hier daneben.
+    # Bewusst in _detail und nicht in einem der Wrapper: BEIDE Detailwege muenden hier -
+    # der Namensweg (_hole_detail_impl) und der eintrag_id-Weg (_detail_per_id), der
+    # _markiere_inhaltsart gar nicht ruft.
+    rev = _revisionen_zu(con, [e])
+    if rev:
+        for r in rev:
+            r.pop("betrifft_eintrag_id", None)   # im Einzelabruf redundant
+        d["revisionen"] = rev
+        d["hinweis_revision"] = _hinweis_revision({r["inhaltsart"] for r in rev})
+    # Bekannter Fehler in der QUELLE selbst (config/quellfehler.py): Der Regeltext oben
+    # bleibt unveraendert - hier steht nur daneben, was belegt richtig ist. Dieselbe Zusage
+    # wie bei einem Erratum, nur ohne amtliches Korrekturdokument.
+    fehler = _quellfehler.quellfehler_zu(e.get("quelle"), e.get("name_de"), e.get("name_en"))
+    if fehler and fehler.steht_noch_im_bestand(e.get("body_md")):
+        d["hinweis_quellfehler"] = (
+            f"⚠️ Bekannter Fehler in dieser Quelle"
+            + (f" (S. {fehler.seite})" if fehler.seite else "")
+            + f": Dort steht {' bzw. '.join(repr(w) for w in fehler.wortlaute)}. Belegt "
+            f"richtig ist '{fehler.richtig}' - {fehler.beleg} Den Quelltext wiedergeben "
+            f"WIE ER IST und die Korrektur dazusagen, nicht stillschweigend ersetzen.")
     return d
 
 # Derselbe Satz an jeder Stelle, die einen PARAMETER-Fehler meldet (SYN-P0-006): das

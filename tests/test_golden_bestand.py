@@ -278,3 +278,104 @@ def test_golden_suchtreffer_tragen_grad_und_hg():
     assert s["treffer"] and s["treffer"][0].get("kurzinfo", "").startswith("Grad"), s["treffer"][:1]
     m = su.foliant_suche_bestand("Goblin", kategorie="monster")
     assert any((t.get("kurzinfo") or "").startswith("HG") for t in m["treffer"]), m["treffer"]
+
+
+# ---------------------------------------------------------------------------------------
+# ERRATA am echten Bestand (Datenbank-Audit 03.08.2026)
+#
+# Die Suite hatte bis dahin NULL Errata-Faelle: Der ganze Revisions-Layer war nur gegen
+# Fixtures geprueft. Am Vollbestand haengt aber das, was Fixtures nicht nachstellen - die
+# Glossar-Bruecke (alle 46 Errata-Zeilen tragen name_de = NULL, der deutsche Grundtext
+# traegt name_en = NULL) und die Praezedenz gegen 17 andere Quellen.
+# ---------------------------------------------------------------------------------------
+
+def _errata_da() -> bool:
+    con = adb.connect_readonly(str(adb.standard_pfad()))
+    try:
+        return bool(con.execute("SELECT 1 FROM quellen WHERE inhaltsart = 'errata'"
+                                ).fetchone())
+    finally:
+        con.close()
+
+
+golden_errata = pytest.mark.skipif(not _errata_da(),
+                                   reason="keine Errata-Quelle in dieser Datenbank")
+
+
+@golden_errata
+def test_golden_errata_haengt_am_deutschen_grundtext():
+    """Der Kernfall des Audits: Wer den deutschen Zauber laedt, erfaehrt von der
+    englischen Korrektur. Ueber die Glossar-Bruecke Verwandlung<->Polymorph - ohne sie
+    faende der Abgleich nur die zufaellig gleichlautenden Namen (Balor, Kraken)."""
+    d = ns.foliant_hol_eintrag("zauber", "Verwandlung")
+    revisionen = d.get("revisionen") or []
+    assert [r["quelle_kuerzel"] for r in revisionen] == ["errata-phb-2024-en"], d.keys()
+    assert "S. 306 im Grundbuch" in revisionen[0]["text_md"]
+    assert "📌" in d["hinweis_revision"]
+    # Der Grundtext bleibt der Grundtext - das Erratum ersetzt ihn nie.
+    assert "Verwandlungszauber" in d["regeltext_md"]
+
+
+@golden_errata
+def test_golden_errata_ueberlebt_den_kategorie_filter():
+    """Alle 43 Korrekturen tragen kategorie='regel'. Eine Suche mit kategorie='zauber'
+    filterte sie deshalb heraus - samt 📌-Hinweis. Sie haengen jetzt als 'revisionen' an."""
+    s = su.foliant_suche_bestand("Verwandlung", kategorie="zauber")
+    assert "errata-phb-2024-en" not in [t["quelle_kuerzel"] for t in s["treffer"]]
+    assert any(r["quelle_kuerzel"] == "errata-phb-2024-en"
+               for r in s.get("revisionen", [])), s.get("revisionen")
+
+
+@golden_errata
+def test_golden_errata_steht_in_der_ungefilterten_suche_hinter_dem_grundtext():
+    """Band 70: Die Korrektur steht NEBEN dem Grundtext, nie vor ihm - und verschwindet
+    nicht in 'weitere_fassungen'."""
+    s = su.foliant_suche_bestand("Polymorph")
+    kuerzel = [t["quelle_kuerzel"] for t in s["treffer"]]
+    assert "errata-phb-2024-en" in kuerzel, kuerzel
+    assert kuerzel.index("srd-de") < kuerzel.index("errata-phb-2024-en"), kuerzel
+    assert "📌" in s.get("hinweis_inhaltsart", "")
+
+
+@golden_errata
+def test_golden_errata_talent_und_monster():
+    """Zwei weitere Kategorien, die je einen eigenen Bruecken-Weg nehmen: das Talent ueber
+    das Glossar (Ringer<->Grappler), das Monster ueber den gleichlautenden Namen."""
+    t = ns.foliant_hol_eintrag("talent", "Ringer")
+    assert "Fast Wrestler" in (t.get("revisionen") or [{}])[0].get("text_md", ""), t.keys()
+    m = ns.foliant_hol_eintrag("monster", "Balor")
+    assert any("23d12" in r["text_md"] for r in m.get("revisionen", [])), m.keys()
+
+
+@golden_errata
+def test_golden_errata_liste_bleibt_frei_von_nachtraegen():
+    """foliant_liste_optionen zeigt WAEHLBARE Optionen - ein Erratum ist keine."""
+    from app.tools import charakter as ch
+    optionen = ch.foliant_liste_optionen("talent")
+    kuerzel = {o["quelle_kuerzel"] for o in optionen.get("talente", [])}
+    assert not any(k.startswith("errata-") for k in kuerzel), kuerzel
+
+
+def test_golden_bekannte_quellfehler_stehen_neben_dem_text():
+    """Die zwei Druckfehler des deutschen SRD (config/quellfehler.py): Der Regeltext geht
+    WOERTLICH raus, die belegte Korrektur steht daneben. Wer den Text still korrigierte,
+    haette den Bestand vom Buch abgekoppelt."""
+    d = ns.foliant_hol_eintrag("monster", "Balor")
+    assert "23W12+161" in d["regeltext_md"], "der Quelltext wurde veraendert"
+    assert "23W12+138" in d.get("hinweis_quellfehler", ""), d.keys()
+
+
+def test_golden_zerrissene_statblock_werte_repariert():
+    """Der Zellriss '**RK**1|3' liess vier Tiere mit einer unmoeglichen Ruestungsklasse 1
+    im Bestand stehen, der Huegelriese mit einer TP-Formel, die 0,5 statt 105 ergab
+    (Audit 03.08.2026, Sollwerte aus der englischen Fassung im Bestand belegt)."""
+    for name, rk in (("Falke", 13), ("Pavian", 12), ("Skorpion", 11),
+                     ("Wiesel", 13), ("Hügelriese", 13)):
+        d = ns.foliant_hol_eintrag("monster", name)
+        assert (d.get("facetten") or {}).get("rk") == rk, (name, d.get("facetten"))
+    con = adb.connect_readonly(str(adb.standard_pfad()))
+    try:
+        zu_klein = con.execute("SELECT count(*) FROM monster_meta WHERE rk < 5").fetchone()[0]
+    finally:
+        con.close()
+    assert zu_klein == 0, f"{zu_klein} Monster mit unmoeglicher Ruestungsklasse"

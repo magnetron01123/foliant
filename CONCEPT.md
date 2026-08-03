@@ -960,6 +960,73 @@ läuft ohne Änderung weiter.
 | **Sage Advice trägt `edition = "2014"`** | Das Compendium legt ausschließlich die 2014er Regeln aus; für 2024 gibt es keinen Nachfolger. Gewollte Folge: bei der Standardsuche erscheinen seine Treffer unter `andere_editionen` statt als vermeintliches 2024-Ruling. Der Auto-Import lehnt den Band weiter ab (seine DDB-Kategorie trägt kein 5e/5.5e-Präfix) — der explizite `[[ddb.buch]]`-Block ist der Weg, weil dort die Edition **gesetzt** und nicht geraten wird |
 | **Errata-Lizenz nicht „CC-BY…"** | Die Errata-PDFs sind frei verteilt, aber nicht frei lizenziert. Der Präfix `CC-BY` löst in `app/tools/ausgabe.py` automatisch die SRD-Attribution aus — sie hier anzuhängen wäre eine falsche Rechtsaussage |
 
+### Entscheidung: Bekannte Quellfehler kennzeichnen, nie korrigieren (03.08.2026)
+
+Das Datenbank-Audit fand drei Stellen, an denen nicht der Import falsch ist, sondern **die
+Quelle**: Das offizielle deutsche SRD 5.2.1 druckt auf S. 302 „TP 287 (23W12+161)" (die
+Formel ergibt 310,5) und auf S. 381 „TP 65 (10W8+30)" (ergibt 75); der Open5e-Datensatz des
+Oktopus trägt KON 0 und einen Rettungswurf +30.
+
+Der naheliegende Griff — `body_md` reparieren — verbietet sich hier, obwohl er bei OCR-Rissen
+richtig ist. **Das Kriterium ist, wo der Schaden entstand.** Ein OCR-Riss ist ein
+Extraktionsschaden: Die Reparatur stellt wieder her, was gedruckt steht. Hier steht das
+Gegenteil: gedruckt ist es wirklich so. Eine stille Korrektur stünde in keinem Diff, wäre
+beim nächsten Re-Import weg und ließe den Bestand etwas sagen, was seine Quelle nicht sagt.
+
+Also die Bauform von V9, nur ohne amtliches Dokument: **Die Korrektur steht daneben.**
+`config/quellfehler.py` führt je Fall den falschen Wortlaut, den belegten richtigen Wert und
+den Beleg **aus dem Bestand selbst** (englische Fassung, offizielles Erratum, Rechenweg);
+die Auskunft trägt ihn als `hinweis_quellfehler` neben dem unveränderten Regeltext.
+
+Dasselbe Register ist die geprüfte Ausnahmeliste der neuen TP-Formel-Prüfung — Beleg, kein
+Deckel: Eine Abweichung **ohne** Registereintrag bricht den Deploy, und ein Registereintrag,
+dessen Wortlaut nicht mehr im Bestand steht, wird gemeldet statt still ignoriert.
+Ausdrücklich **kein** `inhaltsart = 'errata'`: Für den Vampir-Vertrauten gibt es kein
+WotC-Erratum, und eine selbstgeschriebene Notiz als amtliche Korrektur einzuspielen wäre
+eine Falschaussage über den Rechteinhaber.
+
+### Entscheidung: Errata-Kategorien bleiben `regel` — der Rückweg löst es besser (03.08.2026)
+
+BACKLOG §4 fragte, ob die 43 Errata statt `kategorie = "regel"` die Kategorie ihrer
+PDF-Rubrik tragen sollen, damit `foliant_hol_eintrag(kategorie="zauber")` sie findet. Die
+Antwort ist **nein**, und zwar aus drei am echten Dokument gemessenen Gründen:
+
+1. **Die Rubrik ist nicht zuverlässig.** `pymupdf4llm` liest das zweispaltige PHB-Errata in
+   Druckspalten-Reihenfolge: „Conjure Minor Elementals" und „Conjure Woodland Beings" landen
+   physisch **unter** „Appendix C: Rules Glossary", obwohl sie zu Kapitel 7 gehören. Eine
+   rubrikgetriebene Zuordnung träfe 41 von 43 — und läge bei zwei Zaubern falsch.
+2. **Eine Rubrik ist gar nicht abbildbar.** „Character Origins" führt Spezies *und*
+   Hintergründe *und* Herkunftstalente; jede Zuordnung wäre geraten (Regel 1).
+3. **Es löst das Problem nicht ganz.** Selbst mit perfekten Kategorien bliebe die
+   Auffindbarkeit an die Kategorie gebunden.
+
+Stattdessen der **Rückweg**: Detailabruf und Suche hängen die passenden Nachträge als
+`revisionen` an (siehe unten). Das wirkt für **alle** 43 Korrekturen, unabhängig von Rubrik
+und Kategorie, braucht keinen Re-Import und lässt den Kategorie-Filter die harte Zusage
+bleiben, die er ist. Eine halb korrekte `kategorie`-Spalte wäre schlechter als eine
+durchgehend konservative — sie sieht autoritativ aus.
+
+### Entscheidung: Der Rückweg vom Grundtext zu seinem Nachtrag (03.08.2026)
+
+Der Revisions-Layer kannte bis zum Audit nur **eine** Richtung: Drei Stellen nehmen
+Errata/Auslegungen aus etwas heraus (Dublettengruppe, Fassungsvergleich, Optionslisten).
+Dass es zu einem Eintrag eine Korrektur *gibt*, erfuhr man allein dadurch, dass die
+Volltextsuche sie zufällig danebenspülte — und genau das fiel weg, sobald ein
+Kategorie-Filter griff oder der Eintrag direkt geladen wurde. Also in den beiden Fällen, in
+denen jemand **gezielt** nach der Regel fragt.
+
+Der Abgleich läuft über **Namen plus Glossar-Brücke**, nicht über die Kategorie: Alle 46
+Errata-Zeilen tragen `name_de = NULL`, der kanonische Grundtext kommt meist deutsch aus
+`srd-de` mit `name_en = NULL`. Ohne Brücke fände man nur die zufällig gleichlautenden Fälle
+(Balor, Kraken) — mit ihr 27 der 46 Zeilen. Die Edition muss übereinstimmen; die Kategorie
+wird bewusst ignoriert (siehe Entscheidung darüber).
+
+Zwei Fallen, beide im Code kommentiert: Der Hinweis darf **nicht** nach `hinweis_inhaltsart`
+(dort filtert `_markiere_inhaltsart` am Symbol — ein 📌 aus dem Nachschlag ließe ein echtes
+Erratum aus dem Sammelhinweis fallen, derselbe Erosionspfad wie §12), und die Liste darf
+nicht durch `_markiere_inhaltsart` laufen. Kosten am Vollbestand gemessen: 0,3 ms je
+Detailabruf gegen ein p95-Budget von 191 ms bei vier Spielern.
+
 ### Entscheidung: Prioritätsbänder statt vier unabhängiger Zahlen (31.07.2026)
 
 Die Frage aus BACKLOG §4 („Quellen-Wertigkeit explizit machen") ist beantwortet. Vorher
@@ -1161,6 +1228,21 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
 
 - **pymupdf4llm OCRt textlose Seiten STILL, sobald Tesseract installiert ist** →
   `use_ocr=False` in `pdf_nach_markdown` ist Pflicht und gesetzt; OCR nur über die Vorstufe.
+- **`body_md` niemals von Hand korrigieren, auch wenn die Quelle sich nachweislich irrt.**
+  Die Änderung stünde in keinem Diff, wäre beim nächsten Re-Import weg, und der Bestand
+  sagte etwas, was sein Buch nicht sagt. Belegte Quellfehler gehören ins Register
+  (`config/quellfehler.py`), das die Korrektur **daneben** stellt — §10.
+- **Eine Zahl, die zerrissen ist, sieht aus wie eine Zahl.** Die PDF-Tabellenextraktion
+  trennt gelegentlich an einer Zellgrenze (`|**RK**1|3|` meint 13), und die Facetten-Regex
+  liest korrekt bis zum Trenner — vier Tiere trugen dadurch Rüstungsklasse 1. Solche Risse
+  gehören ins Bereinigungsregister des Importers, **nicht** in eine tolerantere Leseregex:
+  die bedient auch Open5e und DDB und ließe den kaputten Text stehen, den das Modell
+  zitiert. Gefunden hat sie erst die rechnerische Plausibilitätsprüfung (§11) — eine
+  falsche Zahl fällt nur über ihren Widerspruch zu einer anderen auf.
+- **Ein Prüfmuster ohne Abdeckungszahl ist wertlos.** Die DDB-Quellen escapen ihr Markdown
+  (`10d8 \+ 20\)`); ein TP-Muster ohne toleriertes Backslash überspringt sie stumm und
+  meldet trotzdem „OK". `admin check` weist deshalb neben den Befunden aus, wie viele
+  Ausdrücke die Prüfung überhaupt gesehen hat.
 - **Das Pi-Image backt den Code ein** (`COPY`). Ein reines `rsync` aktualisiert die Dateien,
   **nicht den laufenden Container** — ein Import lief dann still mit ALTEM Code weiter und
   meldete „erfolgreich" bei unveränderten Daten. Nach jeder Code-Änderung Pflicht:

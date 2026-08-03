@@ -19,7 +19,7 @@ David**, nicht an Code:
 | offen | wartet auf |
 |---|---|
 | **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — derzeit liegen Bestand *und* alle Sicherungen auf derselben SD-Karte. **Das einzige Risiko mit unwiederbringlichem Schaden** |
-| **M8** Audit-Nacharbeiten (§1) | zwei Entscheidungen (Errata-Kategorien §4, Umgang mit den zwei dt. SRD-Druckfehlern); der Rest ist kleine Codearbeit |
+| **M8** Statblock-Verschränkung srd-de (§1) | 13 kuratierte Verschiebungen, Fall für Fall mit Golden-Test — der Rest des Audits ist umgesetzt |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
 | **M6** Discord-Bot | Token im Entwicklerportal, Erst-Test in der Guild |
 | **M7** Discord-Ausbau | Eval-Lauf mit den DC-Fällen, Echttest nach einem Neustart |
@@ -201,58 +201,48 @@ die Tokens bzw. eine echte Guild brauchen:
 **Gate:** eine Folgefrage nach einem Neustart wird mit Kontext beantwortet, und der
 DC-Lauf steht im Eval-Report.
 
-### M8 — Nacharbeiten aus dem DB-Audit · *neu 03.08.2026*
+### M8 — Nacharbeiten aus dem DB-Audit · *03.08.2026 · umgesetzt bis auf eine Kuration*
 
 Vollaudit der Datenbank gegen den Pi-Vollbestand (technisch + fachlich, Schwerpunkt
 Errata): Die Errata-Integration ist **vollständig und wortgetreu** (43/43 gegen die drei
 Original-PDFs, Seitenreferenzen und Zahlenkorrekturen fachlich gegengerechnet), das
 kanonische Serving liefert überall die korrekte Fassung. Geprüfte NICHT-Befunde — die
 einseitigen Errata-PDFs (⇒ `seite = '1'` ist richtig) und treu reproduzierte
-WotC-Klammer-Typos — bitte nicht „reparieren". Offen blieb:
+WotC-Klammer-Typos — bitte nicht „reparieren".
 
-**Serving / Errata-Auffindbarkeit**
-- ⬜ **Revisionshinweis im Direktabruf:** `foliant_hol_eintrag` liefert den Grundeintrag
-  (Beleg: Ringer/Grappler) ohne jeden Hinweis, dass ein Erratum existiert — nur die Suche
-  zeigt beides nebeneinander.
-- ⬜ **Golden-Errata-Fälle** in `tests/test_golden_bestand.py`: Suche auf Englisch UND
-  Deutsch findet das Erratum mit 📌 (live belegt für „Verwandlung", „Verstecken",
-  „Ancient Red Dragon" — die Glossar-Brücke kompensiert das fehlende `name_de`). Heute
-  enthält die Golden-Suite null Errata-Fälle.
-- Die zwei zugehörigen **Entscheidungen** stehen bereits in §4 und bleiben dort:
-  Errata-Kategorien (der Kategorie-Filter verliert heute Erratum **und** 📌-Hinweis)
-  und Sage Advice.
+Was aus dem Audit folgte, ist umgesetzt; die tragenden Begründungen stehen als drei
+Entscheidungen in [CONCEPT.md](CONCEPT.md) §10 (Rückweg zum Nachtrag · Quellfehler
+kennzeichnen statt korrigieren · Errata-Kategorien bleiben `regel`). Offen bleibt ein
+Posten, den das Audit **größer gemacht hat, als er im Befund stand**:
 
-**Datenkuration (Einzelfälle, mit Beleg-ID)**
-- ⬜ open5e „Octopus" (id 55539) ist korrupt: KON 0, CHA −3, Rettungswurf „Con +30"
-  (real KON 11, CHA 4) — der einzige von 331 open5e-Statblöcken.
-- ⬜ srd-de-Facetten `rk = 1` bei Falke/Pavian/Skorpion/Wiesel (ids 54852/54875/54922/54928):
-  Tabellenzerriss im PDF („RK 13" landet als Zellen `RK**1|3`), real RK 11–13. Der
-  ungemergte Branch `fix/facetten-fassungsabgleich` adressiert genau diese Klasse.
-- ⬜ srd-de „Gruftschrecken" (Wight) liegt als zwei Fragmente vor (ids 54677/54679),
-  eines fälschlich unter dem Kontext „> Grul".
-- ⬜ **Entscheidung (David):** Zwei Druckfehler im offiziellen deutschen SRD-PDF sind treu
-  reproduziert — Balor „TP 287 (23W12+161)" statt +138 (Quell-PDF S. 302) und
-  Vampir-Vertrauter „TP 65 (10W8+30)" statt +20 (S. 381; KON +2 × 10 Trefferwürfel
-  beweist +20). Markieren, korrigieren oder stehen lassen (Regel 1)?
-- ⬜ **Errata-Kosmetik** beim nächsten Errata-Re-Import mitnehmen (fällt ohnehin an, wenn
-  die Kategorien-Entscheidung in §4 „ja" wird): WotC-Fußzeile am Ende der jeweils letzten
-  Korrektur (3×), Kontext „Appendix C" statt „Chapter 7" bei den zwei Conjure-Zeilen
-  (PDF-Spaltenreihenfolge), „1/ Day"-Umbruchrest, drei Präambelzeilen.
+- ⬜ **13 srd-de-Monster ohne eigenen Statblock-Kopf** (und 16 mit zweien) — dieselbe
+  Spaltenverschränkung des Drucks, aus der der gemeldete Gruftschrecken/Grul-Fall stammt.
+  Das Bild ist am Vollbestand vermessen und zerfällt in zwei Sorten: Bei sieben trägt der
+  Chunk den **Schwanz des Vorgängers** und den Namen der nächsten Überschrift („Oktopus"
+  enthält das Maultier, „Dogge" den Blutfalken, „Elefant" die Eidechse); bei den übrigen
+  sitzt der eigene Statblock-Kopf in einem **Nachbarn** (Oktopus-Kopf im „Nashorn",
+  Dogge-Kopf im „Dachs"). Jede Zuordnung ist über die englische Fassung im Bestand
+  eindeutig belegbar (RK/TP-Abgleich).
 
-**Werkzeug**
-- ⬜ Die vier trennschärfsten **Logikprüfungen des Audits in `admin check`** übernehmen,
-  mit Basiswert in `config/qualitaet_basis.json`: TP-Formel nachrechnen (Toleranz ±1),
-  Attributs-Modifikator gegen ⌊(Wert−10)/2⌋, Würfelgrößen-Whitelist (4/6/8/10/12/20/100),
-  Meta↔Body-Abgleich (`grad`/`hg`). Genau diese vier fanden den Octopus, die
-  `rk`-Facetten und die SRD-Druckfehler — und fangen künftige Import-Regressionen.
+  **Warum nicht in einem Zug miterledigt:** Es gibt keine robuste automatische
+  Merge-Regel. Der Gruftschrecken-Fall braucht einen Dreier-Schnitt (der Chunk enthält
+  Wight-Kopf **und** Grul-Schwanz), und ein „nächster kopfloser Chunk davor"-Automat würde
+  den Dogge-Kopf an einen Chunk hängen, der noch den Blutfalken enthält — zwei Monster zu
+  einem verschmolzen. Ein verschmolzener Statblock sieht vollständig aus und ist falsch;
+  das ist die teuerste Fehlerklasse dieses Projekts. Der Weg ist deshalb dieselbe
+  kuratierte Verschiebung, mit der `_srd_de_reparatur` schon fünf Verschränkungen löst
+  (SYN-P0-004), Fall für Fall und je mit Golden-Test. Sinnvolle Etappen: die sechs
+  regelmäßigen „Tiere"-Paare, dann „Monster von A–Z", dann der Sonderfall
+  Gruftschrecken/Grul.
 
-**Dev-Umgebung (nur Mac — der Pi ist sauber)**
-- ⬜ Der lokale `admin check` schlägt FEHL: neuer OCR-Namensriss in `efota-en`
-  („’ UPPER TAVICK S LANDING"), auf dem Pi nicht vorhanden.
-- ⬜ Prioritäts-Drift der Dev-DB: `efota-en`/`frhof-en` lokal 40, auf dem Pi 45.
+- ⬜ **open5e „Octopus"** bleibt im Bestand korrupt (KON 0, CHA −3, Rettungswurf +30). Er
+  ist über `config/quellfehler.py` gekennzeichnet, also in jeder Auskunft mit dem belegten
+  Sollwert versehen, und ein NEUER Fall dieser Art bricht den Deploy. Ihn beim Import zu
+  **verwerfen** wäre erst richtig, wenn der deutsche „Oktopus" repariert ist — sonst bleibt
+  unter dem Namen nur der Maultier-Text stehen. Also nach dem Posten darüber, nicht davor.
 
-**Gate:** `make check-pi` bleibt grün, die Golden-Suite enthält Errata-Fälle, und die
-vier Kurationsposten sind behoben oder bewusst entschieden.
+**Gate:** srd-de führt kein Monster mehr ohne eigenen Statblock (heute 13), und
+`make check-pi` bleibt grün.
 
 ### Offene Anforderungen im Überblick
 Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11/S12, V1–V6/V8, NF1–NF3/NF5–NF7,
@@ -267,7 +257,7 @@ B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
 | B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln **und unter Sessionlast** belegt — Zahlen in §1/M3; `make lasttest-pi` hält sie als Wächter fest (bricht bei p95 > 1000 ms ab) |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
-| V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Errata erfüllt und auf dem Pi live (43 Korrekturen, 📌 greift; Audit 03.08.2026: vollständig und wortgetreu — M8); offen: Sage Advice und die Kategorien-Entscheidung — §4 |
+| V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Errata erfüllt und auf dem Pi live (43 Korrekturen, wortgetreu; seit 03.08.2026 auch der Rückweg: Detailabruf und gefilterte Suche nennen den Nachtrag). Offen nur noch: Sage Advice — §4 |
 | V10 | Quellen-Provenienz (`versions_stand`, `quell_url`, `quell_hash`, `importiert_am`) | ✅ | Schema v3; alle vier optional, nichts wird geraten |
 
 ---
@@ -460,27 +450,11 @@ Was noch fehlt:
 - ⬜ **Sage Advice Compendium** einbinden. Der `[[ddb.buch]]`-Block liegt auskommentiert in
   der Config; ungeklärt ist, ob der DDB-Account den Band führt (`ddb-exporter list-owned`).
   Wenn nicht: freies PDF über den `[[quelle]]`-Weg mit `inhaltsart = "regelauslegung"`.
-- ⬜ **Errata-Kategorien verfeinern** — *die Frage von damals ist beantwortet, die
-  Entscheidung offen.* Alle 43 Errata-Einträge tragen heute `kategorie = "regel"`. Die
-  Vermutung war, dass die PDFs saubere Rubriken führen; **am 03.08.2026 an den echten
-  Dateien nachgesehen: sie tun es**, als H2-Überschriften. Vier von sechs mappen eindeutig
-  auf eine Kategorie, eine tut es nicht:
-
-  | Rubrik im PDF | Kategorie |
-  |---|---|
-  | „Spells" (PHB) | `zauber` |
-  | „Creature Stat Blocks" (PHB) · „Monsters A to Z" (MM) | `monster` |
-  | „Equipment" (PHB) | `gegenstand` |
-  | „Feats" (PHB) | `talent` |
-  | „Rules Glossary" (PHB) · „DM's Toolbox" / „Creating Adventures" (DMG) | `regel` |
-  | **„Character Origins" (PHB)** | **nicht ableitbar** — das Kapitel führt Spezies *und* Hintergründe *und* Herkunftstalente. Eine Zuordnung wäre geraten (Regel 1), also bleibt es `regel` |
-
-  **Was es bringt und was es kostet:** Der Detailabruf verlangt `kategorie` als Pflichtfeld —
-  wer das Erratum zu einem Zauber über `foliant_hol_eintrag(kategorie="zauber")` sucht, findet
-  es heute nicht. Die Suche ohne Kategorie findet es (geprüft); **mit** Kategorie-Filter
-  verliert auch sie Erratum und 📌-Hinweis (Audit 03.08.2026). Umsetzung wären `SPLIT_REGELN`
-  je Rubrik; Preis ist ein Re-Import der drei Bände, der hier gefahrlos ist (keine
-  Namensreparatur an den Errata). **Deine Entscheidung** — die Datengrundlage steht jetzt.
+- ✅ **Errata-Kategorien verfeinern — entschieden am 03.08.2026: nein.** Die Rubriken sind
+  am echten PDF nicht zuverlässig genug (`pymupdf4llm` liest zweispaltig, zwei Zauber
+  landen unter „Appendix C"), eine Rubrik ist gar nicht abbildbar, und der **Rückweg**
+  (Nachträge hängen als `revisionen` an Detailabruf und Suche) löst die Auffindbarkeit für
+  alle 43 Korrekturen ohne Re-Import. Begründung und Messung: [CONCEPT.md](CONCEPT.md) §10.
 - ⬜ **Conversion Guide SRD 5.1→5.2.1** als Beleg für die kuratierten Begriffspaare
   (`SRD_2024_BEGRIFFSPAARE` in `importer/import_glossar.py`). Er klassifiziert
   Umbenennungen offiziell und wäre damit ein stärkerer Beleg als die eigene Auszählung am

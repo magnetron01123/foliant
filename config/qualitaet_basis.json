@@ -9,5 +9,14 @@
   },
   "_ocr_erlaeuterung": "Zerrissene Eintragsnamen aus der OCR der Druckscans. Am 01.08.2026 von 49 auf 3 gesenkt: 46 Kapitel-/Abschnittstitel sind jetzt kuratiert zugeordnet (importer/namensreparatur.KURATIERTE_TITEL), die Reparatur läuft in der Glossar-Kette und überlebt damit einen Re-Import. Die verbleibenden drei ('AURA D', 'MAGISCH R N', 'IJ ER K.A1~v1 PFA BLAU F') bleiben bewusst offen - ihre Zeichen tragen keine eindeutige Lesart, eine Zuordnung wäre geraten (Regel 1).",
   "metadaten_namen_gesamt": 0,
-  "_metadaten_erlaeuterung": "Einträge, deren NAME eine Zauberkopf-Zeile ist ('Zeitaufwand: 1 Aktion'). 46 davon standen bis zum 27.07.2026 unbemerkt im Bestand; seit dem KOPF_HEADING-Fix sind es null. Diese Zahl darf nie wieder steigen."
+  "_metadaten_erlaeuterung": "Einträge, deren NAME eine Zauberkopf-Zeile ist ('Zeitaufwand: 1 Aktion'). 46 davon standen bis zum 27.07.2026 unbemerkt im Bestand; seit dem KOPF_HEADING-Fix sind es null. Diese Zahl darf nie wieder steigen.",
+  "wuerfel_risse_je_quelle": {
+    "phb-2014-de": 45,
+    "scag-2014-de": 1
+  },
+  "_wuerfel_erlaeuterung": "Würfelausdrücke mit einer Größe, die es nicht gibt (app/logikpruefung.WUERFEL_GROESSEN). W2 und W3 sind gültig und zählen NICHT - 1W3 kommt hundertfach offiziell vor; eine Obergrenze für die Würfelzahl gibt es bewusst nicht (der Lich wirft echte 42W8). phb-2014-de: 43x '1W1', 1x '2W1', 1x '1W61' - Ziffern-OCR der Druckscans (O statt 0, verlorene Leerzeichen), gleiche Klasse wie die zerrissenen Namen und ebenso ohne eindeutige Lesart. scag-2014-de: '1 D1' aus dem OCR-Wort 'D1E'. Der srd-de-Riss '0W1' (Hügelriese, aus 'TP 105 (10W12+40)') ist am 03.08.2026 im Bereinigungsregister behoben - deshalb steht srd-de hier nicht mehr.",
+  "tp_formel_abweichungen_je_quelle": {},
+  "_tp_erlaeuterung": "Trefferpunkte, die nicht zu ihrer Würfelformel passen (Toleranz ±1). Null ist hier kein Zufall: Die zwei bekannten Fälle - Balor '23W12+161' und Vampir-Vertrauter '10W8+30' - sind Druckfehler im OFFIZIELLEN deutschen SRD-PDF, treu importiert (Regel 1). Sie stehen mit Beleg und Rechenweg in config/quellfehler.py und werden von der Prüfung dort entschuldigt, nicht hier gezählt. Jeder Anstieg ist damit ein NEUER Import-Schaden.",
+  "attributs_abweichungen_je_quelle": {},
+  "_attribut_erlaeuterung": "Attributswerte außerhalb 1-30 oder mit einem Modifikator ≠ ⌊(Wert−10)/2⌋. Der einzige Fall im Bestand - open5e 'Octopus' mit KON 0 (-5) und CHA -3 (-7) - ist ein Datenfehler der API-Quelle, nicht des Imports; er steht mit Beleg in config/quellfehler.py. WICHTIG für den, der die Prüfung anfasst: Der Modifikator allein fängt ihn NICHT (0 → -5 ist formeltreu), nur der Wertebereich tut es. Abdeckung am Vollbestand: 8421 Werte über vier Statblock-Formate (srd-de 1470, ddb-br 2046, ddb-basic-rules 1968, open5e 1986, übrige kleiner). Sinkt diese Zahl deutlich, hat ein Formatwechsel ein Muster stillgelegt."
 }

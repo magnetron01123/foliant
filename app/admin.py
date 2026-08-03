@@ -573,7 +573,83 @@ def _lade_basiswerte() -> dict:
         return {}
 
 
-def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list) -> int:
+def _messe_logik(c: sqlite3.Connection) -> tuple[dict, dict, dict, list[str]]:
+    """Die rechnerischen Widersprueche im Bestand, je Pruefung und Quelle gezaehlt.
+
+    Liefert (befunde_je_quelle, geprueft_gesamt, beispiele) - EIN Durchgang ueber alle
+    Bodys fuer alle drei Textpruefungen (app/logikpruefung.py).
+
+    `geprueft` ist keine Zierde: Ein Muster, das nach einem Formatwechsel ins Leere
+    greift, meldet null Befunde - genau wie ein sauberer Bestand. Erst die Zahl daneben
+    macht die beiden unterscheidbar (dieselbe Lehre wie bei den Qualitaets-Basiswerten:
+    eine Kennzahl ohne Bezugsgroesse ist Rauschen).
+
+    Bekannte Fehler der QUELLEN selbst (config/quellfehler.py) zaehlen NICHT als Befund,
+    solange ihr Wortlaut noch genau so im Bestand steht - sie sind belegt und
+    dokumentiert. Steht er nicht mehr da, faellt das als eigene Meldung auf: Beleg, kein
+    Deckel (dasselbe Prinzip wie bei den geprueften Homonymen)."""
+    from collections import Counter
+
+    from app import logikpruefung as _logik
+    from config import quellfehler as _quellfehler
+
+    befunde: dict[str, Counter] = {art: Counter()
+                                   for art in ("tp_formel", "attribut", "wuerfel")}
+    geprueft: Counter = Counter()
+    beispiele: dict[str, list] = {art: [] for art in befunde}
+    entschuldigt: set[tuple[str, str]] = set()
+
+    for name_de, name_en, kuerzel, body in c.execute(
+            "SELECT e.name_de, e.name_en, q.kuerzel, e.body_md FROM eintraege e "
+            "JOIN quellen q ON q.id = e.quelle_id"):
+        for art, n in _logik.zaehle_geprueft(body).items():
+            geprueft[art] += n
+        bekannt = _quellfehler.quellfehler_zu(kuerzel, name_de, name_en)
+        if bekannt and bekannt.steht_noch_im_bestand(body):
+            entschuldigt.add((bekannt.quelle, bekannt.name))
+        for fund in _logik.pruefe_text(body):
+            if bekannt and bekannt.deckt_ab(fund.fundstelle):
+                continue                   # belegter Quellfehler, siehe Registerkommentar
+            befunde[fund.art][kuerzel] += 1
+            if len(beispiele[fund.art]) < 3:
+                beispiele[fund.art].append(f"{name_de or name_en}: {fund.fundstelle}")
+
+    # Registereintraege, deren Wortlaut nicht mehr im Bestand steht - der Fall ist damit
+    # ungeprueft, nicht geheilt. Quellen, die diese DB gar nicht fuehrt, bleiben aussen vor
+    # (Mac-Subset, gleiche Regel wie im Basiswert-Vergleich).
+    vorhanden = {r[0] for r in c.execute("SELECT kuerzel FROM quellen")}
+    for eintrag in _quellfehler.BEKANNTE_QUELLFEHLER:
+        if eintrag.quelle in vorhanden and (eintrag.quelle, eintrag.name) not in entschuldigt:
+            print(f"Quellfehler-Register veraltet: '{eintrag.name}' ({eintrag.quelle}) - der "
+                  f"dokumentierte Wortlaut {eintrag.wortlaute} steht nicht mehr im Bestand. "
+                  f"Eintrag in config/quellfehler.py pruefen und nachziehen  WARNUNG")
+    belegt = sorted(f"{name} ({quelle})" for quelle, name in entschuldigt)
+    return befunde, dict(geprueft), beispiele, belegt
+
+
+def _vergleiche_je_quelle(vorhanden: set[str], soll: dict, ist, was: str) -> tuple[int, list]:
+    """Ein Basiswert-Vergleich je Quelle: steigt = FEHLER, sinkt = nachziehen, gleich =
+    still. Quellen, die diese Datenbank nicht fuehrt, werden uebersprungen - das Mac-Subset
+    meldete sonst lauter Scheinverbesserungen (CONCEPT.md §11, Korpus-Luecke).
+
+    Als Helfer herausgezogen (03.08.2026), weil derselbe Dreisatz jetzt fuer sechs
+    Kennzahlen gilt statt fuer eine."""
+    fehler, gesunken = 0, []
+    for quelle in sorted(set(soll) | set(ist)):
+        if quelle not in vorhanden:
+            continue
+        erwartet, gemessen = soll.get(quelle, 0), ist.get(quelle, 0)
+        if gemessen > erwartet:
+            print(f"NEUE {was} in '{quelle}': {gemessen} statt {erwartet} dokumentierten "
+                  f"- ein Import hat sie eingeschleppt  FEHLER")
+            fehler += 1
+        elif gemessen < erwartet:
+            gesunken.append(f"{was}/{quelle} {erwartet}->{gemessen}")
+    return fehler, gesunken
+
+
+def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list,
+                             logik: dict | None = None) -> int:
     """Vergleicht die gemessenen Maengel mit dem dokumentierten Stand und liefert die Zahl
     der FEHLER (Anstiege).
 
@@ -599,20 +675,20 @@ def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list) -> 
     from collections import Counter
 
     vorhanden = {r[0] for r in c.execute("SELECT kuerzel FROM quellen")}
-    ist = Counter(q for _n, q in risse)
-    soll = basis.get("ocr_risse_je_quelle", {})
-    fehler = 0
-    gesunken: list[str] = []
-    for quelle in sorted(set(soll) | set(ist)):
-        if quelle not in vorhanden:
-            continue                       # Quelle in dieser DB nicht importiert
-        erwartet, gemessen = soll.get(quelle, 0), ist.get(quelle, 0)
-        if gemessen > erwartet:
-            print(f"NEUE Namensmaengel in '{quelle}': {gemessen} statt {erwartet} "
-                  f"dokumentierten - ein Import hat sie eingeschleppt  FEHLER")
-            fehler += 1
-        elif gemessen < erwartet:
-            gesunken.append(f"{quelle} {erwartet}->{gemessen}")
+    fehler, gesunken = _vergleiche_je_quelle(
+        vorhanden, basis.get("ocr_risse_je_quelle", {}),
+        Counter(q for _n, q in risse), "Namensmaengel")
+    # Die drei Logikpruefungen teilen sich denselben Dreisatz (03.08.2026). Ihr Basiswert
+    # steht je Quelle, damit das Mac-Subset keine Scheinverbesserung meldet.
+    for schluessel, art, was in (("wuerfel_risse_je_quelle", "wuerfel", "Wuerfelrisse"),
+                                 ("tp_formel_abweichungen_je_quelle", "tp_formel",
+                                  "TP-Formel-Abweichungen"),
+                                 ("attributs_abweichungen_je_quelle", "attribut",
+                                  "Attributs-Abweichungen")):
+        n, gs = _vergleiche_je_quelle(vorhanden, basis.get(schluessel, {}),
+                                      (logik or {}).get(art, {}), was)
+        fehler += n
+        gesunken += gs
     soll_meta = basis.get("metadaten_namen_gesamt", 0)
     if len(meta) > soll_meta:
         print(f"NEUE Metadaten-Namen: {len(meta)} statt {soll_meta} dokumentierten  FEHLER")
@@ -645,6 +721,9 @@ def cmd_qualitaet_basis(args) -> None:
             "FROM eintraege e JOIN quellen q ON q.id = e.quelle_id")]
         quellen = c.execute("SELECT count(*) FROM quellen").fetchone()[0]
         eintraege = c.execute("SELECT count(*) FROM eintraege").fetchone()[0]
+        # Dieselbe Messstelle wie `check` - eine zweite Kopie der Muster waere genau die
+        # Dopplung, gegen die META_TABELLEN angetreten ist.
+        logik, _geprueft, _bsp, _belegt = _messe_logik(c)
     finally:
         c.close()
     from collections import Counter
@@ -652,13 +731,19 @@ def cmd_qualitaet_basis(args) -> None:
     risse = {(n, q) for n, q in namen
              if re.search(r"(?:^|\s)[B-HJ-Zb-hj-zÄÖÜäöüß](?:\s|$)", n)
              and not _REGISTER_KOPF.match(n)}
+
+    def _sortiert(zaehler) -> dict:
+        return dict(sorted(zaehler.items(), key=lambda kv: (-kv[1], kv[0])))
+
     alt = _lade_basiswerte()
     neu = dict(alt)
     neu["erhoben_am"] = __import__("datetime").date.today().isoformat()
     neu["erhoben_an"] = f"{eintraege} Eintraege, {quellen} Quellen"
-    neu["ocr_risse_je_quelle"] = dict(sorted(Counter(q for _n, q in risse).items(),
-                                             key=lambda kv: (-kv[1], kv[0])))
+    neu["ocr_risse_je_quelle"] = _sortiert(Counter(q for _n, q in risse))
     neu["metadaten_namen_gesamt"] = len(meta)
+    neu["wuerfel_risse_je_quelle"] = _sortiert(logik["wuerfel"])
+    neu["tp_formel_abweichungen_je_quelle"] = _sortiert(logik["tp_formel"])
+    neu["attributs_abweichungen_je_quelle"] = _sortiert(logik["attribut"])
     if not getattr(args, "schreiben", False):
         print("Vorschau (nichts geschrieben - mit --schreiben uebernehmen):")
         print(json.dumps({k: v for k, v in neu.items() if not k.startswith("_")},
@@ -871,7 +956,30 @@ def cmd_check(_args) -> None:
         if funde:
             quellen_ = sorted({q for _, q in funde})
             print(f"   {titel}: {[n for n, _ in funde[:3]]} ... aus {quellen_}")
-    fehler += _pruefe_gegen_basiswerte(c, meta, risse)
+    # Rechnerische Plausibilitaet (Datenbank-Audit 03.08.2026): Ein OCR-Riss oder ein
+    # Importfehler aendert fast immer eine ZAHL, und eine falsche Zahl sieht aus wie eine
+    # richtige. Was sie verraet, ist der Widerspruch zu einer anderen Zahl im selben Text.
+    # WARNUNG statt Fehler - der Exitcode kommt allein aus dem Basiswert-Vergleich, sonst
+    # stuende das Gate wegen der bekannten 2014-Scan-Risse dauerhaft rot.
+    logik, geprueft, logik_beispiele, quellfehler_belegt = _messe_logik(c)
+    print("Logikpruefung: "
+          + ", ".join(f"{sum(logik[art].values())} {titel}"
+                      for art, titel in (("tp_formel", "TP-Formeln"),
+                                         ("attribut", "Attributswerte"),
+                                         ("wuerfel", "Wuerfelnotationen")))
+          + f"  (geprueft: {geprueft.get('tp_formel', 0)}/{geprueft.get('attribut', 0)}/"
+            f"{geprueft.get('wuerfel', 0)})"
+          + ("  OK" if not any(logik[a] for a in logik) else "  WARNUNG"))
+    for art, titel in (("tp_formel", "TP"), ("attribut", "Attribut"), ("wuerfel", "Wuerfel")):
+        if logik[art]:
+            print(f"   {titel}: {logik_beispiele[art]} ... aus {sorted(logik[art])}")
+    # Die entschuldigten Faelle NENNEN statt sie bloss wegzurechnen: Eine Null, die durch
+    # eine Ausnahmeliste entsteht, sieht sonst aus wie eine Null ohne Maengel - und die
+    # bekannten Quellfehler sollen sichtbar bleiben, nicht verschwinden.
+    if quellfehler_belegt:
+        print(f"   davon belegte Quellfehler der Quellen selbst (config/quellfehler.py, "
+              f"nicht gezaehlt): {', '.join(quellfehler_belegt)}")
+    fehler += _pruefe_gegen_basiswerte(c, meta, risse, logik)
     # Facetten-Deckung (Befund C1, 28.07.2026): Die Meta-Tabellen waren auf dem Pi LEER,
     # lokal gefuellt - und niemand merkte es, weil kein Check hinsah. WARNUNG statt Fehler:
     # eine vollstaendige Deckung ist gar nicht erreichbar (Ausruestung ohne Preisangabe
