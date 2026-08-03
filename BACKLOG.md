@@ -405,9 +405,26 @@ Was noch fehlt:
 - ⬜ **Sage Advice Compendium** einbinden. Der `[[ddb.buch]]`-Block liegt auskommentiert in
   der Config; ungeklärt ist, ob der DDB-Account den Band führt (`ddb-exporter list-owned`).
   Wenn nicht: freies PDF über den `[[quelle]]`-Weg mit `inhaltsart = "regelauslegung"`.
-- ⬜ **Errata-Kategorien verfeinern.** Alle Errata-Einträge tragen heute `kategorie =
-  "regel"`. Zeigen die PDFs saubere Rubriken („Spells", „Monsters"), lässt sich das über
-  `SPLIT_REGELN` schärfen — geraten wird es nicht.
+- ⬜ **Errata-Kategorien verfeinern** — *die Frage von damals ist beantwortet, die
+  Entscheidung offen.* Alle 43 Errata-Einträge tragen heute `kategorie = "regel"`. Die
+  Vermutung war, dass die PDFs saubere Rubriken führen; **am 03.08.2026 an den echten
+  Dateien nachgesehen: sie tun es**, als H2-Überschriften. Vier von sechs mappen eindeutig
+  auf eine Kategorie, eine tut es nicht:
+
+  | Rubrik im PDF | Kategorie |
+  |---|---|
+  | „Spells" (PHB) | `zauber` |
+  | „Creature Stat Blocks" (PHB) · „Monsters A to Z" (MM) | `monster` |
+  | „Equipment" (PHB) | `gegenstand` |
+  | „Feats" (PHB) | `talent` |
+  | „Rules Glossary" (PHB) · „DM's Toolbox" / „Creating Adventures" (DMG) | `regel` |
+  | **„Character Origins" (PHB)** | **nicht ableitbar** — das Kapitel führt Spezies *und* Hintergründe *und* Herkunftstalente. Eine Zuordnung wäre geraten (Regel 1), also bleibt es `regel` |
+
+  **Was es bringt und was es kostet:** Der Detailabruf verlangt `kategorie` als Pflichtfeld —
+  wer das Erratum zu einem Zauber über `foliant_hol_eintrag(kategorie="zauber")` sucht, findet
+  es heute nicht. Die Suche ohne Kategorie findet es (geprüft). Umsetzung wären `SPLIT_REGELN`
+  je Rubrik; Preis ist ein Re-Import der drei Bände, der hier gefahrlos ist (keine
+  Namensreparatur an den Errata). **Deine Entscheidung** — die Datengrundlage steht jetzt.
 - ⬜ **Conversion Guide SRD 5.1→5.2.1** als Beleg für die kuratierten Begriffspaare
   (`SRD_2024_BEGRIFFSPAARE` in `importer/import_glossar.py`). Er klassifiziert
   Umbenennungen offiziell und wäre damit ein stärkerer Beleg als die eigene Auszählung am

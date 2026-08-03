@@ -484,6 +484,9 @@ Golden-Tests laufen gegen sie und sind ebenfalls gitignored.
 python db/init_db.py data/foliant.sqlite
 python -m app.admin import --quelle srd-de              # dt. SRD (Reparaturpaket greift)
 python -m app.admin import --quelle open5e-srd-2024     # Open5e-API
+python -m app.admin import --quelle errata-phb-2024-en  # offizielle Korrekturen, PDF wird geholt
+python -m app.admin import --quelle errata-dmg-2024-en
+python -m app.admin import --quelle errata-mm-2025-en
 python -m app.admin import --quelle glossar             # inkl. Kern-Singulare
 ```
 Reihenfolge: **Bestand → Facetten → Glossar.** Die Facetten laufen automatisch am Ende jedes
@@ -546,6 +549,10 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
   ```
   docker compose exec -T foliant python -m app.admin suchbericht        # --tage 30 --json
   ```
+  **Zwei Signalarten, und die erste ist die stärkere.** Ganz oben stehen die von der Runde
+  **markierten Antworten** (👎 in Discord → Tabelle `rueckmeldungen`, §9): ein Urteil, kein
+  Messwert — genau die Fehlerklasse, die *gefunden* hat und trotzdem falsch war und deshalb
+  in keiner Statistik auftaucht. Danach die gemessenen:
   Nulltreffer/Fuzzy-Landungen/Mehrdeutigkeiten/Übersetzungs-Lücken sind die
   Kuratier-Kandidaten für Glossar-Paare und Chunking-Korrekturen; der Kopf liefert die
   B9-Antwortzeiten (p50/p95). Die Log-DB liegt bewusst außerhalb von Backup-Glob und
@@ -579,9 +586,13 @@ ssh -L 8001:localhost:8001 <nutzer>@<pi-ip>     # dann http://localhost:8001
 ### Errata importieren (offizielle Korrekturen)
 
 Die drei Errata-PDFs (PHB 2024, DMG 2024, MM 2025) bietet WotC frei zum Herunterladen an;
-die `[[quelle]]`-Blöcke stehen fertig in `config/foliant.toml` (`errata-*`, `inhaltsart =
-"errata"`, Band 70, `quell_url` + gepinnter `quell_hash`). **Ein Befehl je Band, die PDF
-holt der Import selbst** (§4 „Quellbezug"):
+die drei `[[quelle]]`-Blöcke liegen **einsatzbereit in
+[`config/foliant.example.toml`](config/foliant.example.toml)** (`errata-*`, `inhaltsart =
+"errata"`, Band 70, `quell_url` + gepinnter `quell_hash`) — dort und nicht in
+`config/foliant.toml`, weil die echte Config gitignored **und** vom Deploy-Rsync
+ausgeschlossen ist: jedes Gerät führt seine eigene. Die Blöcke enthalten nichts Privates
+(freie WotC-URLs plus Prüfsummen), also einmal in die eigene `foliant.toml` übernehmen.
+Danach **ein Befehl je Band, die PDF holt der Import selbst** (§4 „Quellbezug"):
 
 ```
 .venv/bin/python -m app.admin import --quelle errata-phb-2024-en
@@ -1304,8 +1315,10 @@ P2-008 Agentenrechte eingedampft · P2-009 meta-Tabellen + CHECK-Constraints.
 
 ### P3 — bewusste Ausbaustufen (offen, nicht rundenblockierend)
 P3-001 strukturelle Rollen-/Spoiler-Isolation · P3-002 Regelbeziehungsgraph ·
-**P3-003 Errata-/Revisionstracking — Grundlage seit 31.07.2026 umgesetzt** (eigene
-`inhaltsart`-Werte `errata`/`regelauslegung`, Kennzeichnung 📌/⚖️ in beiden Ausgabewegen,
-Dedupe-Schutz gegen Verdrängung des Grundtexts, Prioritätsband 70, Chunking und
-Config-Blöcke; es fehlen die PDFs selbst — [BACKLOG.md](BACKLOG.md) §4) ·
+**P3-003 Errata-Tracking — seit 03.08.2026 mit Inhalt** (eigene `inhaltsart`-Werte
+`errata`/`regelauslegung`, Kennzeichnung 📌/⚖️ in beiden Ausgabewegen, Dedupe-Schutz gegen
+Verdrängung des Grundtexts, Prioritätsband 70, Chunking am echten Dokument justiert und
+**43 Korrekturen aus den drei WotC-Errata importiert**, deren PDFs der Import selbst holt).
+Offen bleibt die **Regelauslegung**: Sage Advice ist noch nicht eingebunden, und der
+bediente Pi-Bestand trägt die Errata erst nach einem Deploy — [BACKLOG.md](BACKLOG.md) §4 ·
 P3-004 Hausregeln-Overlay. Siehe [BACKLOG.md](BACKLOG.md) §4.
