@@ -64,6 +64,10 @@ def _baue_abkuerzungs_hinweis() -> str:
 
 HINWEIS_ABKUERZUNGEN = _baue_abkuerzungs_hinweis()
 
+# Das eckige Klammer-Suffix der DDB-Regelglossar-Namen ('Hide \[Action]',
+# 'Blinded \[Condition]') - im Markdown escaped, deshalb der optionale Backslash.
+_ECKIGES_SUFFIX = __import__("re").compile(r"\\?\[[^\]]{1,24}\\?\]\s*$")
+
 def _verbinde() -> sqlite3.Connection | None:
     # SYN-P1-005/TECH-020: Serving-Verbindungen sind READ-ONLY - die Tools schreiben nie,
     # und so kann auch eine kompromittierte Laufzeit den Bestand nicht veraendern.
@@ -273,6 +277,13 @@ def _revisionen_zu(con: sqlite3.Connection, eintraege: list[dict],
 
     def namen_von(zeile: dict) -> set[str]:
         namen = _glossar._eintrag_namen(zeile)
+        # Eckiges Klammer-Suffix zusaetzlich abziehen ('Hide [Action]' -> 'Hide'), damit
+        # die Glossar-Bruecke greift: das Erratum heisst so, der deutsche Grundeintrag
+        # 'Verstecken (Aktion)'. Bewusst NUR hier und nicht in glossar._eintrag_namen -
+        # das ist die gemeinsame Identitaetsregel von Dedupe und Ranking, und 83 Eintraege
+        # tragen dieses Suffix. Hier kann es hoechstens einen Nachtrag mehr anhaengen.
+        namen |= {_glossar.norm_begriff(_ECKIGES_SUFFIX.sub("", n).strip())
+                  for n in namen if _ECKIGES_SUFFIX.search(n)} - {""}
         return namen | {b for n in namen for b in bruecke.get(n, set())}
 
     ziel_namen = [(e, namen_von(e)) for e in ziele]

@@ -387,3 +387,39 @@ def test_nachtrag_nur_bei_gleicher_regelversion(bestand):
     Ein Nachtrag ueber Editionsgrenzen hinweg waere eine Behauptung, keine Auskunft."""
     d = ns.foliant_hol_eintrag("zauber", "Feuerball")
     assert "ddb-sac-en" not in [r["quelle_kuerzel"] for r in d.get("revisionen", [])]
+
+
+def test_eckiges_klammer_suffix_verhindert_die_bruecke_nicht(tmp_path, monkeypatch):
+    """Die DDB-Regelglossarnamen tragen ein eckiges Suffix ('Hide [Action]'), der deutsche
+    Grundeintrag ein rundes ('Verstecken (Aktion)'). Ohne Abzug des eckigen fand das
+    Hide-Erratum seinen Grundtext nicht - der einzige der 43 Korrekturen, dem die
+    Glossar-Bruecke an der Schreibweise scheiterte.
+
+    Der Abzug passiert NUR im Revisions-Nachschlag, nicht in glossar._eintrag_namen: das
+    ist die gemeinsame Identitaetsregel von Dedupe und Ranking, und 83 Bestandseintraege
+    tragen dieses Suffix."""
+    pfad = tmp_path / "foliant-eckig.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.executemany(
+        "INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,prioritaet,"
+        "inhaltsart) VALUES (?,?,?,?,?,?,?,?)",
+        [("srd-de", "SRD 5.2.1", "de", "2024", "pdf", "CC-BY-4.0", 20, "regelwerk"),
+         ("errata-phb-2024-en", "Player’s Handbook — Errata", "en", "2024", "pdf",
+          "WotC", 70, "errata")])
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (?,?,?,?,?,?,?,?)",
+        [(1, "regel", "Verstecken (Aktion)", None, "de", "2024", "218",
+          "Mit der »Verstecken«-Aktion versuchst du dich zu verbergen."),
+         (2, "regel", None, "Hide [Action]", "en", "2024", "1",
+          "**Offizielle Korrektur zu S. 368 im Grundbuch.** you have the Invisible "
+          "condition while hidden.")])
+    con.execute("INSERT INTO glossar (term_en,term_de,offiziell) VALUES ('Hide','Verstecken',1)")
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+    d = ns.foliant_hol_eintrag("regel", "Verstecken (Aktion)")
+    assert [r["quelle_kuerzel"] for r in d.get("revisionen", [])] == ["errata-phb-2024-en"]
