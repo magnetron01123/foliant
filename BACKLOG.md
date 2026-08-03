@@ -180,8 +180,14 @@ die Tokens bzw. eine echte Guild brauchen:
   Die DC-Fälle sind die ersten, die den Prompt messen, den der Bot wirklich fährt
   (Projektanweisung **plus** `config/discord_zusatz.md`) — bisher war nur der Prompt-*Text*
   geprüft, nicht das Verhalten.
+- ✅ **`/regel`-Absturz im Kanal behoben** (Live-Befund 03.08.2026 aus dem Pi-Log): Die
+  Slash-Antwort ist eine `WebhookMessage` ohne Guild-Bezug, `Message.create_thread()` warf
+  dort `ValueError` **vor** jedem HTTP-Aufruf und lief am Fallback vorbei. Threads entstehen
+  jetzt über den Kanal ([CONCEPT.md](CONCEPT.md) §10), vier Regressionstests dazu. **Das war
+  der Hauptbefehl** — er lieferte Teil 1 und brach ab.
 - ⬜ Echttest in der Guild: Frage stellen → `docker compose restart discord` → Folgefrage
-  im Thread wird **mit** Kontext beantwortet
+  im Thread wird **mit** Kontext beantwortet. Prüft jetzt zugleich den behobenen
+  Thread-Absturz.
 - ✅ **Rückmeldung per 👎-Reaktion** (03.08.2026): macht eine falsche Antwort zum
   Kurations-Kandidaten, ohne Befehl und ohne API-Kosten — der Meldeweg, der die eine
   Fehlerklasse findet, die keine Statistik zeigt. Begründung und Datenschutz-Schnitt:
