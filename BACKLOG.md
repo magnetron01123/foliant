@@ -392,22 +392,13 @@ Was noch fehlt:
   Mac verifiziert. Der Download ist Teil des Imports (`quell_url` + gepinnter `quell_hash`,
   [CONCEPT.md](CONCEPT.md) §4); das Chunking-Muster ist am echten Dokument justiert und die
   Bilanz-Zählung korrigiert — beide Befunde stehen in [CONCEPT.md](CONCEPT.md) §8.
-- ⬜ **Auf dem Pi nachziehen** (David). Der Pi-Bestand trägt die Errata noch **nicht** —
-  bis dahin sieht die Runde die Korrekturen nicht. `make deploy-pi` allein reicht nicht:
-  `config/foliant.toml` ist vom rsync **ausgeschlossen** (jedes Gerät führt seine eigene).
-  Die drei `[[quelle]]`-Blöcke stehen deshalb einsatzbereit in
-  [`config/foliant.example.toml`](config/foliant.example.toml) — mit Pins, ohne Privates.
-  ```sh
-  make deploy-pi
-  ssh $PI 'cd ~/foliant && sed -n "/errata-phb-2024-en/,/^# ---/p" \
-      config/foliant.example.toml >> config/foliant.toml'   # oder von Hand kopieren
-  for b in errata-phb-2024-en errata-dmg-2024-en errata-mm-2025-en; do \
-      ssh $PI "cd ~/foliant && docker compose exec -T foliant \
-               python -m app.admin import --quelle $b"; done
-  make test-golden-pi
-  ```
-  Die PDFs brauchst du **nicht** mitzuschicken (`quellen/` ist ebenfalls ausgeschlossen) —
-  der Import holt sie auf dem Pi selbst. Erwartet: 17 / 2 / 24 Korrekturen, Bilanz still.
+- ✅ **Auf dem Pi importiert** (03.08.2026): 46 Einträge (43 Korrekturen), Golden-Suite
+  16 passed, `admin check: OK`, Bestand 12 503 → 12 549, Qualitäts-Basiswerte unverändert.
+  Korpus-`inhalts_hash` jetzt `9958f4e9…` (vorher `ea1d7e69…`). Am Vollbestand geprüft:
+  Deutsch-first hält, die Errata stehen mit 📌 **hinter** der deutschen Quelle (Band 70).
+  Der Ablauf ist dabei anders als hier ursprünglich beschrieben — siehe
+  [CONCEPT.md](CONCEPT.md) §8: `quellen/` ist im Serving-Container bewusst **read-only**,
+  der Bezug kann dort nicht schreiben.
 - ⬜ **Sage Advice Compendium** einbinden. Der `[[ddb.buch]]`-Block liegt auskommentiert in
   der Config; ungeklärt ist, ob der DDB-Account den Band führt (`ddb-exporter list-owned`).
   Wenn nicht: freies PDF über den `[[quelle]]`-Weg mit `inhaltsart = "regelauslegung"`.
