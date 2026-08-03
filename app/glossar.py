@@ -100,7 +100,7 @@ QUELLE_AKTIONEN = "SRD 5.2.1 (Aktionen)"
 # tests/test_quellen_beschriftung.py haelt sie deshalb gegen die Seeder-Konstanten.
 EIGENE_ABLEITUNG_MARKEN = ("Strukturabgleich", "Kernwortschatz", "Zauberkopf-Abgleich",
                            "Flexions-Bruecke", "Kernbegriff (kuratiert", "Begriffspaar",
-                           "abkuerzung", "(Aktionen)")
+                           "abkuerzung", "(Aktionen)", "Umgangssprache (kuratiert")
 
 
 def ist_eigene_ableitung(quelle: str | None) -> bool:

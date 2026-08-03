@@ -807,6 +807,69 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
     return n
 
 
+UMGANGS_QUELLE = "Umgangssprache (kuratiert, Suchbericht)"
+
+# Woerter, die am Tisch fallen, aber in keinem Regelwerk stehen - jedes einzeln aus dem
+# Abfrage-Protokoll belegt (admin suchbericht) und von Hand zugeordnet.
+#
+# WARUM KURATIERT UND NICHT ABGELEITET: Die vier Bruecken-Seeder darueber beweisen ihre
+# Paare aus der STRUKTUR (zwei Sprachen, die sich einig sind). Umgangssprache hat keine
+# solche Struktur - "Rennen" ist dem Bestand nach nichts, es ist einfach das Wort, das ein
+# Spieler benutzt. Diese Zuordnung ist deshalb eine Entscheidung und gehoert als Liste in
+# den Diff, nicht in eine Heuristik.
+#
+# DIE SCHRANKE, die sie von Raterei trennt: Der Seeder legt eine Zeile NUR an, wenn die
+# offizielle deutsche Form als EINTRAGSNAME im Bestand steht. Was der Bestand nicht fuehrt,
+# bekommt keine Bruecke - sonst schickte die Suche jemanden auf eine Regel, die es hier
+# nicht gibt (B1/B2: ein ehrlicher Nulltreffer ist besser als ein falscher Treffer).
+#
+# NICHT aufgenommen, obwohl im Bericht: 'erzwungene bewegung' (der Bestand fuehrt dazu
+# keinen Eintrag - der Nulltreffer ist korrekt), 'samurai' und 'zwingender zweikampf'
+# (nicht SRD-lizenziert, es fehlt ein Buch), 'gewitzte tat' (der deutsche SRD nennt das
+# Schurken-Merkmal nicht so; welchen Namen er benutzt, ist offen - raten verbietet sich).
+UMGANGSSPRACHE: tuple[tuple[str, str, str], ...] = (
+    ("Dash", "Spurt", "Rennen"),
+    ("Dash", "Spurt", "Sprinten"),
+    ("Grappled", "Gepackt", "Umklammern"),
+)
+
+
+def seed_umgangssprache(con: sqlite3.Connection) -> int:
+    """Umgangssprachliche Suchvarianten als `offiziell=0`-Zeilen (Suchbericht 03.08.2026).
+
+    Befund: 'rennen' und 'sprinten' fragte die Runde nach der Spurt-Aktion - 'sprinten'
+    lief ins Leere, und 'rennen' landete ueber die Teilstring-Toleranz ausgerechnet bei
+    'B-rennen-de Haende'. Ein falscher Treffer ist schlimmer als keiner: Er sieht aus wie
+    eine Antwort.
+
+    `offiziell=0` ist wesentlich - dieselbe Mechanik wie bei der Flexions-Bruecke: Die
+    Zeile bruecket die SUCHE, aber die Anzeige waehlt weiter die offizielle Form ('Spurt'),
+    und `glossar-audit` zaehlt sie nicht als Konflikt. Bestehende Zeilen werden nie
+    ueberschrieben."""
+    con.execute("DELETE FROM glossar WHERE quelle = ?", (UMGANGS_QUELLE,))
+    _glossar.leere_cache()
+    namen = {_glossar.norm_begriff(r[0]) for r in con.execute(
+        "SELECT coalesce(name_de, name_en) FROM eintraege") if r[0]}
+    vorhanden = {(_glossar.norm_begriff(a), _glossar.norm_begriff(b))
+                 for a, b in con.execute("SELECT term_en, term_de FROM glossar")}
+    n = 0
+    for englisch, offiziell_de, umgangssprachlich in UMGANGSSPRACHE:
+        # Die Schranke: Traegt der Bestand die offizielle Form ueberhaupt? Der
+        # Klammerzusatz der Aktionsnamen ('Spurt (Aktion)') zaehlt mit.
+        ziel = _glossar.norm_begriff(offiziell_de)
+        if not any(name == ziel or name.startswith(ziel + " (") for name in namen):
+            continue
+        schluessel = (_glossar.norm_begriff(englisch),
+                      _glossar.norm_begriff(umgangssprachlich))
+        if schluessel in vorhanden:
+            continue
+        _upsert(con, englisch, umgangssprachlich, 0, UMGANGS_QUELLE, None, None)
+        vorhanden.add(schluessel)
+        n += 1
+    _glossar.leere_cache()
+    return n
+
+
 def seed_zauber_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     """Zauber-Paare ueber den Zauberkopf (Modul importer/srd_zauberbruecken) als
     OFFIZIELLE Bruecke - editionsuebergreifend (S7: der alte offizielle Begriff gilt
@@ -942,6 +1005,7 @@ _KETTE = [
     (kanonisiere_konflikte, "Konflikte kanonisiert"),  # kuratierte Fassung schlaegt konkurrierende
     (kanonisiere_schreibvarianten, "Schreibvarianten demotet"),
     (seed_flexionsbruecke_aus_bestand, "Flexions-Bruecken"),     # ZULETZT, auf dem fertigen Stand
+    (seed_umgangssprache, "Umgangssprache-Bruecken"),            # kuratiert, nach allem Abgeleiteten
 ]
 
 
