@@ -71,10 +71,17 @@ Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
 
 **Gate:** Backup liegt außerhalb des Pi, Dienst übersteht Neustart, Monitoring meldet Ausfälle.
 
-### M4 — Onboarding & Pilot-Session · *klein*
-Spielerfeste Kurzanleitung für den **MCP-Connector** (URL eintragen, aktivieren,
-Beispielfragen, Fallback-Hinweis — Custom Connectors sind Beta). Muster und Tonfall: die
-Charakterbogen-Anleitung in [README.md](README.md). Danach eine Pilot-Session mit 1–2 Spielern.
+### M4 — Onboarding & Pilot-Session · *klein · Anleitung ✅, Pilot offen*
+- ✅ **Spielerfeste Kurzanleitung** (03.08.2026) — steht auf der Charakterbogen-Website im
+  Abschnitt „Foliant im Claude-Chat", also dort, wo die Spieler ohnehin Link und
+  Projektanweisung holen (`app/charakterbogen/templates/index.html`). Neu dazu: **sieben
+  Beispielfragen**, jede am echten Bestand geprüft statt erfunden, und der von B10
+  verlangte **Beta-Fallback** — vier konkrete Symptome mit Selbsthilfe („Claude antwortet
+  ohne Buch und Seite", „Connector verschwunden", „nur ein Connector erlaubt") und als
+  letzte Zeile der ehrliche Ausweg: **nimm den Discord-Bot**, der braucht keine
+  Einrichtung. Damit ist NF8/B10 auf der Anleitungsseite erfüllt.
+- ⬜ **Pilot-Session mit 1–2 Spielern** (David) — das eigentliche Gate.
+
 **Gate:** ein nicht-technischer Mitspieler verbindet sich eigenständig und nutzt es im Spiel.
 
 ### M1 — Immersion / deutsche Bücher · *Hebel #1 · wartet auf PDFs*
@@ -131,6 +138,13 @@ geprüften Homonyme stehen als Beleg in `GEPRUEFTE_HOMONYME` ([CONCEPT.md](CONCE
 (behoben, Mechanik und Grenze in [CONCEPT.md](CONCEPT.md) §12). Offen als echte Kandidaten
 bleiben `samurai`, `soul cage`, `erzwungene bewegung`.
 
+**Beim Prüfen der M4-Beispielfragen aufgefallen (03.08.2026):** `umklammern` liefert
+**null Treffer**, während `Gepackt` und `grappled` beide auf den Zustand führen. Das ist
+kein Bestandsmangel, sondern eine fehlende Suchvariante — und ein Wort, das am Tisch
+fallen dürfte. Kandidat für ein `offiziell = 0`-Paar; **am Pi-Vollbestand
+gegenzuprüfen**, bevor daraus ein Eintrag wird: das Mac-Glossar ist ein Subset
+(`make glossar-vom-pi`).
+
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking und
 Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 
@@ -183,7 +197,7 @@ B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
 | **S10** | Deutscher Regeltext primär (dt. 2024-Grundregelwerke) | ⬜ | M1 |
 | V7 | Erweiterbares Versionsschema | 🟡 | `edition` ist ein Textfeld — reicht heute, feinere Granularität ohne Migration nachrüstbar |
 | NF4 | Legale Quellen; DDB nur privat | 🟡 | bewusste Entscheidung, siehe [SPEC.md](SPEC.md) §12 Nr. 1 |
-| NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | ⬜ | M4 |
+| NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | 🟡 | Anleitung inkl. Beta-Fallback steht (M4); offen ist nur der Nachweis am echten Mitspieler |
 | B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln **und unter Sessionlast** belegt — Zahlen in §1/M3; `make lasttest-pi` hält sie als Wächter fest (bricht bei p95 > 1000 ms ab) |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
