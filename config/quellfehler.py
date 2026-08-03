@@ -96,22 +96,19 @@ BEKANNTE_QUELLFEHLER: tuple[Quellfehler, ...] = (
         wirkung="Wie beim Balor: ausgewuerfelte Trefferpunkte fallen im Schnitt 10 TP zu "
                 "hoch aus.",
     ),
-    Quellfehler(
-        quelle="open5e-srd-2024",
-        name="Octopus",
-        seite=None,
-        wortlaute=("CON 0 (-5)", "CHA -3 (-7)"),
-        richtig="CON 11 (+0), CHA 4 (-3), Rettungswurf Kon +0",
-        beleg="Der vollstaendige deutsche Oktopus-Statblock steht im Bestand - im Body des "
-              "srd-de-Eintrags 'Nashorn' (S. 399, zweiter Statblock der Druckspalte): "
-              "'**Sta** 4 -3, **GeS** 15 +2, **Kon** 11 +0, **Int** 3 -4, **WeI** 10 +0, "
-              "**Cha** 4 -3'. Ein Attributswert von 0 bzw. -3 ist ausserdem regelseitig "
-              "unmoeglich (Wertebereich 1-30), und 'Con +30' als Rettungswurf passt zu "
-              "keinem Uebungsbonus. RK 12, TP 3 (1W6) und HG 0 im open5e-Eintrag stimmen.",
-        wirkung="Ein Statblock, mit dem man wuerfeln kann und der grob falsch ist: "
-                "Konstitutions-Rettungswurf +30 statt +0.",
-    ),
 )
+
+# NICHT MEHR HIER, und der Grund gehoert festgehalten: Der Open5e-Datensatz des 'Octopus'
+# (KON 0, CHA -3, Rettungswurf Kon +30) stand bis zum 03.08.2026 in diesem Register. Er
+# wird jetzt schon beim Import VERWORFEN (importer/import_open5e.kreatur_unplausibel) -
+# ein Statblock mit unmoeglichen Zahlen ist schaedlicher als eine ehrliche Luecke, und die
+# deutsche Fassung des Oktopus ist seit derselben Sitzung vollstaendig.
+#
+# Der Unterschied zu den zwei Eintraegen oben ist der Grund, warum beide Wege existieren:
+# Dort ist der Fehler in einem BUCH, das im Bestand stehen soll - der Text bleibt, die
+# Korrektur steht daneben. Hier war er in einem DATENSATZ einer API, den man ersatzlos
+# weglassen kann; repariert die Quelle ihn, kommt der Eintrag beim naechsten Import von
+# selbst zurueck.
 
 
 def quellfehler_zu(kuerzel: str | None, name_de: str | None,

@@ -78,3 +78,55 @@ def test_syn_p1_008_creature_legendary_mehrkosten():
         {"name": "Schweifhieb", "desc": "Zwei Hiebe.", "action_type": "LEGENDARY_ACTION",
          "legendary_action_cost": 2, "limited_to_form": None, "usage_limits": None}]})
     assert "**Schweifhieb (Costs 2 Actions).**" in md
+
+
+# ---------------------------------------------------------------------------------------
+# Plausibilitaets-Gurt fuer Kreatur-Datensaetze (Datenbank-Audit 03.08.2026)
+#
+# Der Open5e-Datensatz des 'Octopus' trug KON 0, CHA -3 und einen Konstitutions-
+# Rettungswurf von +30. Der Importer rechnet nichts, er reicht durch - im Bestand stand
+# danach ein Statblock, mit dem man wuerfeln kann und der grob falsch ist. Die Modifikatoren
+# passten sogar zu den kaputten Werten ((0-10)//2 = -5) und verrieten deshalb nichts; nur
+# der WERTEBEREICH tut es.
+# ---------------------------------------------------------------------------------------
+
+def test_gesunder_datensatz_geht_durch():
+    from importer.import_open5e import kreatur_unplausibel
+
+    assert kreatur_unplausibel(
+        {"ability_scores": {"strength": 16, "constitution": 14, "charisma": 7},
+         "saving_throws": {"constitution": 6}}) is None
+
+
+def test_unmoeglicher_attributswert_wird_erkannt():
+    """Der echte Fall. Beide Werte liegen ausserhalb 1-30, obwohl ihre Modifikatoren
+    formeltreu sind."""
+    from importer.import_open5e import kreatur_unplausibel
+
+    grund = kreatur_unplausibel({"ability_scores": {"constitution": 0, "charisma": -3}})
+    assert grund and "1-30" in grund and "constitution 0" in grund
+
+
+def test_grenzwerte_1_und_30_bleiben_erlaubt():
+    """Ein zu strenger Gurt wirft echte Monster weg - das waere schlimmer als der Fehler."""
+    from importer.import_open5e import kreatur_unplausibel
+
+    assert kreatur_unplausibel({"ability_scores": {"strength": 1, "charisma": 30}}) is None
+
+
+def test_absurder_rettungswurf_wird_erkannt():
+    """'Con +30' bei KON 11 passt zu keinem Uebungsbonus (max. +9 bei HG 30)."""
+    from importer.import_open5e import kreatur_unplausibel
+
+    grund = kreatur_unplausibel({"ability_scores": {"constitution": 11},
+                                 "saving_throws": {"constitution": 30}})
+    assert grund and "Uebungsbonus" in grund
+
+
+def test_starkes_monster_bleibt_erlaubt():
+    """Ein Rettungswurf darf den Attributsmodifikator um den Uebungsbonus uebersteigen -
+    der Pit Fiend hat KON 24 (+7) und Kon-Rettungswurf +13 (mit ÜB +6)."""
+    from importer.import_open5e import kreatur_unplausibel
+
+    assert kreatur_unplausibel({"ability_scores": {"constitution": 24},
+                                "saving_throws": {"constitution": 13}}) is None

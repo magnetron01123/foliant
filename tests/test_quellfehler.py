@@ -59,8 +59,7 @@ def test_zuordnung_ist_exakt_und_nicht_unscharf():
     einen Fehler an einem Statblock, der ihn nicht hat."""
     assert qf.quellfehler_zu("srd-de", "Balor", None).name == "Balor"
     assert qf.quellfehler_zu("srd-de", "Balors", None) is None
-    assert qf.quellfehler_zu("open5e-srd-2024", None, "Octopus").name == "Octopus"
-    assert qf.quellfehler_zu("srd-de", None, "Octopus") is None      # falsche Quelle
+    assert qf.quellfehler_zu("open5e-srd-2024", "Balor", None) is None   # falsche Quelle
     assert qf.quellfehler_zu(None, "Balor", None) is None
 
 
@@ -143,3 +142,20 @@ def test_hinweis_verschwindet_wenn_die_quelle_repariert_wurde(bestand, monkeypat
     con.close()
     d = ns.foliant_hol_eintrag("monster", "Balor")
     assert "hinweis_quellfehler" not in d
+
+
+def test_register_fuehrt_nur_faelle_die_im_bestand_bleiben_sollen():
+    """Abgrenzung zum Import-Gurt (importer/import_open5e.kreatur_unplausibel), die am
+    03.08.2026 aus einem realen Fall entstand: Der Open5e-'Octopus' (KON 0, Rettungswurf
+    +30) stand erst hier und wird jetzt beim Import verworfen.
+
+    Das Kriterium ist, ob der Eintrag im Bestand STEHEN SOLL. Ein Fehler in einem BUCH
+    bleibt drin - der Text ist der Buchtext, die Korrektur steht daneben. Ein kaputter
+    DATENSATZ einer API kann ersatzlos entfallen; er kommt von selbst zurueck, sobald die
+    Quelle ihn repariert. Ein Register-Eintrag fuer eine API-Quelle waere deshalb ein
+    Widerspruch: Er hielte einen Statblock im Bestand, mit dem man wuerfeln kann und der
+    grob falsch ist."""
+    api_quellen = {"open5e-srd-2024", "open5e-srd-2014"}
+    drin = [e.name for e in qf.BEKANNTE_QUELLFEHLER if e.quelle in api_quellen]
+    assert not drin, (f"{drin} stehen im Register, obwohl sie aus einer API-Quelle kommen "
+                      f"- dort gehoert der Gurt in den Importer, nicht der Beleg hierher")
