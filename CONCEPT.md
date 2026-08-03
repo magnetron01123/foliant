@@ -993,6 +993,16 @@ bestehende Pipeline den Inhaltsbedarf; DDB bliebe dann unerschlossen.
 - **Haupt-Suite** (`.venv`) inkl. Abnahme T1–T12 und der **Golden-Suite**
   (`tests/test_golden_bestand.py`), die Regel-**Semantik** am echten Bestand prüft
 - **DDB-Suite** in `.venv-ddb` — sonst bleibt sie **unsichtbar rot**
+- **Doku-Pflege** (`tests/test_doku_pflege.py`): §-Verweise treffen ein Kapitel, die
+  Stand-Angabe ist nicht älter als der jüngste im Text genannte Vorgang, jede
+  SPEC-Anforderung hat einen Status im BACKLOG, genannte Dateien existieren, kein
+  wortgleicher Absatz in zwei Dateien, es bleiben genau vier Doku-Dateien. Warum als Test
+  und nicht als Vorsatz: Am 03.08.2026 waren alle vier Stand-Angaben veraltet, SPEC verwies
+  fünfmal auf ein Kapitel, das es nie gab, und vier Anforderungen hatten keinen Status —
+  jeder Befund in Sekunden prüfbar, keiner aufgefallen, weil kein Test die Doku ansah.
+  Dieselbe Lehre wie bei `config/qualitaet_basis.json` (§12): Was niemand vergleicht,
+  driftet. Der Test prüft **Konsistenz, nicht Wahrheit** — ob eine Aussage noch zum Code
+  passt, sieht nur ein Mensch.
 - `admin check` + `tests/smoke_test.py` (deckt alle 6 Tools ab, prüft aktiv auf Header-Müll);
   der Smoke-Test lenkt das Abfrage-Protokoll bewusst in eine Wegwerf-Datei um — er läuft
   über `python -m` und damit an der `conftest.py`-Isolation vorbei

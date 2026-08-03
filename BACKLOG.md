@@ -167,7 +167,7 @@ DC-Lauf steht im Eval-Report.
 
 ### Offene Anforderungen im Überblick
 Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11/S12, V1–V6/V8, NF1–NF3/NF5–NF7,
-B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7).
+B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
 
 | Anf. | Inhalt | Status | Zu |
 |---|---|---|---|

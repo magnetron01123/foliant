@@ -41,6 +41,11 @@ Was noch offen ist: [BACKLOG.md](BACKLOG.md).
 `CLAUDE.md` ist kein fünftes Dokument, sondern der Einstiegspunkt für Claude Code — er
 verweist nur auf die vier oben.
 
+Die Zuordnung ist **getestet, nicht nur vereinbart**: `tests/test_doku_pflege.py` (Teil von
+`make test`) prüft, dass §-Verweise ein Kapitel treffen, die Stand-Angaben zum Inhalt passen,
+jede Anforderung aus `SPEC.md` einen Status in `BACKLOG.md` hat, genannte Dateien existieren
+und keine Aussage wortgleich in zwei Dateien gepflegt wird.
+
 ## Aufbau des Repositorys
 
 ```
