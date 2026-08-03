@@ -1228,6 +1228,14 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
 
 - **pymupdf4llm OCRt textlose Seiten STILL, sobald Tesseract installiert ist** →
   `use_ocr=False` in `pdf_nach_markdown` ist Pflicht und gesetzt; OCR nur über die Vorstufe.
+- **Eine Struktur-Reparatur wird über den KAPITELBEREICH begrenzt, nicht über den Inhalt.**
+  Beim Entwirren der Statblock-Verschränkung (03.08.2026) sollte eine Regel „nur dort
+  greifen, wo Statblöcke stehen" — erkannt daran, dass der Folgeeintrag eine
+  Rüstungsklasse führt. Fallen, Gifte und magische Gegenstände führen aber ebenfalls eine,
+  also verschob sie fünfzehn Überschriften der Regelkapitel und der Bestand verlor 5093
+  Zeichen. Erst die harte Grenze am Kapitelkopf („ab `# Monster von A–Z`") trug. **Der
+  Wächter, der es fand, war der Namensdiff gegen den vorherigen Stand** — die reine
+  Eintragszahl fiel nur um zwölf und sah harmlos aus.
 - **Nach JEDEM Re-Import einer PDF-Quelle gehört `admin import --quelle glossar` hinterher.**
   Die Namensreparatur (`importer/namensreparatur.py`) läuft in der Glossar-Kette, nicht im
   Import — ein Re-Import spielt also den rohen PDF-Namen wieder ein (`Gar l gy` statt

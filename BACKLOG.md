@@ -19,7 +19,7 @@ David**, nicht an Code:
 | offen | wartet auf |
 |---|---|
 | **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — derzeit liegen Bestand *und* alle Sicherungen auf derselben SD-Karte. **Das einzige Risiko mit unwiederbringlichem Schaden** |
-| **M8** Statblock-Verschränkung srd-de (§1) | 13 kuratierte Verschiebungen, Fall für Fall mit Golden-Test — der Rest des Audits ist umgesetzt |
+| **M8** open5e-Octopus verwerfen (§1) | einen open5e-Re-Import, den man ohnehin fahren will — der Rest des Audits ist umgesetzt und deployt |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
 | **M6** Discord-Bot | Token im Entwicklerportal, Erst-Test in der Guild |
 | **M7** Discord-Ausbau | Eval-Lauf mit den DC-Fällen, Echttest nach einem Neustart |
@@ -217,34 +217,16 @@ tragenden Begründungen stehen als drei Entscheidungen in [CONCEPT.md](CONCEPT.m
 bleiben `regel`). Offen bleibt ein Posten, den das Audit **größer gemacht hat, als er im
 Befund stand**:
 
-- ⬜ **13 srd-de-Monster ohne eigenen Statblock-Kopf** (und 16 mit zweien) — dieselbe
-  Spaltenverschränkung des Drucks, aus der der gemeldete Gruftschrecken/Grul-Fall stammt.
-  Das Bild ist am Vollbestand vermessen und zerfällt in zwei Sorten: Bei sieben trägt der
-  Chunk den **Schwanz des Vorgängers** und den Namen der nächsten Überschrift („Oktopus"
-  enthält das Maultier, „Dogge" den Blutfalken, „Elefant" die Eidechse); bei den übrigen
-  sitzt der eigene Statblock-Kopf in einem **Nachbarn** (Oktopus-Kopf im „Nashorn",
-  Dogge-Kopf im „Dachs"). Jede Zuordnung ist über die englische Fassung im Bestand
-  eindeutig belegbar (RK/TP-Abgleich).
+- ⬜ **open5e „Octopus"** bleibt im Bestand korrupt (KON 0, CHA −3, Rettungswurf +30) —
+  ein Datenfehler der API-Quelle, kein Importfehler. Er ist über `config/quellfehler.py`
+  gekennzeichnet, trägt also in jeder Auskunft den belegten Sollwert, und ein NEUER Fall
+  dieser Art bricht den Deploy. Ihn beim Import zu **verwerfen** wäre jetzt möglich (der
+  deutsche „Oktopus" ist seit dem 03.08.2026 vollständig), kostet aber einen
+  open5e-Re-Import gegen den heutigen API-Stand — also mit unkontrollierter Drift bei 982
+  Einträgen. Lohnt erst, wenn ohnehin ein open5e-Import ansteht.
 
-  **Warum nicht in einem Zug miterledigt:** Es gibt keine robuste automatische
-  Merge-Regel. Der Gruftschrecken-Fall braucht einen Dreier-Schnitt (der Chunk enthält
-  Wight-Kopf **und** Grul-Schwanz), und ein „nächster kopfloser Chunk davor"-Automat würde
-  den Dogge-Kopf an einen Chunk hängen, der noch den Blutfalken enthält — zwei Monster zu
-  einem verschmolzen. Ein verschmolzener Statblock sieht vollständig aus und ist falsch;
-  das ist die teuerste Fehlerklasse dieses Projekts. Der Weg ist deshalb dieselbe
-  kuratierte Verschiebung, mit der `_srd_de_reparatur` schon fünf Verschränkungen löst
-  (SYN-P0-004), Fall für Fall und je mit Golden-Test. Sinnvolle Etappen: die sechs
-  regelmäßigen „Tiere"-Paare, dann „Monster von A–Z", dann der Sonderfall
-  Gruftschrecken/Grul.
-
-- ⬜ **open5e „Octopus"** bleibt im Bestand korrupt (KON 0, CHA −3, Rettungswurf +30). Er
-  ist über `config/quellfehler.py` gekennzeichnet, also in jeder Auskunft mit dem belegten
-  Sollwert versehen, und ein NEUER Fall dieser Art bricht den Deploy. Ihn beim Import zu
-  **verwerfen** wäre erst richtig, wenn der deutsche „Oktopus" repariert ist — sonst bleibt
-  unter dem Namen nur der Maultier-Text stehen. Also nach dem Posten darüber, nicht davor.
-
-**Gate:** srd-de führt kein Monster mehr ohne eigenen Statblock (heute 13), und
-`make check-pi` bleibt grün.
+**Gate:** ✅ srd-de führt kein Monster mehr ohne eigenen Statblock (waren 13), keine
+Namensdubletten, Facetten-Deckung Monster 667/667; `make check-pi` grün.
 
 ### Offene Anforderungen im Überblick
 Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11/S12, V1–V6/V8, NF1–NF3/NF5–NF7,
