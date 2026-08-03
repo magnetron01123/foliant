@@ -101,7 +101,12 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
   **kleiner = Vorrang**, Bänder s. u.), `inhaltsart`.
   **`inhaltsart` (vier Werte)** entscheidet, welchen Hinweis eine Antwort daraus trägt:
   `regelwerk` (keiner) · `abenteuer_setting` (🚫 Spoiler-Schutz) · `errata` (📌 offizielle
-  Korrektur zum Grundtext) · `regelauslegung` (⚖️ Sage Advice, kein Regeltext). Der
+  Korrektur zum Grundtext) · `regelauslegung` (⚖️ Sage Advice, kein Regeltext).
+  **Warum Errata eine eigene Quelle sind und nicht in den `body_md` eingerechnet werden
+  (V9):** Ein eingerechneter Text wäre nicht mehr der Buchtext — die Provenienz ginge
+  verloren, `body_md` und damit der korpusweite `inhalts_hash` verschöben sich bei jedem
+  Errata-Update, und niemand könnte mehr sagen, was im Buch steht und was korrigiert wurde.
+  Der
   Wertraum steht **allein in `importer/quellen.INHALTSARTEN`**, nicht als CHECK im Schema.
   Der CHECK ist am 31.07.2026 bewusst gefallen: Er hätte den ersten Errata-Import auf jeder
   mit v2 angelegten Datenbank mit `IntegrityError` abgebrochen, weil
@@ -891,6 +896,54 @@ relative Ordnung aller vorhandenen Quellen bleibt gleich). Entschärft wird sie 
 dadurch, dass die unterlegene Fassung ihre Fundstelle behält (§5) und Wortlaut-Abweichungen
 als Quellkonflikt ausgewiesen werden (SYN-P1-009).
 
+### Gemessen und verworfen (28.–29.07.2026)
+
+Drei Ausbauten wurden am **Pi-Vollbestand** nachgemessen und danach nicht gebaut. Sie stehen
+hier, damit sie nicht als „naheliegende Verbesserung" wiederkommen — die Messung ist der
+Beleg, nicht die Meinung.
+
+| Vorhaben | Warum nicht |
+|---|---|
+| **Relationstabelle `eintrag_bezug`** (SYN-E1) | (a) Der Übersetzungsbezug ergäbe 2151 Paare — genau das, was `_dedupe_und_sortiere` ohnehin je Anfrage rechnet, bei 83 ms Suchzeit und **ohne einen einzigen Leser**. (b) Der Editionsbezug über Namensgleichheit (535 Fälle) funktioniert heute schon als `andere_fassungen`. (c) **Der namensgebende Umbenennungsfall „Rasse" → „Spezies" existiert im Bestand nicht** (0 Glossarzeilen). Die 21 Kandidaten sind Klammer-Suffixe und Singular/Plural — beides deckt `KLAMMER_SUFFIX` bzw. `kanonisiere_schreibvarianten` ab. Dazu ist `eintrag_id` nicht importstabil: die Tabelle bräuchte nach jedem Import einen Neuaufbau, also ein neuer Fehlermodus ohne Nutzen |
+| **`edition_quelle` im Glossar nachziehen** (29 % ohne Edition) | Von den 12 echten Konflikten tragen **8 auf beiden Seiten schon eine Edition** — dort ändert Nachziehen nichts. Die übrigen 4 sind die Randfälle ohne Bestandsbezug (Kobold Press, Sandy Petersen, Ulisses), wo eine WotC-Edition zu behaupten **Raten wäre** (Regel 2). Nutzen null, Preis 773 geratene Zeilen plus ein gestörter Konfliktstand |
+| **Kategorie-Korrektor für die 24 Zauberkapitel-Abschnitte** | Der Detektor stufte 134 statt 24 Einträge herab, hätte also echte Zauber verborgen — schlimmer als der Befund. Der Breadcrumb weist sie ohnehin als Regelabschnitt aus |
+
+### Entscheidung: Facetten-Vorfilter mit dem Textprädikat als Autorität (28.07.2026)
+
+Der Facetten-Filter parste für **jeden** Eintrag der Kategorie den vollen Body — 1627
+`zauber_grad`-Aufrufe je Filteranfrage, 41 % der Profilzeit, der aus der Lastmessung benannte
+B9-Hebel. Gelöst **nicht** als „SQL statt Text": Ausgeschlossen werden nur Zeilen, deren
+gespeicherter Meta-Wert nachweislich ein anderer ist (dieselben Parser, also äquivalent);
+Zeilen **ohne** Meta laufen weiter durch das Textprädikat, damit eine ungeseedete Datenbank
+nicht still nichts liefert. Ertrag: 3,5–6,2× je Anfrage, p95 bei vier Spielern 584 → 191 ms.
+
+Die Äquivalenzprobe **schlug zuerst fehl** — und genau das war der Fund: Datenbanken können
+noch Meta-Zeilen aus dem in Phase 3 entfernten Open5e-Schreiber tragen (`Evocation` statt
+`hervorrufung`), und ein Vorfilter dagegen wirft passende Einträge *still* weg. Deshalb prüft
+`_meta_ist_kanonisch` den Wertraum an den Daten selbst (`ritual`/`rk` gab es beim alten
+Schreiber nicht) und schaltet den Vorfilter sonst **ganz ab**. Wer hier optimiert, muss diese
+Probe erhalten.
+
+### Entscheidung: Das Konflikt-Gate muss 0 erreichen können (27.07.2026)
+
+`admin glossar-audit` meldete dauerhaft „12 echte Konflikte" — eine Zahl, die nie 0 werden
+konnte. **Eine Kennzahl, die immer rot ist, hört man auf zu lesen**, und dann fällt der erste
+*echte* neue Konflikt beim nächsten Import nicht mehr auf. Am dt. SRD 2024 nachgemessen
+(Auszählung im Fließtext) zerfielen die 12 in drei Klassen; nur zwei Fälle waren überhaupt
+Dubletten:
+
+| Klasse | Fälle | Behandlung |
+|---|---|---|
+| **Vom SRD entschieden** | `Tree Stride` (Baumwandeln, Gegenform 0×) · `Sunlight Sensitivity` (Gegenform 0×) | in `KERN_SINGULAR_PAARE` → `kanonisiere_konflikte` demotet die Dublette zur Suchvariante. **Ableitung, keine Setzung** |
+| **Geprüfte Homonyme** | `Hide` (Fell/Verstecken) · `Divination` (Schule/Zauber) · `Lucky` (Talent/Halbling-Merkmal) · `Armor` (Ober-/Unterkategorie) · `Weapon Mastery` (srd-de/gedrucktes PHB) | **beide Formen richtig** — eine Auflösung wäre Datenverlust. Stehen in `GEPRUEFTE_HOMONYME`, das Audit weist sie getrennt aus |
+| **Randfälle ohne Bestandsbezug** | `Drown` · `Immolation` · `Investigator` · `Shoggoth` · `Mask of the Wild` | aus Abenteuer-/Drittanbieterbänden oder 2014-Merkmalen ohne 2024-Entsprechung — keine Wirkung auf Auskünfte, bewusst unangetastet |
+
+`GEPRUEFTE_HOMONYME` ist ein **Beleg, kein Deckel**: Es führt die erwarteten Formen explizit
+mit, und taucht eine **dritte** auf, gilt der Fall wieder als ungeprüft und erscheint als
+echter Konflikt. Ein eigener Test hält das fest. Dieselbe Logik trägt
+`config/qualitaet_basis.json` für die Datenmängel (§12) — ein Basiswert, gegen den eine Zahl
+steigen *oder* fallen kann, statt einer Dauerwarnung.
+
 ### Entscheidung: Der Discord-Bot bleibt Nachschlagewerk im Gespräch (30.07.–02.08.2026)
 
 Der Bot wird **kein zweites Avrae**. Die Abgrenzung ist inhaltlich, nicht technisch: Avrae
@@ -1056,7 +1109,11 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   hält fest, dass der Abdruck sich dabei nicht bewegt.
 - **Ein Re-Import spielt die rohen OCR-Namen wieder ein** und macht die Namensreparatur der
   betroffenen Quelle zunichte. Facetten deshalb nie über einen Re-Import nachziehen, sondern
-  mit `import --quelle facetten`.
+  mit `import --quelle facetten`. Musste ein Re-Import doch sein (z. B. nach einem
+  Chunking-Fix), ist die **Reparatur danach nachzuziehen**: `import --quelle glossar` bringt
+  `repariere_2014_namen` und die kuratierten Titel (`namensreparatur.KURATIERTE_TITEL`) mit.
+  Die CLI-Hilfe des Kommandos sagt das seit dem 31.07.2026 selbst — vorher stand es nur in
+  einem Backlog-Absatz, den beim Re-Import niemand liest.
 - **Singular und Plural sind im Glossar zwei Inseln.** Die Seeder liefern beide Formen
   (`Opportunity Attack`/`Gelegenheitsangriff` aus dem Kernwortschatz,
   `Opportunity Attacks`/`Gelegenheitsangriffe` aus dem Spielerhandbuch), aber der Zwei-Hop

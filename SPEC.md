@@ -104,16 +104,12 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
 - **S12 — Abkürzungen: deutsch schreiben, englisch verstehen.** Wo eine Auskunft abkürzt,
   gilt die **offizielle deutsche** Form (RK, TP, SG, HG, EP, ÜB, W20 …) — nie die
   englische (AC, HP, DC, CR, XP, PB, d20). Eine englische Abkürzung in der **Anfrage**
-  muss dagegen verstanden werden und zum deutschen Eintrag führen. Das Register steht in
-  `config/abkuerzungen.py`; jede empfohlene Form ist im deutschen SRD 5.2.1 belegt und
-  wird dagegen getestet — erfunden wird keine (Regel 1).
-  Die Regel läuft über **alle drei Kanäle** (§7), und das ist hier nicht Redundanz,
-  sondern die eigentliche Zusage: Die Projektanweisung muss jede Person selbst
-  einrichten — wer das nicht tut, bekäme sonst keine. Deshalb trägt sie erstens jede
-  Tool-Ausgabe (`hinweis_abkuerzungen`), zweitens die Tool-Beschreibungen, die der Server
-  mit dem Schema ausliefert, und drittens die Instruktion. Zusätzlich löst die Ausgabe
-  englische Kürzel, die im Regeltext stehen, in `begriffe_deutsch` auf — aus „AC 17,
-  CR 10" wird die Zuordnung mitgeliefert, statt sie nur anzumahnen.
+  muss dagegen verstanden werden und zum deutschen Eintrag führen. Jede empfohlene Form ist
+  im deutschen SRD 5.2.1 belegt und wird dagegen getestet — erfunden wird keine (Regel 1).
+  Die Regel muss über **alle drei Kanäle** (§7) laufen, und das ist hier keine Redundanz,
+  sondern die eigentliche Zusage: Die Projektanweisung richtet jede Person selbst ein — wer
+  das nicht tut, bekäme sonst keine. Register und Durchsetzung:
+  [CONCEPT.md](CONCEPT.md) §5.
 
 > **Beispiel:** Inhalt aus „Ravenloft: Horrors Within" (EN, nicht übersetzt) → der Regeltext
 > bleibt englisch mit seiner Regelversion. Die deutschen Begriffe kommen aus „Van Richtens
@@ -138,18 +134,17 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
 - **V8 — Altregeln bewusst nutzbar:** Ältere Inhalte dürfen aufgenommen und durchsucht werden
   — gerade Regeln ohne 2024-Entsprechung. Bei Ausgabe **immer** deutlicher Hinweis (V4).
 - **V9 — Offizielle Nachträge stehen NEBEN dem Grundtext, nie darin.** Errata und
-  offizielle Regelauslegungen (Sage Advice) werden als **eigene Quellen** geführt
-  (`inhaltsart = "errata"` bzw. `"regelauslegung"`), nicht in den Buchtext eingerechnet.
-  Begründung: Ein eingerechneter Text wäre nicht mehr der Buchtext — die Provenienz ginge
-  verloren, `body_md` und damit der korpusweite `inhalts_hash` verschöben sich bei jedem
-  Errata-Update, und niemand könnte mehr sagen, was im Buch steht und was korrigiert wurde.
-  Die Ausgabe unterscheidet deshalb drei Dinge: **Regeltext**, **offizielle Errata** (📌,
-  die Korrektur gilt) und **offizielle Regelauslegung** (⚖️, kein Regelwortlaut).
-- **V10 — Quellen-Provenienz:** Eine Quelle kann festhalten, WELCHE Fassung im Bestand
-  steckt und woher sie kam: `versions_stand` (Errata-/Druckstand), `quell_url`,
-  `quell_hash` (sha256 der Quelldatei) und `importiert_am`. Alle vier sind optional —
-  eine Quelle ohne sie bleibt gültig, sie kann nur weniger über sich sagen. Geraten wird
-  nichts (Regel 1).
+  offizielle Regelauslegungen (Sage Advice) werden als **eigene Quellen** geführt, nicht in
+  den Buchtext eingerechnet: Ein eingerechneter Text wäre nicht mehr der Buchtext, und
+  niemand könnte mehr sagen, was im Buch steht und was korrigiert wurde. Die Ausgabe
+  unterscheidet deshalb drei Dinge: **Regeltext**, **offizielle Errata** (📌, die Korrektur
+  gilt) und **offizielle Regelauslegung** (⚖️, kein Regelwortlaut).
+  Umsetzung: [CONCEPT.md](CONCEPT.md) §3.
+- **V10 — Quellen-Provenienz:** Eine Quelle muss festhalten können, WELCHE Fassung im
+  Bestand steckt und woher sie kam — Errata-/Druckstand, Herkunfts-URL, Prüfsumme der
+  Quelldatei, Importzeitpunkt. Alle Angaben sind **optional**: eine Quelle ohne sie bleibt
+  gültig. Geraten wird nichts (Regel 1). Felder und Migrationsweg:
+  [CONCEPT.md](CONCEPT.md) §3.
 
 **Verbindlich:** Editionen werden **NIE geraten.** Beim DDB-Import autoritativ aus der
 Buch-Datenbank, bei PDFs pro Buch explizit gesetzt. Unklar = **nicht importieren**.
@@ -341,10 +336,9 @@ So sind sie entschieden — Nr. 6 ist ein späterer Nachtrag:
    Weitergabe von URL und Inhalten über die Runde hinaus bleibt untersagt.
 
 2. **Frühere Annahme „DDB-Extraktion über die MrPrimate-Toolchain" — überholt.** Der
-   `ddb-proxy` kann **keine Buchinhalte** liefern (nur Charaktere, Zauber, Items, Monster) —
-   F5 wäre damit unerfüllbar. Umgesetzt ist ein **eigener kurzlebiger Exporter** über die
-   DDB-Mobile-API mit SQLCipher-Entschlüsselung. Begründung: [CONCEPT.md](CONCEPT.md) §10,
-   ADR. Der Proxy-Weg ist ausdrücklich verworfen und wird nicht wieder geöffnet.
+   `ddb-proxy` kann **keine Buchinhalte** liefern, F5 wäre damit unerfüllbar. Umgesetzt ist
+   ein **eigener kurzlebiger Exporter**. Der Proxy-Weg ist ausdrücklich verworfen und wird
+   nicht wieder geöffnet — Belege und Rückfallebene: [CONCEPT.md](CONCEPT.md) §10 (ADR).
 
 3. **Q7/F5b „kein Laufzeit-API-Aufruf" vs. dem Charakterbogen-Übersetzer.** Q7 gilt
    unverändert für den **MCP-Server**: Regel-Nachschlagen ist vollständig offline. Der

@@ -94,25 +94,12 @@ Qualitätserwartung ehrlich: gut für Fließtext, Statblöcke/Tabellen brauchen 
 **nicht** — dafür fehlt weiter das deutsche PHB **2024**. Nutzen: deutsche Begriffe
 und Altregel-Auskünfte mit ⚠️-Kennzeichnung (V4/B5).
 
-**Ertrag der 2014-Bücher (27.07.2026):** Das Glossar steht bei **3180 Zeilen**, gewachsen über
-belegte Struktur-Paarung statt Rateschluss: 228 Monster-Brücken, 214 Klassenmerkmal-Paare,
-**106 Zauber-Brücken** (Zauberkopf-Fingerabdruck), 6 Gegenstands-Brücken (Preisklassen).
-Vorgeschaltet lief die **Namensreparatur** der Scans: 69 zerrissene Namen wurden belegt
-zusammengeführt (`D ORNENWAND` → `Dornenwand`, `TREFFE RWÜRFEL` → `Trefferwürfel`) — erst
-dadurch sind sie überhaupt abfragbar, was das Rückwärts-Seeding aus deutschen Namen von 538
-auf **1076 Zeilen** verdoppelte.
-
-Der Re-Import von `phb-2014-de` nach dem `KOPF_HEADING`-Fix (§3) brachte weitere 8
-Zauber-Brücken: 1585 → **1539 Einträge** (die 46 Artefakt-Chunks sind in ihre Zauber
-zurückgewandert, 264 tragen den Zauberkopf jetzt im Body). **Achtung bei künftigen
-Re-Importen:** ein Re-Import spielt die rohen OCR-Namen wieder ein und macht die
-Namensreparatur der betroffenen Quelle zunichte — danach gehört `import --quelle glossar`
-gefahren, das `repariere_2014_namen` mitbringt. Seit dem 31.07.2026 sagt die CLI-Hilfe
-des Kommandos das auch selbst, statt es nur hier zu erwähnen.
-**Zauber-Abdeckung vollständig:** Von den 369 deutschen 2024-Einträgen der Kategorie `zauber`
-tragen 345 eine Glossar-Brücke; die 24 ohne sind keine Zauber, sondern Abschnitte des
-Zauberkapitels (`Dauer`, `Effekte`, `Verbalkomponente (V)` — siehe §3). Damit ist die
-Übersetzungslücke bei den echten Zaubern geschlossen.
+Was die 2014-Bücher **stattdessen** eingebracht haben, ist erledigt und trägt deshalb keinen
+Posten mehr: das Glossar wuchs über belegte Struktur-Paarung auf 3180 Zeilen, die
+Zauber-Abdeckung ist geschlossen (345 von 369 deutschen 2024-Zaubern tragen eine Brücke, die
+24 übrigen sind Regelabschnitte, nicht Zauber — §3). Die Verfahren dahinter stehen bei ihrer
+Mechanik in [CONCEPT.md](CONCEPT.md) §5, die Fallen in §12; die Zahlen im Detail in
+`git show 83f1eea:BACKLOG.md`.
 
 **Gate:** dt. Kernbegriffe/Optionen (z. B. Aasimar) kommen **deutsch** aus dem Bestand;
 die deutsche Quelle rankt vor DDB-Englisch. *Die `prioritaet` steht seit dem 31.07.2026 fest:
@@ -122,48 +109,28 @@ die Entscheidung noch einmal zu prüfen ist.*
 
 ### M5 — Feedback & Iteration · *laufend, kein Gate*
 
-**Erster Durchgang gegen echte Nutzung (28.07.2026, 256 Anfragen/30 Tage).** Der Bericht
-zeigte `gelegenheitsangriff` **5× mehrdeutig** — eine Kernregel, die fünfmal keine Antwort
-gab. Ursache: Singular und Plural liegen im Glossar als zwei getrennte Inseln
-(`Opportunity Attack`/`Gelegenheitsangriff` aus dem Kernwortschatz,
-`Opportunity Attacks`/`Gelegenheitsangriffe` aus dem Spielerhandbuch), und der Zwei-Hop
-kommt von der einen nie zur anderen. `seed_flexionsbruecke_aus_bestand` schließt das —
-12 Brücken über 6 Begriffe, nur wo **beide** Sprachen dieselbe Flexionsrichtung zeigen,
-als `offiziell=0`-Suchvarianten. Konflikt-Gate danach unverändert (5/36/5).
+**Der Durchgang, wie er läuft:** `docker compose exec -T foliant python -m app.admin
+suchbericht` listet Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten und Übersetzungs-Lücken
+als Kuratier-Kandidaten (inkl. Antwortzeit p50/p95 → B9/M3). Aus einem Kandidaten wird ein
+Glossar-Paar über `admin glossar-paare --nur-neue` (Struktur-Abgleich mit Beweisstufe, Review
+**vor** `import --quelle glossar`); danach dürfen die **echten** Konflikte in
+`admin glossar-audit` nicht zunehmen — editionsgetrennte Formen regelt S8 selbst, und die
+geprüften Homonyme stehen als Beleg in `GEPRUEFTE_HOMONYME` ([CONCEPT.md](CONCEPT.md) §10).
 
-`gelegenheitsangriff` liefert jetzt die srd-de-Regel (S. 208) statt sechs Kandidaten.
+**Was im Bericht KEIN Befund ist** — sonst kuratiert der Durchgang Testdaten:
+- `silvery barbs` als Nulltreffer ist **korrektes** Verhalten: der Zauber ist bewusst nicht
+  geladen (Halluzinations-Köder der Abnahme, §2/A1).
+- Eigene Benchmarks landen im Protokoll wie echte Anfragen (Gotcha in
+  [CONCEPT.md](CONCEPT.md) §12). Ein Kunstbegriff an der Spitze der Nulltreffer stammt fast
+  immer von einer Messreihe.
 
-*Was der Bericht sonst zeigte:* `silvery barbs` (2×) ist **korrektes** Verhalten — der
-Zauber ist bewusst nicht geladen (Halluzinations-Köder der Abnahme). Der häufigste
-Nulltreffer `xyzzyquux` (22×) stammt aus meinen eigenen Benchmarks; die Tools loggen jeden
-Aufruf (Gotcha in [CONCEPT.md](CONCEPT.md) §12). Offen als echte Kandidaten bleiben
-`samurai`, `soul cage`, `erzwungene bewegung`.
-Der Meldeweg (O4) ist gebaut: das Abfrage-Protokoll (`data/foliant-protokoll.sqlite`,
-`[protokoll]` in der Config) loggt jede Nachschlage-Anfrage; `docker compose exec foliant
-python -m app.admin suchbericht` listet Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten und
-Übersetzungs-Lücken als Kuratier-Kandidaten (inkl. Antwortzeit p50/p95 → B9/M3).
-Aus einem Kandidaten wird ein Glossar-Paar über `admin glossar-paare --nur-neue`
-(Struktur-Abgleich Gegenstände/Monster mit Beweisstufe, Review vor
-`import --quelle glossar`); nach jedem Seeding-Lauf dürfen die **echten** Konflikte in
-`admin glossar-audit` nicht zunehmen (editionsgetrennte Formen regelt S8 selbst).
-Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking
-und Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
+**Erster Durchgang (28.07.2026, 256 Anfragen/30 Tage):** trug genau einen echten Fund —
+`gelegenheitsangriff` war 5× mehrdeutig, weil Singular und Plural im Glossar zwei Inseln sind
+(behoben, Mechanik und Grenze in [CONCEPT.md](CONCEPT.md) §12). Offen als echte Kandidaten
+bleiben `samurai`, `soul cage`, `erzwungene bewegung`.
 
-**Die 12 „echten Konflikte" aufgearbeitet (27.07.2026).** Am dt. SRD 2024 nachgemessen (Auszählung
-im Fließtext) zerfielen sie in drei Klassen — nur zwei waren überhaupt Dubletten:
-
-| Klasse | Fälle | Behandlung |
-|---|---|---|
-| **Vom SRD entschieden** | `Tree Stride` (Baumwandeln, Gegenform 0×) · `Sunlight Sensitivity` (Empfindlich…, Gegenform 0×) | in `KERN_SINGULAR_PAARE` aufgenommen → `kanonisiere_konflikte` demotet die Dublette zur Suchvariante. **Ableitung, keine Setzung** |
-| **Geprüfte Homonyme** | `Hide` (Fell/Verstecken) · `Divination` (Erkenntnismagie=Schule/Weissagung=Zauber) · `Lucky` (Talent/Halbling-Merkmal) · `Armor` (Ober-/Unterkategorie) · `Weapon Mastery` (srd-de/gedrucktes PHB) | **beide Formen richtig** — eine Auflösung wäre Datenverlust. Stehen in `GEPRUEFTE_HOMONYME`, das Audit weist sie getrennt aus |
-| **Randfälle ohne Bestandsbezug** | `Drown` · `Immolation` · `Investigator` · `Shoggoth` · `Mask of the Wild` | aus Abenteuer-/Drittanbieterbänden oder 2014-Merkmalen, die es 2024 nicht mehr gibt — keine Wirkung auf Auskünfte, bewusst unangetastet |
-
-**Warum das mehr ist als Kosmetik:** Das Gate stand dauerhaft auf „12", ohne je 0 werden zu
-können. Eine Kennzahl, die immer rot ist, hört man auf zu lesen — und dann fällt ein *echter*
-neuer Konflikt beim nächsten Import nicht mehr auf. `GEPRUEFTE_HOMONYME` führt die erwarteten
-Formen deshalb explizit mit: taucht eine **dritte** auf, gilt der Fall wieder als ungeprüft und
-erscheint als echter Konflikt. Die Liste ist ein Beleg, kein Deckel — abgesichert durch einen
-eigenen Test.
+Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking und
+Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 
 ### M6 — Discord-Bot · *neu 26.07.2026*
 Foliant in Discord (`app/discord_bot/`): `/regel` + @Mention, Antworten öffnen Threads mit
@@ -179,47 +146,19 @@ Gesprächskontext (in-memory), voller Bestand mit Guild-Sperre (SPEC §12 Nr. 6)
 **Gate:** ein Mitspieler stellt eine Regelfrage in Discord und bekommt eine belegte
 Antwort; `admin suchbericht` zeigt die Anfrage.
 
-### M7 — Discord-Ausbau · *neu 30.07.2026*
-Der Bot bleibt ein **Nachschlagewerk im Gespräch** und wird kein zweites Avrae. Die
-Abgrenzung ist inhaltlich, nicht technisch: Avrae automatisiert den Spieltisch (Würfeln,
-Initiative, Kampf, Charakterbögen aus D&D Beyond, Alias-Scripting) und schlägt englische
-Einträge nach. Foliant *erklärt* Regeln auf Deutsch, geerdet im eigenen Bestand, mit
-Belegzeile und Regelversion — und lehnt Spoiler ab. Beide können nebeneinander im selben
-Server laufen, ohne sich zu überschneiden.
+### M7 — Discord-Ausbau · *neu 30.07.2026 · Code ✅, zwei Nachweise offen*
+Der Bot bleibt ein **Nachschlagewerk im Gespräch** und wird kein zweites Avrae. Der
+Funktionsumfang steht (Thread-Rebuild, `/regel-privat`, `/hilfe`, Kontextmenü,
+`fassung`-Option, konfigurierbarer Cooldown, drei Robustheits-Fixes aus dem Review vom
+02.08.2026) — was davon **warum** so geschnitten ist, samt Nicht-Zielen, steht im
+Entscheidungsregister ([CONCEPT.md](CONCEPT.md) §10). Offen sind nur noch die zwei Nachweise,
+die Tokens bzw. eine echte Guild brauchen:
 
-**Nicht-Ziele** (bewusst, damit künftige Feature-Ideen daran gemessen werden): kein
-Würfeln, keine Initiative- oder Kampfverwaltung, kein Charakter-Speichern, kein
-Alias-Scripting, kein Homebrew, keine Direktbefehl-Nachschlager (`/zauber`, `/monster`) —
-die Antwort ist die Erklärung, nicht der Datenbank-Auszug —, kein Charakterbogen-Upload
-(der Übersetzer bleibt auf der Website).
-
-- ✅ **Thread-Rebuild** (`app/discord_bot/rebuild.py`): Nach einem Neustart liest der Bot
-  den Thread aus der Discord-Historie zurück, statt das Gespräch aufzugeben. **Kein neuer
-  State** — die Historie *ist* die Persistenz. Der Vergessen-Hinweis bleibt für den Fall,
-  dass dort nichts Verwertbares steht.
-- ✅ **`/regel-privat`**: ephemere Antwort nur für den Fragenden. Ohne Thread —
-  ephemere Nachrichten können keinen tragen; der Bot sagt es dazu. Anfangs ein Schalter
-  `privat:True` an `/regel`; als eigener Befehl steht die Wahl in der Befehlsliste,
-  statt hinter den Optionen zu warten.
-- ✅ **`DISCORD_COOLDOWN_S`** konfigurierbar; ungültige Werte fallen fail-soft auf den
-  Standard zurück, damit eine Schranke nie still ausfällt.
-- ✅ **DC1–DC3 im Eval**: die ersten Fälle, die den Prompt messen, den der Bot wirklich
-  fährt (Projektanweisung **plus** `config/discord_zusatz.md`). Bisher war nur der
-  Prompt-*Text* geprüft, nicht das Verhalten.
-- ✅ **`/hilfe`**: statische, ephemere Kurzanleitung aller Wege zum Bot (Befehle,
-  Mention, Thread-Nachfragen, Kontextmenü) — ohne API-Kosten.
-- ✅ **Kontextmenü „Foliant fragen"** (Rechtsklick auf eine Nachricht → Apps): prüft
-  deren Text als Regelfrage über denselben Weg wie `/regel`; der Spieltisch-Fall
-  „stimmt das überhaupt?" ohne Abtippen.
-- ✅ **`fassung`-Option an `/regel` und `/regel-privat`** (2024/2014): wandert nur als
-  Klartext in die Frage, Standard bleibt 2024.
-- ✅ **Drei Robustheits-Fixes** (Review 02.08.2026): Prüfen+Reservieren der
-  Ein-Anfrage-Regel atomar (vorher schlüpften zwei schnelle Nachrichten desselben
-  Nutzers durch); Kanal-Fallback, wenn Discord den Thread verweigert (vorher war die
-  bezahlte Antwort weg); Rebuild-Randfälle (allein stehende max_tokens-Meldung galt
-  als Antwort, „vollständig" zählte auf der gefilterten Historie).
 - ⬜ Eval-Lauf der DC-Fälle gegen den Pi-Vollbestand:
-  `make eval-verhalten-pi EVAL_ARGS="--nur DC1,DC2,DC3"` (kostet Tokens, deshalb gezielt)
+  `make eval-verhalten-pi EVAL_ARGS="--nur DC1,DC2,DC3"` (kostet Tokens, deshalb gezielt).
+  Die DC-Fälle sind die ersten, die den Prompt messen, den der Bot wirklich fährt
+  (Projektanweisung **plus** `config/discord_zusatz.md`) — bisher war nur der Prompt-*Text*
+  geprüft, nicht das Verhalten.
 - ⬜ Echttest in der Guild: Frage stellen → `docker compose restart discord` → Folgefrage
   im Thread wird **mit** Kontext beantwortet
 
@@ -236,7 +175,7 @@ B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7).
 | V7 | Erweiterbares Versionsschema | 🟡 | `edition` ist ein Textfeld — reicht heute, feinere Granularität ohne Migration nachrüstbar |
 | NF4 | Legale Quellen; DDB nur privat | 🟡 | bewusste Entscheidung, siehe [SPEC.md](SPEC.md) §12 Nr. 1 |
 | NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | ⬜ | M4 |
-| B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln 25–192 ms **und unter Sessionlast** belegt (§1/M3): p95 bei vier gleichzeitigen Spielern 191 ms, bei acht 546 ms. `make lasttest-pi` hält das als Wächter fest |
+| B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln **und unter Sessionlast** belegt — Zahlen in §1/M3; `make lasttest-pi` hält sie als Wächter fest (bricht bei p95 > 1000 ms ab) |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
 | V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Layer steht (Schema, Kennzeichnung 📌/⚖️, Dedupe-Schutz, Band 70); es fehlen die **PDFs selbst** — §4 |
@@ -345,35 +284,22 @@ Was von einem Lauf dauerhaft gilt, gehört als Aussage in §1 (offene Arbeit), �
 Aus der abgeschlossenen Datenbank-QS und dem Tiefen-Audit der DDB-Druck-Bücher. Alles
 dokumentiert, nichts blockiert die Runde.
 
-Der 2014-Import hat dabei eine Lücke im QS-Netz offengelegt: `admin check` prüfte Struktur
-und **Body**-Textqualität, aber nie die **Namen** — deshalb standen 46 Einträge namens
-`Zeitaufwand: 1 Aktion` unbemerkt im Bestand, gefunden nur per Handabfrage. Seit 27.07.2026
-zählt der Check Metadaten-Namen und OCR-Risse mit, sodass der nächste Buch-Import (M1: dt.
-PHB 2024) sofort anschlägt statt erst bei einer Zufallsstichprobe.
-
-Die Facetten-Persistierung (Phase 3, 28.07.2026) hat beim Messen fünf weitere Posten belegt.
-Zwei davon **hat sie behoben**, weil sie sonst falsche Werte festgeschrieben hätte: der
-`klasse`-Filter las bei Open5e die Materialkomponente statt der Klassenliste
-(`Alarm` → `['a bell and silver wire']`, 159 Zauber, Anteil belegbarer Klassenlisten 77 % →
-100 %), und `Range:?` traf ohne Wortgrenze das `Range` in `Ranger`. Die folgenden bleiben
-offen — sie sitzen in Parsern, die **nicht** in die Meta-Tabellen schreiben:
+**Diese Liste führt nur OFFENES.** Behobenes und Gemessen-und-verworfenes wandert ins
+Entscheidungsregister ([CONCEPT.md](CONCEPT.md) §10) oder zu den Gotchas (§12) — dort wird es
+gelesen, wenn jemand die Stelle anfasst, statt hier als Dauer-Eintrag mitzuwachsen.
 
 | Fund | Schwere | Warum offen gelassen |
 |---|---|---|
-| `fingerabdruck` erkennt **Komponenten nie** (`**Komponenten:** V, G, M` — die zwei Sterne stehen zwischen Label und Wert) und liest `Range` aus `Ranger` | niedrig | Der Abdruck ist die **Beweisgrundlage der 106 Zauber-Brücken**. Ihn treffsicherer zu machen verschiebt Glossar-Paare — das gehört in eine Glossar-Änderung, wo das Delta gemessen wird, nicht in eine Persistierung. Am Mac-Subset wäre die Korrektur folgenlos (0 von 3084 Abdrücken ändern sich), aber das Subset belegt den Pi-Vollbestand nicht. Die Facetten umgehen den Defekt über `kopf_felder()` |
+| `fingerabdruck` erkennt **Komponenten nie** und liest `Range` aus `Ranger` | niedrig | Bleibt roh: der Abdruck ist die Beweisgrundlage der 106 Zauber-Brücken, eine „Reparatur" verschiebt Glossar-Paare. Volle Begründung und der Umweg über `kopf_felder()`: [CONCEPT.md](CONCEPT.md) §12 |
 | `facetten.monster_attribute` liest `INT` aus „Hit **Po**ints" (Label ohne Wortgrenze) | niedrig | Wird von Phase 3 **nicht** persistiert; benutzt wird die Funktion nur vom Monster-Struktur-Abgleich, wo derselbe Fehler auf beiden Seiten auftritt und sich damit heraushebt |
 | `gegenstand_meta.preis_cent` deckt nur **43 %** der Gegenstände | keine | **Kein Fehler:** Ausrüstung ohne Preisangabe im Text (magische Gegenstände, Sammelabschnitte) trägt legitim keinen Preis. `admin check` warnt deshalb nur bei einer **komplett leeren** Tabelle, nicht bei Lücken |
 | `gegenstand_meta.seltenheit` bleibt ungeschrieben | keine | Es gibt im Bestand keine belastbare Ableitung (magische Gegenstände führen sie, Ausrüstung nicht) — lieber NULL als geraten (Regel 1) |
-| Der Facetten-Filter parste für jeden Eintrag der Kategorie den vollen Body | **behoben** (28.07.2026) | Der aus der Lastmessung benannte B9-Hebel: 1627 `zauber_grad`-Aufrufe je Filteranfrage, 41 % der Profilzeit. Gelöst **nicht** als „SQL statt Text", sondern als **Meta-Vorfilter mit dem Textprädikat als Autorität** — ausgeschlossen werden nur Zeilen, deren gespeicherter Wert nachweislich ein anderer ist (dieselben Parser, also äquivalent); Zeilen ohne Meta laufen wie bisher durch das Prädikat, damit eine ungeseedete DB nicht still nichts liefert. **3,5–6,2× je Anfrage, p95 bei vier Spielern 584 → 191 ms.** Die Äquivalenzprobe **schlug zuerst fehl** und deckte auf, dass Datenbanken noch Meta-Zeilen aus dem in Phase 3 entfernten Open5e-Schreiber tragen können (`Evocation` statt `hervorrufung`) — ein Vorfilter dagegen wirft passende Einträge still weg. Deshalb prüft `_meta_ist_kanonisch` den Wertraum an den Daten selbst (`ritual`/`rk` gab es beim alten Schreiber nicht) und schaltet den Vorfilter sonst ganz ab |
-| **Relationstabelle `eintrag_bezug`** (E1) — **gemessen und verworfen** | keine | Am Pi-Vollbestand nachgemessen: (a) der Übersetzungsbezug ergäbe 2151 Paare — genau das, was `_dedupe_und_sortiere` ohnehin je Anfrage rechnet, bei 83 ms Suchzeit und **ohne einen einzigen Leser**; (b) der Editionsbezug über Namensgleichheit (535 Fälle) funktioniert heute schon als `andere_fassungen`; (c) **der namensgebende Umbenennungsfall „Rasse" → „Spezies" existiert im Bestand nicht** — 0 Glossarzeilen mit `Rasse`/`Spezies`/`Species`. Die 21 Kandidaten für editionsabhängige Umbenennung sind Klammer-Suffixe (`Klingenteufel (Hamatula)` → `Klingenteufel`) und Singular/Plural, beides deckt `KLAMMER_SUFFIX` bzw. `kanonisiere_schreibvarianten` schon ab. Dazu: `eintrag_id` ist nicht importstabil (E3), die Tabelle bräuchte nach jedem Import einen Neuaufbau — ein neuer Fehlermodus ohne Nutzen |
-| **`edition_quelle` nachziehen** (C3, 29 % ohne Edition) — **gemessen und verworfen** | keine | Von den 12 echten Glossar-Konflikten tragen **8 auf beiden Seiten bereits eine Edition** — Nachziehen ändert dort nichts. Die übrigen 4 (`drown`, `immolation`, `investigator`, `shoggoth`) sind exakt die oben schon als „Randfälle ohne Bestandsbezug" klassifizierten; sie stammen aus Drittanbieter- und Abenteuerbänden (Kobold Press, Sandy Petersen, Ulisses), wo eine WotC-Edition zu behaupten **Raten wäre (Regel 2)**. Nutzen null, Preis 773 geratene Zeilen plus ein gestörter, mühsam kuratierter Konfliktstand |
 | `Aasimar Traits` u. Ä. erscheinen als eigene **Such**treffer (die Detail-Auskunft ist vollständig) | niedrig | echter, suchbarer Inhalt; die Option rankt zuerst — Ausblenden verschlechterte die Suche |
 | srd-de Drop-Cap-Namen (`wAffen`, `zAuber`) | niedrig | rein kosmetisch; eine Case-Heuristik an der Hauptquelle wäre risiko-unverhältnismäßig |
 | **srd-de-Kapitelköpfe sind keine Einträge** — die Frage „Talent" landet deshalb bei `frhof-en` statt bei der deutschen Hauptquelle | niedrig | Gefunden beim M5-Durchgang 28.07.2026. srd-de führt kein Eintrag namens `Talente`; das Kapitel heißt dort `Beschreibungen der Talente`, der Kapitelkopf selbst wurde nicht zum Eintrag. Deutsch-first (Q2/S10) kann bei kapitelweiten Fragen also gar nicht greifen — nicht weil die Priorität falsch wäre, sondern weil es nichts zu bevorzugen gibt. Die gelieferte Antwort ist korrekt, 2024, `regelwerk` und belegt (kein Spoiler-Band); sie kommt nur aus dem englischen Druckbuch. Eine Behebung hieße, Kapitelköpfe als Einträge zu chunken — das erzeugte bei der Datenbank-QS am 11.07.2026 schon einmal ~109 inhaltsleere Kapitel-Header und wurde bewusst rückgängig gemacht |
 | 2014-Sub-Fragmente in DDB-Kategorien | niedrig | erreichen die strikt-2024-Listen nie; die Suche rankt echte Optionen zuerst |
 | ~30 kosmetische Inline-Kapitälchen-Reste, vereinzelte OCR-Garbles in den Druck-Büchern | niedrig | Inhalt korrekt; das Kreuz-Audit bestätigte Würfelwerte 65/65 und GP-Preise 86/87 |
 | Body-Dubletten (Kampfstile je Klasse) | keine | **kein Fehler** — legitime klassenspezifische Instanzen |
-| 46 Einträge in `phb-2014-de` trugen eine Zauberkopf-Zeile als Namen (`Zeitaufwand: 1 Aktion`) | **behoben** | Ursache: `_LABEL_HEADING` erkannte nur **fett** gesetzte Label (`**Reichweite:** 9 m`); die 2014-Scans setzen den Zauberkopf als blanke H6-Überschrift. `KOPF_HEADING` schließt die Lücke — die Zeile wandert wieder in den Body des Zaubers. Re-Import am 27.07.2026 gefahren, `admin check` meldet seither 0 Metadaten-Namen. Geprüft: ins Glossar war **nichts** davon gelangt (0 Zeilen mit Metadaten als Begriff) |
 | **3 OCR-zerrissene Überschriften** (Rest) | niedrig | *Am 01.08.2026 von 49 auf 3 gesenkt.* Die Frage „warum kann man das nicht korrigieren?" war berechtigt: 46 der Titel sind für einen Menschen sofort lesbar (`ABERGLAUB E`, `KIN DH EITSERIN N ERU NGEN`) und stehen jetzt kuratiert in `namensreparatur.KURATIERTE_TITEL` — die Reparatur läuft in der Glossar-Kette und überlebt einen Re-Import. **Warum nicht automatisch:** zwei Heuristik-Anläufe schafften 22 bzw. 26 und erzeugten dabei FALSCHE Namen (`HEIMATLÄ N DER` → `HEIMATLÄ NDER`, `DIE S PIELWERTE` → `DIES PIELWERTE`) — welches Leerzeichen echt ist, steht nicht im Namen, und ein falscher Eintragsname ist schlimmer als ein zerrissener, weil er richtig aussieht. **Die letzten drei** (`AURA D`, `MAGISCH R N`, `IJ ER K.A1~v1 PFA BLAU F`) bleiben offen: ihre Zeichen tragen keine eindeutige Lesart, eine Zuordnung wäre geraten (Regel 1) |
 | 24 Abschnitte des Zauberkapitels tragen `kategorie = "zauber"` (`Dauer`, `Effekte`, `Verbalkomponente (V)`) | niedrig | Der Breadcrumb (`*Kontext: Zauber > Zauber wirken*`) weist sie im Antworttext bereits als Regelabschnitt aus. Ein automatischer Korrektor über den Zauberkopf-Detektor wurde **gemessen und verworfen**: er stufte 134 statt 24 Einträge herab, hätte also echte Zauber verborgen — schlimmer als der Befund |
 
@@ -404,27 +330,13 @@ Vorgemerkt, aber noch nicht als Arbeit beschlossen — hier steht die Frage, nic
 **Erledigt.** Die Rangfolge heißt jetzt PRIORITÄTSBÄNDER und steht an einer Stelle:
 `importer/quellen.py` (`band_fuer`/`band_passt`). Die Importer beziehen ihre Zahlen daraus,
 `admin check` meldet Ausreißer, `tests/test_prioritaetsbaender.py` prüft die Bänder und die
-echte Config. Tabelle und Begründung: [CONCEPT.md](CONCEPT.md) §10 („Prioritätsbänder statt
-vier unabhängiger Zahlen").
+echte Config. Tabelle, die drei damals offenen Fragen und ihre Begründung stehen in
+[CONCEPT.md](CONCEPT.md) §10 („Prioritätsbänder statt vier unabhängiger Zahlen").
 
-Die drei offenen Fragen von damals sind so beantwortet:
-
-- **Eine Rangfolge oder zwei?** Eine. Begriffsautorität läuft weiter über den eigenen
-  Glossar-Weg (S7/S8) und nicht über `prioritaet` — eine zweite Zahl hätte dieselbe Regel
-  ein zweites Mal behauptet.
-- **Vollbuch oder SRD zuerst?** Das gekaufte deutsche Vollbuch (Band 10) vor dem deutschen
-  SRD (Band 20): es ist die Obermenge und das Buch, das am Tisch aufgeschlagen wird. Das
-  Gegenargument (OCR-Scan gegen sauberes PDF) steht in CONCEPT §10 dabei; die Entscheidung
-  ist eine Config-Zeile plus `admin quellen-auffrischen`. Solange `phb-2024-de` nicht
-  importiert ist, ändert sie nichts.
-- **Dritte Rangfolge für die Zitierautorität?** Nein — der Empfehlung gefolgt und
-  stattdessen den **Beleg ergänzt**: `weitere_quellen` nennt jetzt „Player's Handbook,
-  S. 241", `weitere_fundstellen` führt `seite` und `quelle` als eigene Felder. Damit bleibt
-  der beste Text kanonisch und der Spieler bekommt trotzdem die Seite im Buch.
-
-**Offen geblieben:** Ob Band 10 vor 20 richtig ist, zeigt sich erst mit dem realen
-PHB-Import (M1) — kommt das Buch als OCR-Scan herein, ist die Zeile in `config/foliant.toml`
-der Ort, an dem man es zurückdreht.
+**Hier bleibt nur der offene Rest:** Ob Band 10 (dt. Kernregelwerk) vor Band 20 (dt. SRD)
+richtig ist, zeigt sich erst mit dem realen PHB-Import (M1) — kommt das Buch als OCR-Scan
+herein, ist der sauberere Text im SRD, und die Zeile in `config/foliant.toml` plus
+`admin quellen-auffrischen` ist der Ort, an dem man es zurückdreht.
 
 #### Errata & Regelauslegung — Rest-Posten · *31.07.2026*
 
