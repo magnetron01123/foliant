@@ -153,6 +153,23 @@ def cmd_import(args) -> None:
                 sys.exit(f"Quelle '{kuerzel}': dateipfad fehlt in der config.")
             # A8: Quellpfade projektroot-relativ aufloesen (Container-CWD ist egal).
             p = _db.projekt_pfad(pfad)
+            # Fehlt die Datei, aber die Quelle fuehrt eine `quell_url`? Dann holen, statt
+            # den Nutzer mit "dateipfad fehlt" in den Browser zu schicken (O2). Eine
+            # VORHANDENE Datei fasst der Bezug nie an - siehe importer/quellbezug.py.
+            from importer.quellbezug import BezugFehler, hole_wenn_fehlt
+            try:
+                gemeldet = hole_wenn_fehlt(p, eintrag.get("quell_url"),
+                                           erwarteter_hash=eintrag.get("quell_hash"))
+            except BezugFehler as fehler:
+                sys.exit(f"Quelle '{kuerzel}': {fehler}")
+            if gemeldet:
+                print(gemeldet)
+            if not p.exists():
+                # Ohne URL (gekaufte PDFs, Scans) bleibt es bei der gewohnten Meldung -
+                # jetzt aber mit dem Hinweis, dass es einen Bezugsweg gibt.
+                sys.exit(f"Quelle '{kuerzel}': {pfad} fehlt. Datei dorthin legen - oder "
+                         f"eine `quell_url` in den [[quelle]]-Block, wenn die Quelle "
+                         f"frei herunterladbar ist.")
             if str(p).lower().endswith(".pdf"):
                 from importer.pdf_nach_markdown import pdf_zu_markdown
                 markdown = pdf_zu_markdown(p)

@@ -17,7 +17,7 @@ David**, nicht an Code:
 | offen | wartet auf |
 |---|---|
 | **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — derzeit liegen Bestand *und* alle Sicherungen auf derselben SD-Karte. **Das einzige Risiko mit unwiederbringlichem Schaden** |
-| **Errata-PDFs** (§4) | drei Downloads — der Revisions-Layer steht, trägt aber noch null Einträge |
+| **Errata auf dem Pi** (§4) | einen Deploy + drei Import-Befehle — lokal sind die 43 Korrekturen drin, der bediente Bestand hat sie noch nicht |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
 | **M6** Discord-Bot | Token im Entwicklerportal, Erst-Test in der Guild |
 | **M7** Discord-Ausbau | Eval-Lauf mit den DC-Fällen, Echttest nach einem Neustart |
@@ -178,7 +178,7 @@ B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
 | B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln **und unter Sessionlast** belegt — Zahlen in §1/M3; `make lasttest-pi` hält sie als Wächter fest (bricht bei p95 > 1000 ms ab) |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
-| V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Layer steht (Schema, Kennzeichnung 📌/⚖️, Dedupe-Schutz, Band 70); es fehlen die **PDFs selbst** — §4 |
+| V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Errata erfüllt (43 Korrekturen lokal importiert, 📌 greift); offen: Import auf dem Pi und die Regelauslegung (Sage Advice) — §4 |
 | V10 | Quellen-Provenienz (`versions_stand`, `quell_url`, `quell_hash`, `importiert_am`) | ✅ | Schema v3; alle vier optional, nichts wird geraten |
 
 ---
@@ -354,14 +354,26 @@ Regressionstest verankert.*
 
 Was noch fehlt:
 
-- ⬜ **Die drei Errata-PDFs ablegen und importieren** (PHB 2024, DMG 2024, MM 2025). Die
-  `[[quelle]]`-Blöcke stehen fertig in `config/foliant.toml`, die Dateien fehlen. Beim
-  ersten Import die **Bilanzzeile lesen**: das Chunking-Muster (`_errata_headings`) ist aus
-  dem veröffentlichten Aufbau abgeleitet, aber nie an den echten Dateien justiert. Die
-  Bilanz meldet zwei Fälle — `kein Korrektur-Kopf mit Seitenangabe` (Muster passt gar
-  nicht) und `N von M fetten Koepfen ohne erkennbare Seitenangabe` (Teiltreffer, der
-  gefährlichere Fall: der Import läuft durch, ein Teil der Korrekturen hängt stumm am
-  Vorgänger).
+- ✅ **Die drei Errata-PDFs sind importiert** — 43 Korrekturen (PHB 17, MM 24, DMG 2), am
+  Mac verifiziert. Der Download ist Teil des Imports (`quell_url` + gepinnter `quell_hash`,
+  [CONCEPT.md](CONCEPT.md) §4); das Chunking-Muster ist am echten Dokument justiert und die
+  Bilanz-Zählung korrigiert — beide Befunde stehen in [CONCEPT.md](CONCEPT.md) §8.
+- ⬜ **Auf dem Pi nachziehen** (David). Der Pi-Bestand trägt die Errata noch **nicht** —
+  bis dahin sieht die Runde die Korrekturen nicht. `make deploy-pi` allein reicht nicht:
+  `config/foliant.toml` ist vom rsync **ausgeschlossen** (jedes Gerät führt seine eigene).
+  Die drei `[[quelle]]`-Blöcke stehen deshalb einsatzbereit in
+  [`config/foliant.example.toml`](config/foliant.example.toml) — mit Pins, ohne Privates.
+  ```sh
+  make deploy-pi
+  ssh $PI 'cd ~/foliant && sed -n "/errata-phb-2024-en/,/^# ---/p" \
+      config/foliant.example.toml >> config/foliant.toml'   # oder von Hand kopieren
+  for b in errata-phb-2024-en errata-dmg-2024-en errata-mm-2025-en; do \
+      ssh $PI "cd ~/foliant && docker compose exec -T foliant \
+               python -m app.admin import --quelle $b"; done
+  make test-golden-pi
+  ```
+  Die PDFs brauchst du **nicht** mitzuschicken (`quellen/` ist ebenfalls ausgeschlossen) —
+  der Import holt sie auf dem Pi selbst. Erwartet: 17 / 2 / 24 Korrekturen, Bilanz still.
 - ⬜ **Sage Advice Compendium** einbinden. Der `[[ddb.buch]]`-Block liegt auskommentiert in
   der Config; ungeklärt ist, ob der DDB-Account den Band führt (`ddb-exporter list-owned`).
   Wenn nicht: freies PDF über den `[[quelle]]`-Weg mit `inhaltsart = "regelauslegung"`.

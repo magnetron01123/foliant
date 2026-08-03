@@ -185,9 +185,27 @@ justieren über `SPLIT_REGELN` / `MERGE_REGELN` / `BEREINIGUNG` je Quelle in
 Nach jedem Import: **FTS `rebuild`** (macht der Importer selbst). Re-Import ist **atomar**
 (Kandidat → Prüfung → `os.replace`), idempotent, mit Schrumpf-Schutz.
 
+**Quellbezug: fehlt die Datei, holt der Import sie** (`importer/quellbezug.py`). Führt ein
+`[[quelle]]`-Block eine `quell_url` und liegt unter `dateipfad` nichts, lädt der Import die
+Datei dorthin — der Weg für frei verteilte PDFs (die drei Errata-Bände). Netz ist hier nichts
+Neues: `glossar` und `open5e` rufen an derselben Stelle APIs, die Laufzeit bleibt offline (Q7).
+
+**Die tragende Regel: eine VORHANDENE Datei wird nie angefasst.** Nicht überschrieben, nicht
+verglichen, nicht „aktualisiert". Unter `quellen/` liegen kuratierte und reparierte PDFs — ein
+Bezug, der die Originaldatei ersetzt, macht stundenlange Handarbeit lautlos zunichte, und zwar
+genau dann, wenn jemand routiniert einen Re-Import fährt. Wer eine neue Auflage will, löscht
+die Datei bewusst. Dazu drei Prüfungen, bevor eine Antwort als Quelldatei gilt: **https**,
+ein Größen-Deckel und die **magischen Bytes** — nicht der Content-Type, denn ein Portal, das
+eine Anmelde- oder Cloudflare-Seite mit HTTP 200 ausliefert, ist der Normalfall, und ein
+HTML-Dokument namens `PHB-2024_v1.pdf` fiele sonst erst im PDF-Parser auf. Führt die Config
+einen `quell_hash`, ist er ein **Pin** (V10): passt er nicht, liegt an derselben URL ein
+anderer Inhalt — dann bricht der Import ab, statt `versions_stand` zu einer falschen Aussage
+über den Bestand zu machen.
+
 | Quelle | Weg |
 |---|---|
 | **Born-digital-PDF** (dt. SRD) | `[[quelle]]`-Block in `config/foliant.toml` → `admin import --quelle <kuerzel>` |
+| **Frei verteilte PDFs** (Errata) | dasselbe, plus `quell_url` (+ `quell_hash` als Pin) — die Datei holt der Import |
 | **Scans MIT OCR-Textschicht** (dt. 2014-Bücher) | Triage meldet „DIGITAL“ — misst aber nur, OB Text da ist, nicht die Chunk-Struktur: `pymupdf4llm` vergibt Heading-Ebenen relativ zum Gesamtdokument, dort liegt der Inhalt komplett auf H6 → eigene `SPLIT_REGELN` mit Level 6 nötig (sonst 3 Riesen-Chunks je Buch, Befund 27.07.2026). **Folgefalle:** auf H6 landet dann auch der Zauberkopf; `_LABEL_HEADING` fing nur die **fette** Form (`**Reichweite:** 9 m`), die Scans setzen sie blank → `KOPF_HEADING` |
 | **Gescannte PDFs** | `admin pdf-triage` (Befund) → `admin ocr-pdf` (`--redo` bei Alt-OCR, `--voll` = Neuaufbau) → normale Pipeline |
 | **Browser-Druck-PDFs** (DDB-Ausdrucke) | reparierte Original-Schicht **oder** Voll-OCR, je nach Schaden; Konvertierung am Mac |
@@ -562,20 +580,41 @@ ssh -L 8001:localhost:8001 <nutzer>@<pi-ip>     # dann http://localhost:8001
 
 Die drei Errata-PDFs (PHB 2024, DMG 2024, MM 2025) bietet WotC frei zum Herunterladen an;
 die `[[quelle]]`-Blöcke stehen fertig in `config/foliant.toml` (`errata-*`, `inhaltsart =
-"errata"`, Band 70). Ablauf: PDF nach `quellen/errata/` legen, dann
+"errata"`, Band 70, `quell_url` + gepinnter `quell_hash`). **Ein Befehl je Band, die PDF
+holt der Import selbst** (§4 „Quellbezug"):
 
 ```
 .venv/bin/python -m app.admin import --quelle errata-phb-2024-en
+.venv/bin/python -m app.admin import --quelle errata-dmg-2024-en
+.venv/bin/python -m app.admin import --quelle errata-mm-2025-en
 ```
 
-**Beim ERSTEN Import die Bilanzzeile lesen.** Errata-PDFs haben keine Heading-Struktur,
-die der Konverter erkennen könnte — jede Korrektur ist ein Absatz mit fettem Kopf
-(`**Jumping (p. 30).** …`). `_errata_headings` in `importer/import_markdown.py` macht
-daraus `### Jumping`; ohne diesen Schritt entstünde **ein Riesen-Chunk je Rubrik**, in dem
-die Suche nichts findet (derselbe Fehler wie bei den 2014-Scans, 27.07.2026). Das Muster
-ist aus dem veröffentlichten Aufbau abgeleitet, aber **nie an den echten Dateien
-justiert** (sie lagen bei der Umsetzung nicht vor). Greift es nicht, meldet die Bilanz das
-als `WIRKUNGSLOS` — dann das Muster nachziehen, statt den Riesen-Chunk zu importieren.
+Errata-PDFs haben keine Heading-Struktur, die der Konverter erkennen könnte — jede
+Korrektur ist ein Absatz mit fettem Kopf (`**_Polymorph (p. 306)._**`).
+`_errata_headings` in `importer/import_markdown.py` macht daraus `### Polymorph`; ohne
+diesen Schritt entstünde **ein Riesen-Chunk je Rubrik**, in dem die Suche nichts findet
+(derselbe Fehler wie bei den 2014-Scans, 27.07.2026).
+
+**Am echten Dokument justiert (03.08.2026).** Bis dahin war das Muster nur aus dem
+veröffentlichten Aufbau abgeleitet, und der erste echte Import zeigte, warum das nicht
+reicht — mit zwei Befunden, von denen der zweite der schlimmere war:
+
+1. **Vier der 17 PHB-Korrekturen beginnen mitten in der Zeile,** direkt hinter dem
+   Satzende der vorigen (`… to move”. **_Poisoner (p. 206)._** In the Brew Poison …`).
+   Der Kopf-Regex verlangte den Zeilenanfang — Poisoner, Conjure Fey, Polymorph und
+   Shapechange fehlten stumm im Bestand. `_ERRATA_KOPF_MITTEN` setzt sie jetzt zuerst auf
+   eigene Zeilen.
+2. **Die Bilanz zählte falsch — blind und laut zugleich.** Kandidat war „fetter Lauf am
+   Zeilenanfang": die vier verpassten Köpfe waren damit *nie* Kandidaten, dafür galt der
+   Dokumenttitel (`**Player’s Handbook (2024)**`) als verpasster Kopf. Gemeldet wurde
+   „1 von 14" — ein Fehlalarm, während der echte Ausfall unerwähnt blieb. **Das ist die
+   Lehre für jede Zählung dieser Art:** Sie muss messen, was gesucht wird (Köpfe *mit
+   Seitenangabe*, wo immer sie stehen), nicht, was leicht zu zählen ist.
+
+Endstand: **43 Korrekturen** aus drei PDFs (PHB 17, MM 24, DMG 2 — der DMG-Band ist
+wirklich so klein), Bilanz still. Greift das Muster bei einer künftigen Fassung nicht,
+meldet die Bilanz `WIRKUNGSLOS` — dann das Muster nachziehen, statt den Riesen-Chunk zu
+importieren.
 
 Zwei Dinge, die dabei bewusst so sind: Der **Eintragsname ist die betroffene Regel**
 („Fireball") — nur so findet das Erratum, wer nach der Regel sucht; die Kollision mit dem
@@ -1117,6 +1156,12 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   verschiebt Glossar-Paare. Für die Facetten gibt es deshalb `kopf_felder()` mit
   auszeichnungsfreiem Kopf und wortgrenzen-festen Labeln — `tests/test_facetten_seeder.py`
   hält fest, dass der Abdruck sich dabei nicht bewegt.
+- **Der Quellbezug ersetzt NIE eine vorhandene Datei.** Wer `quell_url` als „hol die
+  aktuelle Fassung" liest, liegt falsch: Der Schritt greift nur, wenn unter `dateipfad`
+  nichts liegt. Das ist Absicht — unter `quellen/` stehen kuratierte und reparierte PDFs,
+  und ein Bezug, der sie überschreibt, vernichtet Handarbeit beim routinierten Re-Import.
+  Eine neue Auflage kommt herein, indem man die Datei bewusst löscht (und dann `quell_hash`
+  UND `versions_stand` nachzieht, sonst bricht der Pin den Import ab — richtig so).
 - **Ein Re-Import spielt die rohen OCR-Namen wieder ein** und macht die Namensreparatur der
   betroffenen Quelle zunichte. Facetten deshalb nie über einen Re-Import nachziehen, sondern
   mit `import --quelle facetten`. Musste ein Re-Import doch sein (z. B. nach einem
