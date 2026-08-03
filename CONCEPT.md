@@ -190,6 +190,9 @@ Nach jedem Import: **FTS `rebuild`** (macht der Importer selbst). Re-Import ist 
 Datei dorthin — der Weg für frei verteilte PDFs (die drei Errata-Bände). Netz ist hier nichts
 Neues: `glossar` und `open5e` rufen an derselben Stelle APIs, die Laufzeit bleibt offline (Q7).
 
+Der Bezug braucht ein **beschreibbares** `quellen/`. Am Mac ist es das; im Pi-Container
+bewusst nicht (`:ro`) — dort ist der Weg zweistufig (§8, „Errata importieren").
+
 **Die tragende Regel: eine VORHANDENE Datei wird nie angefasst.** Nicht überschrieben, nicht
 verglichen, nicht „aktualisiert". Unter `quellen/` liegen kuratierte und reparierte PDFs — ein
 Bezug, der die Originaldatei ersetzt, macht stundenlange Handarbeit lautlos zunichte, und zwar
@@ -599,6 +602,29 @@ Danach **ein Befehl je Band, die PDF holt der Import selbst** (§4 „Quellbezug
 .venv/bin/python -m app.admin import --quelle errata-dmg-2024-en
 .venv/bin/python -m app.admin import --quelle errata-mm-2025-en
 ```
+
+**Auf dem Pi geht der Bezug NICHT im Container** (Befund beim ersten echten Pi-Import,
+03.08.2026). `quellen/` ist dort absichtlich `:ro` gemountet (`docker-compose.yml`), damit
+die getunnelte Laufzeit keine Quelldateien schreiben kann — und ein `docker compose run -v`
+hebt das **nicht** auf: Compose behält den `:ro`-Mount der Service-Definition. Diese
+Härtung bleibt. Der Weg auf dem Pi ist deshalb zweistufig, wie beim DDB-Import: **Datei auf
+dem Host holen, Import im Container.**
+
+```sh
+# auf dem Pi, im Host-Verzeichnis ~/foliant/quellen/errata/
+curl -fsSL -o PHB-2024_v1.pdf <quell_url aus der config>
+sha256sum PHB-2024_v1.pdf          # MUSS dem quell_hash der config entsprechen
+docker compose exec -T foliant python -m app.admin import --quelle errata-phb-2024-en
+```
+
+Der Hash-Vergleich ist hier **Handarbeit und deshalb Pflicht**: Er ist die einzige Prüfung,
+die auf diesem Weg entfällt — `hole_wenn_fehlt` fasst eine vorhandene Datei nicht an und
+prüft dann auch ihren Hash nicht (§4, tragende Regel). Wer ihn überspringt, importiert im
+Zweifel eine neue Auflage unter `versions_stand = "Errata Version 1.0"`.
+
+*Offen als Verbesserung:* ein eigener Import-Profil-Service mit `quellen` read-write, wie es
+`ddb-exporter` für sein Secret schon macht — dann gilt der Ein-Befehl-Weg auch auf dem Pi
+([BACKLOG.md](BACKLOG.md) §4).
 
 Errata-PDFs haben keine Heading-Struktur, die der Konverter erkennen könnte — jede
 Korrektur ist ein Absatz mit fettem Kopf (`**_Polymorph (p. 306)._**`).

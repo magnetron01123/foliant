@@ -104,8 +104,13 @@ inhaltsart = "regelwerk"
 # -------------------------------------------------------------------------------------
 # Offizielle Errata (WotC). EINSATZBEREIT - hier steht nichts Privates: WotC verteilt die
 # drei PDFs frei, und die Bloecke tragen nur oeffentliche URLs plus die Pruefsummen der
-# am 03.08.2026 geladenen Fassungen. Uebernimm sie unveraendert; die DATEIEN musst du
-# nicht besorgen, der Import holt sie aus `quell_url` (CONCEPT.md par. 4 "Quellbezug").
+# am 03.08.2026 geladenen Fassungen. Uebernimm sie unveraendert - ALLE Zeilen ab
+# `[[quelle]]`, nicht erst ab `kuerzel` (sonst fehlt der Tabellenkopf und die Config bricht).
+#
+# Wer die DATEIEN besorgt, haengt vom Ort ab: Am Mac holt der Import sie selbst aus
+# `quell_url`. Im Pi-Container NICHT - `quellen/` ist dort bewusst read-only, dort erst
+# auf dem Host laden und den sha256 gegen `quell_hash` pruefen (CONCEPT.md par. 8,
+# "Errata importieren").
 #
 # `quell_hash` ist ein PIN, kein Protokoll: Erscheint an derselben URL eine korrigierte
 # Auflage, bricht der Import ab, statt sie stumm als "Errata Version 1.0" einzulesen. Dann
