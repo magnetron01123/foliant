@@ -72,14 +72,19 @@ Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
 **Gate:** Backup liegt außerhalb des Pi, Dienst übersteht Neustart, Monitoring meldet Ausfälle.
 
 ### M4 — Onboarding & Pilot-Session · *klein · Anleitung ✅, Pilot offen*
-- ✅ **Spielerfeste Kurzanleitung** (03.08.2026) — steht auf der Charakterbogen-Website im
-  Abschnitt „Foliant im Claude-Chat", also dort, wo die Spieler ohnehin Link und
-  Projektanweisung holen (`app/charakterbogen/templates/index.html`). Neu dazu: **sieben
-  Beispielfragen**, jede am echten Bestand geprüft statt erfunden, und der von B10
-  verlangte **Beta-Fallback** — vier konkrete Symptome mit Selbsthilfe („Claude antwortet
-  ohne Buch und Seite", „Connector verschwunden", „nur ein Connector erlaubt") und als
-  letzte Zeile der ehrliche Ausweg: **nimm den Discord-Bot**, der braucht keine
-  Einrichtung. Damit ist NF8/B10 auf der Anleitungsseite erfüllt.
+- ✅ **Spielerfeste Kurzanleitung** (03.08.2026) — auf der Charakterbogen-Website, dort wo
+  die Spieler ohnehin Link und Projektanweisung holen. Der B10-Fallback („Connectoren sind
+  Beta → Link neu hinzufügen, sonst nimm Discord") steht als **eine Zeile** unter der
+  Einrichtung.
+- ✅ **Die Seite gekürzt statt erweitert** (Eigentümer-Entscheidung 03.08.2026). Der erste
+  Anlauf hatte sieben geprüfte Beispielfragen und einen vierteiligen Fehler-Fahrplan — beides
+  fachlich richtig und **trotzdem falsch**: Wer eine Regelfrage im Spiel hat, liest keine
+  Bedienungsanleitung. Gestrichen wurden Beispielfragen, Fehler-Fahrplan, der
+  „mit/ohne Foliant"-Vergleich, die Pipeline-Erklärung des Übersetzers und drei
+  Discord-Blöcke; der sichtbare Text der Seite halbierte sich (5900 → 2885 Zeichen ohne
+  Projektanweisung). **Maßstab bleibt: so viel wie nötig, so wenig wie möglich** — was der
+  Bot im richtigen Moment selbst sagt (Tageslimit erreicht, Faden vergessen), braucht nicht
+  vorab auf der Seite zu stehen.
 - ⬜ **Pilot-Session mit 1–2 Spielern** (David) — das eigentliche Gate.
 
 **Gate:** ein nicht-technischer Mitspieler verbindet sich eigenständig und nutzt es im Spiel.
@@ -138,7 +143,7 @@ geprüften Homonyme stehen als Beleg in `GEPRUEFTE_HOMONYME` ([CONCEPT.md](CONCE
 (behoben, Mechanik und Grenze in [CONCEPT.md](CONCEPT.md) §12). Offen als echte Kandidaten
 bleiben `samurai`, `soul cage`, `erzwungene bewegung`.
 
-**Beim Prüfen der M4-Beispielfragen aufgefallen (03.08.2026):** `umklammern` liefert
+**Beim Prüfen von Beispielfragen aufgefallen (03.08.2026):** `umklammern` liefert
 **null Treffer**, während `Gepackt` und `grappled` beide auf den Zustand führen. Das ist
 kein Bestandsmangel, sondern eine fehlende Suchvariante — und ein Wort, das am Tisch
 fallen dürfte. Kandidat für ein `offiziell = 0`-Paar; **am Pi-Vollbestand
