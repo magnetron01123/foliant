@@ -379,3 +379,52 @@ def test_golden_zerrissene_statblock_werte_repariert():
     finally:
         con.close()
     assert zu_klein == 0, f"{zu_klein} Monster mit unmoeglicher Ruestungsklasse"
+
+
+def test_golden_verschraenkte_statbloecke_entwirrt():
+    """Zehn Monsterpaare des zweispaltigen srd-de-Drucks trugen den Statblock des jeweils
+    anderen (Datenbank-Audit 03.08.2026). Der teuerste Fall: Wer 'Oktopus' nachschlug,
+    bekam den Text des MAULTIERS, weil die Ueberschrift vor dem Rest des Vorgaengers
+    stand und der Oktopus-Statblock hinten am 'Nashorn' hing.
+
+    Die Sollwerte stammen NICHT aus dem Gedaechtnis, sondern aus der englischen Fassung
+    im Bestand (open5e-srd-2024) - dieselbe Kreatur, dieselben Strukturwerte."""
+    paare = {"Oktopus": "Octopus", "Nashorn": "Rhinoceros", "Dogge": "Mastiff",
+             "Dachs": "Badger", "Elefant": "Elephant", "Elch": "Elk",
+             "Rabenschwarm": "Swarm of Ravens", "Rabe": "Raven",
+             "Riesenhyäne": "Giant Hyena", "Riesenhai": "Giant Shark",
+             "Allosaurus": "Allosaurus", "Vampirbrut": "Vampire Spawn",
+             "Vampir-Vertrauter": "Vampire Familiar", "Dschinni": "Djinni",
+             "Hobgoblin-Hauptmann": "Hobgoblin Captain",
+             # Der Sonderfall mit dem Dreier-Verschnitt: Gruftschrecken (Wight) und Grul
+             # (Ghast) teilten sich zwei Eintraege, einer davon ganz ohne Werte.
+             "Gruftschrecken": "Wight", "Grul": "Ghast"}
+    con = adb.connect_readonly(str(adb.standard_pfad()))
+    try:
+        for deutsch, englisch in paare.items():
+            soll = con.execute(
+                "SELECT m.rk, m.tp FROM eintraege e JOIN monster_meta m ON m.eintrag_id = e.id "
+                "JOIN quellen q ON q.id = e.quelle_id "
+                "WHERE q.kuerzel = 'open5e-srd-2024' AND e.name_en = ?", (englisch,)).fetchone()
+            if not soll:
+                continue                       # nicht in jeder Datenbank vorhanden
+            ist = con.execute(
+                "SELECT m.rk, m.tp FROM eintraege e JOIN monster_meta m ON m.eintrag_id = e.id "
+                "JOIN quellen q ON q.id = e.quelle_id "
+                "WHERE q.kuerzel = 'srd-de' AND e.name_de = ?", (deutsch,)).fetchall()
+            assert len(ist) == 1, f"{deutsch}: {len(ist)} Eintraege mit Statblock statt einem"
+            assert tuple(ist[0]) == tuple(soll), (deutsch, englisch, tuple(ist[0]), tuple(soll))
+        # Der Fremdtext ist weg: Im Oktopus darf kein Maultier mehr stehen.
+        body, = con.execute(
+            "SELECT e.body_md FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "WHERE q.kuerzel = 'srd-de' AND e.name_de = 'Oktopus'").fetchone()
+        assert "Maultier" not in body and "Tentakel" in body, body[:200]
+        # Und kein srd-de-Monster steht mehr ohne eigenen Statblock da.
+        ohne = con.execute(
+            "SELECT count(*) FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "LEFT JOIN monster_meta m ON m.eintrag_id = e.id "
+            "WHERE q.kuerzel = 'srd-de' AND e.kategorie = 'monster' AND m.rk IS NULL"
+        ).fetchone()[0]
+        assert ohne == 0, f"{ohne} srd-de-Monster ohne Ruestungsklasse"
+    finally:
+        con.close()

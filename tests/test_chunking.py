@@ -544,3 +544,89 @@ def test_reparierte_werte_sind_rechnerisch_stimmig():
     roh = "|**TP**105 (1|0W1|2+40|)|"
     assert lp.pruefe_wuerfel(roh), "die zerrissene Form muss auffallen"
     assert lp.pruefe_text(_bereinige_srd_de(roh)) == []
+
+
+# ---------------------------------------------------------------------------------------
+# Statblock-Verschraenkung des zweispaltigen srd-de-Drucks (Datenbank-Audit 03.08.2026)
+#
+# Der Konverter liest den Satz in DRUCK-, nicht in Lesereihenfolge. Dabei rutschte eine
+# Ueberschrift regelmaessig vor den Rest ihres Vorgaengers, und ihr eigener Statblock
+# landete am Ende eines spaeteren Eintrags. Im Bestand hiess das: Wer 'Oktopus' nachschlug,
+# bekam den Text des MAULTIERS. Zehn Monsterpaare waren betroffen.
+#
+# Die Reparatur ist EINE Bewegung - die Ueberschrift wandert an ihren Statblock -, und sie
+# ist bewusst nur auf die exakte Form geschnitten (null Koepfe, gefolgt von genau zwei).
+# Der Zauber 'Rieseninsekt' fuehrt legitim VIER Statbloecke und muss unberuehrt bleiben:
+# eine Regel, die zwei Statbloecke zusammenfuehrt, kann zwei Monster zu einem verschmelzen,
+# und ein verschmolzener Statblock sieht vollstaendig aus und ist falsch.
+# ---------------------------------------------------------------------------------------
+
+_VERSCHRAENKT = """#### **<mark>Oktopus</mark>**
+
+**_Lasttier:_** Das Maultier gilt hinsichtlich seiner Traglast als eine Größe größer.
+
+#### **<mark>Nashorn</mark>**
+
+_Großes Tier, gesinnungslos_
+
+**RK** 13 **Initiative** –1 (9) **TP** 45 (6W10+12) **Bewegungsrate** 12 m
+
+**_Zerfleischen:_** _Nahkampfangriffswurf:_ +7, Reichweite 1,5 m.
+
+_Kleines Tier, gesinnungslos_
+
+**RK** 12 **Initiative** +2 (12) **TP** 3 (1W6) **Bewegungsrate** 1,5 m
+
+**_Tentakel:_** _Nahkampfangriffswurf:_ +4, Reichweite 1,5 m.
+"""
+
+
+def _paare(markdown: str) -> str:
+    from importer.import_markdown import _srd_de_statblock_paare
+
+    return _srd_de_statblock_paare(markdown)
+
+
+def test_verschraenkter_statblock_kommt_zu_seiner_ueberschrift():
+    """Der Kernfall: Nach der Reparatur traegt 'Oktopus' RK 12/TP 3 und der Maultier-Text
+    faellt an den Vorgaenger zurueck, statt unter dem falschen Namen zu stehen."""
+    neu = _paare(_VERSCHRAENKT)
+    oktopus = neu[neu.index("<mark>Oktopus</mark>"):]
+    assert "**RK** 12" in oktopus and "**TP** 3 (1W6)" in oktopus
+    assert "Tentakel" in oktopus
+    # Der Fremdtext steht jetzt VOR der Oktopus-Ueberschrift, gehoert also dem Vorgaenger.
+    assert neu.index("Maultier") < neu.index("<mark>Oktopus</mark>")
+    # Und das Nashorn behaelt seinen eigenen Statblock.
+    nashorn = neu[neu.index("<mark>Nashorn</mark>"):neu.index("<mark>Oktopus</mark>")]
+    assert "**RK** 13" in nashorn and "Zerfleischen" in nashorn
+
+
+def test_typzeile_wandert_mit():
+    """Die Typzeile ('_Kleines Tier, gesinnungslos_') gehoert zum Statblock. Bleibt sie
+    zurueck, faengt der Eintrag mitten in der RK-Zeile an und die Kreaturenart fehlt."""
+    neu = _paare(_VERSCHRAENKT)
+    oktopus = neu[neu.index("<mark>Oktopus</mark>"):]
+    assert oktopus.index("_Kleines Tier") < oktopus.index("**RK** 12")
+
+
+def test_vollstaendige_eintraege_bleiben_unberuehrt():
+    """Ein Abschnitt, in dem jeder Eintrag genau einen Statblock hat, darf sich um kein
+    Zeichen aendern - sonst waere die Regel zu weit gefasst."""
+    heil = _VERSCHRAENKT.replace("\n_Kleines Tier, gesinnungslos_\n\n"
+                                 "**RK** 12 **Initiative** +2 (12) **TP** 3 (1W6) "
+                                 "**Bewegungsrate** 1,5 m\n\n"
+                                 "**_Tentakel:_** _Nahkampfangriffswurf:_ +4, Reichweite 1,5 m.\n", "")
+    heil = heil.replace("#### **<mark>Oktopus</mark>**\n\n"
+                        "**_Lasttier:_** Das Maultier gilt hinsichtlich seiner Traglast "
+                        "als eine Größe größer.\n\n", "")
+    assert _paare(heil) == heil
+
+
+def test_mehr_als_zwei_statbloecke_bleiben_unberuehrt():
+    """Der Zauber 'Rieseninsekt' fuehrt vier Kreatur-Statbloecke in EINEM Eintrag. Eine
+    Regel, die dort zuschlaegt, zerlegt einen korrekten Eintrag."""
+    vier = ("#### **<mark>Leerer Eintrag</mark>**\n\nnur Text.\n\n"
+            "#### **<mark>Rieseninsekt</mark>**\n\n"
+            + "".join(f"_Grosses Tier, gesinnungslos_\n\n**RK** 1{i} **TP** {i}0 (2W8)\n\n"
+                      for i in range(4)))
+    assert _paare(vier) == vier
