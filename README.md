@@ -78,6 +78,10 @@ zurück. Wer nur für sich nachschlagen möchte, nimmt **`/regel-privat <frage>`
 Antwort sieht dann niemand sonst, dafür gibt es keinen Thread für Nachfragen. Es gilt ein
 gemeinsames Tageslimit als Kostendeckel.
 
+**`/bestand`** zeigt, welche Bücher im Bestand stehen — mit Sprache, Regelstand und
+Umfang, gruppiert wie auf der Website. Ephemer und ohne API-Kosten, weil die Liste direkt
+aus der Datenbank kommt.
+
 **War eine Antwort falsch?** Mit 👎 darauf reagieren — Foliant merkt sich die Frage als
 Korrektur-Kandidaten (📝 heißt: notiert) und wird genau dort besser, wo er heute daneben
 liegt. Reaktion wegnehmen löscht den Eintrag.

@@ -17,7 +17,7 @@ import httpx
 from discord import app_commands
 
 from app import llm, protokoll
-from app.discord_bot import antwort, rebuild, rueckmeldung
+from app.discord_bot import antwort, bestand, rebuild, rueckmeldung
 from app.discord_bot.gespraech import GespraechsSpeicher, verlaufsschluessel
 from app.discord_bot.schranken import Schranken
 
@@ -113,6 +113,26 @@ class FoliantBot(discord.Client):
             if not self.schranken.richtiger_ort(interaction.guild_id, ort_id):
                 return                       # falscher Ort: still (kein Orakel)
             await interaction.response.send_message(antwort.HILFE, ephemeral=True)
+
+        # Wie /hilfe ohne Modell und ohne Schranken: die Liste kostet keine API-Token,
+        # nur eine SQLite-Abfrage. Ephemer, weil sie eine Nachschlage-Frage beantwortet
+        # ("steht das Buch ueberhaupt drin?") und den Kanal sonst mit einer Tabelle
+        # zustellt, die jeder selbst abrufen kann.
+        @self.baum.command(name="bestand", guild=self._guild,
+                           description="Welche Buecher stehen im Bestand? "
+                                       "Liste mit Sprache und Regelstand")
+        async def bestand_befehl(interaction: discord.Interaction) -> None:
+            ort_id = (getattr(interaction.channel, "parent_id", None)
+                      or interaction.channel_id)
+            if not self.schranken.richtiger_ort(interaction.guild_id, ort_id):
+                return                       # falscher Ort: still (kein Orakel)
+            # Erst deferren, dann lesen: Discord verwirft eine Interaktion nach 3 s, und
+            # die Abfrage laeuft auf dem Pi neben MCP, Website und Import. In einem
+            # Thread, weil SQLite blockiert - der Bot bedient waehrenddessen weiter.
+            await interaction.response.defer(thinking=True, ephemeral=True)
+            liste = await asyncio.to_thread(bestand.aus_datenbank)
+            for teil in antwort.teile(liste):
+                await interaction.followup.send(teil, ephemeral=True)
 
         # Kontextmenue (Rechtsklick auf eine Nachricht -> Apps): prueft eine fremde
         # Aussage als Regelfrage, ohne sie abzutippen - der Spieltisch-Fall "stimmt
