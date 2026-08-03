@@ -708,7 +708,7 @@ Website liefen nach einem Deploy still mit dem alten Stand weiter. Real passiert
 den Tunnel mit durchstartet (§12).
 
 **Warum der Check seit dem 01.08.2026 dazugehört:** `make test` fährt ihn lokal, aber die
-Dev-DB ist ein **Subset** (4 von 15 Quellen). Alles, was erst am Vollbestand sichtbar wird,
+Dev-DB ist ein **Subset** (7 von 18 Quellen). Alles, was erst am Vollbestand sichtbar wird,
 fällt dort nicht auf — an genau dieser Lücke ist eine falsche Prioritätsband-Tabelle
 durchgegangen, die an einer Config kalibriert war, welche drei der betroffenen Bücher gar
 nicht enthält. `admin check` endet bei Problemen mit Exitcode ≠ 0 und bricht damit den

@@ -23,8 +23,9 @@ ausgefüllten offiziellen deutschen WotC-Bogen 2024, druckbar.
 
 ## Stand (03.08.2026)
 
-**MVP komplett und live** auf einem Raspberry Pi 4: ~12 500 Einträge aus 15 Quellen (dt. SRD
-5.2.1, drei deutsche 2014-Bücher, Open5e, D&D-Beyond-Bücher), 6 Tools, Zugang über geheimen
+**MVP komplett und live** auf einem Raspberry Pi 4: ~12 500 Einträge aus 18 Quellen (dt. SRD
+5.2.1, drei deutsche 2014-Bücher, Open5e, D&D-Beyond-Bücher, drei Errata-Bände), 6 Tools,
+Zugang über geheimen
 Pfad + IP-Allowlist, Datenbank-QS abgeschlossen. Der Charakterbogen-Übersetzer läuft als
 eigener Container daneben, der Discord-Bot ebenso. Maßgeblich ist immer `admin status`.
 Was noch offen ist: [BACKLOG.md](BACKLOG.md).
