@@ -1228,6 +1228,13 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
 
 - **pymupdf4llm OCRt textlose Seiten STILL, sobald Tesseract installiert ist** →
   `use_ocr=False` in `pdf_nach_markdown` ist Pflicht und gesetzt; OCR nur über die Vorstufe.
+- **Nach JEDEM Re-Import einer PDF-Quelle gehört `admin import --quelle glossar` hinterher.**
+  Die Namensreparatur (`importer/namensreparatur.py`) läuft in der Glossar-Kette, nicht im
+  Import — ein Re-Import spielt also den rohen PDF-Namen wieder ein (`Gar l gy` statt
+  `Gargyl`). Real passiert am 03.08.2026 beim srd-de-Re-Import auf dem Pi: Lokal war alles
+  grün, weil dort zufällig die Glossar-Kette danach lief; auf dem Pi lief sie nicht, und
+  `check-pi` brach den Deploy ab. **Genau so soll es sein** — der Basiswert-Vergleich in
+  `admin check` hat den Regress gefangen, bevor ihn jemand am Spieltisch gemerkt hätte.
 - **`body_md` niemals von Hand korrigieren, auch wenn die Quelle sich nachweislich irrt.**
   Die Änderung stünde in keinem Diff, wäre beim nächsten Re-Import weg, und der Bestand
   sagte etwas, was sein Buch nicht sagt. Belegte Quellfehler gehören ins Register

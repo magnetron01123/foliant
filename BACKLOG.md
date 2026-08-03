@@ -210,10 +210,12 @@ kanonische Serving liefert überall die korrekte Fassung. Geprüfte NICHT-Befund
 einseitigen Errata-PDFs (⇒ `seite = '1'` ist richtig) und treu reproduzierte
 WotC-Klammer-Typos — bitte nicht „reparieren".
 
-Was aus dem Audit folgte, ist umgesetzt; die tragenden Begründungen stehen als drei
-Entscheidungen in [CONCEPT.md](CONCEPT.md) §10 (Rückweg zum Nachtrag · Quellfehler
-kennzeichnen statt korrigieren · Errata-Kategorien bleiben `regel`). Offen bleibt ein
-Posten, den das Audit **größer gemacht hat, als er im Befund stand**:
+Was aus dem Audit folgte, ist umgesetzt und **am 03.08.2026 auf dem Pi deployt**
+(Golden-Suite 23 passed, `check-pi` OK, Korpus-`inhalts_hash` jetzt `4a71fdd0…`); die
+tragenden Begründungen stehen als drei Entscheidungen in [CONCEPT.md](CONCEPT.md) §10
+(Rückweg zum Nachtrag · Quellfehler kennzeichnen statt korrigieren · Errata-Kategorien
+bleiben `regel`). Offen bleibt ein Posten, den das Audit **größer gemacht hat, als er im
+Befund stand**:
 
 - ⬜ **13 srd-de-Monster ohne eigenen Statblock-Kopf** (und 16 mit zweien) — dieselbe
   Spaltenverschränkung des Drucks, aus der der gemeldete Gruftschrecken/Grul-Fall stammt.
