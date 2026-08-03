@@ -21,7 +21,7 @@ ausgefüllten offiziellen deutschen WotC-Bogen 2024, druckbar.
    keine offizielle Übersetzung existiert.
 3. **Version immer:** aktuelle Regeln (2024) als Standard; ältere Stände klar gekennzeichnet.
 
-## Stand (29.07.2026)
+## Stand (03.08.2026)
 
 **MVP komplett und live** auf einem Raspberry Pi 4: ~12 500 Einträge aus 15 Quellen (dt. SRD
 5.2.1, drei deutsche 2014-Bücher, Open5e, D&D-Beyond-Bücher), 6 Tools, Zugang über geheimen
@@ -159,5 +159,5 @@ Umgangston: freundlich, respektvoll, sachlich — im Zweifel gilt der
   nicht mitgeliefert und nur privat, rechtmäßig erworben und zum Eigenbedarf verarbeitet
   (`lizenz = "privat"`, `herkunft = "ddb"` an jedem Eintrag). Sie werden der eigenen Spielrunde
   über einen zugangsgeschützten Endpoint bereitgestellt — bewusste, protokollierte
-  Eigentümer-Entscheidung ([SPEC.md](SPEC.md) §12.1). Eine Weitergabe über die Runde hinaus
+  Eigentümer-Entscheidung ([SPEC.md](SPEC.md) §12 Nr. 1). Eine Weitergabe über die Runde hinaus
   findet nicht statt.

@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 25.07.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 03.08.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -162,8 +162,8 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
   `unicode61 remove_diacritics 2`, plus **drei Trigger** (INSERT/UPDATE/DELETE).
 
 **Getestet:** Trigger feuern, bm25 rankt, `edition NOT NULL` greift, Cascade-Delete lässt die
-FTS sauber. Alt-DBs (v0/v1) heilt `app.db.connect()` beiläufig auf Schema v2 — jeder
-Import-/Admin-Aufruf genügt.
+FTS sauber. Alt-DBs heilt `app.db.connect()` beiläufig auf den aktuellen Stand (v3, inkl. der
+Provenienz-Spalten) — jeder Import-/Admin-Aufruf genügt.
 
 ---
 
@@ -338,6 +338,16 @@ tragen eine stabile `eintrag_id`, über die der Detailabruf denselben Eintrag ex
 Gespräch.** Die Verhaltensregeln laufen über drei Kanäle — der zuverlässigste sind die
 **Grounding-Hinweise in den Tool-Ausgaben** (siehe [SPEC.md](SPEC.md) §7).
 
+**Wo die Prompt-Texte liegen.** Die drei Kanäle speisen sich aus zwei Dateien, die synchron
+bleiben müssen (`tests/test_verhaltensregeln.py` erzwingt das für die tragenden Regeln):
+`config/stil.py` (Server-Instruktion + Tool-Beschreibungen) und `config/projektanweisung.md`
+(Copy-Paste ins Claude-Projekt). Dazu kommt **`config/discord_zusatz.md`** — **kein vierter
+Kanal**, sondern eine Darstellungs-Ergänzung: Sie hängt an der Projektanweisung und regelt
+nur, was Discord anders kann als der Chat (~1800 Zeichen je Absatz, keine Markdown-Tabellen
+und keine `#`-Überschriften, Statblöcke daher als Codeblock oder fette Feldzeilen). Eine
+*Verhaltens*regel gehört dort nie hinein, sonst kennt der MCP-Weg sie nicht — genau das prüft
+`test_discord_zusatz_ist_nur_darstellung`.
+
 ---
 
 ## 7. Charakterbogen-Übersetzer
@@ -367,7 +377,7 @@ DDB-PDF (EN) ──[1 Extractor]──► neutrales Modell (EN) ──[2 Überse
 
 **Zwei LLM-Stufen statt einer.** (1) Belegte Begriffe kommen deterministisch aus dem Glossar.
 (2) Stufe 1 übersetzt unbelegte Eigennamen („Warrior of Shadow") in einem kurzen eigenen
-Aufruf → §5-Form mit `*` **und** als bindende Vorgabe für Stufe 2. (3) Stufe 2 übersetzt die
+Aufruf → S4/S5-Form mit `*` **und** als bindende Vorgabe für Stufe 2. (3) Stufe 2 übersetzt die
 Fließtexte mit allen Namen als Vorgabe. Ohne diese Trennung hieß derselbe Name im Feld
 „Krieger des Schattens" und im Fließtext „Kämpfer des Schattens". *Gemessen: Stufe 1 ≈ 6 s,
 Stufe 2 ≈ 37 s, gesamt ~44 s (API-bedingt 42–80 s).*
@@ -413,7 +423,7 @@ mehrdeutige Lemmata („Rope": dnddeutsch kennt nur Hanf-/Seidenseil).
   nie Text zerreißen). Merkmalskopf als eigene fette Zeile, darunter die Absätze, zuletzt die
   Aktionsökonomie als `· …`-Zeilen.
 - **Eine Schriftgröße je Kasten**; Fortsetzungsseiten erben die Größe der Ursprungsbox.
-- **Nie stumm überlaufen:** Auto-Fit → §5-Klammer opfern → horizontal stauchen.
+- **Nie stumm überlaufen:** Auto-Fit → S4-Klammer opfern → horizontal stauchen.
 - **Fortsetzungskopf immer**, wenn ein Merkmal über die Box bricht; Vorlagen-Kopien tragen nur
   den **Namen** im Kopf. Seitenzahlen nur, wenn Fortsetzungsseiten eingefügt wurden.
 - **Deterministische Notation:** d→W auf **jedem** Feld (5d8→5W8); Zauber-Notizen `V/S`→`V/G`,
@@ -647,43 +657,51 @@ als es zu löschen, und baut danach neu.
 
 ### Discord-Bot einrichten (einmalig)
 
-1. **Entwicklerportal** (discord.com/developers): Application anlegen → *Bot* →
-   Token erzeugen (→ `.env` `DISCORD_BOT_TOKEN`) → **Message Content Intent aktivieren**
-   (Privileged Intent; Review-Pflicht erst ab 100 Servern — irrelevant bei einer Guild).
-   Profilbild: `deploy/discord_avatar.svg` nach PNG rendern und unter *Bot → Avatar*
-   hochladen (Discord nimmt kein SVG) —
-   `qlmanage -t -s 512 -o /tmp deploy/discord_avatar.svg` legt
-   `/tmp/discord_avatar.svg.png` ab.
-2. **Einladen** mit minimalen Scopes/Rechten: Scopes `bot` + `applications.commands`,
-   Rechte *Send Messages*, *Create Public Threads*, *Send Messages in Threads*,
-   *Read Message History*.
-3. **`.env`**: `DISCORD_GUILD_ID` (Server-ID der Runde — Pflicht, sonst startet der Bot
-   nicht), optional `DISCORD_KANAL_IDS`, `DISCORD_TAGESDECKEL` (Default 100/Tag),
-   `DISCORD_COOLDOWN_S` (Default 10 s zwischen zwei Fragen desselben Nutzers).
-4. **Start:** `docker compose up -d --build --no-deps discord` · Logs:
-   `docker compose logs -f discord` · Nutzung: `/regel <frage>` oder @Foliant erwähnen;
-   Folgefragen im automatisch erzeugten Thread. `/regel-privat <frage>` antwortet nur
-   dem Fragenden (ephemer, deshalb ohne Thread für Nachfragen) — ein **eigener Befehl**
-   statt eines Schalters an `/regel`, weil Discord bei der Eingabe von „/regel" beide
-   Namen mit Beschreibung anzeigt und die Wahl damit vor dem Tippen steht; der Schalter
-   war nur zu finden, wenn man ihn schon kannte. Beide Befehle tragen eine optionale
-   `fassung`-Wahl (2024/2014), die nur als Klartext an die Frage wandert — die
-   Regelversion steuert das Modell über die `edition`-Filter der Tools. Dazu
-   `/hilfe` (statische, ephemere Kurzanleitung ohne API-Kosten) und das
-   **Kontextmenü „Foliant fragen"** (Rechtsklick auf eine Nachricht → Apps): prüft
-   deren Text als Regelfrage über denselben Weg wie `/regel`. Der Verlauf bleibt
-   bewusst in-memory, ein Neustart löscht ihn — der Bot liest den Thread dann aber aus
-   der Discord-Historie zurück (`app/discord_bot/rebuild.py`, max. 40 Nachrichten); nur
-   wenn dort nichts Verwertbares steht, sagt er im Thread, dass er vergessen hat.
-   Verweigert Discord einen Thread (fehlendes Recht, Nachricht trägt schon einen),
-   fällt die Antwort in den Kanal zurück, statt verloren zu gehen.
-5. **Kontrolle:** Discord-Anfragen erscheinen im Abfrage-Protokoll
-   (`admin suchbericht`) — derselbe Kurations-Kreislauf wie beim MCP.
-6. **Für die Runde erklärt** ist der Bot auf der Website (Karte „Foliant in Discord",
-   `app/charakterbogen/templates/index.html`): Befehle, Threads, `/regel-privat`, Schranken
-   und der Hinweis, dass Discord Antworten dauerhaft im Kanal stehen lässt. Ändern sich
-   Befehle oder Schranken, gehört die Karte mitgezogen — sie ist das, was die Spieler
-   lesen.
+**Der Weg ist ein Skript, der Bot-Token die einzige Eingabe:**
+
+```sh
+bash deploy/discord_einrichten.sh          # laeuft LOKAL am Mac, Pi-Ziel aus .env
+```
+
+Es fragt Application ID und Server-ID selbst bei Discord ab
+(`deploy/discord_api.py` → `/users/@me` und `/users/@me/guilds`), baut den Einladungslink
+mit **genau** den fünf Rechten, die `app/discord_bot/bot.py` braucht, schreibt
+`DISCORD_BOT_TOKEN` und `DISCORD_GUILD_ID` in die Pi-`.env` und startet den Dienst.
+Kein Abtippen von IDs, kein Entwicklermodus. Der Token wird verdeckt gelesen, **nie** als
+Argument übergeben (in `ps` sichtbar) und auf dem Pi nach dem Setzen geschreddert — dasselbe
+Muster wie beim DDB-Cobalt.
+
+Zwei Dinge bleiben Handarbeit, weil Discord sie nicht über die API zulässt:
+1. Application + Bot im **Entwicklerportal** anlegen (discord.com/developers) und den Token
+   erzeugen (*Bot → Reset Token*).
+2. **Message Content Intent aktivieren** (Privileged Intent; Review-Pflicht erst ab
+   100 Servern — irrelevant bei einer Guild). Ohne das reagiert der Bot nicht auf @Mentions.
+
+Optional das Profilbild: `deploy/discord_avatar.svg` nach PNG rendern und unter *Bot → Avatar*
+hochladen (Discord nimmt kein SVG) —
+`qlmanage -t -s 512 -o /tmp deploy/discord_avatar.svg` legt `/tmp/discord_avatar.svg.png` ab.
+
+**Von Hand** geht es weiter mit Scopes `bot` + `applications.commands`, den Rechten *Send
+Messages*, *Create Public Threads*, *Send Messages in Threads*, *Read Message History*,
+`DISCORD_BOT_TOKEN` + `DISCORD_GUILD_ID` in die Pi-`.env` und
+`docker compose up -d --build --no-deps discord`.
+
+**Weitere `.env`-Schalter** (alle optional): `DISCORD_KANAL_IDS`, `DISCORD_TAGESDECKEL`
+(Default 100/Tag), `DISCORD_COOLDOWN_S` (Default 10 s zwischen zwei Fragen desselben
+Nutzers). `DISCORD_GUILD_ID` ist Pflicht — ohne sie startet der Bot nicht.
+
+**Nutzung und Betrieb:**
+- Logs: `docker compose logs -f discord`.
+- Befehle: `/regel <frage>`, `/regel-privat <frage>` (ephemer, ohne Thread), `/hilfe`
+  (statisch, ohne API-Kosten), Kontextmenü „Foliant fragen", @Mention. Beide `/regel`-Formen
+  tragen eine optionale `fassung`-Wahl (2024/2014). Was die Befehle können und **warum sie so
+  geschnitten sind**, steht im Entscheidungsregister (§10).
+- **Kontrolle:** Discord-Anfragen erscheinen im Abfrage-Protokoll (`admin suchbericht`) —
+  derselbe Kurations-Kreislauf wie beim MCP.
+- **Für die Runde erklärt** ist der Bot auf der Website (Karte „Foliant in Discord",
+  `app/charakterbogen/templates/index.html`): Befehle, Threads, `/regel-privat`, Schranken
+  und der Hinweis, dass Discord Antworten dauerhaft im Kanal stehen lässt. Ändern sich
+  Befehle oder Schranken, gehört die Karte mitgezogen — sie ist das, was die Spieler lesen.
 
 ### Cloudflare Named Tunnel
 Zero-Trust-Dashboard → Networks → Tunnels → **Create tunnel** → Token in die Pi-`.env` als
@@ -796,7 +814,7 @@ DDB-Verzeichnis aufgelöst; schon Exportiertes wird übersprungen.
   leer ankommt und die Frage ist, ob die Struktur oder der Inhalt fehlt.
 
 **Wohin die Bücher landen,** steuert `config/foliant.toml`: `[ddb] ins_hauptbestand = true` →
-Merge in die bediente DB (**so läuft der Pi**, siehe [SPEC.md](SPEC.md) §12.1). Ohne die Zeile
+Merge in die bediente DB (**so läuft der Pi**, siehe [SPEC.md](SPEC.md) §12 Nr. 1). Ohne die Zeile
 landen sie in `data/private/foliant-private.sqlite`, die der Endpoint nicht serviert. Der
 Merge ist in beiden Fällen atomar, mit Backup und Integritätsprüfung.
 
@@ -873,6 +891,29 @@ relative Ordnung aller vorhandenen Quellen bleibt gleich). Entschärft wird sie 
 dadurch, dass die unterlegene Fassung ihre Fundstelle behält (§5) und Wortlaut-Abweichungen
 als Quellkonflikt ausgewiesen werden (SYN-P1-009).
 
+### Entscheidung: Der Discord-Bot bleibt Nachschlagewerk im Gespräch (30.07.–02.08.2026)
+
+Der Bot wird **kein zweites Avrae**. Die Abgrenzung ist inhaltlich, nicht technisch: Avrae
+automatisiert den Spieltisch (Würfeln, Initiative, Kampf, Charakterbögen aus D&D Beyond,
+Alias-Scripting) und schlägt englische Einträge nach. Foliant *erklärt* Regeln auf Deutsch,
+geerdet im eigenen Bestand, mit Belegzeile und Regelversion — und lehnt Spoiler ab. Beide
+können im selben Server nebeneinander laufen, ohne sich zu überschneiden.
+
+**Nicht-Ziele** (damit künftige Feature-Ideen daran gemessen werden): kein Würfeln, keine
+Initiative-/Kampfverwaltung, kein Charakter-Speichern, kein Alias-Scripting, kein Homebrew,
+keine Direktbefehl-Nachschlager (`/zauber`, `/monster`) — die Antwort ist die *Erklärung*,
+nicht der Datenbank-Auszug —, kein Charakterbogen-Upload (der bleibt auf der Website).
+
+| Entscheidung | Warum |
+|---|---|
+| **`/regel-privat` als eigener Befehl, nicht als Schalter `privat:True` an `/regel`** | Discord zeigt bei der Eingabe von „/regel" beide Namen mit Beschreibung an — die Wahl steht damit **vor** dem Tippen. Der Schalter war nur zu finden, wenn man ihn schon kannte. Ephemere Nachrichten können keinen Thread tragen, deshalb sagt der Bot das dazu. **Keine Vertraulichkeitszusage** (§13) |
+| **Thread-Rebuild aus der Discord-Historie statt persistentem Verlauf** | Der Verlauf ist in-memory, ein Neustart löscht ihn. `app/discord_bot/rebuild.py` liest den Thread dann aus der Historie zurück (max. 40 Nachrichten) — **kein neuer State**, die Historie *ist* die Persistenz. Der Vergessen-Hinweis bleibt für den Fall, dass dort nichts Verwertbares steht |
+| **`fassung` (2024/2014) wandert nur als Klartext in die Frage** | Die Regelversion steuert das Modell über die `edition`-Filter der Tools. Ein zweiter Steuerweg hätte dieselbe Regel ein zweites Mal behauptet |
+| **`/hilfe` ist statisch und ephemer** | Eine Kurzanleitung braucht kein Modell — so kostet der häufigste Erstkontakt keine API-Token |
+| **Kontextmenü „Foliant fragen"** (Rechtsklick → Apps) | Der Spieltisch-Fall „stimmt das überhaupt?" ohne Abtippen; läuft über denselben Weg wie `/regel` |
+| **Schranken fallen fail-soft, nie still aus** | Ein ungültiges `DISCORD_COOLDOWN_S` fällt auf den Standard zurück, statt die Schranke abzuschalten |
+| **Prüfen + Reservieren der Ein-Anfrage-Regel ist atomar** (Review 02.08.2026) | Vorher schlüpften zwei schnelle Nachrichten desselben Nutzers durch. Aus demselben Review: Kanal-Fallback, wenn Discord den Thread verweigert (vorher war die *bezahlte* Antwort weg), und zwei Rebuild-Randfälle (allein stehende `max_tokens`-Meldung galt als Antwort; „vollständig" zählte auf der gefilterten Historie) |
+
 ### ADR: DDB-Buchimport über eigenen Exporter, nicht `ddb-proxy` (10.07.2026)
 
 **Entschieden:** mobile-API-Abruf des ganzen Buchs (user-data → available-user-content →
@@ -936,6 +977,12 @@ mit den §2-Pflichtfeldern Datum/Modell/`inhalts_hash`; am Subset markiert er
 ```
 ANTHROPIC_API_KEY=sk-… make eval-verhalten-pi
 ```
+**Vierte Schicht, nur am Pi: Lastmessung als Wächter.** `make lasttest-pi`
+(`evals/lasttest.py`) fährt die Sessionlast mehrerer gleichzeitiger Spieler gegen den
+Vollbestand und **bricht bei p95 > 1000 ms ab**. Die Messung ist damit nicht nur ein
+Befund, sondern eine Grenze — B9 kann nicht mehr lautlos wegbrechen. Zahlen und Vorgeschichte
+(GIL-Sättigung, Facetten-Vorfilter): [BACKLOG.md](BACKLOG.md) §1/M3.
+
 A4 (Websuche) und E1 (Injektions-Fixture) kann das Harness nicht prüfen — sie bleiben
 ehrlich `uebersprungen` und damit Handarbeit im echten Chat.
 
@@ -1032,7 +1079,9 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Buch werden Fragmente). Beide brechen ab, der Bestand bleibt; `--force` hebt beide auf.
 - `bm25()` liefert negative Werte → `ORDER BY bm25(...) ASC`.
 - Nach jedem Import FTS-`rebuild` (macht der Importer/Admin selbst).
-- DB-Journal = **DELETE** (Bind-Mount) — nicht auf WAL umstellen.
+- **Korpus-DB-Journal = DELETE** (Bind-Mount) — nicht auf WAL umstellen. Gilt für
+  `data/foliant.sqlite`; das Abfrage-Protokoll liegt bewusst auf **WAL**
+  (`app/protokoll.py`) — eigene Datei, eigene Schreiblast, kein Widerspruch.
 - SQLite im Threadpool: **pro Tool-Aufruf eigene Connection**.
 - Python-Testfalle: Doku-IPs (`203.0.113.x`) gelten als `is_private`.
 - **DDB: ToS-Grauzone, nur privat;** Cobalt nie in argv, `.env`, Logs oder Git.

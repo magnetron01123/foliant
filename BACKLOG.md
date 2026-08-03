@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 01.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 03.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -170,8 +170,10 @@ Foliant in Discord (`app/discord_bot/`): `/regel` + @Mention, Antworten öffnen 
 Gesprächskontext (in-memory), voller Bestand mit Guild-Sperre (SPEC §12 Nr. 6), Modell
 `claude-sonnet-5` (der gemessene Stand — gleiche Schleife wie der Eval, `app/llm.py`).
 - ✅ Code, Tests, Compose-Service, Doku
-- ⬜ **Discord-Seite (David):** Bot im Entwicklerportal anlegen, Token + Guild-ID in die
-  Pi-`.env`, Bot einladen (CONCEPT §9 „Discord-Bot einrichten")
+- ⬜ **Discord-Seite (David):** Application + Bot im Entwicklerportal anlegen, Token
+  erzeugen, **Message Content Intent aktivieren** — das ist alles, was Discord nicht über
+  die API zulässt. Den Rest macht `bash deploy/discord_einrichten.sh`: Einladungslink,
+  Server-ID, Pi-`.env`, Dienststart (CONCEPT §9 „Discord-Bot einrichten")
 - ⬜ Erst-Test in der echten Guild (`/regel`, Mention, Thread-Folgefrage, Limits)
 
 **Gate:** ein Mitspieler stellt eine Regelfrage in Discord und bekommt eine belegte
@@ -225,18 +227,20 @@ die Antwort ist die Erklärung, nicht der Datenbank-Auszug —, kein Charakterbo
 DC-Lauf steht im Eval-Report.
 
 ### Offene Anforderungen im Überblick
-Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11, V1–V6/V8, NF1–NF3/NF5–NF7,
-B1–B8, T1–T9/T11, O1–O3/O5, Q1–Q7).
+Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11/S12, V1–V6/V8, NF1–NF3/NF5–NF7,
+B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7).
 
 | Anf. | Inhalt | Status | Zu |
 |---|---|---|---|
 | **S10** | Deutscher Regeltext primär (dt. 2024-Grundregelwerke) | ⬜ | M1 |
 | V7 | Erweiterbares Versionsschema | 🟡 | `edition` ist ein Textfeld — reicht heute, feinere Granularität ohne Migration nachrüstbar |
-| NF4 | Legale Quellen; DDB nur privat | 🟡 | bewusste Entscheidung, siehe [SPEC.md](SPEC.md) §12.1 |
+| NF4 | Legale Quellen; DDB nur privat | 🟡 | bewusste Entscheidung, siehe [SPEC.md](SPEC.md) §12 Nr. 1 |
 | NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | ⬜ | M4 |
 | B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln 25–192 ms **und unter Sessionlast** belegt (§1/M3): p95 bei vier gleichzeitigen Spielern 191 ms, bei acht 546 ms. `make lasttest-pi` hält das als Wächter fest |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
+| V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Layer steht (Schema, Kennzeichnung 📌/⚖️, Dedupe-Schutz, Band 70); es fehlen die **PDFs selbst** — §4 |
+| V10 | Quellen-Provenienz (`versions_stand`, `quell_url`, `quell_hash`, `importiert_am`) | ✅ | Schema v3; alle vier optional, nichts wird geraten |
 
 ---
 

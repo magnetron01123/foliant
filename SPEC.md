@@ -1,8 +1,9 @@
 # Foliant — Spezifikation (das verbindliche „Was")
 
 **D&D-5e-Regelassistent (Fassung 2024), Deutsch-first · self-hosted MCP-Server**
-**Rev. 9 · Stand: 25.07.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
-Widersprüche aufgelöst, Charakterbogen-Übersetzer aufgenommen)*
+**Rev. 10 · Stand: 03.08.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
+Widersprüche aufgelöst, Charakterbogen-Übersetzer aufgenommen; Rev. 10: Datenqualitäts-Schicht
+— S12, V9, V10, B11 — und die Nummerierung aus Rev. 8 geheilt)*
 
 Dieses Dokument definiert, **was** Foliant können muss und **wie es sich verhalten muss** —
 nicht, wie es gebaut ist (das steht in [CONCEPT.md](CONCEPT.md)). Bei fachlichen Fragen gilt
@@ -25,15 +26,15 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
 | Quellen-Import: eigene PDFs, D&D Beyond (Bücher), Open5e | Würfel-Tool, Initiative-Tracker |
 | Deutsch-Ausgabe mit Begriffs-/Quellenregeln | Hausregeln-Overlay |
 | Regelversion bei jeder Ablage | Charakter-Speicherung / Gedächtnis |
-| **Charakterbogen-Übersetzer** (eigene Website, §17) | |
+| **Charakterbogen-Übersetzer** (eigene Website, §14) | |
 
 ### Leitprinzipien (übergreifend)
 - **P1 — Aktuelle Regeln zuerst:** Standard ist D&D 2024 („5.5e"). Ältere Stände werden nie
   stillschweigend beigemischt.
 - **P2 — Version immer sichtbar:** Jede gespeicherte Regel trägt ihre Regelversion; jede
-  Auskunft nennt sie (§3).
+  Auskunft nennt sie (§4).
 - **P3 — Deutsch-first, offiziell:** offizielle deutsche Begriffe, nicht wörtlich übersetzt;
-  englisches Original **immer** in Klammern; fehlt offizielles Deutsch → `*` (§2).
+  englisches Original **immer** in Klammern; fehlt offizielles Deutsch → `*` (§3).
 - **P4 — Belegt:** jede Regelauskunft mit **Quelle** (immer); **Seite** nur, wenn die Quelle
   eine hat.
 - **P5 — So einfach wie möglich:** keine Features über den definierten Umfang hinaus.
@@ -66,7 +67,7 @@ funktionierend, gut umsetzbar, später ausbaubar — **und nur so komplex wie n�
 
 ---
 
-## 3. Sprache & Übersetzung (§5-Regeln)
+## 3. Sprache & Übersetzung
 
 - **S1 — Sprache:** Antworten in korrektem Spieldeutsch.
 - **S2 — Korrekte, nicht wörtliche Begriffe:** die **offiziellen** deutschen Begriffe, keine
@@ -162,7 +163,7 @@ Buch-Datenbank, bei PDFs pro Buch explizit gesetzt. Unklar = **nicht importieren
 - **NF3 — Privat:** ausschließlich für die eigene Runde; keine öffentliche Bereitstellung.
 - **NF4 — Legale Quellen:** frei lizenziertes SRD (CC-BY-4.0) und eigene, legal erworbene
   Inhalte. DDB-Extraktion nur privat (ToS-Grauzone, bewusst akzeptiert).
-- **NF5 — Kosten:** keine laufenden Kosten außer Strom. *(Ausnahme seit §17: der
+- **NF5 — Kosten:** keine laufenden Kosten außer Strom. *(Ausnahme seit §14: der
   Charakterbogen-Übersetzer verbraucht pro Konvertierung Anthropic-API-Guthaben; harter
   Kostendeckel per Spend-Limit im eigenen Workspace.)*
 - **NF6 — Nur so komplex wie nötig.**
@@ -188,7 +189,7 @@ Buch-Datenbank, bei PDFs pro Buch explizit gesetzt. Unklar = **nicht importieren
   bleiben strikt privat.
 - **Q7 — Nachschlagen ohne externe Abhängigkeit.** DDB- und Open5e-Quellen werden **einmalig
   importiert**, nie zur Laufzeit abgefragt; das Regel-Nachschlagen funktioniert vollständig
-  **offline**. *(Gilt für den MCP-Server. Zur Abgrenzung beim Charakterbogen siehe §17.)*
+  **offline**. *(Gilt für den MCP-Server. Zur Abgrenzung beim Charakterbogen siehe §14.)*
 
 ---
 
@@ -235,10 +236,13 @@ dreifach:
 
 | Kanal | Wer | Wirkung |
 |---|---|---|
-| **Grounding-Hinweise in den Tool-AUSGABEN** | Server | **zuverlässigster Kanal** — die Hinweise stehen bei jeder Antwort im Kontext |
-| Server-Instruktionen (`config/stil.py`) + Tool-Beschreibungen | Server | Grundverhalten je Verbindung |
-| **Projektanweisung im Claude-Projekt** (§8) | Betreiber | System-Prompt-Ebene: stärkster Hebel für Priorität, Format, Spoiler |
-| Websuche-Schalter aus | Betreiber | der einzige **harte** Garant gegen Web-Vermischung |
+| 1. **Grounding-Hinweise in den Tool-AUSGABEN** | Server | **zuverlässigster Kanal** — die Hinweise stehen bei jeder Antwort im Kontext |
+| 2. Server-Instruktionen (`config/stil.py`) + Tool-Beschreibungen | Server | Grundverhalten je Verbindung |
+| 3. **Projektanweisung im Claude-Projekt** (§8) | Betreiber | System-Prompt-Ebene: stärkster Hebel für Priorität, Format, Spoiler |
+
+Der **Websuche-Schalter** (Betreiber, Claude-Einstellungen) zählt bewusst nicht als vierter
+Kanal: Er steuert kein Verhalten, sondern ist der einzige **harte** Garant gegen
+Web-Vermischung. Wer „drei Kanäle" liest, meint immer die drei oben.
 
 ---
 
@@ -326,8 +330,8 @@ Alle docken laut Datenmodell ohne Neuaufbau an (NF7). Details: [BACKLOG.md](BACK
 
 ## 12. Aufgelöste Widersprüche (Rev. 9)
 
-Beim Zusammenführen der bis dahin 18 Dokumente traten fünf echte Konflikte zutage. So sind
-sie entschieden:
+Beim Zusammenführen der bis dahin 18 Dokumente traten fünf echte Konflikte zutage (Nr. 1–5).
+So sind sie entschieden — Nr. 6 ist ein späterer Nachtrag:
 
 1. **NF3 „privat, keine öffentliche Bereitstellung" vs. Bereitstellung an die Runde.**
    NF3 ist zu lesen als **„nicht öffentlich"**, nicht als „nur für eine Person". Die
@@ -344,12 +348,12 @@ sie entschieden:
 
 3. **Q7/F5b „kein Laufzeit-API-Aufruf" vs. dem Charakterbogen-Übersetzer.** Q7 gilt
    unverändert für den **MCP-Server**: Regel-Nachschlagen ist vollständig offline. Der
-   Charakterbogen-Übersetzer (§17) ist ein **separater Dienst** und ruft bewusst zur Laufzeit
+   Charakterbogen-Übersetzer (§14) ist ein **separater Dienst** und ruft bewusst zur Laufzeit
    zwei externe Dienste: die Anthropic-API (Übersetzung) und dnddeutsch.de (Glossar-
    Nachschlagen bei unbelegten Begriffen). Beide sind auf diesen Dienst begrenzt; fällt einer
    aus, bleibt der MCP unberührt.
 
-4. **§8-Nicht-Ziel „kein DDB-Charakter-Abruf" vs. dem Charakterbogen-Übersetzer.** Kein
+4. **§1-Nicht-Ziel „kein DDB-Charakter-Abruf" vs. dem Charakterbogen-Übersetzer.** Kein
    Widerspruch: A1 meint das **Laden von Charakteren aus DDB** über dessen API. Der
    Übersetzer verarbeitet ein **vom Nutzer selbst hochgeladenes PDF**; es besteht keine
    Verbindung zu DDB. B8 bleibt gewahrt — nichts wird gespeichert.
@@ -392,14 +396,14 @@ sie entschieden:
 
 ---
 
-## 14. Charakterbogen-Übersetzer (Zusatz-Feature, §17)
+## 14. Charakterbogen-Übersetzer (Zusatz-Feature)
 
 Neben dem MCP-Server läuft ein zweiter Dienst: Ein englischer D&D-Beyond-PDF-Export wird
 ausgelesen, übersetzt und auf den **offiziellen deutschen WotC-Charakterbogen (2024)**
 übertragen — als druckbares PDF.
 
 **Verbindliche Regeln:**
-- **C1 — §5 gilt unverändert.** Ausgabe immer `Deutscher Begriff (English Original)`, `*` nur
+- **C1 — S1–S12 gelten unverändert.** Ausgabe immer `Deutscher Begriff (English Original)`, `*` nur
   bei fehlendem exaktem, belegtem Glossartreffer. Nie nur Englisch.
 - **C2 — Zahlen laufen nie durch das Sprachmodell.** Würfel, Modifikatoren, Rettungswürfe,
   Preise und Gewichte werden deterministisch übertragen.
