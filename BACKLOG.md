@@ -110,8 +110,10 @@ die Entscheidung noch einmal zu prüfen ist.*
 ### M5 — Feedback & Iteration · *laufend, kein Gate*
 
 **Der Durchgang, wie er läuft:** `docker compose exec -T foliant python -m app.admin
-suchbericht` listet Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten und Übersetzungs-Lücken
-als Kuratier-Kandidaten (inkl. Antwortzeit p50/p95 → B9/M3). Aus einem Kandidaten wird ein
+suchbericht` listet die von der Runde **markierten Antworten** (👎 in Discord, seit
+03.08.2026 — der stärkste Kandidat und deshalb der erste Abschnitt), dazu Nulltreffer,
+Fuzzy-Landungen, Mehrdeutigkeiten und Übersetzungs-Lücken (inkl. Antwortzeit p50/p95 →
+B9/M3). Aus einem Kandidaten wird ein
 Glossar-Paar über `admin glossar-paare --nur-neue` (Struktur-Abgleich mit Beweisstufe, Review
 **vor** `import --quelle glossar`); danach dürfen die **echten** Konflikte in
 `admin glossar-audit` nicht zunehmen — editionsgetrennte Formen regelt S8 selbst, und die
@@ -161,6 +163,13 @@ die Tokens bzw. eine echte Guild brauchen:
   geprüft, nicht das Verhalten.
 - ⬜ Echttest in der Guild: Frage stellen → `docker compose restart discord` → Folgefrage
   im Thread wird **mit** Kontext beantwortet
+- ✅ **Rückmeldung per 👎-Reaktion** (03.08.2026): macht eine falsche Antwort zum
+  Kurations-Kandidaten, ohne Befehl und ohne API-Kosten — der Meldeweg, der die eine
+  Fehlerklasse findet, die keine Statistik zeigt. Begründung und Datenschutz-Schnitt:
+  [CONCEPT.md](CONCEPT.md) §9/§13.
+- ⬜ Echttest des Meldewegs in der Guild: 👎 auf eine Antwort → 📝 erscheint → die Zeile
+  steht im `admin suchbericht`. Prüft zugleich, ob das Recht *Add Reactions* gesetzt ist
+  (fehlt es, wird die Markierung notiert, aber nicht bestätigt).
 
 **Gate:** eine Folgefrage nach einem Neustart wird mit Kontext beantwortet, und der
 DC-Lauf steht im Eval-Report.

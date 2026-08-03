@@ -1199,6 +1199,18 @@ def cmd_suchbericht(args) -> None:
                     ORDER BY anzahl DESC, zuletzt DESC LIMIT ?""",
                 (seit, *params, limit))]
 
+        def _markierungen() -> list[dict]:
+            """Markierte Antworten im Zeitraum. Bestands-Protokolle kennen die Tabelle
+            noch nicht (sie entsteht mit der ersten Markierung) - ein fehlender Table darf
+            den Bericht nicht kosten, dessen uebrige Abschnitte in Ordnung sind."""
+            try:
+                return [dict(r) for r in con.execute(
+                    """SELECT zeitpunkt, art, frage, verweis FROM rueckmeldungen
+                        WHERE zeitpunkt >= ? ORDER BY zeitpunkt DESC LIMIT ?""",
+                    (seit, limit))]
+            except sqlite3.OperationalError:
+                return []
+
         dauern = sorted(r[0] for r in con.execute(
             "SELECT dauer_ms FROM abfragen WHERE zeitpunkt >= ? AND dauer_ms IS NOT NULL",
             (seit,)))
@@ -1224,6 +1236,11 @@ def cmd_suchbericht(args) -> None:
             "mehrdeutig": _gruppe("mehrdeutig = 1"),
             "uebersetzungs_luecken": _gruppe("werkzeug = 'uebersetze_begriff' "
                                              "AND gefunden = 0"),
+            # Von der Runde MARKIERTE Antworten (👎 in Discord). Anders als alles darueber
+            # kein Statistik-Signal, sondern ein Urteil: technisch gefunden, inhaltlich
+            # falsch. Genau die Klasse Fehler, die kein Zaehler je zeigt.
+            # Eigene Tabelle -> eigene Abfrage; `_gruppe` liest `abfragen`.
+            "markiert": _markierungen(),
         }
 
         if getattr(args, "json", False):
@@ -1243,6 +1260,16 @@ def cmd_suchbericht(args) -> None:
                 print(f"    {z['anzahl']:>4}x  {z['begriff']}{zusatz}  "
                       f"(zuletzt {z['zuletzt'][:10]})")
             print()
+
+        # Bewusst VOR den Statistik-Abschnitten: Eine Antwort, die ein Spieler als falsch
+        # markiert hat, ist der staerkste Kurations-Kandidat, den dieser Bericht kennt.
+        print("  Von der Runde markiert (👎 in Discord - inhaltlich falsch trotz Treffer):")
+        if not bericht["markiert"]:
+            print("    keine ✓")
+        for m in bericht["markiert"]:
+            print(f"    {m['zeitpunkt'][:10]}  {m['frage'] or '(Frage nicht ermittelt)'}")
+            print(f"                {m['verweis']}")
+        print()
 
         _abschnitt("Nulltreffer (Glossar-/Synonym-Kandidaten, ggf. fehlt ein Buch)",
                    bericht["nulltreffer"], "keine - alles gefunden ✓")

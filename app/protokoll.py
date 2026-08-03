@@ -39,6 +39,28 @@ CREATE TABLE IF NOT EXISTS abfragen (
 );
 """
 
+# Rueckmeldungen der Runde (O4/M5): eine markierte Antwort, ein Kurations-Kandidat.
+#
+# Eigene Tabelle statt einer Spalte an `abfragen`: Die Markierung gilt einer ANTWORT (die
+# aus mehreren Tool-Aufrufen entstand), nicht einer einzelnen Abfrage - es gibt keine
+# Zeile, an die sie gehoerte. Ausserdem rotiert `abfragen` bei 50 000 Zeilen; eine
+# Markierung ist zu selten und zu wertvoll, um mit dem Maschinenverkehr wegzulaufen.
+#
+# UNIQUE(art, verweis) ist die PII-freie Entdopplung: Eine Antwort ist markiert oder nicht,
+# egal wer und wie oft - so braucht es keine Nutzerkennung, um doppelte Zeilen zu vermeiden
+# (CONCEPT.md par. 13).
+_SCHEMA_RUECKMELDUNGEN = """
+CREATE TABLE IF NOT EXISTS rueckmeldungen (
+    id INTEGER PRIMARY KEY,
+    zeitpunkt TEXT NOT NULL,
+    kanal TEXT NOT NULL DEFAULT 'discord',
+    art TEXT NOT NULL,
+    frage TEXT,
+    verweis TEXT NOT NULL,
+    UNIQUE(art, verweis)
+);
+"""
+
 # Nach so vielen Fehlschlaegen IN FOLGE schaltet sich das Logging bis zum Neustart ab.
 _MAX_FEHLER = 20
 _fehler_in_folge = 0
@@ -118,3 +140,45 @@ def protokolliere(werkzeug: str, suchbegriff: str | None = None,
     except Exception:
         # Bewusst schlucken: die Antwort ist laengst berechnet, das Log ist Beiwerk.
         _fehler_in_folge += 1
+
+
+def _schreibe_rueckmeldung(sql: str, werte: tuple) -> None:
+    """Gemeinsamer, nie werfender Schreibweg fuer Markierungen. Dieselbe Leitplanke wie
+    protokolliere(): Ein Log-Fehler darf das Ereignis kosten, nie den laufenden Bot."""
+    global _fehler_in_folge
+    try:
+        if not protokoll_aktiv():
+            return
+        con = sqlite3.connect(protokoll_pfad(), timeout=0.25)
+        try:
+            con.execute("PRAGMA journal_mode=WAL;")
+            con.execute("PRAGMA busy_timeout=250;")
+            con.execute(_SCHEMA)                 # Bestands-DBs kennen die zweite Tabelle
+            con.execute(_SCHEMA_RUECKMELDUNGEN)  # noch nicht - CREATE IF NOT EXISTS genuegt
+            con.execute(sql, werte)
+            con.commit()
+        finally:
+            con.close()
+        _fehler_in_folge = 0
+    except Exception:
+        _fehler_in_folge += 1
+
+
+def merke_rueckmeldung(art: str, verweis: str, frage: str | None = None,
+                       kanal: str = "discord") -> None:
+    """Eine markierte Antwort als Kurations-Kandidat ablegen (idempotent).
+
+    INSERT OR IGNORE statt eines Zaehlers: Markiert ein zweiter Spieler dieselbe Antwort,
+    ist das derselbe Befund - und die Alternative waere, Nutzer auseinanderzuhalten."""
+    _schreibe_rueckmeldung(
+        "INSERT OR IGNORE INTO rueckmeldungen (zeitpunkt, kanal, art, frage, verweis)"
+        " VALUES (?,?,?,?,?)",
+        (datetime.now(timezone.utc).isoformat(timespec="seconds"),
+         kanal, art, frage, verweis))
+
+
+def loesche_rueckmeldung(art: str, verweis: str) -> None:
+    """Markierung zurueckgenommen -> Zeile weg. Ein Fehlgriff soll die Kurationsliste
+    nicht dauerhaft belasten, und die Liste soll dem entsprechen, was in Discord steht."""
+    _schreibe_rueckmeldung(
+        "DELETE FROM rueckmeldungen WHERE art = ? AND verweis = ?", (art, verweis))

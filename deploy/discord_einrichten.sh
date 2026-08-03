@@ -28,8 +28,13 @@ if [ -z "${PI:-}" ]; then
   exit 1
 fi
 # Genau die Rechte, die app/discord_bot/bot.py braucht: View Channel, Send Messages,
-# Read Message History, Create Public Threads, Send Messages in Threads.
-PERMISSIONS=309237713920
+# Read Message History, Create Public Threads, Send Messages in Threads, Add Reactions.
+# Add Reactions (1<<6) traegt die Bestaetigung der Rueckmeldungen (das 📝 auf eine mit 👎
+# markierte Antwort). Ohne das Recht laeuft alles weiter - die Markierung wird notiert,
+# nur die sichtbare Bestaetigung bleibt aus, und ein Knopf ohne sichtbare Wirkung gilt
+# nach zweimal als kaputt. Wer den Bot vor dem 03.08.2026 eingeladen hat, ruft diesen
+# Einladungslink einfach erneut auf: Discord zieht die Rolle des Bots dabei nach.
+PERMISSIONS=309237713984
 
 command -v python3 >/dev/null || { echo "python3 fehlt." >&2; exit 1; }
 

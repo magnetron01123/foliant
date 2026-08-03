@@ -564,7 +564,7 @@ check         Integritaet, FK, FTS-Suchbarkeit, Editionen, Textqualitaet, Facett
 qualitaet-basis  Basiswert bekannter Datenmaengel neu erheben [--schreiben] - nur am Vollbestand sinnvoll
 glossar-audit Glossar-Stand und -Herkunft pruefen
 glossar-paare Kandidaten fuer neue Glossar-Paare zeigen [--nur-neue] [--json]
-suchbericht   Auswertung des Abfrage-Protokolls: Nulltreffer, Fuzzy, Mehrdeutigkeiten
+suchbericht   Kuratier-Signale: MARKIERTE Antworten, Nulltreffer, Fuzzy, Mehrdeutigkeiten
 backup        konsistentes, verifiziertes Online-Backup mit Rotation
 ddb-pruefe | ddb-import | ddb-import-all | ddb-remove
 ```
@@ -740,6 +740,19 @@ Nutzers). `DISCORD_GUILD_ID` ist Pflicht — ohne sie startet der Bot nicht.
   (statisch, ohne API-Kosten), Kontextmenü „Foliant fragen", @Mention. Beide `/regel`-Formen
   tragen eine optionale `fassung`-Wahl (2024/2014). Was die Befehle können und **warum sie so
   geschnitten sind**, steht im Entscheidungsregister (§10).
+- **Rückmeldung der Runde:** Eine **👎-Reaktion** auf eine Bot-Antwort macht sie zum
+  Kurations-Kandidaten; der Bot bestätigt mit 📝, das Zurücknehmen löscht den Eintrag.
+  Warum das gebaut ist: Der Suchbericht sieht Nulltreffer, Fuzzy-Landungen und
+  Mehrdeutigkeiten — **er sieht nicht die Antwort, die gefunden hat und trotzdem falsch
+  war.** Genau die erkennen die Spieler sofort und hatten dafür keinen Weg außer „David
+  sagen". Eine Reaktion ist der kürzeste denkbare Meldeweg: kein Befehl, keine API-Kosten,
+  kein neuer State. Logik discord-frei in `app/discord_bot/rueckmeldung.py`, Ablage in
+  `protokoll.rueckmeldungen` (was dort steht und was nicht: §13), Ausgabe als erster
+  Abschnitt von `admin suchbericht` — vor jeder Statistik, weil ein Urteil der Runde der
+  stärkste Kandidat ist, den der Bericht kennt.
+  Das Recht *Add Reactions* trägt nur die Bestätigung: fehlt es, wird die Markierung
+  dennoch notiert. `deploy/discord_einrichten.sh` fordert es an; wer den Bot vorher
+  eingeladen hat, ruft den Einladungslink erneut auf.
 - **Kontrolle:** Discord-Anfragen erscheinen im Abfrage-Protokoll (`admin suchbericht`) —
   derselbe Kurations-Kreislauf wie beim MCP.
 - **Für die Runde erklärt** ist der Bot auf der Website (Karte „Foliant in Discord",
@@ -1219,6 +1232,13 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Suchbegriffe, Filter und Zeiten — keine Nutzerkennungen, IPs oder Gesprächsinhalte. Es
   ist die einzige Schreib-Ausnahme des Serving-Pfads und liegt deshalb in einer eigenen
   Datei; die bediente Korpus-DB bleibt strikt `mode=ro`.
+  Dieselbe Zusage gilt für die Tabelle `rueckmeldungen` (§9): Sie hält die **Frage** —
+  dieselbe Datenklasse wie `suchbegriff` — und einen **Nachrichten-Link**. Bewusst *nicht*
+  den Antworttext (das wäre Gesprächsinhalt in einer Log-Datei, und der Link führt in einem
+  Klick dorthin, wo die Antwort ohnehin steht) und **keine Nutzerkennung**: Wer markiert
+  hat, ist für die Kuration ohne Bedeutung, und die Markierung soll kein Sozialprotokoll
+  werden. Deshalb zählt auch nicht, wie oft markiert wurde — `UNIQUE(art, verweis)` ist die
+  Entdopplung, die ohne Nutzer-Identität funktioniert.
 - **Laufzeit offline** (MCP), read-only auf legal erworbenen Daten; Admin-Funktionen **nie**
   über den Tunnel, nur lokal/SSH.
 - **Discord-Bot:** keine eingehende HTTP-Fläche (nur ausgehend zu Discord/Anthropic);
