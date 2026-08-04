@@ -26,9 +26,16 @@ from app import glossar as _glossar
 from config import quellfehler as _quellfehler
 
 
+# "Eventuell fehlt ein Buch" stand hier bis zum 04.08.2026 als Angebot - und die Runde
+# markierte prompt eine Antwort, die genau das tat (B2). Der Bot war dabei REGELKONFORM:
+# Kanal 1 und die Prompt-Kanaele gaben die Vermutung woertlich vor. Eine Mutmassung ueber
+# den Bestand ist aber ueberfluessig, seit `/bestand` ihn belegt auflistet - und eine
+# Vermutung an der Stelle einer moeglichen Abfrage ist genau der Fuellstoff, den B2 meint.
 HINWEIS_LEER = ("Nichts im Bestand gefunden. Sag das ehrlich mit ❌ ('Dazu finde ich nichts "
                 "im Foliant-Bestand') und antworte NICHT aus Allgemeinwissen, 2014-Regeln oder "
-                "Homebrew (B1). Eventuell fehlt schlicht ein Buch im Bestand (B2). Falls danach "
+                "Homebrew (B1). Mutmasse NICHT ueber fehlende Buecher - welche im Bestand "
+                "stehen, zeigt '/bestand' (Discord) bzw. die Bestandsliste der Website (B2). "
+                "Falls danach "
                 "eine Websuche gewuenscht ist: Ergebnisse strikt getrennt und gekennzeichnet "
                 "ausgeben ('🌐 Aus dem Web, NICHT aus dem Foliant-Bestand, ungeprueft') - nie "
                 "mit Bestandsinhalten vermischen; Abenteuer-/Kampagnen-Spoiler bleiben auch "
@@ -41,6 +48,16 @@ HINWEIS_ALT = ("Keine 2024-Fassung im Bestand, nur ein aelterer Regelstand. Klar
 HINWEIS_MEHRDEUTIG = ("Mehrere Eintraege passen. NICHT raten (B4): nenne die Kandidaten mit "
                       "Unterscheidungsmerkmal (Kategorie/Quelle/Version) und frag zurueck - "
                       "oder lade den richtigen direkt per eintrag_id nach (SYN-P1-002).")
+
+# Rueckmeldung der Runde, 04.08.2026: Auf "Kann man 2 Gelegenheitsangriffe machen?" kam ein
+# klares "Ja" - belegt mit der Hydra, also einem MONSTER-Merkmal. Fuer Spielercharaktere
+# lautet die Antwort "nein", und die eigene Folgeantwort widerrief das zwei Minuten spaeter.
+# Der Treffer war geerdet; falsch war, ihn als allgemeine Regel auszugeben (B4).
+HINWEIS_MONSTER_MERKMAL = (
+    "Dies ist ein MONSTER-Steckbrief. Seine Merkmale gelten fuer diese Kreatur, NICHT "
+    "allgemein und NICHT fuer Spielercharaktere. Zielt die Frage auf Spielerfiguren, sag "
+    "das ausdruecklich dazu, statt das Merkmal als allgemeine Regel auszugeben - und "
+    "beantworte die eigentliche Frage getrennt (B4).")
 
 HINWEIS_DB_FEHLT = ("Der Regelbestand ist noch leer (keine Datenbank/keine Importe). Sag ehrlich, "
                     "dass noch keine Quellen importiert sind - erfinde keine Regeln (B1).")
@@ -499,12 +516,21 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
             d["hinweis_inhaltsart"] = f"{symbol} Dieser Eintrag stammt aus {woraus}: {folge}"
     if e["edition"] != _db.STANDARD_EDITION:
         d["hinweis_alter_stand"] = HINWEIS_ALT
+    if e.get("kategorie") == "monster":
+        d["hinweis_monster_merkmal"] = HINWEIS_MONSTER_MERKMAL
     if e.get("sprache") == "en":
         # S3/S5: dem Modell die AMTLICHEN deutschen Begriffe INLINE mitgeben, statt sie nur
         # anzumahnen - genau die Luecke, an der eine Antwort sonst englisch stehen bleibt
         # (Warlock-Test 13.07.2026: Cloudkill/Bane/Greater Invisibility blieben englisch,
         # obwohl das Glossar Todeswolke/Verderben/Maechtige Unsichtbarkeit kennt).
-        treffer = _glossar.begriffe_im_text(con, e.get("body_md") or "")
+        # Der NAME steht mit im durchsuchten Text (Rueckmeldung der Runde, 04.08.2026):
+        # `begriffe_im_text` las bis dahin nur `body_md`, also alles AUSSER der
+        # Ueberschrift der Antwort. Bei "Archfey Patron" war die Folge, dass das Modell 30
+        # amtliche Begriffe aus dem Fliesstext mitgeliefert bekam - und ausgerechnet den
+        # Namen, den der Spieler zuerst liest, englisch mit '*' ausgab. Genau die
+        # Fehlerklasse, die das Feld verhindern soll (S2/S3/S7/S11).
+        treffer = _glossar.begriffe_im_text(
+            con, f"{e.get('name_en') or ''}\n{e.get('body_md') or ''}")
         # Abkuerzungen getrennt ausweisen: Sie sind etwas anderes als ein Fachbegriff -
         # 'AC' wird nicht "uebersetzt", sondern durch die deutsche Notation ERSETZT, und
         # das Original gehoert dabei NICHT in Klammern dahinter ("RK (AC) 17" waere

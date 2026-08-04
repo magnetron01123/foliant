@@ -870,6 +870,63 @@ def seed_umgangssprache(con: sqlite3.Connection) -> int:
     return n
 
 
+TEIL_QUELLE = "Teilbegriff aus belegter Zusammensetzung (kuratiert)"
+
+# Begriffe, die das Glossar NUR als Teil einer laengeren offiziellen Form fuehrt
+# (Rueckmeldung der Runde, 04.08.2026). Befund: Der Bestand fuehrt "Archfey Patron"
+# englisch, das Glossar aber nur "Warlock of the Archfey" -> "Hexenmeister der Erzfee".
+# Ein Lookup auf "Archfey" lief damit ins Leere, und die Antwort gab den Namen englisch
+# mit '*' aus - mit der Begruendung, es gebe keine offizielle Uebersetzung. Die gibt es,
+# sie stand nur an einem Lemma, das niemand nachschlaegt (S2/S3/S7/S11).
+#
+# Je Zeile: (englisch, deutsch, laengere Form, die es belegt).
+# Aufgenommen wird NUR, was aus der laengeren Form eindeutig hervorgeht - die Schranke
+# unten prueft, dass diese Form im Glossar als OFFIZIELL steht und den deutschen Teil
+# woertlich enthaelt. Damit ist die Zeile abgeleitet, nicht geraten (Regel 1).
+#
+# BEWUSST NICHT aufgenommen:
+# - 'Celestial' (Patron): Das Glossar kennt nur "Celestisches Wesen beschwoeren" - wie der
+#   SCHUTZHERR heisst, geht daraus nicht hervor. "Celestischer Schutzherr" waere geraten.
+# - 'Undead' (Patron): aus einem Band ohne deutsche Fassung; hier ist '*' richtig.
+TEILBEGRIFFE: tuple[tuple[str, str, str], ...] = (
+    ("Archfey", "Erzfee", "Warlock of the Archfey"),
+    ("Great Old One", "Großer Alter", "Warlock of the Great Old One"),
+)
+
+
+def seed_teilbegriffe(con: sqlite3.Connection) -> int:
+    """Kernbegriffe nachziehen, die nur in einer laengeren offiziellen Form belegt sind.
+
+    `offiziell=1` ist hier richtig und anderswo gefaehrlich - deshalb die Schranke: Die
+    belegende Form muss im Glossar stehen, als offiziell markiert sein und den deutschen
+    Begriff woertlich enthalten. Faellt eine der drei Bedingungen weg (etwa weil ein
+    Re-Import die Quelle aendert), entsteht die Zeile NICHT und die Antwort faellt auf das
+    ehrliche '*' zurueck. Lieber eine fehlende Bruecke als eine erfundene."""
+    con.execute("DELETE FROM glossar WHERE quelle = ?", (TEIL_QUELLE,))
+    _glossar.leere_cache()
+    belegt = {(r["term_en"] or "").lower(): r for r in con.execute(
+        "SELECT term_en, term_de, offiziell FROM glossar WHERE offiziell = 1")}
+    n = 0
+    for englisch, deutsch, belegende_form in TEILBEGRIFFE:
+        zeile = belegt.get(belegende_form.lower())
+        if zeile is None:
+            print(f"  teilbegriff: {belegende_form!r} nicht mehr belegt - {englisch!r} "
+                  f"uebersprungen", file=sys.stderr)
+            continue
+        if deutsch.lower() not in (zeile["term_de"] or "").lower():
+            # Die laengere Form fuehrt den Begriff anders - dann ist die Ableitung nicht
+            # mehr gedeckt. Beispiel, das das faengt: 'Hexenmeister der Feenfuerstin'.
+            print(f"  teilbegriff: {deutsch!r} steht nicht in {zeile['term_de']!r} - "
+                  f"{englisch!r} uebersprungen", file=sys.stderr)
+            continue
+        # edition_quelle bewusst OFFEN: belegt ist die Begriffsgleichheit, nicht die
+        # Regelfassung (S7 - die Vokabel ist stabil, die Regel dahinter nicht).
+        _upsert(con, englisch, deutsch, 1, TEIL_QUELLE, None, None)
+        n += 1
+    _glossar.leere_cache()
+    return n
+
+
 def seed_zauber_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
     """Zauber-Paare ueber den Zauberkopf (Modul importer/srd_zauberbruecken) als
     OFFIZIELLE Bruecke - editionsuebergreifend (S7: der alte offizielle Begriff gilt
@@ -1006,6 +1063,9 @@ _KETTE = [
     (kanonisiere_schreibvarianten, "Schreibvarianten demotet"),
     (seed_flexionsbruecke_aus_bestand, "Flexions-Bruecken"),     # ZULETZT, auf dem fertigen Stand
     (seed_umgangssprache, "Umgangssprache-Bruecken"),            # kuratiert, nach allem Abgeleiteten
+    # Ebenfalls kuratiert und ZULETZT: die Schranke prueft gegen den FERTIGEN Glossarstand,
+    # ob die belegende Zusammensetzung noch offiziell dasteht.
+    (seed_teilbegriffe, "Teilbegriff-Bruecken"),
 ]
 
 
