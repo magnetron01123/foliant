@@ -560,10 +560,14 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
   Kuratier-Kandidaten für Glossar-Paare und Chunking-Korrekturen; der Kopf liefert die
   B9-Antwortzeiten (p50/p95). Die Log-DB liegt bewusst außerhalb von Backup-Glob und
   Manifest.
-- **Zum Nachschauen ohne Terminal:** `docker compose --profile admin up -d datasette`
-  öffnet Korpus **und** Abfrage-Protokoll read-only auf `127.0.0.1:8001` (nur über
-  SSH-Tunnel, nie über Cloudflare). Dort ist `rueckmeldungen` durchsuchbar und sortierbar
-  — die Frage „was liegt gerade an?" braucht damit weder eine Auswertung noch die CLI.
+- **Zum bloßen Nachschauen** („was liegt gerade an?") genügt `admin suchbericht` ohne
+  `--json`: Die markierten und die gelobten Antworten stehen als **erste zwei Abschnitte**,
+  mit Datum, Frage und anklickbarem Link. Eine Auswertung braucht es dafür nicht.
+  Der `datasette`-Container wäre der komfortablere Weg und ist auf beide DBs eingestellt —
+  **auf dem Pi läuft er aber nicht** (04.08.2026 geprüft): Das offizielle Image ist
+  amd64-only und stirbt auf ARM64 mit `exec format error`, und der im compose-Kommentar
+  genannte Ausweg („im foliant-Container nachinstallieren") scheitert an dessen
+  `read_only`-Härtung. Beides bleibt so — die Härtung ist mehr wert als der Komfort.
 - **Der Durchgang läuft zeitgesteuert, nicht auf Zuruf** (04.08.2026). Zweimal pro Woche
   fährt eine geplante Aufgabe auf Davids Mac den Ablauf aus
   `.claude/ablaeufe/rueckmeldungen.md`: Bericht holen (`make bericht-pi`), Gesprächskontext
