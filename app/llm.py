@@ -78,7 +78,7 @@ async def api_aufruf(http: httpx.AsyncClient, key: str, body: dict) -> dict:
 
 async def fahre_schleife(mcp_client, http: httpx.AsyncClient, key: str, modell: str,
                          system: str, werkzeuge: list[dict], verlauf: list[dict], *,
-                         max_runden: int = 8, max_tokens: int = 3000,
+                         max_runden: int = 8, max_tokens: int = 4000,
                          system_cachen: bool = False) -> SchleifenErgebnis:
     """Tool-Use-Schleife ueber die Foliant-Tools.
 
@@ -87,7 +87,15 @@ async def fahre_schleife(mcp_client, http: httpx.AsyncClient, key: str, modell: 
     kopiert, nie mutiert. system_cachen=True setzt cache_control ephemeral auf den
     System-Block - das gecachte Praefix umfasst tools+system (zwischen den Runden
     einer Frage und zwischen Folgefragen im Cache-Fenster Reads statt Vollpreis).
-    False haelt die Anfrageform byte-identisch zum gemessenen Eval-Stand."""
+    False haelt die Anfrageform byte-identisch zum gemessenen Eval-Stand.
+
+    max_tokens 3000 -> 4000 (Rueckmeldung der Runde, 04.08.2026): Eine Uebersichtsantwort
+    riss mitten im Satz ab, und der Hinweis darauf kommt NACH der bereits bezahlten
+    Antwort - der Nutzer zahlt fuer etwas, das er nicht bekommt. Bewusst nur ein Schritt
+    und nicht weit mehr: 3000 Tokens tragen deutsch schon rund vier Discord-Nachrichten,
+    das Limit war also nicht zu klein - die Antwort war zu lang. Das eigentliche Gegenmittel
+    steht deshalb in config/discord_zusatz.md (bei breiten Fragen gliedern statt
+    ausschuetten); dieser Wert fangt nur die knappen Faelle ab."""
     messages = list(verlauf)
     tool_namen: list[str] = []
     bestandsauszuege: list[str] = []
