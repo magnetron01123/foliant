@@ -559,7 +559,21 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
   Nulltreffer/Fuzzy-Landungen/Mehrdeutigkeiten/Übersetzungs-Lücken sind die
   Kuratier-Kandidaten für Glossar-Paare und Chunking-Korrekturen; der Kopf liefert die
   B9-Antwortzeiten (p50/p95). Die Log-DB liegt bewusst außerhalb von Backup-Glob und
-  Manifest und ist im Datasette-Container (read-only auf `data/`) direkt browsbar.
+  Manifest.
+- **Zum Nachschauen ohne Terminal:** `docker compose --profile admin up -d datasette`
+  öffnet Korpus **und** Abfrage-Protokoll read-only auf `127.0.0.1:8001` (nur über
+  SSH-Tunnel, nie über Cloudflare). Dort ist `rueckmeldungen` durchsuchbar und sortierbar
+  — die Frage „was liegt gerade an?" braucht damit weder eine Auswertung noch die CLI.
+- **Der Durchgang läuft zeitgesteuert, nicht auf Zuruf** (04.08.2026). Zweimal pro Woche
+  fährt eine geplante Aufgabe auf Davids Mac den Ablauf aus
+  `.claude/ablaeufe/rueckmeldungen.md`: Bericht holen (`make bericht-pi`), Gesprächskontext
+  je Markierung nachladen (`make kontext-pi`), gegen die Regel-IDs prüfen, Vorschlagstabelle
+  vorlegen. **Ohne neue Rückmeldung endet sie ohne Ausgabe** — eine Aufgabe, die
+  regelmäßig Erfolg meldet, wird weggeklickt, und mit ihr die Meldung, die zählt.
+  Sichtungsstand: `config/rueckmeldungen_stand.json` (Hochwassermarke; bewusst versioniert
+  statt in der Protokoll-DB, damit der Fortschritt im Diff steht und die Produktion keinen
+  Schreibbefehl braucht). Umgesetzt wird **nichts** ohne Davids Freigabe — Begründung und
+  die übrigen Zeitläufe: `.claude/ablaeufe/LIESMICH.md`.
 
 ### Admin-CLI (vollständig)
 ```
@@ -1343,6 +1357,12 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Aufruf — auch synthetische. Nach einer Messreihe steht der Testbegriff als häufigster
   Nulltreffer im `admin suchbericht` und verwässert die Kurationsliste. Entweder gegen eine
   Kopie messen oder beim Sichten des Berichts wissen, was von einem selbst stammt.
+- **Discord-REST ohne `User-Agent` antwortet mit „error code: 1010".** Cloudflare weist
+  jeden eigenen Client ab, der keinen setzt — und die Meldung nennt weder Header noch
+  Cloudflare als Ursache. Sie sieht aus wie ein Rechteproblem am Bot-Token und kostete am
+  04.08.2026 eine Viertelstunde Suche an der falschen Stelle. `deploy/discord_api.py::hole`
+  setzt ihn; **das ist der Grund, warum der Kontext-Abruf dort angebaut wurde** statt in
+  einem eigenen Modul — sonst lernt der zweite Client dieselbe Falle noch einmal.
 - **Die Import-Bilanz ist ein Trend, kein Alarm.** Jeder Import endet mit einer Zeile
   („Bilanz: 12x Abschnitt ohne Regeltext …"). Interessant ist nicht der Absolutwert —
   ein Kapitel-Kopf ohne eigenen Text ist der Normalfall —, sondern die **Veränderung**.

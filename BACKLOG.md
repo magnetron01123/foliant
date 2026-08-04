@@ -125,11 +125,12 @@ die Entscheidung noch einmal zu prüfen ist.*
 
 ### M5 — Feedback & Iteration · *laufend, kein Gate*
 
-**Der Durchgang, wie er läuft:** `docker compose exec -T foliant python -m app.admin
-suchbericht` listet die von der Runde **markierten Antworten** (👎 in Discord, seit
-03.08.2026 — der stärkste Kandidat und deshalb der erste Abschnitt), dazu Nulltreffer,
-Fuzzy-Landungen, Mehrdeutigkeiten und Übersetzungs-Lücken (inkl. Antwortzeit p50/p95 →
-B9/M3). Aus einem Kandidaten wird ein
+**Der Durchgang läuft seit dem 04.08.2026 zeitgesteuert** — zweimal pro Woche fährt ihn
+eine geplante Aufgabe auf Davids Mac und meldet sich nur, wenn es neue Rückmeldungen gibt.
+Der verbindliche Ablauf steht in `.claude/ablaeufe/rueckmeldungen.md` (Prüfreihenfolge,
+Vorschlagsformat, Ablage je Befundtyp), der Sichtungsstand in
+`config/rueckmeldungen_stand.json`, die Einordnung in [CONCEPT.md](CONCEPT.md) §8.
+Umgesetzt wird nichts ohne Davids Freigabe. Aus einem Kandidaten wird ein
 Glossar-Paar über `admin glossar-paare --nur-neue` (Struktur-Abgleich mit Beweisstufe, Review
 **vor** `import --quelle glossar`); danach dürfen die **echten** Konflikte in
 `admin glossar-audit` nicht zunehmen — editionsgetrennte Formen regelt S8 selbst, und die
