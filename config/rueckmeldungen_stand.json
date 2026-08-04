@@ -1,0 +1,23 @@
+{
+  "_zweck": "Der Sichtungsstand der Rückmeldungs-Durchgänge (O4/M5). `zuletzt_gesichtet_bis` ist eine Hochwassermarke gegen `rueckmeldungen.zeitpunkt`: Der nächste Durchgang (.claude/commands/rueckmeldungen.md) arbeitet nur, was jünger ist. Das funktioniert, weil der Zeitstempel den Moment der REAKTION festhält, nicht den der Antwort — ein 👎 auf eine alte Antwort gilt damit korrekt als neu.",
+  "_warum": "Ohne diese Datei war der Stand ausschließlich ein handgeschriebener Absatz in BACKLOG.md M5. Was schon gesichtet und was bewusst verworfen wurde, stand damit nirgends nachvollziehbar — und ein Durchgang, der nicht weiß, wo der letzte aufhörte, prüft entweder doppelt oder übersieht.",
+  "_pflege": "Liegt im Git, damit jede Änderung im Diff sichtbar wird. Bewusst NICHT in der Protokoll-DB auf dem Pi: Der Zustand einer Arbeitsschleife gehört dorthin, wo die Arbeit reviewt wird, und ein Schreibbefehl auf der Produktion wäre der teurere Weg zum schlechteren Ergebnis.",
+  "_datenschutz": "Hier stehen Zählwerte und je ein Satz pro Befund. KEINE Discord-Links, keine Guild-/Kanal-/Nachrichten-IDs, keine Namen — das Repo ist öffentlich, und ein Permalink verriete die Guild. Die Datei enthält damit bewusst weniger als die Protokoll-DB (CONCEPT.md §13).",
+
+  "zuletzt_gesichtet_bis": "2026-08-04T09:00:00+00:00",
+  "durchgaenge": [
+    {
+      "datum": "2026-08-04",
+      "fenster_tage": 30,
+      "daumen_runter": 3,
+      "daumen_hoch": 0,
+      "ohne_befund": 0,
+      "befunde": [
+        "S2/S3/S7/S11: englischer Unterklassen-Name mit '*' ausgegeben und als 'keine offizielle Übersetzung' bezeichnet, obwohl das Glossar den deutschen Begriff als offiziell führt. Ursache im Code: die Begriffsannotation durchsucht nur den Eintragstext, nie den Eintragsnamen.",
+        "B4: Auf eine Spielerfrage nach einer Regelgrenze kam ein 'Ja' mit einem Monster-Merkmal als einzigem Beleg; für Spielercharaktere gilt das Gegenteil. Mehrdeutigkeit geraten statt aufgelöst.",
+        "B2: Bei einem Leerbefund kam eine unbelegte Vermutung über ein fehlendes Buch dazu, statt schlicht die Lücke zu benennen."
+      ],
+      "bemerkung": "Erster Durchgang, noch von Hand gefahren — er hat den Ablauf begründet, den .claude/commands/rueckmeldungen.md jetzt festhält. Die drei Befunde laufen bewusst DURCH den neuen Prozess und nicht an ihm vorbei."
+    }
+  ]
+}

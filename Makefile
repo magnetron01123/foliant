@@ -91,6 +91,28 @@ test-golden-pi: _pi-ziel
 check-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin check'
 
+# Der Suchbericht vom VOLLBESTAND, maschinenlesbar - Einstieg in den
+# Rueckmeldungs-Durchgang (O4/M5, .claude/commands/rueckmeldungen.md). Rein lesend.
+# Bis 04.08.2026 stand dieser Aufruf nur als Copy-Paste-Zeile in der Doku, und eine Zeile,
+# die man abtippt, wird seltener gefahren als eine, die man aufruft.
+TAGE ?= 30
+.PHONY: bericht-pi
+bericht-pi: _pi-ziel
+	@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin suchbericht --tage $(TAGE) --json'
+
+# Der Gespraechskontext um EINE markierte Antwort, live aus Discord. Der Bot-Token liegt
+# nur in der Umgebung des discord-Containers und verlaesst den Pi nicht.
+# Die Ausgabe gehoert in die Auswertungs-Sitzung und in KEINE Datei: Der Antworttext steht
+# bewusst nicht im Protokoll (CONCEPT.md par. 13), ihn beim Auswerten wegzuschreiben waere
+# derselbe Schritt durch die Hintertuer.
+.PHONY: kontext-pi
+kontext-pi: _pi-ziel
+	@test -n "$(KANAL)" -a -n "$(NACHRICHT)" || { \
+	  echo "FEHLER: KANAL= und NACHRICHT= noetig (aus dem Discord-Link der Markierung)."; \
+	  echo "  make kontext-pi KANAL=<kanal-id> NACHRICHT=<nachricht-id>"; \
+	  exit 1; }
+	@ssh $(PI) 'cd ~/foliant && docker compose exec -T discord python deploy/discord_api.py nachrichten $(KANAL) $(NACHRICHT)'
+
 # B9 unter Sessionlast: Antwortzeiten bei mehreren gleichzeitigen Spielern, gegen den
 # VOLLEN Pi-Korpus. Rein lesend, gefahrlos neben dem Live-Betrieb. Exitcode != 0, wenn
 # p95 die Grenze reisst - der Lauf ist damit auch als Regressionswaechter brauchbar.
