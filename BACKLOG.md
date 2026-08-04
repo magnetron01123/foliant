@@ -158,6 +158,14 @@ dazu keinen Eintrag — der Nulltreffer ist korrekt), `samurai`/`zwingender zwei
 (nicht SRD-lizenziert, es fehlt ein Buch), `gewitzte tat` (wie der deutsche SRD das
 Schurken-Merkmal nennt, ist offen — raten verbietet sich).
 
+**Erster Durchgang aus 👎-Markierungen (04.08.2026, 3 Markierungen):** drei Befunde, alle
+behoben und mit Regressionstests belegt — und **keiner** lag am Modell. Zwei Lehren, die
+den Ablauf geprägt haben: Ein wiederholter Verstoß gegen eine Regel, die schon in beiden
+Prompt-Kanälen steht, heißt, dass sie im **falschen Kanal** sitzt (Details und die dritte,
+unbequemste Lehre — eine Regel forderte den Fehler selbst — im Entscheidungsregister,
+[CONCEPT.md](CONCEPT.md) §10). Und: ein Test, der beim ersten Lauf grün ist, ist noch
+kein Test (§12).
+
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking und
 Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 
@@ -203,9 +211,12 @@ die Tokens bzw. eine echte Guild brauchen:
   §9/§10/§13.
 - ⬜ Echttest des Meldewegs in der Guild: 👎 **und** 👍 auf je eine Antwort → 📝 erscheint
   → die Zeilen stehen im `admin suchbericht` unter der **jeweils richtigen** Überschrift
-  („markiert" bzw. „gelobt") → Reaktion wegnehmen löscht nur die eigene Zeile. Prüft
-  zugleich, ob das Recht *Add Reactions* gesetzt ist (fehlt es, wird die Markierung
-  notiert, aber nicht bestätigt).
+  („markiert" bzw. „gelobt"). Seit dem 04.08.2026 deckt `tests/test_discord_reaktionen.py`
+  die **Prüfkette** ab (welche Reaktion zählt, Guild-/Kanal-/Autor-Sperre, eigene
+  Reaktionen des Bots, Löschen trifft nur die eigene Art, Leitplanken bei gelöschter
+  Nachricht und fehlendem Reaktions-Recht). Offen bleibt damit nur, was Fakes nicht
+  zeigen können: dass **Discord die Ereignisse überhaupt liefert** (Intents, Gateway) und
+  dass das Recht *Add Reactions* in der echten Guild gesetzt ist.
 
 **Gate:** eine Folgefrage nach einem Neustart wird mit Kontext beantwortet, und der
 DC-Lauf steht im Eval-Report.

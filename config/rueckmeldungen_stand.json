@@ -1,10 +1,9 @@
 {
-  "_zweck": "Der Sichtungsstand der Rückmeldungs-Durchgänge (O4/M5). `zuletzt_gesichtet_bis` ist eine Hochwassermarke gegen `rueckmeldungen.zeitpunkt`: Der nächste Durchgang (.claude/commands/rueckmeldungen.md) arbeitet nur, was jünger ist. Das funktioniert, weil der Zeitstempel den Moment der REAKTION festhält, nicht den der Antwort — ein 👎 auf eine alte Antwort gilt damit korrekt als neu.",
+  "_zweck": "Der Sichtungsstand der Rückmeldungs-Durchgänge (O4/M5). `zuletzt_gesichtet_bis` ist eine Hochwassermarke gegen `rueckmeldungen.zeitpunkt`: Der nächste Durchgang (.claude/ablaeufe/rueckmeldungen.md) arbeitet nur, was jünger ist. Das funktioniert, weil der Zeitstempel den Moment der REAKTION festhält, nicht den der Antwort — ein 👎 auf eine alte Antwort gilt damit korrekt als neu.",
   "_warum": "Ohne diese Datei war der Stand ausschließlich ein handgeschriebener Absatz in BACKLOG.md M5. Was schon gesichtet und was bewusst verworfen wurde, stand damit nirgends nachvollziehbar — und ein Durchgang, der nicht weiß, wo der letzte aufhörte, prüft entweder doppelt oder übersieht.",
   "_pflege": "Liegt im Git, damit jede Änderung im Diff sichtbar wird. Bewusst NICHT in der Protokoll-DB auf dem Pi: Der Zustand einer Arbeitsschleife gehört dorthin, wo die Arbeit reviewt wird, und ein Schreibbefehl auf der Produktion wäre der teurere Weg zum schlechteren Ergebnis.",
   "_datenschutz": "Hier stehen Zählwerte und je ein Satz pro Befund. KEINE Discord-Links, keine Guild-/Kanal-/Nachrichten-IDs, keine Namen — das Repo ist öffentlich, und ein Permalink verriete die Guild. Die Datei enthält damit bewusst weniger als die Protokoll-DB (CONCEPT.md §13).",
   "_befund_format": "`regeln` sind die verletzten SPEC-IDs (S*, B*, V*, Q*, T*), `ursache` ist eine von: 'code' (ein Fehler im Programm — keine Prompt-Regel hätte ihn behoben), 'verhalten' (das Modell hielt eine Regel nicht ein), 'daten' (Bestand oder Glossar), 'meldeweg' (die Rückmeldungs-Mechanik selbst). Strukturiert statt als Fließtext, weil erst darüber sichtbar wird, welche Regel WIEDERHOLT bricht — und eine Regel, die dreimal bricht, ist kein Modellfehler mehr, sondern eine Regel, die an der falschen Stelle steht.",
-
   "zuletzt_gesichtet_bis": "2026-08-04T09:00:00+00:00",
   "durchgaenge": [
     {
@@ -15,22 +14,38 @@
       "ohne_befund": 0,
       "befunde": [
         {
-          "regeln": ["S2", "S3", "S7", "S11"],
+          "regeln": [
+            "S2",
+            "S3",
+            "S7",
+            "S11"
+          ],
           "ursache": "code",
           "was": "Englischer Unterklassen-Name mit '*' ausgegeben und als 'keine offizielle Übersetzung' bezeichnet, obwohl das Glossar den deutschen Begriff als offiziell führt. Die Begriffsannotation durchsucht nur den Eintragstext, nie den Eintragsnamen — und das Glossar-Lemma trägt eine längere Form als der Eintrag."
         },
         {
-          "regeln": ["B4"],
+          "regeln": [
+            "B4"
+          ],
           "ursache": "verhalten",
           "was": "Auf eine Spielerfrage nach einer Regelgrenze kam ein 'Ja' mit einem Monster-Merkmal als einzigem Beleg; für Spielercharaktere gilt das Gegenteil. Mehrdeutigkeit geraten statt aufgelöst."
         },
         {
-          "regeln": ["B2"],
+          "regeln": [
+            "B2"
+          ],
           "ursache": "verhalten",
           "was": "Bei einem Leerbefund kam eine unbelegte Vermutung über ein fehlendes Buch dazu, statt schlicht die Lücke zu benennen."
         }
       ],
-      "bemerkung": "Erster Durchgang, noch von Hand gefahren — er hat den Ablauf begründet, den .claude/commands/rueckmeldungen.md jetzt festhält. Die drei Befunde laufen bewusst DURCH den neuen Prozess und nicht an ihm vorbei."
+      "bemerkung": "Erster Durchgang, noch von Hand gefahren — er hat den Ablauf begründet, den .claude/ablaeufe/rueckmeldungen.md jetzt festhält.",
+      "erledigt_am": "2026-08-04",
+      "behoben_durch": [
+        "Befund 1: die Detailausgabe annotiert jetzt auch den Eintragsnamen; dazu kuratierte Teilbegriffe (Archfey→Erzfee, Great Old One→Großer Alter) mit Beleg-Schranke im Glossar-Seeding. Celestial und Undead bewusst NICHT — dort wäre die Patron-Form geraten.",
+        "Befund 2: neuer Grounding-Hinweis (Kanal 1) an jedem Monster-Steckbrief. B4 stand längst in beiden Prompt-Kanälen und half nicht — das war der Hinweis darauf, dass die Regel im falschen Kanal saß.",
+        "Befund 3: 'eventuell fehlt ein Buch' aus dem Leerbefund-Hinweis und beiden Prompt-Kanälen entfernt; stattdessen Verweis auf /bestand. Der Bot war regelkonform — der Befund lag in der Regel.",
+        "Regressionstests: tests/test_rueckmeldungs_befunde.py (12 Fälle) und tests/test_discord_reaktionen.py (15 Fälle) für den bis dahin ungetesteten Reaktions-Kleber in bot.py."
+      ]
     }
   ]
 }
