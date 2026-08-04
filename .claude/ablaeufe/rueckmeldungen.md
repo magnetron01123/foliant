@@ -22,7 +22,14 @@ make bericht-pi TAGE=30
 
 Liefert JSON mit `markiert` (👎) und `gelobt` (👍). Vergleiche die Zeitpunkte gegen
 `zuletzt_gesichtet_bis` in `config/rueckmeldungen_stand.json` — **arbeite nur, was
-jünger ist.** Nichts Neues → sag genau das und höre auf.
+jünger ist.**
+
+**Nichts Neues → ohne jede Ausgabe beenden.** Keine Zusammenfassung, keine
+Push-Benachrichtigung. Läuft der Durchgang zeitgesteuert, ist Stille das häufigste und
+richtige Ergebnis.
+
+*(Fehlt der Schlüssel `gelobt` im JSON, läuft auf dem Pi noch der Stand vor der
+👍-Einführung. Dann nur `markiert` auswerten und das einmal miterwähnen — kein Abbruch.)*
 
 Für jede zu prüfende Zeile den Gesprächskontext nachladen (Kanal- und Nachrichten-ID
 stehen im `verweis`-Link, `.../channels/<guild>/<kanal>/<nachricht>`):
@@ -86,6 +93,12 @@ für alles Aussortierte; sonst sieht David nur, was übrig blieb, nie was verwor
 
 Freigabe erfolgt per Nummern („1, 3 — 2 nicht"). **Erst danach Code.**
 
+**Wenn der Durchgang zeitgesteuert lief:** Schick am Ende genau **eine**
+Push-Benachrichtigung — David sitzt nicht davor und erfährt sonst nie, dass etwas
+vorliegt. Ein Satz, das Handlungsbedürftige zuerst: *„3 Rückmeldungen ausgewertet, 2
+Befunde (S3 Deutsch-first, B4) — Vorschläge liegen zur Freigabe bereit."* Nicht der
+Befundtext, nicht die Tabelle: die steht in der Sitzung, die er dann öffnet.
+
 ## 5. Ablage nach der Freigabe
 
 | Befundtyp | Wohin |
@@ -110,8 +123,12 @@ existieren, kein wortgleicher Satz ≥120 Zeichen in zwei Doku-Dateien.
 ## 6. Abschluss
 
 - `config/rueckmeldungen_stand.json` fortschreiben: neue Hochwassermarke, ein
-  Durchgangs-Eintrag mit Zählwerten und je einem Satz pro Befund. **Keine Links, keine
-  Kanal-/Nachrichten-IDs, keine Namen** — das Repo ist öffentlich.
+  Durchgangs-Eintrag mit Zählwerten und je einem Befund-Objekt (`regeln`, `ursache`,
+  `was` — Format steht in der Datei). **Keine Links, keine Kanal-/Nachrichten-IDs, keine
+  Namen** — das Repo ist öffentlich.
+  Schau beim Eintragen die **vorherigen Durchgänge** an: Bricht dieselbe Regel-ID zum
+  dritten Mal, ist das kein Modellfehler mehr, sondern eine Regel, die an der falschen
+  Stelle steht — sag das im Vorschlag dazu.
 - `BACKLOG.md` M5 nur bei **Bemerkenswertem** ergänzen (ein Durchgang ohne Funde ist keine
   Meldung wert). Die Buchführung macht die JSON-Datei.
 - `make test`; bei Code- oder Datenänderungen nach dem Deploy zusätzlich

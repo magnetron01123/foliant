@@ -22,13 +22,16 @@ Abgleich billig und der Ausfall teuer.
    (`https://platform.claude.com/docs/en/api/ip-addresses`).
 2. Gegen die Bereiche in `app/zugriff.py` halten — IPv4 **und** IPv6.
 3. Drei Fälle:
-   - **Identisch** → lautlos enden.
+   - **Identisch** → lautlos enden, ohne Ausgabe und ohne Benachrichtigung.
    - **Anthropic hat Bereiche ergänzt** → melden, mit der konkreten Ergänzung und dem
      Hinweis, dass ein fehlender Bereich künftige Verbindungen blockieren kann.
    - **Anthropic hat Bereiche entfernt** → melden, aber als geringere Dringlichkeit: ein
      zu viel eingetragener Bereich öffnet mehr, als nötig ist, sperrt aber niemanden aus.
 4. Ist die Seite nicht erreichbar oder ihr Aufbau geändert: **das** melden, statt zu
    raten. Eine stillschweigend leere Liste wäre der gefährlichste Ausgang.
+
+In jedem Fundfall: **eine** Push-Benachrichtigung, ein Satz — *„Anthropic hat einen
+IP-Bereich ergänzt, app/zugriff.py nachziehen"*. David sitzt nicht davor.
 
 ## Danach
 

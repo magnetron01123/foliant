@@ -19,6 +19,14 @@ nächsten Lauf — ohne die Aufgabe anzufassen.
 
 1. **Stillschweigen bei Fundlosigkeit.** Eine Aufgabe, die regelmäßig „alles in Ordnung"
    meldet, wird nach dem dritten Mal weggeklickt — und dann auch die Meldung, die zählt.
+   Technisch hängt das an **zwei** Schaltern, und beide müssen stimmen:
+   - Die Aufgaben laufen mit **abgeschalteter Abschluss-Benachrichtigung**
+     (`notifyOnCompletion: false`) — sonst meldet die App jeden Lauf, egal wie still er
+     endete.
+   - Bei einem Fund meldet sich die Aufgabe deshalb **selbst**, mit einer
+     Push-Benachrichtigung in einem Satz: *was gefunden wurde und was David tun muss.*
+     Ohne diesen zweiten Schalter wäre die Aufgabe nicht still, sondern stumm — und ein
+     Befund, den niemand sieht, ist kein Befund.
 2. **Analyse automatisch, Änderung nur nach Freigabe.** Die Aufgaben lesen, prüfen und
    legen vor. Sie legen keinen Branch an und ändern nichts. Bei der Feedback-Auswertung ist
    das nicht Vorsicht, sondern strukturell nötig: Dort bewertet Claude Antworten und würde

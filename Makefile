@@ -113,6 +113,24 @@ kontext-pi: _pi-ziel
 	  exit 1; }
 	@ssh $(PI) 'cd ~/foliant && docker compose exec -T discord python deploy/discord_api.py nachrichten $(KANAL) $(NACHRICHT)'
 
+# Steht ein gekauftes DDB-Buch noch nicht im Bestand? Rein lesend: `--dry-run` zeigt nur,
+# was einliefe. Beide Teile in EINEM Ziel, weil die Frage nur aus beiden zusammen zu
+# beantworten ist - was liegt drin, und was laege drin.
+# Ein gekauftes, nie importiertes Buch ist im Betrieb unsichtbar: Foliant sagt ehrlich
+# "nicht im Bestand", und das sieht wie eine korrekte Auskunft aus.
+#
+# Das fuehrende `-` beim Trockenlauf ist Absicht: "Keine DDB-Artefakte vorhanden" ist ein
+# NORMALER Zustand (die Artefakte entstehen erst mit `ddb-exporter sync`) und endet
+# trotzdem mit Exitcode 1. Ohne das `-` meldete der monatliche Lauf jedes Mal einen
+# Fehler, obwohl nichts kaputt ist - und ein Waechter, der grundlos schreit, wird
+# abgeschaltet. Bewertet wird die AUSGABE, nicht der Exitcode: ein echter Fehler (etwa
+# ein abgelaufener Cobalt-Cookie) steht dort im Klartext.
+.PHONY: ddb-abgleich-pi
+ddb-abgleich-pi: _pi-ziel
+	@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin status'
+	@echo
+	-@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin ddb-import-all --dry-run'
+
 # B9 unter Sessionlast: Antwortzeiten bei mehreren gleichzeitigen Spielern, gegen den
 # VOLLEN Pi-Korpus. Rein lesend, gefahrlos neben dem Live-Betrieb. Exitcode != 0, wenn
 # p95 die Grenze reisst - der Lauf ist damit auch als Regressionswaechter brauchbar.

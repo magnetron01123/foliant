@@ -155,11 +155,18 @@ services:
   # NICHT ueber den Cloudflare Tunnel. Start: docker compose --profile admin up -d datasette
   # Falls kein ARM64-Image verfuegbar ist, stattdessen im foliant-Container:
   #   docker compose exec foliant sh -c "pip install datasette && datasette data/foliant.sqlite -h 127.0.0.1 -p 8001"
+  #
+  # BEIDE DBs, seit 04.08.2026: Das Abfrage-Protokoll traegt die Tabelle `rueckmeldungen`
+  # - die 👎/👍 der Runde. Die lagen zwar von Anfang an in SQLite, waren aber nur ueber
+  # `admin suchbericht` zu sehen; wer nachschauen wollte, was offen ist, brauchte ein
+  # Terminal. Mit der zweiten Datei ist der Bestand im Browser durchsuchbar und
+  # sortierbar - read-only, nur ueber localhost, ohne neue Angriffsflaeche.
   datasette:
     image: datasetteproject/datasette:latest
     container_name: foliant-admin
     profiles: ["admin"]
-    command: ["datasette", "/data/foliant.sqlite", "-h", "0.0.0.0", "-p", "8001"]
+    command: ["datasette", "/data/foliant.sqlite", "/data/foliant-protokoll.sqlite",
+              "-h", "0.0.0.0", "-p", "8001"]
     ports:
       - "127.0.0.1:8001:8001"     # nur lokal erreichbar
     volumes:
