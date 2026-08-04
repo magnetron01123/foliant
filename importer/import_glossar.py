@@ -888,9 +888,15 @@ TEIL_QUELLE = "Teilbegriff aus belegter Zusammensetzung (kuratiert)"
 # - 'Celestial' (Patron): Das Glossar kennt nur "Celestisches Wesen beschwoeren" - wie der
 #   SCHUTZHERR heisst, geht daraus nicht hervor. "Celestischer Schutzherr" waere geraten.
 # - 'Undead' (Patron): aus einem Band ohne deutsche Fassung; hier ist '*' richtig.
+# - 'Great Old One': Der einzige Beleg ist "Hexenmeister des Grossen Alten" - ein GENITIV.
+#   Die Nominativform "Grosser Alter" steht nirgends im Bestand, waere also eine
+#   grammatische Ableitung. Genau daran ist der erste Seeding-Lauf am 04.08.2026 gescheitert
+#   (die Schranke unten meldete es), und das ist die richtige Entscheidung: Flexion ist
+#   Sache der Flexions-Bruecke, die auf BELEGTEN Lemmata arbeitet - nicht Sache einer
+#   kuratierten Liste, die neue Lemmata erfindet. Kommt ein deutsches Buch mit der
+#   Nominativform herein, faellt der Fall von selbst.
 TEILBEGRIFFE: tuple[tuple[str, str, str], ...] = (
     ("Archfey", "Erzfee", "Warlock of the Archfey"),
-    ("Great Old One", "Großer Alter", "Warlock of the Great Old One"),
 )
 
 

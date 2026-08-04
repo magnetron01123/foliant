@@ -117,14 +117,24 @@ def test_abweichende_uebersetzung_deckt_die_ableitung_nicht():
     con.close()
 
 
-def test_celestial_bleibt_bewusst_ohne_teilbegriff():
-    """Das Glossar kennt nur 'Celestisches Wesen beschwoeren' - wie der SCHUTZHERR heisst,
-    geht daraus nicht hervor. 'Celestischer Schutzherr' waere geraten, und Raten ist die
-    eine Sache, die dieses Projekt nie tut."""
+@pytest.mark.parametrize("nicht_drin, grund", [
+    ("Celestial", "Glossar kennt nur 'Celestisches Wesen' - die Patron-Form waere geraten"),
+    ("Undead", "aus einem Band ohne deutsche Fassung - hier ist '*' richtig"),
+    ("Great Old One", "nur im Genitiv belegt ('des Großen Alten') - Nominativ waere "
+                      "eine grammatische Ableitung"),
+])
+def test_ungedeckte_teilbegriffe_bleiben_draussen(nicht_drin, grund):
+    """Was nicht woertlich belegt ist, kommt nicht rein - auch wenn es 'offensichtlich'
+    stimmt.
+
+    'Great Old One' stand zunaechst mit drin und wurde vom ersten echten Seeding-Lauf
+    (04.08.2026, Pi) abgewiesen: Der Beleg 'Hexenmeister des Großen Alten' ist ein
+    Genitiv, die Nominativform steht nirgends im Bestand. Die Schranke hatte recht und der
+    Eintrag ging raus - Flexion ist Sache der Flexions-Bruecke auf BELEGTEN Lemmata, nicht
+    einer kuratierten Liste, die neue erfindet."""
     from importer import import_glossar as ig
 
-    assert not any(en == "Celestial" for en, _de, _beleg in ig.TEILBEGRIFFE)
-    assert not any(en == "Undead" for en, _de, _beleg in ig.TEILBEGRIFFE)
+    assert not any(en == nicht_drin for en, _de, _beleg in ig.TEILBEGRIFFE), grund
 
 
 # --- Befund 2: Monster-Merkmal als Antwort auf eine Spielerfrage -----------------------
