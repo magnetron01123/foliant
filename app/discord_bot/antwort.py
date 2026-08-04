@@ -47,7 +47,10 @@ HILFE = (
     "Zeigt nur dir und kostet nichts.\n\n"
     "**War eine Antwort falsch?** Reagiere mit 👎 darauf. Foliant merkt sich die Frage "
     "als Korrektur-Kandidat (📝 heisst: notiert) - so wird der Bestand genau dort besser, "
-    "wo er heute daneben liegt. Reaktion wieder wegnehmen loescht den Eintrag.\n\n"
+    "wo er heute daneben liegt. Reaktion wieder wegnehmen loescht den Eintrag.\n"
+    "**War eine besonders gut?** Dann reagiere mit 👍 - Foliant merkt sie sich als "
+    "Beispiel, das so bleiben soll, und sichert es gegen spaetere Aenderungen ab. "
+    "Auch hier heisst 📝: notiert.\n\n"
     "Foliant antwortet nur aus dem Regelbestand der Runde, nennt immer Quelle und "
     "Regelversion und verraet nichts aus Abenteuern (Spoiler-Schutz)."
 )

@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 03.08.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 04.08.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -786,15 +786,19 @@ Nutzers). `DISCORD_GUILD_ID` ist Pflicht — ohne sie startet der Bot nicht.
   tragen eine optionale `fassung`-Wahl (2024/2014). Was die Befehle können und **warum sie so
   geschnitten sind**, steht im Entscheidungsregister (§10).
 - **Rückmeldung der Runde:** Eine **👎-Reaktion** auf eine Bot-Antwort macht sie zum
-  Kurations-Kandidaten; der Bot bestätigt mit 📝, das Zurücknehmen löscht den Eintrag.
+  Kurations-Kandidaten, eine **👍-Reaktion** zum Kandidaten für Regressionsschutz; der Bot
+  bestätigt beides mit 📝, das Zurücknehmen löscht den Eintrag.
   Warum das gebaut ist: Der Suchbericht sieht Nulltreffer, Fuzzy-Landungen und
   Mehrdeutigkeiten — **er sieht nicht die Antwort, die gefunden hat und trotzdem falsch
   war.** Genau die erkennen die Spieler sofort und hatten dafür keinen Weg außer „David
   sagen". Eine Reaktion ist der kürzeste denkbare Meldeweg: kein Befehl, keine API-Kosten,
   kein neuer State. Logik discord-frei in `app/discord_bot/rueckmeldung.py`, Ablage in
-  `protokoll.rueckmeldungen` (was dort steht und was nicht: §13), Ausgabe als erster
-  Abschnitt von `admin suchbericht` — vor jeder Statistik, weil ein Urteil der Runde der
-  stärkste Kandidat ist, den der Bericht kennt.
+  `protokoll.rueckmeldungen` (was dort steht und was nicht: §13), Ausgabe als erste zwei
+  Abschnitte von `admin suchbericht` — vor jeder Statistik, weil ein Urteil der Runde der
+  stärkste Kandidat ist, den der Bericht kennt; die Art trägt dabei die **Überschrift**,
+  nicht die Zeile. Getrennte Abfragen mit eigenem Limit je Art: 👍 kommt reflexhaft und
+  damit häufiger, und ein gemeinsames Limit ließe einen Schwall Lob die Fehlermeldungen
+  verdrängen.
   Das Recht *Add Reactions* trägt nur die Bestätigung: fehlt es, wird die Markierung
   dennoch notiert. `deploy/discord_einrichten.sh` fordert es an; wer den Bot vorher
   eingeladen hat, ruft den Einladungslink erneut auf.
@@ -1131,6 +1135,7 @@ nicht der Datenbank-Auszug —, kein Charakterbogen-Upload (der bleibt auf der W
 | **Kontextmenü „Foliant fragen"** (Rechtsklick → Apps) | Der Spieltisch-Fall „stimmt das überhaupt?" ohne Abtippen; läuft über denselben Weg wie `/regel` |
 | **Schranken fallen fail-soft, nie still aus** | Ein ungültiges `DISCORD_COOLDOWN_S` fällt auf den Standard zurück, statt die Schranke abzuschalten |
 | **Threads entstehen über den KANAL, nicht über die Nachricht** (Live-Befund 03.08.2026) | Die Antwort auf einen Slash-Befehl kommt aus `interaction.followup.send(wait=True)` und ist damit eine `WebhookMessage` — **ohne Guild-Referenz**. `Message.create_thread()` wirft dort `ValueError`, noch **vor** jedem HTTP-Aufruf, und lief damit am `except discord.HTTPException` vorbei: `/regel` im Kanal lieferte Teil 1 der Antwort und brach dann ab — kein Thread, keine Folgeteile, kein Gesprächskontext. Der @Mention-Weg war nicht betroffen (echte Message), **deshalb fiel es nicht auf**. `TextChannel.create_thread(message=…)` nimmt jeden Snowflake, also genügt die ID — ein Weg für beide Einstiege. Lehre: Ein Fallback, der nur `HTTPException` fängt, deckt eine Bibliothek nicht ab, die auch vor dem Netz schon werfen kann |
+| **👍 als zweite Markierung — Polarität ist keine Nuance** (04.08.2026) | Der Meldeweg trug bewusst nur 👎, begründet so: zwei Emoji mit feinen Bedeutungsunterschieden müsste man erklären, und ein Meldeweg, den man erklären muss, wird nicht benutzt. Die Begründung gilt weiter — sie trifft 👍 nur nicht. Ihr Gegenstand ist *Nuance* (👎 gegen 😕 gegen 🤔: „welches nehme ich?"); 👍/👎 ist Polarität, das eine Emoji-Paar, das in jedem Chat dasselbe heißt. Dazu: die Runde reagiert ohnehin schon mit 👍 — das Signal fiel bisher nur stumm auf den Boden, und ein Meldeweg, der bereits benutzt wird, ist der billigste denkbare Ausbau. Umgesetzt **ohne Schema-Migration**, weil `art` beim Bau als Feld statt als Tabelle-je-Art angelegt wurde. Zwei Konstruktionsregeln, die aus der Asymmetrie folgen — 👎 ist eine Beschwerde und selten, 👍 ist Höflichkeit und häufig: Lob fließt **nie** in die Kurationsliste (getrennte Abfrage, getrenntes Limit), und „kein Artefakt" ist ein zulässiges Ergebnis eines 👍, sonst wird jede Nettigkeit zu einem Test und die Suite verrottet |
 | **Prüfen + Reservieren der Ein-Anfrage-Regel ist atomar** (Review 02.08.2026) | Vorher schlüpften zwei schnelle Nachrichten desselben Nutzers durch. Aus demselben Review: Kanal-Fallback, wenn Discord den Thread verweigert (vorher war die *bezahlte* Antwort weg), und zwei Rebuild-Randfälle (allein stehende `max_tokens`-Meldung galt als Antwort; „vollständig" zählte auf der gefilterten Historie) |
 
 ### ADR: DDB-Buchimport über eigenen Exporter, nicht `ddb-proxy` (10.07.2026)
@@ -1382,7 +1387,10 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Klick dorthin, wo die Antwort ohnehin steht) und **keine Nutzerkennung**: Wer markiert
   hat, ist für die Kuration ohne Bedeutung, und die Markierung soll kein Sozialprotokoll
   werden. Deshalb zählt auch nicht, wie oft markiert wurde — `UNIQUE(art, verweis)` ist die
-  Entdopplung, die ohne Nutzer-Identität funktioniert.
+  Entdopplung, die ohne Nutzer-Identität funktioniert. Der Schnitt gilt für **beide**
+  Vorzeichen: Auch ein 👍 hinterlässt keine Spur, wer gelobt hat. Entdoppelt wird je Art,
+  ein strittiges Paar (👎 *und* 👍 an derselben Antwort) steht deshalb als zwei Zeilen da
+  — das ist der Befund, nicht seine Auflösung.
 - **Laufzeit offline** (MCP), read-only auf legal erworbenen Daten; Admin-Funktionen **nie**
   über den Tunnel, nur lokal/SSH.
 - **Discord-Bot:** keine eingehende HTTP-Fläche (nur ausgehend zu Discord/Anthropic);

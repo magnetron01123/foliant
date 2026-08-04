@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 03.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 04.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -195,13 +195,16 @@ die Tokens bzw. eine echte Guild brauchen:
 - ⬜ Echttest in der Guild: Frage stellen → `docker compose restart discord` → Folgefrage
   im Thread wird **mit** Kontext beantwortet. Prüft jetzt zugleich den behobenen
   Thread-Absturz.
-- ✅ **Rückmeldung per 👎-Reaktion** (03.08.2026): macht eine falsche Antwort zum
-  Kurations-Kandidaten, ohne Befehl und ohne API-Kosten — der Meldeweg, der die eine
-  Fehlerklasse findet, die keine Statistik zeigt. Begründung und Datenschutz-Schnitt:
-  [CONCEPT.md](CONCEPT.md) §9/§13.
-- ⬜ Echttest des Meldewegs in der Guild: 👎 auf eine Antwort → 📝 erscheint → die Zeile
-  steht im `admin suchbericht`. Prüft zugleich, ob das Recht *Add Reactions* gesetzt ist
-  (fehlt es, wird die Markierung notiert, aber nicht bestätigt).
+- ✅ **Rückmeldung per 👎-Reaktion** (03.08.2026), seit 04.08.2026 auch per **👍**: macht
+  eine falsche Antwort zum Kurations-Kandidaten und eine besonders gelungene zum
+  Kandidaten für Regressionsschutz — ohne Befehl und ohne API-Kosten. Begründung,
+  Asymmetrie der beiden Signale und Datenschutz-Schnitt: [CONCEPT.md](CONCEPT.md)
+  §9/§10/§13.
+- ⬜ Echttest des Meldewegs in der Guild: 👎 **und** 👍 auf je eine Antwort → 📝 erscheint
+  → die Zeilen stehen im `admin suchbericht` unter der **jeweils richtigen** Überschrift
+  („markiert" bzw. „gelobt") → Reaktion wegnehmen löscht nur die eigene Zeile. Prüft
+  zugleich, ob das Recht *Add Reactions* gesetzt ist (fehlt es, wird die Markierung
+  notiert, aber nicht bestätigt).
 
 **Gate:** eine Folgefrage nach einem Neustart wird mit Kontext beantwortet, und der
 DC-Lauf steht im Eval-Report.
