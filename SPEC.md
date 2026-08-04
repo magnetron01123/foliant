@@ -1,7 +1,7 @@
 # Foliant — Spezifikation (das verbindliche „Was")
 
 **D&D-5e-Regelassistent (Fassung 2024), Deutsch-first · self-hosted MCP-Server**
-**Rev. 10 · Stand: 03.08.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
+**Rev. 10 · Stand: 04.08.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
 Widersprüche aufgelöst, Charakterbogen-Übersetzer aufgenommen; Rev. 10: Datenqualitäts-Schicht
 — S12, V9, V10, B11 — und die Nummerierung aus Rev. 8 geheilt)*
 
@@ -277,11 +277,15 @@ der Gefahr, die Markdown-Fences zu zerreißen, an denen die Website und die Test
   gesammelt und nachgezogen. Zwei Meldewege, weil sie verschiedene Fehler finden:
   **gemessen** — das Abfrage-Protokoll loggt jede Nachschlage-Anfrage, `admin suchbericht`
   macht daraus Kuratier-Kandidaten (Nulltreffer, Fuzzy-Landungen, Mehrdeutigkeiten,
-  Übersetzungs-Lücken); und **gemeldet** — die Runde markiert eine falsche Antwort direkt
-  im Client, ohne Umweg über den Betreiber. Der zweite Weg ist kein Komfort: Eine Auskunft,
+  Übersetzungs-Lücken); und **gemeldet** — die Runde markiert eine Antwort direkt im
+  Client, ohne Umweg über den Betreiber. Der zweite Weg ist kein Komfort: Eine Auskunft,
   die technisch gefunden hat und inhaltlich daneben lag, erzeugt **kein** Messsignal — sie
-  fällt nur einem Menschen auf. *(Umsetzung: [CONCEPT.md](CONCEPT.md) §9. Regelmäßiges
-  Sichten: BACKLOG M5.)*
+  fällt nur einem Menschen auf. Der Meldeweg trägt **beide Vorzeichen**: eine als falsch
+  markierte Antwort wird kuriert, eine als besonders gut markierte wird gegen künftige
+  Änderungen abgesichert. Lob ist dabei kein Beiwerk, sondern die einzige Quelle für die
+  Frage, was schon stimmt und deshalb nicht kaputtgehen darf — Regressionsschutz braucht
+  ein Urteil, und ein Messwert liefert keines. *(Umsetzung: [CONCEPT.md](CONCEPT.md) §9.
+  Regelmäßiges Sichten: BACKLOG M5.)*
 - **O5 — Secrets sicher halten.** Zugangsdaten (v. a. der DDB-Cobalt-Cookie) nur
   server-seitig, erneuerbar. Ohne gültigen Cookie schlägt nur der DDB-*Import* fehl, nicht
   der laufende Betrieb.

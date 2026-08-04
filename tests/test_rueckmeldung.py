@@ -1,4 +1,5 @@
-"""Rueckmeldungen der Runde: 👎 auf eine Bot-Antwort -> Kurations-Kandidat (O4/M5).
+"""Rueckmeldungen der Runde: 👎/👍 auf eine Bot-Antwort -> Kandidat fuer Kuration bzw.
+Regressionsschutz (O4/M5).
 
 Zwei Ebenen, beide ohne Discord und ohne Netz:
 - die discord-freie Entscheidungslogik (app/discord_bot/rueckmeldung.py)
@@ -19,18 +20,27 @@ from app.discord_bot import rueckmeldung as rm
 
 # --- welche Reaktion zaehlt ------------------------------------------------------------
 
-def test_nur_der_daumen_zaehlt():
-    assert rm.ist_markierung("\N{THUMBS DOWN SIGN}")
-    for andere in ("\N{THUMBS UP SIGN}", "\N{FIRE}", "\N{MEMO}", "x", ""):
-        assert not rm.ist_markierung(andere), andere
+def test_beide_daumen_zaehlen_getrennt():
+    """Bis 04.08.2026 pruefte dieser Test das Gegenteil - dass 👍 NICHT zaehlt. Der
+    Meinungswechsel ist begruendet (rueckmeldung.ARTEN): Der urspruengliche Einwand galt
+    NUANCE-Emoji, die man erklaeren muss; 👍/👎 ist Polaritaet und braucht keine
+    Erklaerung. Was von diesem Test bleibt und wichtiger ist als die Erweiterung: fremde
+    Reaktionen duerfen NICHT zaehlen - der Kanal ist voller Geplauder."""
+    assert rm.art_der_markierung("\N{THUMBS DOWN SIGN}") == rm.ART_RUNTER
+    assert rm.art_der_markierung("\N{THUMBS UP SIGN}") == rm.ART_HOCH
+    for andere in ("\N{FIRE}", "\N{MEMO}", "\N{PARTY POPPER}", "x", ""):
+        assert rm.art_der_markierung(andere) is None, andere
 
 
-def test_variantenselektor_wird_toleriert():
+@pytest.mark.parametrize("emoji, art", [("\N{THUMBS DOWN SIGN}", rm.ART_RUNTER),
+                                        ("\N{THUMBS UP SIGN}", rm.ART_HOCH)])
+def test_variantenselektor_wird_toleriert(emoji, art):
     """Discord liefert dasselbe Emoji je Client mit oder ohne U+FE0F. Ein direkter
     Stringvergleich haette den Daumen von manchen Geraeten stillschweigend nicht
     erkannt - und stille Nichterkennung ist bei einem Meldeweg schlimmer als ein
-    Fehlalarm: niemand merkt, dass die Meldung nicht ankam."""
-    assert rm.ist_markierung("\N{THUMBS DOWN SIGN}\N{VARIATION SELECTOR-16}")
+    Fehlalarm: niemand merkt, dass die Meldung nicht ankam. Bei 👍 wiegt das schwerer:
+    iOS schickt ihn praktisch immer mit Variantenselektor."""
+    assert rm.art_der_markierung(emoji + "\N{VARIATION SELECTOR-16}") == art
 
 
 # --- welche Frage die markierte Antwort beantwortet hat --------------------------------
@@ -89,30 +99,46 @@ def _zeilen(pfad):
 
 
 def test_markierung_wird_abgelegt(protokoll_db):
-    protokoll.merke_rueckmeldung(rm.ART, "https://d/1/2/3", frage="Was macht Feuerball?")
-    assert _zeilen(protokoll_db) == [(rm.ART, "Was macht Feuerball?", "https://d/1/2/3")]
+    protokoll.merke_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3",
+                                 frage="Was macht Feuerball?")
+    assert _zeilen(protokoll_db) == [
+        (rm.ART_RUNTER, "Was macht Feuerball?", "https://d/1/2/3")]
 
 
 def test_zweite_markierung_derselben_antwort_erzeugt_keine_zweite_zeile(protokoll_db):
     """UNIQUE(art, verweis) ist die PII-freie Entdopplung: Markiert ein zweiter Spieler
     dieselbe Antwort, ist das derselbe Befund. Die Alternative waere, Nutzer
     auseinanderzuhalten - genau das soll das Protokoll nicht (CONCEPT.md §13)."""
-    protokoll.merke_rueckmeldung(rm.ART, "https://d/1/2/3", frage="Erste")
-    protokoll.merke_rueckmeldung(rm.ART, "https://d/1/2/3", frage="Zweite")
+    protokoll.merke_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3", frage="Erste")
+    protokoll.merke_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3", frage="Zweite")
     assert len(_zeilen(protokoll_db)) == 1
 
 
 def test_zurueckgenommene_markierung_verschwindet(protokoll_db):
     """Ein Fehlgriff soll die Kurationsliste nicht dauerhaft belasten, und die Liste soll
     dem entsprechen, was in Discord steht."""
-    protokoll.merke_rueckmeldung(rm.ART, "https://d/1/2/3", frage="Frage")
-    protokoll.loesche_rueckmeldung(rm.ART, "https://d/1/2/3")
+    protokoll.merke_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3", frage="Frage")
+    protokoll.loesche_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3")
     assert _zeilen(protokoll_db) == []
 
 
+def test_beide_arten_stehen_nebeneinander(protokoll_db):
+    """UNIQUE(art, verweis) entdoppelt JE ART. Sind sich zwei Spieler uneins, ist das
+    kein Konflikt, den der Code aufloesen darf, sondern zwei Befunde - und eine
+    zurueckgenommene Reaktion loescht nur die eigene Zeile. Das ist die Zusage, fuer die
+    `art` als FELD gebaut wurde (statt einer Tabelle je Art)."""
+    protokoll.merke_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3", frage="Strittig?")
+    protokoll.merke_rueckmeldung(rm.ART_HOCH, "https://d/1/2/3", frage="Strittig?")
+    assert len(_zeilen(protokoll_db)) == 2
+
+    protokoll.loesche_rueckmeldung(rm.ART_HOCH, "https://d/1/2/3")
+    assert _zeilen(protokoll_db) == [
+        (rm.ART_RUNTER, "Strittig?", "https://d/1/2/3")]
+
+
 def test_markierung_ohne_frage_ist_erlaubt(protokoll_db):
-    protokoll.merke_rueckmeldung(rm.ART, "https://d/1/2/3", frage=None)
-    assert _zeilen(protokoll_db) == [(rm.ART, None, "https://d/1/2/3")]
+    protokoll.merke_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3", frage=None)
+    assert _zeilen(protokoll_db) == [(rm.ART_RUNTER, None, "https://d/1/2/3")]
 
 
 def test_kaputter_pfad_kostet_die_markierung_nie_den_bot(tmp_path, monkeypatch):
@@ -121,8 +147,8 @@ def test_kaputter_pfad_kostet_die_markierung_nie_den_bot(tmp_path, monkeypatch):
     monkeypatch.setattr(protokoll, "protokoll_pfad",
                         lambda: tmp_path / "gibt-es-nicht" / "p.sqlite")
     monkeypatch.setattr(protokoll, "protokoll_aktiv", lambda: True)
-    protokoll.merke_rueckmeldung(rm.ART, "https://d/1/2/3", frage="X")   # darf nicht werfen
-    protokoll.loesche_rueckmeldung(rm.ART, "https://d/1/2/3")
+    protokoll.merke_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3", frage="X")  # wirft nie
+    protokoll.loesche_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3")
 
 
 def test_die_abfragen_tabelle_bleibt_unberuehrt(protokoll_db):
@@ -130,7 +156,7 @@ def test_die_abfragen_tabelle_bleibt_unberuehrt(protokoll_db):
     (aus mehreren Tool-Aufrufen), nicht einer Abfrage - und `abfragen` rotiert bei 50 000
     Zeilen, waehrend eine Markierung zu selten und zu wertvoll ist, um mit dem
     Maschinenverkehr wegzulaufen."""
-    protokoll.merke_rueckmeldung(rm.ART, "https://d/1/2/3", frage="X")
+    protokoll.merke_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3", frage="X")
     con = sqlite3.connect(protokoll_db)
     try:
         assert con.execute("SELECT count(*) FROM abfragen").fetchone()[0] == 0
@@ -140,10 +166,10 @@ def test_die_abfragen_tabelle_bleibt_unberuehrt(protokoll_db):
 
 # --- der Bericht ----------------------------------------------------------------------
 
-def test_hilfe_erklaert_den_meldeweg():
+def test_hilfe_erklaert_beide_meldewege():
     """Ein Meldeweg, den `/hilfe` nicht nennt, existiert fuer die Runde nicht."""
     from app.discord_bot import antwort
-    assert "👎" in antwort.HILFE and "📝" in antwort.HILFE
+    assert "👎" in antwort.HILFE and "👍" in antwort.HILFE and "📝" in antwort.HILFE
 
 
 def test_suchbericht_ueberlebt_ein_protokoll_ohne_die_tabelle(protokoll_db, capsys):
@@ -157,4 +183,34 @@ def test_suchbericht_ueberlebt_ein_protokoll_ohne_die_tabelle(protokoll_db, caps
     admin.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=False))
     ausgabe = capsys.readouterr().out
     assert "Von der Runde markiert" in ausgabe
+    assert "Von der Runde gelobt" in ausgabe
     assert "keine ✓" in ausgabe
+
+
+def test_lob_steht_nicht_unter_der_fehler_ueberschrift(protokoll_db, capsys):
+    """Die ART traegt die Ueberschrift, nicht die Zeile. Ginge der Bot vor dieser
+    Aenderung live, stuende Lob unter 'markiert' - und der naechste Durchgang kuratierte
+    eine gelungene Antwort als Fehler."""
+    import argparse
+
+    from app import admin
+    protokoll.merke_rueckmeldung(rm.ART_HOCH, "https://d/1/2/3", frage="Gelungene Frage")
+    admin.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=False))
+    ausgabe = capsys.readouterr().out
+    fehler, lob = ausgabe.split("Von der Runde gelobt", 1)
+    assert "Gelungene Frage" in lob and "Gelungene Frage" not in fehler
+
+
+def test_json_trennt_die_beiden_arten(protokoll_db, capsys):
+    """Der Auswertungs-Durchgang liest JSON. `markiert` behaelt seine Bedeutung
+    (nur 👎) - sonst zaehlte ein spaeterer Leser Lob als Fehlerbefund mit."""
+    import argparse
+    import json
+
+    from app import admin
+    protokoll.merke_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3", frage="Falsch")
+    protokoll.merke_rueckmeldung(rm.ART_HOCH, "https://d/1/2/4", frage="Gut")
+    admin.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=True))
+    bericht = json.loads(capsys.readouterr().out)
+    assert [z["frage"] for z in bericht["markiert"]] == ["Falsch"]
+    assert [z["frage"] for z in bericht["gelobt"]] == ["Gut"]

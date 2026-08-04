@@ -1,5 +1,5 @@
-"""Rückmeldungen der Runde: eine 👎-Reaktion auf eine Bot-Antwort wird ein
-Kurations-Kandidat (O4/M5).
+"""Rückmeldungen der Runde: eine 👎- oder 👍-Reaktion auf eine Bot-Antwort wird ein
+Kurations- bzw. Regressionsschutz-Kandidat (O4/M5).
 
 WOFUER: Die Feedback-Schleife lief bisher nur ueber Statistik - `admin suchbericht` sieht
 Nulltreffer, Fuzzy-Landungen und Mehrdeutigkeiten. Was er NICHT sieht, ist die Antwort, die
@@ -17,31 +17,43 @@ NICHT der Antworttext: das waere Gespraechsinhalt in einer Log-Datei, und der Li
 einem Klick dorthin, wo die Antwort ohnehin steht. Keine Nutzerkennung - wer markiert hat,
 ist fuer die Kuration ohne Bedeutung, und die Markierung soll kein Sozialprotokoll werden
 (CONCEPT.md par. 13). Deshalb zaehlt auch nicht, WIE OFT markiert wurde: eine Antwort ist
-markiert oder nicht.
+je Art markiert oder nicht. Sind sich zwei Spieler uneins (👎 UND 👍 an derselben
+Antwort), stehen zwei Zeilen da - das ist keine Panne, sondern der Befund.
 """
 from __future__ import annotations
 
-# Die eine Markierung. Bewusst nur eine: Zwei Emoji mit feinen Bedeutungsunterschieden
-# muesste man erklaeren, und ein Meldeweg, den man erklaeren muss, wird nicht benutzt.
-MARKIERUNG = "\N{THUMBS DOWN SIGN}"
+# Die Arten, unter denen eine Zeile im Protokoll steht. Ein FELD (statt einer Tabelle je
+# Art), wie beim Bau von 👎 vorgesehen - die zweite Markierung kam damit ohne Migration aus.
+ART_RUNTER = "daumen_runter"
+ART_HOCH = "daumen_hoch"
+
+# Die zaehlenden Reaktionen. Bis 04.08.2026 war es bewusst nur EINE, mit der Begruendung:
+# zwei Emoji mit feinen Bedeutungsunterschieden muesste man erklaeren, und ein Meldeweg,
+# den man erklaeren muss, wird nicht benutzt. Diese Begruendung gilt weiter - sie trifft 👍
+# nur nicht: Ihr Gegenstand ist NUANCE (👎 gegen 😕 gegen 🤔: "welches nehme ich?"), und
+# 👍/👎 ist keine Nuance, sondern Polaritaet. Das eine Emoji-Paar, das in jedem Chat
+# dasselbe heisst und das niemand nachschlaegt. Dazu kommt: die Runde reagiert ohnehin
+# schon mit 👍 - das Signal fiel bisher nur stumm auf den Boden.
+ARTEN = {"\N{THUMBS DOWN SIGN}": ART_RUNTER, "\N{THUMBS UP SIGN}": ART_HOCH}
 
 # Was der Bot zurueckreagiert - "notiert", ohne eine Nachricht in den Kanal zu schreiben.
 # Ohne diese Rueckmeldung weiss niemand, ob der Druck auf den Daumen etwas bewirkt hat,
 # und ein Knopf ohne sichtbare Wirkung gilt nach zweimal als kaputt.
+# EIN Zeichen fuer beide Arten: Die Bestaetigung beantwortet genau eine Frage - "ist mein
+# Druck angekommen?" -, und die ist fuer Lob und Tadel dieselbe. WELCHE Art notiert wurde,
+# steht ohnehin sichtbar an der Nachricht: der eigene Daumen. Ein zweites
+# Bestaetigungs-Emoji waere genau der feine Unterschied, gegen den oben argumentiert wird.
 BESTAETIGUNG = "\N{MEMO}"
 
-# Die Art, unter der die Zeile im Protokoll steht. Ein Feld (statt einer Tabelle je Art),
-# damit eine spaetere zweite Markierung keine Migration braucht.
-ART = "daumen_runter"
 
-
-def ist_markierung(emoji: str) -> bool:
-    """Nur die eine Markierung zaehlt - jede andere Reaktion ist Geplauder.
+def art_der_markierung(emoji: str) -> str | None:
+    """Die Art der Rueckmeldung - oder None, wenn die Reaktion Geplauder ist.
 
     Verglichen wird auf dem nackten Zeichen: Discord liefert dasselbe Emoji je Client mit
     oder ohne Variantenselektor (U+FE0F), und ein direkter Stringvergleich haette den
-    Daumen von manchen Geraeten stillschweigend nicht erkannt."""
-    return emoji.replace("\N{VARIATION SELECTOR-16}", "") == MARKIERUNG
+    Daumen von manchen Geraeten stillschweigend nicht erkannt. Bei 👍 wiegt das schwerer
+    als bei 👎 - iOS schickt ihn praktisch immer mit U+FE0F."""
+    return ARTEN.get(emoji.replace("\N{VARIATION SELECTOR-16}", ""))
 
 
 def frage_aus_umgebung(vorlauf: list[tuple[bool, str]],

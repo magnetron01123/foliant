@@ -1285,6 +1285,10 @@ def cmd_suchbericht(args) -> None:
     from datetime import datetime, timedelta, timezone
 
     from app import protokoll as _protokoll
+    # Der Bericht nennt die Arten nicht selbst, sondern holt sie dort, wo der Bot sie
+    # setzt - sonst driften Schreiber und Leser auseinander. Das Modul ist discord-frei
+    # und zieht keine Bot-Abhaengigkeit in die CLI.
+    from app.discord_bot import rueckmeldung as _rueckmeldung
 
     con = _protokoll.verbinde_lesend()
     if con is None:
@@ -1307,15 +1311,21 @@ def cmd_suchbericht(args) -> None:
                     ORDER BY anzahl DESC, zuletzt DESC LIMIT ?""",
                 (seit, *params, limit))]
 
-        def _markierungen() -> list[dict]:
-            """Markierte Antworten im Zeitraum. Bestands-Protokolle kennen die Tabelle
-            noch nicht (sie entsteht mit der ersten Markierung) - ein fehlender Table darf
-            den Bericht nicht kosten, dessen uebrige Abschnitte in Ordnung sind."""
+        def _markierungen(art: str) -> list[dict]:
+            """Markierte Antworten EINER Art im Zeitraum. Bestands-Protokolle kennen die
+            Tabelle noch nicht (sie entsteht mit der ersten Markierung) - ein fehlender
+            Table darf den Bericht nicht kosten, dessen uebrige Abschnitte in Ordnung sind.
+
+            Je Art eine eigene Abfrage mit eigenem LIMIT, nicht eine gemeinsame mit
+            nachtraeglichem Aufteilen: 👍 kommt reflexhaft und damit haeufiger als 👎 - ein
+            gemeinsames LIMIT liesse einen Schwall Lob die Fehlermeldungen verdraengen, und
+            genau die duerfen nie verloren gehen."""
             try:
                 return [dict(r) for r in con.execute(
                     """SELECT zeitpunkt, art, frage, verweis FROM rueckmeldungen
-                        WHERE zeitpunkt >= ? ORDER BY zeitpunkt DESC LIMIT ?""",
-                    (seit, limit))]
+                        WHERE zeitpunkt >= ? AND art = ?
+                        ORDER BY zeitpunkt DESC LIMIT ?""",
+                    (seit, art, limit))]
             except sqlite3.OperationalError:
                 return []
 
@@ -1344,11 +1354,14 @@ def cmd_suchbericht(args) -> None:
             "mehrdeutig": _gruppe("mehrdeutig = 1"),
             "uebersetzungs_luecken": _gruppe("werkzeug = 'uebersetze_begriff' "
                                              "AND gefunden = 0"),
-            # Von der Runde MARKIERTE Antworten (👎 in Discord). Anders als alles darueber
-            # kein Statistik-Signal, sondern ein Urteil: technisch gefunden, inhaltlich
-            # falsch. Genau die Klasse Fehler, die kein Zaehler je zeigt.
-            # Eigene Tabelle -> eigene Abfrage; `_gruppe` liest `abfragen`.
-            "markiert": _markierungen(),
+            # Von der Runde MARKIERTE Antworten (👎/👍 in Discord). Anders als alles
+            # darueber kein Statistik-Signal, sondern ein Urteil: technisch gefunden,
+            # inhaltlich falsch (bzw. richtig gut). Genau die Klasse Fehler, die kein
+            # Zaehler je zeigt. Eigene Tabelle -> eigene Abfrage; `_gruppe` liest
+            # `abfragen`. Getrennte Schluessel, weil die beiden zu Verschiedenem fuehren:
+            # 👎 wird kuriert, 👍 wird zum Regressionsschutz.
+            "markiert": _markierungen(_rueckmeldung.ART_RUNTER),
+            "gelobt": _markierungen(_rueckmeldung.ART_HOCH),
         }
 
         if getattr(args, "json", False):
@@ -1369,15 +1382,27 @@ def cmd_suchbericht(args) -> None:
                       f"(zuletzt {z['zuletzt'][:10]})")
             print()
 
-        # Bewusst VOR den Statistik-Abschnitten: Eine Antwort, die ein Spieler als falsch
-        # markiert hat, ist der staerkste Kurations-Kandidat, den dieser Bericht kennt.
-        print("  Von der Runde markiert (👎 in Discord - inhaltlich falsch trotz Treffer):")
-        if not bericht["markiert"]:
-            print("    keine ✓")
-        for m in bericht["markiert"]:
-            print(f"    {m['zeitpunkt'][:10]}  {m['frage'] or '(Frage nicht ermittelt)'}")
-            print(f"                {m['verweis']}")
-        print()
+        def _urteile(titel: str, zeilen: list[dict], leer: str) -> None:
+            """Zwei Zeilen je Eintrag: Datum + Frage, darunter der Link. Die ART traegt
+            die UEBERSCHRIFT, nicht die Zeile - sonst muesste jede Zeile ein Feld
+            mitschleppen, das fuer den ganzen Abschnitt gilt."""
+            print(f"  {titel}:")
+            if not zeilen:
+                print(f"    {leer}")
+            for z in zeilen:
+                print(f"    {z['zeitpunkt'][:10]}  "
+                      f"{z['frage'] or '(Frage nicht ermittelt)'}")
+                print(f"                {z['verweis']}")
+            print()
+
+        # Bewusst VOR den Statistik-Abschnitten: Ein Urteil der Runde ist der staerkste
+        # Kandidat, den dieser Bericht kennt - staerker als jeder Messwert. Innerhalb
+        # dessen zuerst das Falsche: ein Fehler kostet am Tisch mehr, als ein gelungener
+        # Treffer einbringt.
+        _urteile("Von der Runde markiert (👎 in Discord - inhaltlich falsch trotz Treffer)",
+                 bericht["markiert"], "keine ✓")
+        _urteile("Von der Runde gelobt (👍 in Discord - Kandidaten fuer Regressionsschutz)",
+                 bericht["gelobt"], "keine")
 
         _abschnitt("Nulltreffer (Glossar-/Synonym-Kandidaten, ggf. fehlt ein Buch)",
                    bericht["nulltreffer"], "keine - alles gefunden ✓")

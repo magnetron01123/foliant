@@ -276,7 +276,7 @@ class FoliantBot(discord.Client):
     # --- Rueckmeldungen der Runde (O4/M5) -----------------------------------------
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
-        """👎 auf eine eigene Antwort -> Kurations-Kandidat im Abfrage-Protokoll.
+        """👎 oder 👍 auf eine eigene Antwort -> Kandidat im Abfrage-Protokoll.
 
         RAW statt `on_reaction_add`: Das gecachte Ereignis feuert nur fuer Nachrichten, die
         der Bot noch im Speicher hat. Nach einem Neustart - und genau dann liegen die
@@ -284,10 +284,10 @@ class FoliantBot(discord.Client):
         markierung = await self._markierte_antwort(payload)
         if markierung is None:
             return
-        nachricht, kanal = markierung
+        nachricht, kanal, art = markierung
         frage = await self._frage_zur_antwort(nachricht, kanal)
         protokoll.merke_rueckmeldung(
-            art=rueckmeldung.ART, frage=frage,
+            art=art, frage=frage,
             verweis=rueckmeldung.verweis(payload.guild_id, payload.channel_id,
                                          payload.message_id))
         try:
@@ -303,21 +303,30 @@ class FoliantBot(discord.Client):
         nicht dauerhaft belasten. Die Bestaetigung des Bots bleibt bewusst stehen: sie
         wieder wegzunehmen hiesse zu wissen, ob NIEMAND mehr markiert hat - und dafuer
         muesste der Bot Nutzer auseinanderhalten."""
-        if not rueckmeldung.ist_markierung(str(payload.emoji)):
+        art = rueckmeldung.art_der_markierung(str(payload.emoji))
+        if art is None:
             return
+        if payload.user_id == (self.user and self.user.id):
+            return                           # eigene Reaktion, siehe _markierte_antwort
         if payload.guild_id != self._guild.id:
             return
         protokoll.loesche_rueckmeldung(
-            art=rueckmeldung.ART,
+            art=art,
             verweis=rueckmeldung.verweis(payload.guild_id, payload.channel_id,
                                          payload.message_id))
 
     async def _markierte_antwort(self, payload: discord.RawReactionActionEvent):
-        """(Nachricht, Kanal), wenn das Ereignis eine Markierung an einer EIGENEN Antwort
-        im richtigen Ort ist - sonst None. Die Reihenfolge der Pruefungen ist
-        Sparsamkeit: Emoji und Guild kosten nichts, das Nachladen der Nachricht einen
-        API-Aufruf."""
-        if not rueckmeldung.ist_markierung(str(payload.emoji)):
+        """(Nachricht, Kanal, Art), wenn das Ereignis eine Markierung an einer EIGENEN
+        Antwort im richtigen Ort ist - sonst None. Die Reihenfolge der Pruefungen ist
+        Sparsamkeit: Emoji, eigene Kennung und Guild kosten nichts, das Nachladen der
+        Nachricht einen API-Aufruf."""
+        art = rueckmeldung.art_der_markierung(str(payload.emoji))
+        if art is None:
+            return None
+        if payload.user_id == (self.user and self.user.id):
+            # Reaktionen des Bots selbst zaehlen nie. Heute setzt er nur 📝, das ohnehin
+            # keine Markierung ist - die Pruefung schliesst die Fehlerklasse trotzdem,
+            # statt sie einer Zusage zu ueberlassen, die der naechste Einzeiler kassiert.
             return None
         if payload.guild_id != self._guild.id:
             return None
@@ -333,7 +342,7 @@ class FoliantBot(discord.Client):
             return None
         if nachricht.author.id != (self.user and self.user.id):
             return None                      # fremde Nachricht: nicht unsere Auskunft
-        return nachricht, kanal
+        return nachricht, kanal, art
 
     async def _frage_zur_antwort(self, nachricht: discord.Message, kanal) -> str | None:
         """Die Frage, auf die die markierte Antwort geantwortet hat. Best effort - ein
