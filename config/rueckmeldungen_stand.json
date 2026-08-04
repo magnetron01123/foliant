@@ -41,7 +41,7 @@
       "bemerkung": "Erster Durchgang, noch von Hand gefahren — er hat den Ablauf begründet, den .claude/ablaeufe/rueckmeldungen.md jetzt festhält.",
       "erledigt_am": "2026-08-04",
       "behoben_durch": [
-        "Befund 1: die Detailausgabe annotiert jetzt auch den Eintragsnamen; dazu kuratierte Teilbegriffe (Archfey→Erzfee, Great Old One→Großer Alter) mit Beleg-Schranke im Glossar-Seeding. Celestial und Undead bewusst NICHT — dort wäre die Patron-Form geraten.",
+        "Befund 1: die Detailausgabe annotiert jetzt auch den Eintragsnamen; dazu ein kuratierter Teilbegriff (Archfey→Erzfee) mit Beleg-Schranke im Glossar-Seeding. Celestial, Undead und Great Old One bewusst NICHT: dort ist die deutsche Form nicht wörtlich belegt (bei Great Old One nur im Genitiv) — die Schranke hat das im ersten echten Seeding-Lauf selbst gemeldet.",
         "Befund 2: neuer Grounding-Hinweis (Kanal 1) an jedem Monster-Steckbrief. B4 stand längst in beiden Prompt-Kanälen und half nicht — das war der Hinweis darauf, dass die Regel im falschen Kanal saß.",
         "Befund 3: 'eventuell fehlt ein Buch' aus dem Leerbefund-Hinweis und beiden Prompt-Kanälen entfernt; stattdessen Verweis auf /bestand. Der Bot war regelkonform — der Befund lag in der Regel.",
         "Regressionstests: tests/test_rueckmeldungs_befunde.py (12 Fälle) und tests/test_discord_reaktionen.py (15 Fälle) für den bis dahin ungetesteten Reaktions-Kleber in bot.py."
