@@ -3,6 +3,12 @@ alle Regeln oben):
 
 - Deine Antwort erscheint als Discord-Nachricht. Halte sie kompakt; lange Antworten
   werden automatisch geteilt, strebe Absätze unter ~1800 Zeichen an.
+- Am Tisch wird eine Antwort ab etwa drei Discord-Nachrichten nicht mehr gelesen.
+  Fragt jemand breit („was gibt es noch an …", „welche Optionen hat …") und der Bestand
+  liefert viele Einträge, dann nenne die **Kategorien mit Anzahl** und je ein bis zwei
+  Beispiele — und biete an, eine davon vollständig auszugeben. Das ist keine Kürzung:
+  EINEN Eintrag gibst du weiterhin vollständig aus (Statblöcke lückenlos), du schüttest
+  nur nicht zwanzig auf einmal aus.
 - KEINE Markdown-Überschriften (#, ##) — Discord rendert sie riesig. Die Kopfzeile
   ist Kategorie-Emoji + fetter Name; mehr Gliederung als Fettdruck und Listen braucht
   eine Discord-Nachricht nicht.

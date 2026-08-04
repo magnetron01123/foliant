@@ -188,6 +188,34 @@ def _inhaltsart_je_kuerzel(con: sqlite3.Connection) -> dict[str, str]:
     except sqlite3.OperationalError:
         return {}
 
+def markiere_unuebersetzte(antwort: dict, *listen: list[dict]) -> None:
+    """Sammelhinweis, wenn Treffer OHNE belegten deutschen Namen dabei sind (S3 Stufe 4).
+
+    Rueckmeldung der Runde, 04.08.2026: Eine Uebersichtsantwort gab 'Mist Wanderer*',
+    'Spirit Medium*', 'Touch of Death*' aus - englische Namen mit einem Stern dran. Das
+    Sternchen heisst aber "keine offizielle Uebersetzung", es ERSETZT die Uebersetzung
+    nicht; S3 Stufe 4 verlangt ausdruecklich eine deutsche Wiedergabe und *nicht* Englisch
+    mitten im Satz.
+
+    Warum hier und nicht im Prompt: Die Regel STEHT in beiden Prompt-Kanaelen und im
+    Detail-Hinweis - nur die TREFFERLISTE trug sie nie, und aus ihr beantwortet das Modell
+    genau die Uebersichtsfragen, bei denen viele Namen auf einmal anfallen. `_anzeige_name`
+    gibt bei fehlendem Glossar-Treffer korrekt den englischen Namen zurueck (raten waere
+    schlimmer) - das Modell braucht nur die Ansage, was es damit tun soll."""
+    ohne_deutsch = [k for liste in listen for k in liste
+                    if not k.get("name_de")
+                    and k.get("anzeige_name", k.get("name_en")) == k.get("name_en")]
+    if not ohne_deutsch:
+        return
+    beispiel = ohne_deutsch[0].get("name_en") or "Mist Walker"
+    antwort["hinweis_ohne_deutschen_namen"] = (
+        f"{len(ohne_deutsch)} Treffer tragen KEINEN belegten deutschen Namen. Gib sie "
+        f"trotzdem nicht englisch aus: konsistente deutsche Wiedergabe MIT '*' und dem "
+        f"Original in Klammern - '{beispiel}' wird also zu '<deutsche Fassung>* "
+        f"({beispiel})'. Ein '*' allein am englischen Namen erfuellt S3 NICHT: er markiert "
+        f"die fehlende offizielle Uebersetzung, er ersetzt sie nicht.")
+
+
 def _markiere_inhaltsart(con: sqlite3.Connection, antwort: dict, *listen: list[dict]) -> None:
     """Treffer aus Sonderquellen kennzeichnen und je Art einen Sammelhinweis setzen -
     dieselbe Aussage wie im Detail, nur schon in der Trefferliste."""

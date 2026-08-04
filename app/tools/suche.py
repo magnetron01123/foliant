@@ -26,7 +26,7 @@ from app import glossar as _glossar
 from app import protokoll as _protokoll
 from app.tools.ausgabe import (
     _HINWEIS_PARAMETER, HINWEIS_ABKUERZUNGEN, HINWEIS_ALT, HINWEIS_DB_FEHLT, HINWEIS_LEER, _haenge_revisionen_an, _knapp, _markiere_inhaltsart, _reichere_facetten_an,
-    _verbinde,
+    _verbinde, markiere_unuebersetzte,
 )
 
 
@@ -273,6 +273,7 @@ def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25,
     # Spoiler-Kennzeichnung auch im reinen Struktur-Pfad (A2) - hier gibt es keinen
     # Suchbegriff, also auch keine Namensrelevanz zu bewerten.
     _markiere_inhaltsart(con, antwort, treffer)
+    markiere_unuebersetzte(antwort, treffer)
     _haenge_revisionen_an(con, antwort, treffer)
     if treffer:
         antwort["hinweis_abkuerzungen"] = HINWEIS_ABKUERZUNGEN
@@ -436,6 +437,7 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
                 "im Bestand ist (z. B. nicht SRD-lizenziert). Treffer kritisch pruefen und "
                 "im Zweifel ehrlich 'nicht gefunden' sagen, statt Unpassendes auszugeben (B1).")
         _markiere_inhaltsart(con, antwort, *listen)
+        markiere_unuebersetzte(antwort, *listen)
         _haenge_revisionen_an(con, antwort, *listen)
         # S12: Die Auszuege tragen englische Kuerzel ('AC 17', '8d6') in die Antwort -
         # wer aus ihnen formuliert, braucht die Regel hier, nicht nur im Detailabruf.

@@ -1368,6 +1368,10 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Glossar-Funktion direkt statt den Weg durch `ausgabe._detail`, den die Antwort
   tatsächlich nimmt. **Gegenprobe: Fix kaputtmachen, Test muss fallen.** Kostet eine
   Minute und ist der Unterschied zwischen abgesichert und beruhigt.
+  Am selben Abend dieselbe Falle in ihrer zweiten Form: Die Mutation traf den
+  Struktur-Pfad der Suche, der Test den Freitext-Pfad — grün, obwohl kaputt. **Hat eine
+  Funktion mehrere Aufrufstellen, muss die Gegenprobe jede einzeln treffen**; ein
+  Sammelhinweis, der nur an einem Ausgabeweg hängt, fehlt genau dem, der ihn braucht.
 - **Discord-REST ohne `User-Agent` antwortet mit „error code: 1010".** Cloudflare weist
   jeden eigenen Client ab, der keinen setzt — und die Meldung nennt weder Header noch
   Cloudflare als Ursache. Sie sieht aus wie ein Rechteproblem am Bot-Token und kostete am

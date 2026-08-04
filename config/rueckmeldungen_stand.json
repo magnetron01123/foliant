@@ -4,7 +4,7 @@
   "_pflege": "Liegt im Git, damit jede Änderung im Diff sichtbar wird. Bewusst NICHT in der Protokoll-DB auf dem Pi: Der Zustand einer Arbeitsschleife gehört dorthin, wo die Arbeit reviewt wird, und ein Schreibbefehl auf der Produktion wäre der teurere Weg zum schlechteren Ergebnis.",
   "_datenschutz": "Hier stehen Zählwerte und je ein Satz pro Befund. KEINE Discord-Links, keine Guild-/Kanal-/Nachrichten-IDs, keine Namen — das Repo ist öffentlich, und ein Permalink verriete die Guild. Die Datei enthält damit bewusst weniger als die Protokoll-DB (CONCEPT.md §13).",
   "_befund_format": "`regeln` sind die verletzten SPEC-IDs (S*, B*, V*, Q*, T*), `ursache` ist eine von: 'code' (ein Fehler im Programm — keine Prompt-Regel hätte ihn behoben), 'verhalten' (das Modell hielt eine Regel nicht ein), 'daten' (Bestand oder Glossar), 'meldeweg' (die Rückmeldungs-Mechanik selbst). Strukturiert statt als Fließtext, weil erst darüber sichtbar wird, welche Regel WIEDERHOLT bricht — und eine Regel, die dreimal bricht, ist kein Modellfehler mehr, sondern eine Regel, die an der falschen Stelle steht.",
-  "zuletzt_gesichtet_bis": "2026-08-04T09:00:00+00:00",
+  "zuletzt_gesichtet_bis": "2026-08-04T20:00:00+00:00",
   "durchgaenge": [
     {
       "datum": "2026-08-04",
@@ -46,6 +46,35 @@
         "Befund 3: 'eventuell fehlt ein Buch' aus dem Leerbefund-Hinweis und beiden Prompt-Kanälen entfernt; stattdessen Verweis auf /bestand. Der Bot war regelkonform — der Befund lag in der Regel.",
         "Regressionstests: tests/test_rueckmeldungs_befunde.py (12 Fälle) und tests/test_discord_reaktionen.py (15 Fälle) für den bis dahin ungetesteten Reaktions-Kleber in bot.py."
       ]
+    },
+    {
+      "datum": "2026-08-04",
+      "anlass": "direkt gemeldete Antwort (nicht über eine Reaktion)",
+      "befunde": [
+        {
+          "regeln": [
+            "S3",
+            "S4"
+          ],
+          "ursache": "code",
+          "was": "Eine Übersichtsantwort gab englische Namen mit '*' aus ('Mist Wanderer*', 'Touch of Death*'). Das '*' markiert die fehlende offizielle Übersetzung, es ersetzt sie nicht. Die Regel stand in beiden Prompt-Kanälen und im Detail-Hinweis — nur die TREFFERLISTE trug sie nie, und genau aus ihr werden Übersichtsfragen beantwortet."
+        },
+        {
+          "regeln": [
+            "B9"
+          ],
+          "ursache": "code",
+          "was": "Die Antwort riss mitten im Satz ab; der Hinweis darauf kommt nach der bereits bezahlten Antwort. Limit von 3000 auf 4000 Tokens — bewusst nur ein Schritt, denn 3000 trugen deutsch schon vier Discord-Nachrichten."
+        },
+        {
+          "regeln": [
+            "B9"
+          ],
+          "ursache": "verhalten",
+          "was": "Eigentliche Ursache der Länge: Auf eine breite Frage wurde alles ausgeschüttet statt gegliedert. Neue Formregel im Discord-Zusatz — Kategorien mit Anzahl nennen und anbieten; EIN Eintrag bleibt vollständig."
+        }
+      ],
+      "bemerkung": "Zweiter Mutationslauf desselben Tages deckte erneut einen Scheintest auf — diesmal traf die Mutation den Struktur-Pfad und der Test den Freitext-Pfad. Beide Ausgabewege sind jetzt einzeln abgesichert."
     }
   ]
 }

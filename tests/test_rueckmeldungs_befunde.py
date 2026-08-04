@@ -202,6 +202,153 @@ def test_kein_mutmassen_ueber_fehlende_buecher():
     assert "/bestand" in ausgabe.HINWEIS_LEER
 
 
+# --- Durchgang 04.08.2026 (abends): abgeschnittene Uebersichtsantwort -----------------
+
+def test_trefferliste_sagt_was_mit_unuebersetzten_namen_zu_tun_ist():
+    """Gemeldeter Befund: Eine Uebersichtsantwort gab 'Mist Wanderer*', 'Spirit Medium*',
+    'Touch of Death*' aus - englische Namen mit einem Stern dran.
+
+    Das '*' heisst "keine offizielle Uebersetzung"; es ERSETZT die Uebersetzung nicht.
+    S3 Stufe 4 verlangt ausdruecklich eine deutsche Wiedergabe und *nicht* Englisch mitten
+    im Satz. Die Regel stand in beiden Prompt-Kanaelen UND im Detail-Hinweis - nur die
+    TREFFERLISTE trug sie nie, und genau aus der beantwortet das Modell Uebersichtsfragen.
+    Nach der eigenen Lehre vom Vormittag heisst das: die Regel sass im falschen Kanal."""
+    from app.tools import ausgabe
+
+    antwort = {}
+    treffer = [
+        {"eintrag_id": 1, "name_de": None, "name_en": "Mist Walker",
+         "anzeige_name": "Mist Walker"},                       # keine Uebersetzung belegt
+        {"eintrag_id": 2, "name_de": None, "name_en": "Archfey Patron",
+         "anzeige_name": "Erzfee-Schutzherr (Archfey Patron)"},  # ueber Glossar aufgeloest
+        {"eintrag_id": 3, "name_de": "Feuerball", "name_en": "Fireball",
+         "anzeige_name": "Feuerball (Fireball)"},
+    ]
+    ausgabe.markiere_unuebersetzte(antwort, treffer)
+
+    hinweis = antwort.get("hinweis_ohne_deutschen_namen", "")
+    assert hinweis, "ohne Hinweis reicht das Modell den englischen Namen durch"
+    assert "1 Treffer" in hinweis, "nur der unaufgeloeste Name zaehlt, nicht alle drei"
+    assert "Mist Walker" in hinweis, "das Beispiel macht die Anweisung konkret"
+    assert "ersetzt sie nicht" in hinweis, "der haeufigste Irrtum muss benannt sein"
+
+
+def test_kein_hinweis_wenn_alles_uebersetzt_ist():
+    """Ein Hinweis, der immer steht, wird nicht gelesen."""
+    from app.tools import ausgabe
+
+    antwort = {}
+    ausgabe.markiere_unuebersetzte(antwort, [
+        {"name_de": "Feuerball", "name_en": "Fireball",
+         "anzeige_name": "Feuerball (Fireball)"}])
+    assert "hinweis_ohne_deutschen_namen" not in antwort
+
+
+def test_die_echte_suche_liefert_den_hinweis_mit(tmp_path, monkeypatch):
+    """Die beiden Tests darueber pruefen die Funktion - das ist zu flach, und ich bin
+    genau darauf schon einmal hereingefallen: Ein Mutationslauf am 04.08.2026 entfernte
+    den Aufruf aus `suche.py`, und alle Tests blieben gruen.
+
+    DAS hier ist der Regressionstest: Er geht durch `foliant_suche_bestand` und prueft,
+    dass der Hinweis in der echten Antwort ankommt - denn nur was dort steht, sieht das
+    Modell."""
+    import sqlite3
+
+    from app import db as adb
+    from app.tools import suche
+    from tests.hilfen import SCHEMA
+
+    pfad = tmp_path / "unuebersetzt.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,"
+                "prioritaet,inhaltsart) VALUES ('ddb-rthw-en','Ravenloft','en','2024',"
+                "'ddb','privat',40,'abenteuer_setting')")
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (?,?,?,?,?,?,?,?)",
+        [(1, "hintergrund", None, "Mist Wanderer", "en", "2024", None,
+          "*Kontext: Backgrounds*\n\nA Mist Wanderer background feature."),
+         (1, "hintergrund", None, "Spirit Medium", "en", "2024", None,
+          "*Kontext: Backgrounds*\n\nA Spirit Medium background feature.")])
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+
+    antwort = suche.foliant_suche_bestand("background", kategorie="hintergrund")
+
+    assert antwort.get("treffer"), "Vorbedingung: die Suche muss etwas finden"
+    hinweis = antwort.get("hinweis_ohne_deutschen_namen", "")
+    assert hinweis, ("ohne diesen Hinweis reicht das Modell 'Mist Wanderer*' durch - "
+                     "genau der gemeldete Befund")
+    assert "ersetzt sie nicht" in hinweis
+
+
+def test_auch_die_facettensuche_liefert_den_hinweis(tmp_path, monkeypatch):
+    """Die Suche hat ZWEI Ausgabewege - Freitext und reine Facetten -, und ein Hinweis,
+    der nur an einem haengt, fehlt genau dann, wenn jemand ohne Suchbegriff stoebert
+    ('zeig mir alles mit HG 5'). Beim ersten Mutationslauf traf die Mutation den einen
+    Pfad und der Test den anderen: gruen, obwohl kaputt."""
+    import sqlite3
+
+    from app import db as adb
+    from app.tools import suche
+    from tests.hilfen import SCHEMA
+
+    pfad = tmp_path / "facetten-unuebersetzt.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,"
+                "prioritaet,inhaltsart) VALUES ('ddb-rthw-en','Ravenloft','en','2024',"
+                "'ddb','privat',40,'abenteuer_setting')")
+    con.execute(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (1,'monster',NULL,'Mist Horror','en','2024',NULL,?)",
+        ("*Kontext: Bestiary*\n\n_Medium Aberration, Neutral Evil_\n\n"
+         "**Herausforderungsgrad** 5 (1.800 EP)\n\nA creature of the mists.",))
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+
+    antwort = suche.foliant_suche_bestand(kategorie="monster", hg="5")
+
+    assert antwort.get("treffer"), "Vorbedingung: der Facettenfilter muss greifen"
+    assert antwort.get("hinweis_ohne_deutschen_namen"), (
+        "der Struktur-Pfad trug den Hinweis nicht - dieselbe Luecke, andere Tuer")
+
+
+def test_antwortbudget_traegt_mehr_als_drei_discord_nachrichten():
+    """Die Antwort riss mitten im Satz ab, und die Warnung darueber kommt NACH der
+    bezahlten Antwort - der Nutzer zahlt fuer etwas, das er nicht bekommt.
+
+    Der Wert ist bewusst nur ein Schritt: 3000 Tokens trugen deutsch schon rund vier
+    Discord-Nachrichten. Das eigentliche Gegenmittel ist die Gliederungsregel im
+    Discord-Zusatz - dieser Wert faengt die knappen Faelle."""
+    import inspect
+
+    from app import llm
+
+    vorgabe = inspect.signature(llm.fahre_schleife).parameters["max_tokens"].default
+    assert vorgabe >= 4000, "knappe Ueberschreitungen reissen sonst weiter mitten im Satz"
+    assert vorgabe <= 8000, ("mehr Budget heisst laengere Antworten - ab etwa drei "
+                             "Discord-Nachrichten liest sie am Tisch niemand mehr")
+
+
+def test_discord_zusatz_verlangt_gliedern_statt_ausschuetten():
+    """Der Discord-Zusatz traegt bewusst NUR Form - und wie lang eine Antwort sein darf,
+    ist Form. Die Regel muss zugleich klarstellen, dass EIN Eintrag weiterhin vollstaendig
+    kommt: 'kompakt heisst knapp formuliert, nicht gekuerzt' bleibt unangetastet."""
+    import pathlib
+
+    text = pathlib.Path("config/discord_zusatz.md").read_text(encoding="utf-8")
+    assert "Kategorien" in text and "Anzahl" in text
+    assert "vollständig" in text, "sonst liest sich die Regel als Erlaubnis zu kuerzen"
+
+
 def test_beide_kanaele_verbieten_das_mutmassen():
     """S/B-Regeln muessen in BEIDEN Prompt-Kanaelen stehen - die Projektanweisung richtet
     jede Person selbst ein, wer das nicht tut, bekaeme sonst keine."""
