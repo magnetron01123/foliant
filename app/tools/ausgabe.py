@@ -64,6 +64,27 @@ HINWEIS_DB_FEHLT = ("Der Regelbestand ist noch leer (keine Datenbank/keine Impor
 
 _HINWEIS_STERN = "* = keine offizielle deutsche Uebersetzung (einmal erlaeutern, S5)"
 
+# B12: die kategoriefesten Slots (Einordnung + Kern) dort, wo die Antwort entsteht - der
+# globale Rahmen (Kopfzeile, Warnung, Abschluss) steht in den Prompt-Kanaelen, die
+# Kategorie-Details truegen dort nur Budget ab.
+GERUEST_JE_KATEGORIE: dict[str, str] = {
+    "zauber": "Einordnung: Grad, Schule, Klassen. Kern: Feldzeilen Wirkzeit/Reichweite/"
+              "Komponenten/Dauer, dann der Wirkungstext wortgetreu.",
+    "monster": "Einordnung: Groesse, Typ, HG. Kern: der Statblock VOLLSTAENDIG.",
+    "gegenstand": "Einordnung: Typ, Seltenheit, Einstimmung ja/nein. Kern: Eigenschaften, "
+                  "dann der Wirkungstext wortgetreu.",
+    "spezies": "Einordnung: Kreaturentyp, Groesse, Bewegungsrate. Kern: die Merkmale als "
+               "fette Feldzeilen.",
+    "klasse": "Einordnung: bei einer Unterklasse 'Unterklasse des <Klasse>', sonst "
+              "Primaerattribut und Trefferwuerfel. Kern: ALLE Merkmale nach Stufen - "
+              "verteilte Eintraege selbst nachladen und als EIN Ergebnis ausgeben (B15).",
+    "hintergrund": "Einordnung: Attributswerte, Ursprungstalent. Kern: Fertigkeiten, "
+                   "Werkzeug, Ausruestung.",
+    "talent": "Einordnung: Talentkategorie, Voraussetzung. Kern: der Nutzen als Liste.",
+    "regel": "Einordnung: die direkte Antwort (Ja/Nein/Bedingung) bzw. das Regelgebiet. "
+             "Kern: der Regeltext wortgetreu, dann Ausnahmen.",
+}
+
 # S12: aus dem EINEN Register (config/abkuerzungen.py) gebaut, nicht abgeschrieben - sonst
 # liefe der Hinweis der Liste davon, sobald eine Abkuerzung dazukommt.
 def _baue_abkuerzungs_hinweis() -> str:
@@ -213,7 +234,8 @@ def markiere_unuebersetzte(antwort: dict, *listen: list[dict]) -> None:
         f"trotzdem nicht englisch aus: konsistente deutsche Wiedergabe MIT '*' und dem "
         f"Original in Klammern - '{beispiel}' wird also zu '<deutsche Fassung>* "
         f"({beispiel})'. Ein '*' allein am englischen Namen erfuellt S3 NICHT: er markiert "
-        f"die fehlende offizielle Uebersetzung, er ersetzt sie nicht.")
+        f"die fehlende offizielle Uebersetzung, er ersetzt sie nicht. Die Sprachlage in "
+        f"der Antwort NIE erwaehnen (B13) - still uebersetzen.")
 
 
 def _markiere_inhaltsart(con: sqlite3.Connection, antwort: dict, *listen: list[dict]) -> None:
@@ -517,6 +539,9 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
          "quelle_kuerzel": e.get("quelle"),
          "seite": e.get("seite"), "zitat": _zitat(e), "regeltext_md": e["body_md"],
          "hinweis_sprache_begriffe": _HINWEIS_STERN}
+    geruest = GERUEST_JE_KATEGORIE.get(e["kategorie"])
+    if geruest:
+        d["hinweis_darstellung"] = f"B12-Antwortgeruest fuer diese Kategorie: {geruest}"
     if e.get("lizenz"):
         # A12/Q6: die Quellenlizenz wird im Detailpfad nicht verworfen; CC-BY verlangt
         # die mitgefuehrte Attribution (Wortlaut konsistent mit README.md, Lizenz & Recht).
@@ -582,7 +607,9 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
                     "nicht steht, konsistent deutsch wiedergeben und mit * markieren "
                     "('* keine offizielle deutsche Uebersetzung', einmal erlaeutern). Das "
                     "*-System NICHT durch Prosa wie 'sinngemaess uebertragen' ersetzen und "
-                    "nichts unuebersetzt englisch stehen lassen (S3/S5).")
+                    "nichts unuebersetzt englisch stehen lassen (S3/S5). Still uebersetzen: "
+                    "die Sprache der Quelle in der Antwort NIE erwaehnen - die Herkunft "
+                    "zeigt allein die *-Fussnote (B13).")
         d["hinweis_uebersetzung"] = hinweis
     # S12: Abkuerzungen sind die leiseste Stelle, an der eine deutsche Antwort englisch
     # bleibt - "AC 15", "DC 14", "8d6" fallen in einem deutschen Satz nicht auf. Der

@@ -20,7 +20,7 @@ Architektur-Entscheidungen:
   admin.berechne_manifest. Ausgabe nach evals/ergebnisse/ (gitignored - die
   Vier-Dokumente-Regel gilt).
 
-NICHT Teil von `make test` (kostet API-Tokens, ~18 Faelle x 3-5 Runden)."""
+NICHT Teil von `make test` (kostet API-Tokens, ~23 Faelle x 3-5 Runden)."""
 from __future__ import annotations
 
 import argparse
@@ -46,6 +46,11 @@ _ERGEBNISSE = Path(__file__).resolve().parent / "ergebnisse"
 # standen frueher ohne - der Volllauf 26.07.2026 lief genau in diese Luecke.
 BELEG_RE = re.compile(r"📖 .+Regelversion:? \d{4}")
 _RICHTER_MODELL = "claude-haiku-4-5-20251001"
+# Explizit statt des llm.fahre_schleife-Defaults: die Rundenzahl ist Teil des
+# Messaufbaus und soll im Eval sichtbar feststehen, nicht implizit mitwandern.
+# (Bug-Fix 06.08.2026: der Name wurde benutzt, war aber nie definiert - JEDER Fall
+# endete als NameError-'abbruch', der Harness konnte keinen einzigen Pass liefern.)
+_MAX_RUNDEN = 8
 
 
 def projektanweisung() -> str:
@@ -105,6 +110,14 @@ def pruefe_deterministisch(fall: dict, text: str, tool_namen: list[str]) -> list
     for frag in fall.get("verboten", []):
         if frag.lower() in text.lower():
             gruende.append(f"Verbotenes Fragment in der Antwort: {frag!r}")
+    # B12-Formpruefungen (Serie F) brauchen Anker (Antwortanfang, letzte Zeile) -
+    # Substrings koennen das nicht ausdruecken, deshalb echte Muster.
+    for muster in fall.get("muster_pflicht", []):
+        if not re.search(muster, text):
+            gruende.append(f"Pflicht-Muster fehlt: {muster!r}")
+    for muster in fall.get("muster_verboten", []):
+        if re.search(muster, text, re.IGNORECASE):
+            gruende.append(f"Verbotenes Muster in der Antwort: {muster!r}")
     erwartet = fall.get("erwartete_tools")
     if erwartet and not set(erwartet) & set(tool_namen):
         gruende.append(f"Keines der erwarteten Tools aufgerufen: {erwartet} "

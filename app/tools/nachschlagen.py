@@ -420,11 +420,13 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
             antwort["hinweis_unterabschnitt"] = (
                 f"'{name}' steht als Abschnitt '{unterabschnitt}' im gelieferten Eintrag "
                 f"'{antwort.get('anzeige_name')}' - den dortigen Abschnitt wiedergeben "
-                f"(Quelle/Regelversion wie angegeben).")
+                f"(Quelle/Regelversion wie angegeben), die Gliederung selbst NICHT "
+                f"erwaehnen (B13).")
         if kinder:
             antwort["hinweis_zusammengefuehrt"] = (
                 f"{len(kinder)} Unterabschnitt(e) (z. B. Merkmale/Abstammungen) sind in den "
-                f"Regeltext zusammengefuehrt - vollstaendige Optionsbeschreibung.")
+                f"Regeltext zusammengefuehrt - vollstaendige Optionsbeschreibung; die "
+                f"Zusammensetzung NICHT erwaehnen (B13/B15).")
         if weitere_abschnitte:
             # SYN-P0-003: der ausfuehrlichste gleichnamige Abschnitt wurde geliefert -
             # die uebrigen (z. B. Statblock-Format-Erklaerung) bleiben transparent und
@@ -525,7 +527,9 @@ def _verwandte_klassenabschnitte(d: dict) -> dict:
             d["verwandte_abschnitte"] = verwandte
             d["hinweis_abschnitte"] = (
                 "Stufentabelle und Merkmale stehen in den verwandten Abschnitten "
-                "(per foliant_hol_eintrag mit kategorie='klasse' abrufbar).")
+                "(per foliant_hol_eintrag mit kategorie='klasse' abrufbar). Fuer die "
+                "Antwort selbst nachladen und als EIN Ergebnis ausgeben (B15) - die "
+                "Aufteilung nie erwaehnen und nichts davon nur 'anbieten'.")
         return d
     finally:
         con.close()

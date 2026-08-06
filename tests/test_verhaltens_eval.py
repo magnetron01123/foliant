@@ -11,7 +11,8 @@ def test_faelle_decken_die_backlog_checkliste():
     assert ids == sorted(set(ids), key=ids.index), "doppelte Fall-IDs"
     erwartet = {"A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "B5",
                 "C1", "C2", "C3", "D1", "D2", "D3", "E1", "E2",
-                "DC1", "DC2", "DC3", "DC4"}
+                "DC1", "DC2", "DC3", "DC4",
+                "F1", "F2", "F3", "F4", "F5"}
     assert set(ids) == erwartet
     for f in FAELLE:
         if f.get("uebersprungen"):
@@ -90,6 +91,19 @@ def test_grader_belegzeilen_format():
         assert BELEG_RE.search(gut)
     kaputt = "Feuerball wirkt. 📖 irgendwo"
     assert any("Belegzeile" in g for g in pruefe_deterministisch(fall, kaputt, []))
+
+
+def test_grader_regex_muster_mit_ankern():
+    """Die F-Serie (B12-Antwortgeruest) prueft POSITIONEN - Kopfzeilen-Emoji am
+    Antwortanfang, Belegzeile als letzte Zeile. Substrings koennen das nicht."""
+    fall = dict(id="X", muster_pflicht=[r"\A🪄", r"📖[^\n]*Regelversion:? \d{4}\W*\Z"],
+                muster_verboten=[r"unterabschnitt"])
+    gut = "🪄 **Feuerball (Fireball)**\nGrad 3.\n📖 Quelle: SRD · Regelversion: 2024"
+    assert pruefe_deterministisch(fall, gut, []) == []
+    # Emoji nicht am Anfang + Beleg nicht zuletzt + Meta-Wort (case-insensitiv).
+    schlecht = ("Gerne! 🪄 Feuerball.\n📖 Quelle: SRD · Regelversion: 2024\n"
+                "Der Eintrag hat noch einen Unterabschnitt.")
+    assert len(pruefe_deterministisch(fall, schlecht, [])) == 3
 
 
 def test_grader_leere_antwort_ist_fail():
