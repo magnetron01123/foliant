@@ -201,7 +201,7 @@ def _varianten(con, e: dict) -> set[str]:
         v.add(_norm(name))
         # NUR exakte Glossarzeilen gruppieren (SYN-P0-001): Fuzzy-Naehe wuerde zwei
         # VERSCHIEDENE Optionen zu einer Listenzeile verschmelzen.
-        exakte = [z for z in _glossar.lookup(con, name, richtung=richtung)
+        exakte = [z for z in _glossar.nachschlagen(con, name, richtung=richtung)
                   if z["match"] == "exakt"]
         for z in exakte[:3]:
             v |= {_norm(z["term_de"]), _norm(z["term_en"])}

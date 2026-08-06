@@ -417,7 +417,7 @@ def _glossar_alternativen(con: sqlite3.Connection, begriff: str,
                           nur_exakt: bool = False) -> list[str]:
     """B3-Bruecke: liefert deutsche UND englische Entsprechungen aus dem Glossar
     (inkl. Abkuerzungen wie 'AoO'), mit denen erneut gesucht werden kann.
-    Nutzt glossar.lookup und damit die S11-Normalisierung - noetig, weil die
+    Nutzt glossar.nachschlagen und damit die S11-Normalisierung - noetig, weil die
     dnddeutsch-API teils Pluralformen liefert ('Gelegenheitsangriffe') und der Bestand
     englische Eintraege hat: 'Gelegenheitsangriff' -> Glossar -> 'Opportunity Attacks'.
 
@@ -435,11 +435,11 @@ def _glossar_alternativen(con: sqlite3.Connection, begriff: str,
     def sammle(suchwort: str, gesehen: set[str]) -> list[str]:
         gefunden: list[str] = []
         for richtung in ("de_en", "en_de"):
-            # nur_exakt: direkt ueber den Index statt lookup() samt Fuzzy-Lauf, dessen
+            # nur_exakt: direkt ueber den Index statt nachschlagen() samt Fuzzy-Lauf, dessen
             # Ergebnis die Schleife ohnehin sofort verwirft (Messung 28.07.2026 - dieser
             # Pfad laeuft wegen der zwei Hops rund zwoelfmal je Suchanfrage).
-            zeilen = (_gl.lookup_exakt(con, suchwort, richtung=richtung) if nur_exakt
-                      else _gl.lookup(con, suchwort, richtung=richtung))
+            zeilen = (_gl.nachschlagen_exakt(con, suchwort, richtung=richtung) if nur_exakt
+                      else _gl.nachschlagen(con, suchwort, richtung=richtung))
             for z in zeilen:
                 if nur_exakt and z["match"] != "exakt":
                     continue

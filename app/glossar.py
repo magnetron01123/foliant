@@ -109,7 +109,7 @@ def ist_eigene_ableitung(quelle: str | None) -> bool:
     dnddeutsch.de uebernommen)."""
     return any(m in (quelle or "") for m in EIGENE_ABLEITUNG_MARKEN)
 
-# SYN-P2-004 (codex TECH-013): jeder Glossarpfad (lookup, exakte_entsprechungen,
+# SYN-P2-004 (codex TECH-013): jeder Glossarpfad (nachschlagen, exakte_entsprechungen,
 # _brueckennamen) las bisher die KOMPLETTE Tabelle pro Aufruf - eine Suche loest 5-8
 # Voll-Scans aus, die mit dem Vollseeding (~1.400 Zeilen) linear teurer werden. Cache
 # je (DB-Datei, mtime, Zeilenzahl): unveraenderte DB -> ein Scan, danach RAM. Der
@@ -181,8 +181,8 @@ def _namen_index(con: sqlite3.Connection, spalte: str) -> tuple[dict, list, list
 
     Messung 28.07.2026 (Pi, cProfile): norm_begriff lief 88 000-mal PRO Suchanfrage und
     kostete 11,4 von 13,1 s. Ursache war nicht die Menge der Daten, sondern die
-    Wiederholung - lookup() baute dieses Dict bei JEDEM Aufruf neu ueber alle
-    Glossarzeilen, und _glossar_alternativen ruft lookup() wegen der zwei Hops rund
+    Wiederholung - nachschlagen() baute dieses Dict bei JEDEM Aufruf neu ueber alle
+    Glossarzeilen, und _glossar_alternativen ruft nachschlagen() wegen der zwei Hops rund
     zwoelfmal je Anfrage auf. Auch die Normalisierung der Suchschluessel gehoert in den
     Cache: process.extract(processor=_norm) normalisierte sonst alle 3180 Namen erneut,
     einmal pro Aufruf."""
@@ -206,11 +206,11 @@ def _exakt_index(con: sqlite3.Connection) -> dict[tuple[str, str], list[dict]]:
     """Index (richtung, normalisierter Begriff) -> Zeilen, bestpassende zuerst; prozessweit
     gecacht mit derselben Signatur wie _alle_zeilen.
 
-    Messung 28.07.2026: lookup() baut PRO AUFRUF ein Namens-Dict ueber alle Glossarzeilen
+    Messung 28.07.2026: nachschlagen() baut PRO AUFRUF ein Namens-Dict ueber alle Glossarzeilen
     und faehrt zusaetzlich einen rapidfuzz-Lauf. Alle Anzeige- und Uebersetzungspfade
     verwerfen die Fuzzy-Zeilen aber ohnehin (SYN-P0-001) - fuer sie war beides umsonst und
-    kostete bei 8 Suchtreffern rund 30 ms. Sortierung identisch zu lookup(), damit
-    lookup_exakt() dieselbe Zeile waehlt."""
+    kostete bei 8 Suchtreffern rund 30 ms. Sortierung identisch zu nachschlagen(), damit
+    nachschlagen_exakt() dieselbe Zeile waehlt."""
     sig = _db_signatur(con)
     idx = _INDEX_CACHE.get(sig)
     if idx is None:
@@ -227,9 +227,9 @@ def _exakt_index(con: sqlite3.Connection) -> dict[tuple[str, str], list[dict]]:
     return idx
 
 
-def lookup_exakt(con: sqlite3.Connection, begriff: str, richtung: str = "en_de") -> list[dict]:
+def nachschlagen_exakt(con: sqlite3.Connection, begriff: str, richtung: str = "en_de") -> list[dict]:
     """Nur die EXAKTEN Glossarzeilen zum Begriff - O(1) statt Voll-Scan plus Fuzzy-Lauf.
-    Fachlich identisch zu `[z for z in lookup(...) if z['match'] == 'exakt']`, nur ohne
+    Fachlich identisch zu `[z for z in nachschlagen(...) if z['match'] == 'exakt']`, nur ohne
     den Aufwand fuer Zeilen, die der Aufrufer sowieso wegwirft."""
     n = _norm(begriff)
     if not n:
@@ -261,7 +261,7 @@ def auswahlschluessel(z: dict) -> tuple:
          (S8: der neuere offizielle Begriff gewinnt; nichts wird als 2024 geraten),
       3. Begriffe mit konkretem Buch-/Glossar-Beleg vor blossen Community-Zeilen,
       4. alphabetisch NUR als letzter Determinismus-Anker.
-    Modulweit, damit lookup() und begriffe_im_text() DIESELBE Zeilenauswahl treffen.
+    Modulweit, damit nachschlagen() und begriffe_im_text() DIESELBE Zeilenauswahl treffen.
 
     OEFFENTLICH seit dem 31.07.2026: Der Charakterbogen-Uebersetzer sortierte frisch
     nachgeschlagene dnddeutsch-Zeilen mit einer EIGENEN Regel aus zwei Kriterien
@@ -280,7 +280,7 @@ def auswahlschluessel(z: dict) -> tuple:
             belegt, z["term_de"] or "")
 
 
-def lookup(con: sqlite3.Connection, begriff: str, richtung: str = "en_de") -> list[dict]:
+def nachschlagen(con: sqlite3.Connection, begriff: str, richtung: str = "en_de") -> list[dict]:
     """Alle Glossar-Zeilen zum Begriff, bestpassende zuerst.
     richtung 'en_de': begriff ist englisch; 'de_en': begriff ist deutsch.
     Stufen: exakt (case-/diakritika-insensitiv) -> fuzzy (S11). Jede Zeile:
@@ -333,14 +333,14 @@ def term_de(con: sqlite3.Connection, term_en: str) -> tuple[str, bool] | None:
 
     Fuzzy-Zeilen zaehlen hier NIE (SYN-P0-001: sonst wird ein aehnlicher FREMDER Begriff
     zur 'offiziellen' Uebersetzung - Aktionen -> Reaktionen)."""
-    zeilen = lookup_exakt(con, term_en, richtung="en_de")
+    zeilen = nachschlagen_exakt(con, term_en, richtung="en_de")
     if not zeilen:
         # Klammer-Suffix abziehen (SYN-P0-002 kanonisch): Eintragsnamen wie
         # "Alchemist's Supplies (50 GP)" tragen den Zusatz, die Bruecke fuehrt nur die
         # suffixfreie Form. Weiterhin NUR exakte Zeilen - kein Fuzzy-Schlupfloch.
         ohne = KLAMMER_SUFFIX.sub("", term_en).strip()
         if ohne and ohne != term_en:
-            zeilen = lookup_exakt(con, ohne, richtung="en_de")
+            zeilen = nachschlagen_exakt(con, ohne, richtung="en_de")
     if not zeilen:
         return None
     beste = zeilen[0]

@@ -86,11 +86,11 @@ def test_p2_glossar_cache_invalidiert_nach_aenderung(bestand):
     from app import glossar as gl
     con = adb.connect(str(adb.standard_pfad()))
     try:
-        assert gl.lookup(con, "Feuerball", richtung="de_en") == []   # noch nichts
+        assert gl.nachschlagen(con, "Feuerball", richtung="de_en") == []   # noch nichts
         con.execute("INSERT INTO glossar (term_en,term_de,offiziell) "
                     "VALUES ('Fireball','Feuerball',1)")
         con.commit()
-        zeilen = gl.lookup(con, "Feuerball", richtung="de_en")
+        zeilen = gl.nachschlagen(con, "Feuerball", richtung="de_en")
         assert zeilen and zeilen[0]["term_en"] == "Fireball"         # Cache invalidiert
     finally:
         con.close()

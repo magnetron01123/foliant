@@ -107,7 +107,7 @@ Befundtext, nicht die Tabelle: die steht in der Sitzung, die er dann öffnet.
 | Regel stand in beiden Kanälen, wurde trotzdem verletzt | Eval-Fall in `evals/faelle.py` |
 | Glossar-/Synonym-Lücke | `admin glossar-paare --nur-neue` → Review → `import --quelle glossar` |
 | Code-Fehler | Fix + Regressionstest in der passenden `tests/test_*.py` |
-| Mechanik des Meldewegs | `app/discord_bot/rueckmeldung.py` + `tests/test_rueckmeldung.py` |
+| Mechanik des Meldewegs | `app/discord_bot/rueckmeldung.py` + `tests/test_discord_rueckmeldung.py` |
 | 👍 auf eine Bestandsaussage | `tests/test_golden_bestand.py` |
 | 👍 auf Verhalten | `evals/faelle.py` (nur mit Freigabe) |
 | Bewusst **nicht** behoben | `BACKLOG.md` §3 (Fund / Schwere / Warum offen) |
