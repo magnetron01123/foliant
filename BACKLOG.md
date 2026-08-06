@@ -242,8 +242,8 @@ Namensdubletten, Facetten-Deckung Monster 100 %, der korrupte Open5e-Datensatz w
 Import verworfen statt gekennzeichnet — `make check-pi` und die Golden-Suite grün.
 
 ### Offene Anforderungen im Überblick
-Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11/S12, V1–V6/V8, NF1–NF3/NF5–NF7,
-B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
+Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11–S15, V1–V6/V8, NF1–NF3/NF5–NF7,
+B1–B8/B11–B16, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
 
 | Anf. | Inhalt | Status | Zu |
 |---|---|---|---|
@@ -256,7 +256,6 @@ B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
 | V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Errata erfüllt und auf dem Pi live (43 Korrekturen, wortgetreu; seit 03.08.2026 auch der Rückweg: Detailabruf und gefilterte Suche nennen den Nachtrag). Offen nur noch: Sage Advice — §4 |
 | V10 | Quellen-Provenienz (`versions_stand`, `quell_url`, `quell_hash`, `importiert_am`) | ✅ | Schema v3; alle vier optional, nichts wird geraten |
-| B12/B13/B14/B15/B16 · S13/S14/S15 | Antwortgerüst + Sprachnormen ([SPEC.md](SPEC.md) §7/§3) | 🟡 | Am Mac-Subset belegt: F1/F3/F4/F5 grün, A1–A3/C3/E2/DC2 ohne Regression. Offen, weil das Subset die DDB-Bände nicht führt: F2 (Unterklasse aus einem englischen Band — der Auslöser) und ein Volllauf per `make eval-verhalten-pi` nach dem Deploy |
 
 ---
 
@@ -382,6 +381,7 @@ gelesen, wenn jemand die Stelle anfasst, statt hier als Dauer-Eintrag mitzuwachs
 | `ddb-br-2024-en` ist ein Vor-Errata-Snapshot: drei Conjure-Zauber mit alter Skalierung (2d8/2d12), „Mind Spike"/„Tashas Gelächter" mit falscher Kopfzeile („Evocation Cantrip") | niedrig | Audit 03.08.2026: nur als explizit ladbare Fremdfassung erreichbar — kanonisch gewinnt überall srd-de mit korrekten Werten. Fix wäre ein DDB-Re-Export; lohnt erst, wenn DDB die Free Rules selbst aktualisiert |
 | open5e „Axe Beak" mit 1W6-Schnabel, wo srd-de UND DDB 1W8 führen | niedrig | SRD-5.2-Altstand der API-Quelle; die Präzedenz (Band 20 vor 60) serviert den richtigen Wert |
 | `phb-2014-de` quantifiziert: 45 Würfel-OCR-Risse („1W1O", „2W1 2"), 27 Anhang-D-Statblöcke als namenlose „AKTIONEN"-Chunks, 776 Breadcrumbs „7," | niedrig | bekannter Scan-Qualitätsstand des 2014-Bandes (Band 80, dient Begriffen und Altregeln); Nacharbeit lohnt erst mit dem echten dt. PHB 2024 (M1) |
+| Drei weiche Richter-Urteile im Volllauf 06.08.2026: Statblock-Abschnitte in falscher Reihenfolge (B3), eine Ableitung ohne Kennzeichnung (D1), Unterklassen-Liste als Fließtext statt Menü (DC4) | niedrig | Keine harten FAILs — die deterministischen Marker sitzen, beanstandet hat sie der LLM-Richter. Einzeln zu klären im nächsten Rückmeldungs-Durchgang (M5); DC4 ist der Wiedergänger des Befunds vom 01.08.2026 |
 | DDB-Einträge tragen Buch-Layout im Regeltext: Werbe-Taglines und Illustratoren-Credits („Ignatius Budi" beim Undead Patron, Befund 06.08.2026) | niedrig | Der DDB-Import filtert bisher nur Kapitelköpfe über den Namen, keine Artefakte im Text; die Verhaltensregel B14 hält sie aus den Antworten. Ein Import-Filter braucht einen eigenen Durchgang samt Re-Import — mit den bekannten Re-Import-Fallen (Facetten, Namensreparatur) |
 
 ---

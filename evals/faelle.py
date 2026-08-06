@@ -243,15 +243,31 @@ FAELLE = [
     dict(id="F2", frage="Was kann der Undead Patron des Hexenmeisters?",
          pflicht=["Unterklasse", "Form of Dread", "Grave Touched", "Necrotic Husk",
                   "Superior Dread", "📖"],
+         # 'ruchlos' stand hier zuerst als Verbotswort - der Auslöser-Antwort entstammt
+         # es der Werbezeile. Der Pi-Lauf 06.08.2026 zeigte es aber in der KORREKTEN
+         # Uebersetzung von 'profane knowledge' aus dem Eintragstext selbst: ein Wort
+         # zu verbieten trifft das Layout-Artefakt nicht, nur seinen Wortlaut. Verboten
+         # ist deshalb die Tagline SELBST; die Flavor-Laenge (B14) beurteilt der Richter.
          verboten=["englisch", "Unterabschnitt", "gegliedert", "liegt vor",
-                   "im Bestand vorhanden", "Ignatius Budi", "ruchlos", "Datenbank"],
+                   "im Bestand vorhanden", "Ignatius Budi", "Defy Death",
+                   "Profane Power", "Datenbank"],
          erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
          richter=True,
-         rubrik="B13/B15: EINE zusammenhaengende Auskunft mit allen Stufen-Merkmalen "
-                "der Unterklasse; kein Wort ueber die Sprache der Quelle, die Suche "
-                "oder die Eintragsstruktur; keine Werbe-Tagline und kein "
-                "Illustratoren-Credit aus dem Buchlayout. FAIL, wenn die Antwort ihre "
-                "eigene Recherche erzaehlt oder Merkmale nur 'anbietet' statt liefert.",
+         # Die Rubrik nennt die Belegzeile ausdruecklich als PFLICHT: ohne diesen Satz
+         # las der Richter "kein Wort ueber die Sprache der Quelle" als "kein Wort ueber
+         # die Quelle" und wertete den vorgeschriebenen Beleg als B13-Verstoss
+         # (Pi-Lauf 06.08.2026) - dritter Fehlalarm dieser Klasse nach A3 und B1.
+         rubrik="B13/B14/B15: EINE zusammenhaengende Auskunft mit allen Stufen-Merkmalen "
+                "der Unterklasse; beschreibender Flavor HOECHSTENS EIN SATZ vor den "
+                "Regeln (Regelinhalt zaehlt nicht als Flavor). Die Belegzeile "
+                "('📖 Quelle: ... Regelversion: ...') ist PFLICHT und nie ein Fehler, "
+                "ebenso EIN abschliessendes Angebot ('Sag Bescheid, wenn du ... im "
+                "vollen Wortlaut brauchst.') - beides verlangt das Antwortgeruest. "
+                "Verboten sind nur Aussagen ueber die SPRACHE der Quelle, ueber den "
+                "Suchvorgang und ueber die Gliederung der Eintraege. FAIL, wenn die "
+                "Antwort ihre eigene Recherche erzaehlt, Stufen-Merkmale nur anbietet "
+                "statt sie zu liefern, oder mehr als einen Satz Stimmungstext "
+                "voranstellt. Einzelne Schreibfehler sind KEIN FAIL.",
          korpus="voll"),
     dict(id="F3", frage="Was macht der Zauber Wither and Bloom?",
          pflicht=["❌", "Dazu finde ich nichts im Foliant-Bestand"],
