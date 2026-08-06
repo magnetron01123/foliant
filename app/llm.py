@@ -78,7 +78,7 @@ async def api_aufruf(http: httpx.AsyncClient, key: str, body: dict) -> dict:
 
 async def fahre_schleife(mcp_client, http: httpx.AsyncClient, key: str, modell: str,
                          system: str, werkzeuge: list[dict], verlauf: list[dict], *,
-                         max_runden: int = 8, max_tokens: int = 4000,
+                         max_runden: int = 8, max_tokens: int = 8000,
                          system_cachen: bool = False) -> SchleifenErgebnis:
     """Tool-Use-Schleife ueber die Foliant-Tools.
 
@@ -89,13 +89,13 @@ async def fahre_schleife(mcp_client, http: httpx.AsyncClient, key: str, modell: 
     einer Frage und zwischen Folgefragen im Cache-Fenster Reads statt Vollpreis).
     False haelt die Anfrageform byte-identisch zum gemessenen Eval-Stand.
 
-    max_tokens 3000 -> 4000 (Rueckmeldung der Runde, 04.08.2026): Eine Uebersichtsantwort
-    riss mitten im Satz ab, und der Hinweis darauf kommt NACH der bereits bezahlten
-    Antwort - der Nutzer zahlt fuer etwas, das er nicht bekommt. Bewusst nur ein Schritt
-    und nicht weit mehr: 3000 Tokens tragen deutsch schon rund vier Discord-Nachrichten,
-    das Limit war also nicht zu klein - die Antwort war zu lang. Das eigentliche Gegenmittel
-    steht deshalb in config/discord_zusatz.md (bei breiten Fragen gliedern statt
-    ausschuetten); dieser Wert fangt nur die knappen Faelle ab."""
+    max_tokens deckt den TEUERSTEN erlaubten Fall ab: seit B15 setzt eine Auskunft ueber
+    eine Unterklasse ihre fuenf Stufen-Merkmale aus Einzeleintraegen zu EINER Antwort
+    zusammen. Genau dieser Fall riss am 06.08.2026 im Pi-Eval (F2) nacheinander bei 4000
+    UND bei 6000 Tokens ab - jedes Mal kurz vor der Belegzeile, also an der Stelle, die
+    B12 zwingend verlangt. Gegen zu lange Antworten wirkt nicht dieser Wert, sondern die
+    Gliederungsregel in config/discord_zusatz.md; eine abgeschnittene Antwort kann sie
+    nicht heilen, und Discord teilt lange Antworten ohnehin selbst auf."""
     messages = list(verlauf)
     tool_namen: list[str] = []
     bestandsauszuege: list[str] = []

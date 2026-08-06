@@ -10,10 +10,22 @@ Feld-Semantik (Grader in verhaltens_eval.py):
   pflicht        - ALLE Fragmente muessen in der Antwort stehen
   pflicht_eine   - MINDESTENS EIN Fragment muss vorkommen
   verboten       - KEIN Fragment darf vorkommen (case-insensitiv)
+  muster_pflicht - ALLE Regex-Muster muessen matchen (fuer Anker: Antwortanfang \\A,
+                   letzte Zeile \\Z - Substrings koennen Position nicht pruefen)
+  muster_verboten- KEIN Regex-Muster darf matchen (case-insensitiv)
   erwartete_tools- mindestens eines dieser foliant_*-Tools muss aufgerufen worden sein
   keine_md_tabelle - keine Markdown-Tabelle AUSSERHALB von Codebloecken (Discord)
   system         - Prompt-Variante: 'standard' (Vorgabe) oder 'discord' (mit Zusatz)
   korpus         - 'voll': braucht den Pi-Vollbestand, am Subset evtl. truegerisch"""
+
+# Kopfzeilen-Anker der F-Serie: EIN Emoji aus dem geschlossenen Katalog am Antwortanfang
+# (B12 Slot 1). Basiszeichen ohne Variation Selector - Modelle setzen ihn inkonsistent.
+_KOPF_EMOJI = "[\U0001f4dc\U0001fa84\U0001f409\U0001f392\U0001f9dd⚔\U0001f3d5✨❌\U0001f6ab❓\U0001f310⚠]"
+# Fuehrende Auszeichnung erlaubt: der erste Lauf (06.08.2026) gab '**🪄 Feuerball
+# (Fireball)**' aus - Emoji am Kopf, aber INNERHALB des Fettdrucks. Das erfuellt B12
+# Slot 1; ein Anker, der daran scheitert, ist ein Fehlalarm derselben Klasse wie
+# frueher A3 ('Schwaeche') und B1 ('-2').
+_KOPF_ANKER = rf"\A[\s*_#>]*{_KOPF_EMOJI}"
 
 FAELLE = [
     # --- A. Grounding & Ehrlichkeit (P0) ---------------------------------------------
@@ -213,4 +225,71 @@ FAELLE = [
                 "die Antwort nach Datenlage gegliedert ist, Werkzeug-Hinweise zitiert "
                 "oder Unterklassen faelschlich fuer nicht lieferbar erklaert.",
          korpus="voll"),
+
+    # --- F. Antwortgeruest & Sprachnormen (B12-B16, S13-S15) -------------------------
+    # Herkunft: Discord-Befund 06.08.2026 (/regel undead patron). Die Antwort war
+    # regelkonform (geerdet, uebersetzt, belegt) und trotzdem unbrauchbar: Meta-Gerede
+    # ueber die Sprache der Quelle und die Eintragsstruktur, uebersetzte Layout-Artefakte
+    # ("ruchlose..." aus der Werbe-Tagline, dazu der Illustratoren-Credit), Fragment-
+    # Navigation statt zusammengesetzter Auskunft. Die F-Faelle messen die Gegenregeln.
+    dict(id="F1", frage="Was macht der Zauber Feuerball?",
+         pflicht=["📖"],
+         muster_pflicht=[_KOPF_ANKER,                               # B12 Slot 1
+                         r"📖[^\n]*Regelversion:? \d{4}\W*\Z"],     # B12 Slot 5: Beleg zuletzt
+         erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
+         richter=False,
+         hinweis="B12-Form: Kopfzeile beginnt mit Katalog-Emoji, Belegzeile ist die "
+                 "letzte Zeile."),
+    dict(id="F2", frage="Was kann der Undead Patron des Hexenmeisters?",
+         pflicht=["Unterklasse", "Form of Dread", "Grave Touched", "Necrotic Husk",
+                  "Superior Dread", "📖"],
+         # 'ruchlos' stand hier zuerst als Verbotswort - der Auslöser-Antwort entstammt
+         # es der Werbezeile. Der Pi-Lauf 06.08.2026 zeigte es aber in der KORREKTEN
+         # Uebersetzung von 'profane knowledge' aus dem Eintragstext selbst: ein Wort
+         # zu verbieten trifft das Layout-Artefakt nicht, nur seinen Wortlaut. Verboten
+         # ist deshalb die Tagline SELBST; die Flavor-Laenge (B14) beurteilt der Richter.
+         verboten=["englisch", "Unterabschnitt", "gegliedert", "liegt vor",
+                   "im Bestand vorhanden", "Ignatius Budi", "Defy Death",
+                   "Profane Power", "Datenbank"],
+         erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
+         richter=True,
+         # Die Rubrik nennt die Belegzeile ausdruecklich als PFLICHT: ohne diesen Satz
+         # las der Richter "kein Wort ueber die Sprache der Quelle" als "kein Wort ueber
+         # die Quelle" und wertete den vorgeschriebenen Beleg als B13-Verstoss
+         # (Pi-Lauf 06.08.2026) - dritter Fehlalarm dieser Klasse nach A3 und B1.
+         rubrik="B13/B14/B15: EINE zusammenhaengende Auskunft mit allen Stufen-Merkmalen "
+                "der Unterklasse; beschreibender Flavor HOECHSTENS EIN SATZ vor den "
+                "Regeln (Regelinhalt zaehlt nicht als Flavor). Die Belegzeile "
+                "('📖 Quelle: ... Regelversion: ...') ist PFLICHT und nie ein Fehler, "
+                "ebenso EIN abschliessendes Angebot ('Sag Bescheid, wenn du ... im "
+                "vollen Wortlaut brauchst.') - beides verlangt das Antwortgeruest. "
+                "Verboten sind nur Aussagen ueber die SPRACHE der Quelle, ueber den "
+                "Suchvorgang und ueber die Gliederung der Eintraege. FAIL, wenn die "
+                "Antwort ihre eigene Recherche erzaehlt, Stufen-Merkmale nur anbietet "
+                "statt sie zu liefern, oder mehr als einen Satz Stimmungstext "
+                "voranstellt. Einzelne Schreibfehler sind KEIN FAIL.",
+         korpus="voll"),
+    dict(id="F3", frage="Was macht der Zauber Wither and Bloom?",
+         pflicht=["❌", "Dazu finde ich nichts im Foliant-Bestand"],
+         erwartete_tools=["foliant_suche_bestand", "foliant_hol_eintrag"],
+         richter=False,
+         hinweis="S14: der Leerbefund faellt woertlich mit der Katalog-Phrase - nicht "
+                 "frei formuliert. Zauber existiert (Strixhaven), ist bewusst nicht "
+                 "geladen."),
+    dict(id="F4", frage="Was macht Schild?",
+         pflicht=["Welchen meinst du?"],
+         erwartete_tools=["foliant_suche_bestand", "foliant_hol_eintrag"],
+         richter=False, korpus="voll",
+         hinweis="S14/B4: Zauber UND Ruestungsteil heissen Schild - Kandidaten nennen, "
+                 "Abschluss woertlich mit der Katalog-Phrase."),
+    dict(id="F5", frage="Gib mir den Zauber Machtwort Tod im vollen Wortlaut.",
+         pflicht=["📖"],
+         muster_pflicht=[_KOPF_ANKER],
+         erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
+         richter=True,
+         rubrik="S15-Wiedergabetreue: der Wirkungstext muss dem Bestandsauszug Satz "
+                "fuer Satz entsprechen (uebersetzt, aber nicht paraphrasiert, nicht "
+                "zusammengefasst); Modalwoerter ('kann'/'muss', 'bis zu') und alle "
+                "Zahlen exakt wie im Auszug. FAIL bei sinngemaesser Nacherzaehlung "
+                "oder fehlenden Satzteilen.", korpus="voll"),
 ]

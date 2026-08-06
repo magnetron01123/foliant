@@ -76,6 +76,20 @@ _TRAGENDE_REGELN = [
     # daraus 'kann keinen Steckbrief liefern'. Werkzeug-Hinweise sind Regieanweisung
     # an das Modell, nie Antwortinhalt - das muss in beiden Kanaelen stehen.
     ("Werkzeug-Hinweise sind Regieanweisung", "nie zitieren"),
+    # Discord-Befund 06.08.2026 (/regel undead patron): die Antwort war regelkonform und
+    # trotzdem unbrauchbar - Meta-Gerede ueber Sprache und Eintragsstruktur, uebersetzte
+    # Layout-Artefakte, Fragment-Navigation statt Auskunft. Daraus wurden B12-B16 und
+    # S13-S15 (Antwortgeruest + Sprachnormen); ihre Kennzeichen muessen in beiden
+    # Kanaelen stehen.
+    ("Antwortgeruest (B12)", "ANTWORTGERÜST"),
+    ("Meta-Verbot (B13)", "META-VERBOT"),
+    ("keine Layout-Artefakte (B14)", "Illustratoren-Credits"),
+    ("Fragmente als ein Ergebnis (B15)", "als EIN Ergebnis"),
+    ("hoechstens ein Angebot (B16)", "höchstens EIN Angebot"),
+    ("Register ohne Floskeln (S13)", "Floskeln"),
+    ("Phrase Mehrdeutigkeit (S14)", "Welchen meinst du?"),
+    ("Phrase Angebot (S14)", "Sag Bescheid, wenn du"),
+    ("Wiedergabetreue (S15)", "wortgetreu"),
 ]
 
 
@@ -152,6 +166,12 @@ _GROUNDING_HINWEISE = [
     ("2024-Baureihenfolge", ch._HINWEIS_REIHENFOLGE, ["Klasse", "Hintergrund", "Spezies",
                                                       "SPRACHEN"]),
     ("nur Optionen aus dem Bestand", ch._HINWEIS_BESTAND, ["B1", "B2"]),
+    # B12/B15 (Befund 06.08.2026): das kategoriefeste Geruest wandert als Hinweis in
+    # jede Detail-Antwort; bei Klassen muss es die Zusammensetz-Pflicht tragen.
+    ("Klassen-Geruest setzt zusammen", aus.GERUEST_JE_KATEGORIE["klasse"],
+     ["EIN Ergebnis", "B15"]),
+    ("Zauber-Geruest ist wortgetreu", aus.GERUEST_JE_KATEGORIE["zauber"],
+     ["wortgetreu", "Feldzeilen"]),
 ]
 
 

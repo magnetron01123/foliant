@@ -359,3 +359,53 @@ def test_beide_kanaele_verbieten_das_mutmassen():
     anweisung = pathlib.Path("config/projektanweisung.md").read_text(encoding="utf-8")
     for text in (stil.INSTRUCTIONS, anweisung):
         assert "mutmaß" in text.lower() or "mutmass" in text.lower()
+
+
+# --- Pi-Eval 06.08.2026 (Fall F2): Unterklasse ohne deutschen Namen ------------------
+
+def test_englische_unterklasse_nennt_ihre_stufen_merkmale(tmp_path, monkeypatch):
+    """Gemeldeter Befund: Auf "Was kann der Undead Patron?" antwortete der Bot, der
+    Bestand fuehre nur den Flavor-Text - die fuenf Stufen-Merkmale stehen aber als
+    eigene Eintraege daneben.
+
+    Ursache war nicht das Modell, sondern die Ausgabe: `_verwandte_klassenabschnitte`
+    stieg bei fehlendem `name_de` sofort aus und suchte ausserdem nur unter
+    'Klassen > <Name>'. Englische DDB-Unterklassen erfuellen beides nicht - ihre
+    Merkmale wurden also nie genannt, und B15 (Fragmente zu EINER Antwort zusammen-
+    setzen) kann nur zusammensetzen, was die Ausgabe ueberhaupt ausweist."""
+    import sqlite3
+
+    from app import db as adb
+    from app.tools import nachschlagen as ns
+    from tests.hilfen import SCHEMA
+
+    pfad = tmp_path / "unterklasse-en.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,"
+                "prioritaet,inhaltsart) VALUES ('ddb-rthw-en','Ravenloft','en','2024',"
+                "'ddb','privat',40,'abenteuer_setting')")
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (?,?,?,?,?,?,?,?)",
+        [(1, "klasse", None, "Undead Patron (Warlock)", "en", "2024", None,
+          "*Kontext: Subclasses*\n\nYou have made a pact with a creature of undeath."),
+         (1, "klasse", None, "Level 3: Form of Dread", "en", "2024", None,
+          "*Kontext: Subclasses > Undead Patron (Warlock)*\n\nAs a Bonus Action ..."),
+         (1, "klasse", None, "Level 6: Grave Touched", "en", "2024", None,
+          "*Kontext: Subclasses > Undead Patron (Warlock)*\n\nYour patron's powers ...")])
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+
+    antwort = ns.foliant_hol_eintrag("klasse", name="Undead Patron")
+
+    assert antwort.get("gefunden"), "Vorbedingung: die Unterklasse muss gefunden werden"
+    verwandte = antwort.get("verwandte_abschnitte") or []
+    assert "Level 3: Form of Dread" in verwandte and "Level 6: Grave Touched" in verwandte, (
+        f"Stufen-Merkmale nicht ausgewiesen ({verwandte}) - genau der gemeldete Befund")
+    assert "Undead Patron (Warlock)" not in verwandte, "der Eintrag selbst gehoert nicht dazu"
+    assert "B15" in antwort.get("hinweis_abschnitte", ""), \
+        "ohne die Zusammensetz-Ansage bietet das Modell die Merkmale nur an"

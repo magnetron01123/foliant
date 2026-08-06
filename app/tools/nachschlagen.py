@@ -420,11 +420,13 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
             antwort["hinweis_unterabschnitt"] = (
                 f"'{name}' steht als Abschnitt '{unterabschnitt}' im gelieferten Eintrag "
                 f"'{antwort.get('anzeige_name')}' - den dortigen Abschnitt wiedergeben "
-                f"(Quelle/Regelversion wie angegeben).")
+                f"(Quelle/Regelversion wie angegeben), die Gliederung selbst NICHT "
+                f"erwaehnen (B13).")
         if kinder:
             antwort["hinweis_zusammengefuehrt"] = (
                 f"{len(kinder)} Unterabschnitt(e) (z. B. Merkmale/Abstammungen) sind in den "
-                f"Regeltext zusammengefuehrt - vollstaendige Optionsbeschreibung.")
+                f"Regeltext zusammengefuehrt - vollstaendige Optionsbeschreibung; die "
+                f"Zusammensetzung NICHT erwaehnen (B13/B15).")
         if weitere_abschnitte:
             # SYN-P0-003: der ausfuehrlichste gleichnamige Abschnitt wurde geliefert -
             # die uebrigen (z. B. Statblock-Format-Erklaerung) bleiben transparent und
@@ -509,23 +511,45 @@ _KINDER_AGGREGATION = frozenset({"spezies", "talent"})
 def _verwandte_klassenabschnitte(d: dict) -> dict:
     """Bei Klassen die verwandten Abschnitte (Klassenmerkmale, Zauberliste, Unterklassen)
     als NAMEN nachreichen, statt sie in den Regeltext einzusaugen - das haelt die Antwort
-    knapp und laesst das Modell gezielt nachladen."""
-    if not d.get("gefunden") or not d.get("name_de"):
+    knapp und laesst das Modell gezielt nachladen.
+
+    Die Ziel-Breadcrumbs kommen aus dem Eintrag SELBST (eigener Kontext + eigener Name),
+    nicht aus dem festen Praefix 'Klassen > '. Befund Pi-Eval 06.08.2026 (F2): Die
+    englischen DDB-Unterklassen tragen keinen `name_de` und liegen unter
+    'Subclasses > <Name>' - beide Annahmen des alten Wegs trafen nicht zu, die fuenf
+    Stufen-Merkmale des Undead Patron blieben unsichtbar, und das Modell antwortete, der
+    Bestand fuehre nur den Flavor-Text. B15 kann nur zusammensetzen, was die Ausgabe
+    ueberhaupt nennt. Der deutsche Weg bleibt als zweites Ziel erhalten: dort steht der
+    Kapitel-Breadcrumb nicht zwingend im Body."""
+    if not d.get("gefunden"):
+        return d
+    namen = [n for n in (d.get("name_de"), d.get("name_en")) if n]
+    if not namen:
         return d
     con = _verbinde()
     if con is None:
         return d
     try:
-        bedingung, params = _db.kontext_bedingung(con, f"Klassen > {d['name_de']}")
-        verwandte = [r[0] for r in con.execute(
-            "SELECT name_de FROM eintraege WHERE kategorie='klasse' AND name_de IS NOT NULL "
-            f"AND edition = ? AND {bedingung} ORDER BY id",
-            [d["edition"], *params])]
+        eigener = _db.kontext_aus_body(d.get("regeltext_md"))
+        ziele = {f"{eigener} > {n}" if eigener else n for n in namen}
+        ziele |= {f"Klassen > {n}" for n in namen}
+        verwandte: list[str] = []
+        for breadcrumb in sorted(ziele):
+            bedingung, params = _db.kontext_bedingung(con, breadcrumb)
+            for r in con.execute(
+                    "SELECT COALESCE(name_de, name_en) FROM eintraege "
+                    "WHERE kategorie='klasse' AND edition = ? AND id != ? "
+                    f"AND {bedingung} ORDER BY id",
+                    [d["edition"], d.get("eintrag_id") or -1, *params]):
+                if r[0] and r[0] not in verwandte:
+                    verwandte.append(r[0])
         if verwandte:
             d["verwandte_abschnitte"] = verwandte
             d["hinweis_abschnitte"] = (
                 "Stufentabelle und Merkmale stehen in den verwandten Abschnitten "
-                "(per foliant_hol_eintrag mit kategorie='klasse' abrufbar).")
+                "(per foliant_hol_eintrag mit kategorie='klasse' abrufbar). Fuer die "
+                "Antwort selbst nachladen und als EIN Ergebnis ausgeben (B15) - die "
+                "Aufteilung nie erwaehnen und nichts davon nur 'anbieten'.")
         return d
     finally:
         con.close()
