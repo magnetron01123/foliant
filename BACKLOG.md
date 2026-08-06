@@ -256,7 +256,7 @@ B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
 | V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Errata erfüllt und auf dem Pi live (43 Korrekturen, wortgetreu; seit 03.08.2026 auch der Rückweg: Detailabruf und gefilterte Suche nennen den Nachtrag). Offen nur noch: Sage Advice — §4 |
 | V10 | Quellen-Provenienz (`versions_stand`, `quell_url`, `quell_hash`, `importiert_am`) | ✅ | Schema v3; alle vier optional, nichts wird geraten |
-| B12/B13/B14/B15/B16 · S13/S14/S15 | Antwortgerüst + Sprachnormen ([SPEC.md](SPEC.md) §7/§3) | 🟡 | In beiden Prompt-Kanälen und den Grounding-Hinweisen verankert; offen ist der Nachweis am Verhalten: `make eval-verhalten-pi` (Serie F) nach dem Deploy |
+| B12/B13/B14/B15/B16 · S13/S14/S15 | Antwortgerüst + Sprachnormen ([SPEC.md](SPEC.md) §7/§3) | 🟡 | Am Mac-Subset belegt: F1/F3/F4/F5 grün, A1–A3/C3/E2/DC2 ohne Regression. Offen, weil das Subset die DDB-Bände nicht führt: F2 (Unterklasse aus einem englischen Band — der Auslöser) und ein Volllauf per `make eval-verhalten-pi` nach dem Deploy |
 
 ---
 

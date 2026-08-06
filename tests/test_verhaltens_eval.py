@@ -1,7 +1,7 @@
 """Eval-Harness (Schicht 3): NUR die deterministischen Grader und die Fall-Struktur -
 keine API-Aufrufe in `make test` (der echte Lauf kostet Tokens und ist bewusst ein
 separates Kommando: python -m evals.verhaltens_eval)."""
-from evals.faelle import FAELLE
+from evals.faelle import FAELLE, _KOPF_ANKER
 from evals.verhaltens_eval import (BELEG_RE, projektanweisung,
                                    pruefe_deterministisch, systeme)
 
@@ -96,7 +96,8 @@ def test_grader_belegzeilen_format():
 def test_grader_regex_muster_mit_ankern():
     """Die F-Serie (B12-Antwortgeruest) prueft POSITIONEN - Kopfzeilen-Emoji am
     Antwortanfang, Belegzeile als letzte Zeile. Substrings koennen das nicht."""
-    fall = dict(id="X", muster_pflicht=[r"\A🪄", r"📖[^\n]*Regelversion:? \d{4}\W*\Z"],
+    fall = dict(id="X", muster_pflicht=[_KOPF_ANKER,
+                                        r"📖[^\n]*Regelversion:? \d{4}\W*\Z"],
                 muster_verboten=[r"unterabschnitt"])
     gut = "🪄 **Feuerball (Fireball)**\nGrad 3.\n📖 Quelle: SRD · Regelversion: 2024"
     assert pruefe_deterministisch(fall, gut, []) == []
@@ -104,6 +105,17 @@ def test_grader_regex_muster_mit_ankern():
     schlecht = ("Gerne! 🪄 Feuerball.\n📖 Quelle: SRD · Regelversion: 2024\n"
                 "Der Eintrag hat noch einen Unterabschnitt.")
     assert len(pruefe_deterministisch(fall, schlecht, [])) == 3
+
+
+def test_kopfanker_akzeptiert_fettgedruckte_kopfzeile():
+    """Erster echter Lauf (06.08.2026): '**🪄 Feuerball (Fireball)**' - das Emoji steht
+    am Kopf, nur INNERHALB des Fettdrucks. Das erfuellt B12 Slot 1; ein Anker, der
+    daran scheitert, ist ein Fehlalarm wie frueher A3 ('Schwaeche') und B1 ('-2')."""
+    fall = dict(id="X", muster_pflicht=[_KOPF_ANKER])
+    for gut in ("**🪄 Feuerball (Fireball)**\nGrad 3.", "🪄 **Feuerball**", "❌ Nichts."):
+        assert pruefe_deterministisch(fall, gut, []) == [], gut
+    # Fliesstext VOR der Kopfzeile bleibt ein Fehler (Floskel, S13).
+    assert pruefe_deterministisch(fall, "Gerne! **🪄 Feuerball**", []) != []
 
 
 def test_grader_leere_antwort_ist_fail():

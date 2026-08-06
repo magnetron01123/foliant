@@ -21,6 +21,11 @@ Feld-Semantik (Grader in verhaltens_eval.py):
 # Kopfzeilen-Anker der F-Serie: EIN Emoji aus dem geschlossenen Katalog am Antwortanfang
 # (B12 Slot 1). Basiszeichen ohne Variation Selector - Modelle setzen ihn inkonsistent.
 _KOPF_EMOJI = "[\U0001f4dc\U0001fa84\U0001f409\U0001f392\U0001f9dd⚔\U0001f3d5✨❌\U0001f6ab❓\U0001f310⚠]"
+# Fuehrende Auszeichnung erlaubt: der erste Lauf (06.08.2026) gab '**🪄 Feuerball
+# (Fireball)**' aus - Emoji am Kopf, aber INNERHALB des Fettdrucks. Das erfuellt B12
+# Slot 1; ein Anker, der daran scheitert, ist ein Fehlalarm derselben Klasse wie
+# frueher A3 ('Schwaeche') und B1 ('-2').
+_KOPF_ANKER = rf"\A[\s*_#>]*{_KOPF_EMOJI}"
 
 FAELLE = [
     # --- A. Grounding & Ehrlichkeit (P0) ---------------------------------------------
@@ -229,7 +234,7 @@ FAELLE = [
     # Navigation statt zusammengesetzter Auskunft. Die F-Faelle messen die Gegenregeln.
     dict(id="F1", frage="Was macht der Zauber Feuerball?",
          pflicht=["📖"],
-         muster_pflicht=[rf"\A{_KOPF_EMOJI}",                       # B12 Slot 1
+         muster_pflicht=[_KOPF_ANKER,                               # B12 Slot 1
                          r"📖[^\n]*Regelversion:? \d{4}\W*\Z"],     # B12 Slot 5: Beleg zuletzt
          erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
          richter=False,
@@ -263,7 +268,7 @@ FAELLE = [
                  "Abschluss woertlich mit der Katalog-Phrase."),
     dict(id="F5", frage="Gib mir den Zauber Machtwort Tod im vollen Wortlaut.",
          pflicht=["📖"],
-         muster_pflicht=[rf"\A{_KOPF_EMOJI}"],
+         muster_pflicht=[_KOPF_ANKER],
          erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
          richter=True,
          rubrik="S15-Wiedergabetreue: der Wirkungstext muss dem Bestandsauszug Satz "
