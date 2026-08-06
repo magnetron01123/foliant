@@ -101,7 +101,17 @@ def _klasse_en(con: sqlite3.Connection, klasse_de: str,
 
 def _belegte_de(con: sqlite3.Connection, term_en: str) -> set[str]:
     """Bereits belegte deutsche Formen eines EN-Begriffs (exakte Glossar-Zeilen beliebiger
-    Herkunft ausser der eigenen - die wurde vor dem Lauf geloescht)."""
+    Herkunft ausser der eigenen - die wurde vor dem Lauf geloescht).
+
+    Liefert bewusst die ROHEN Namen, anders als die gleichnamige Schwester in
+    `srd_begriffsbruecken.py`, die `norm_begriff` faltet: Alle drei Aufrufstellen (Z. 142,
+    149, 223) vergleichen rohe Merkmalsnamen gegen dieses Set. Eine EINSEITIGE Faltung
+    hier wuerde jeden Treffer verhindern - die Anfrage waere normalisiert, der Vergleich
+    nicht. Wer faltet, faltet beide Seiten.
+
+    Warum das folgenlos ist (gemessen 06.08.2026 ueber alle 2623 Glossarzeilen): Es gibt
+    12 Schreibvarianten, die sich erst unter `norm_begriff` treffen wuerden - ausnahmslos
+    Drachen- und Zaubernamen, kein einziges Klassenmerkmal. Dieser Seeder sieht sie nie."""
     return {z["term_de"] for z in glossar.lookup(con, term_en, richtung="en_de")
             if z["match"] == "exakt"}
 

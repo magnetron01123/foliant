@@ -9,7 +9,6 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 
-ABGELEHNT_ORT = None            # falscher Ort: still ignorieren, keine Antwort
 ABGELEHNT_LAEUFT = ("🚫 Deine letzte Frage laeuft noch - bitte warten, bis die "
                     "Antwort da ist.")
 ABGELEHNT_COOLDOWN = "🚫 Kurz durchatmen - die naechste Frage geht gleich wieder."

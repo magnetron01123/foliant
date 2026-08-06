@@ -259,7 +259,7 @@ class FoliantBot(discord.Client):
         ist_thread = isinstance(kanal, discord.Thread)
         ort_id = kanal.parent_id if ist_thread else kanal.id   # Allowlist: der KANAL
         if not self.schranken.richtiger_ort(nachricht.guild.id, ort_id):
-            return
+            return                           # falscher Ort: still ignorieren, keine Antwort
         erwaehnt = self.user in nachricht.mentions
 
         if (ist_thread and not self.gespraeche.kennt(kanal.id)

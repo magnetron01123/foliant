@@ -26,7 +26,6 @@ import fitz  # PyMuPDF
 
 from app.charakterbogen.modelle import (
     Aktion,
-    Ausruestung,
     Charakter,
     Fertigkeit,
     Gegenstand,

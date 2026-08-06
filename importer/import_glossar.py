@@ -17,11 +17,9 @@ Review-Funde (umgesetzt):
 - ABKUERZUNGEN PFLEGEN (T7/B3): AoO/HP/AC/... als eigene Glossar-Zeilen (quelle='abkuerzung')."""
 from __future__ import annotations
 
-import json
 import re
 import sqlite3
 import sys
-import time
 from pathlib import Path
 
 from app import dnddeutsch
@@ -306,9 +304,18 @@ def seed_glossar(con: sqlite3.Connection, begriffe_en: list[str]) -> int:
     geschrieben = 0
     with httpx.Client(timeout=20.0, headers={"User-Agent": dnddeutsch.USER_AGENT}) as client:
         for i, begriff in enumerate(begriffe_en, start=1):
+            # Einzelfehler ueberspringen, Lauf fortsetzen - aber nur die drei Familien,
+            # die `dnddeutsch.hole` wirklich werfen kann (Vorbild:
+            # importer/ddb_exporter/cli.py in cmd_sync): httpx.HTTPError deckt Transport
+            # UND raise_for_status ab, ValueError den JSON-Zerfall einer Antwort oder
+            # einer beschaedigten Cache-Datei (json.JSONDecodeError ist einer), OSError
+            # das Lesen eben dieser Datei. Ein blankes `except Exception` fing daneben
+            # auch Tippfehler und KeyboardInterrupt: Der Lauf haette einen Programmfehler
+            # als "FEHLER bei diesem Begriff" gemeldet und waere weitergelaufen - 2600
+            # Zeilen spaeter sucht das niemand mehr.
             try:
                 daten = _hole_api(client, begriff)
-            except Exception as fehler:  # Einzelfehler ueberspringen, Lauf fortsetzen
+            except (httpx.HTTPError, ValueError, OSError) as fehler:
                 print(f"  [{i}/{len(begriffe_en)}] {begriff}: FEHLER {fehler}", file=sys.stderr)
                 continue
             # Bewertung (Ulisses/Buchbeleg -> offiziell, konservative Edition, A9) und die
@@ -575,9 +582,9 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
                     entspacet = re.sub(r"\s+", "", variante)
                     if len(entspacet) < 5:
                         continue
-                    try:
+                    try:                     # dieselbe Fehlerfamilie wie in seed_glossar
                         daten = _hole_api(client, entspacet)
-                    except Exception:
+                    except (httpx.HTTPError, ValueError, OSError):
                         continue
                     zeilen = dnddeutsch.zeilen_aus_antwort(daten) or []
                     passend = {z.term_de for z in zeilen
