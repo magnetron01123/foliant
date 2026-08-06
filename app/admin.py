@@ -491,7 +491,7 @@ def cmd_quellen_auffrischen(args) -> None:
     _web_db_auffrischen(getattr(args, "db", None))
 
 
-def cmd_reindex(_args) -> None:
+def cmd_reindex_fts(_args) -> None:
     c = _con()
     with c:                    # fts_rebuild committet nicht mehr selbst - die Transaktion fuehrt der Aufrufer
         _db.fts_rebuild(c)
@@ -1238,7 +1238,7 @@ def cmd_glossar_paare(args) -> None:
         def _neu(term_en: str, term_de: str) -> bool:
             return _glossar.norm_begriff(term_de) not in {
                 _glossar.norm_begriff(z["term_de"])
-                for z in _glossar.lookup(c, term_en, richtung="en_de")
+                for z in _glossar.nachschlagen(c, term_en, richtung="en_de")
                 if z["match"] == "exakt"}
 
         gegenstaende, report = finde_gegenstands_paare(c)
@@ -1517,7 +1517,7 @@ def baue_parser() -> argparse.ArgumentParser:
                              "bleiben unberuehrt")
     pq.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad)")
     pq.set_defaults(func=cmd_quellen_auffrischen)
-    sub.add_parser("reindex-fts", help="FTS-Index neu aufbauen").set_defaults(func=cmd_reindex)
+    sub.add_parser("reindex-fts", help="FTS-Index neu aufbauen").set_defaults(func=cmd_reindex_fts)
     sub.add_parser("check", help="Smoke-/Qualitaetschecks").set_defaults(func=cmd_check)
     pqb = sub.add_parser("qualitaet-basis",
                          help="Basiswert bekannter Datenmaengel neu erheben (nur am Vollbestand)")

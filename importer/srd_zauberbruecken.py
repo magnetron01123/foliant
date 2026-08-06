@@ -271,7 +271,7 @@ def _belegte_gegenstuecke(con: sqlite3.Connection, term: str,
     """Bereits belegte EXAKTE Glossar-Gegenstuecke (normalisiert) - Grundlage der
     Widerspruchspruefung."""
     return {glossar.norm_begriff(z["term_en" if richtung == "de_en" else "term_de"])
-            for z in glossar.lookup(con, term, richtung=richtung)
+            for z in glossar.nachschlagen(con, term, richtung=richtung)
             if z["match"] == "exakt"}
 
 

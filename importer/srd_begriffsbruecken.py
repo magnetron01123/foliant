@@ -112,7 +112,7 @@ def _belegte_de(con: sqlite3.Connection, term_en: str) -> set[str]:
     """Bereits belegte deutsche Formen (nur EXAKTE Glossar-Zeilen, SYN-P0-001) -
     normalisiert, damit Gross-/Kleinschreibung nicht entscheidet."""
     return {glossar.norm_begriff(z["term_de"])
-            for z in glossar.lookup(con, term_en, richtung="en_de")
+            for z in glossar.nachschlagen(con, term_en, richtung="en_de")
             if z["match"] == "exakt"}
 
 

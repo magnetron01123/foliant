@@ -634,7 +634,7 @@ def _uebersetze_begriff_impl(begriff: str, richtung: str) -> dict:
         richtungen = [richtung] if richtung != "auto" else ["en_de", "de_en"]
         zeilen: list[dict] = []
         for r in richtungen:
-            for z in _glossar.lookup(con, begriff, richtung=r):
+            for z in _glossar.nachschlagen(con, begriff, richtung=r):
                 if z not in zeilen:
                     zeilen.append(z)
 

@@ -55,7 +55,7 @@ def test_letzte_menschliche_frage_gewinnt():
 
 def test_thread_titel_faengt_den_slash_fall():
     """Bei /regel steht die Frage nirgends im Kanal (Slash-Parameter) - der Thread-Titel
-    ist die einzige Spur. Derselbe Grund wie fuer rebuild.baue_verlauf(ersatzfrage=...)."""
+    ist die einzige Spur. Derselbe Grund wie fuer wiederaufbau.baue_verlauf(ersatzfrage=...)."""
     assert rm.frage_aus_umgebung([(True, "📖 Antwortteil")],
                                  "Wie funktioniert Umklammern") \
         == "Wie funktioniert Umklammern"

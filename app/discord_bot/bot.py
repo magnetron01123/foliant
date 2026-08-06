@@ -17,7 +17,7 @@ import httpx
 from discord import app_commands
 
 from app import llm, protokoll
-from app.discord_bot import antwort, bestand, rebuild, rueckmeldung
+from app.discord_bot import antwort, bestand, wiederaufbau, rueckmeldung
 from app.discord_bot.gespraech import GespraechsSpeicher, verlaufsschluessel
 from app.discord_bot.schranken import Schranken
 
@@ -377,7 +377,7 @@ class FoliantBot(discord.Client):
             roh, vollstaendig = [], False
         # Der Titel ist die Ersatzfrage fuer /regel-Threads (dort steht die Frage
         # nirgends im Kanal) - aber nur, wenn der Anfang wirklich mitgelesen wurde.
-        verlauf = rebuild.baue_verlauf(roh, thread.name if vollstaendig else None)
+        verlauf = wiederaufbau.baue_verlauf(roh, thread.name if vollstaendig else None)
         self.gespraeche.setze(thread.id, verlauf)
         if verlauf:
             _log.info("Verlauf von Thread %s wiederhergestellt (%d Nachrichten)",

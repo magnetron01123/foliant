@@ -379,7 +379,7 @@ def seed_glossar_de_aus_bestand(con: sqlite3.Connection) -> int:
         if not nr.name_sauber(sauber):
             continue
         if any(z["match"] == "exakt"
-               for z in _glossar.lookup(con, sauber, richtung="de_en")):
+               for z in _glossar.nachschlagen(con, sauber, richtung="de_en")):
             continue                       # Bruecke existiert bereits
         kandidaten.append(sauber)
     print(f"Rueckwaerts-Seeding: {len(kandidaten)} deutsche Begriffe ohne Gegenstueck "
@@ -729,7 +729,7 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
         # quelle ueberschreiben und die Selbstbereinigung des naechsten Laufs loeschte
         # dann eine fremde Zeile, falls der Abgleich sie nicht wiederfindet.
         belegt = {_glossar.norm_begriff(z["term_de"])
-                  for z in _glossar.lookup(con, v_en, richtung="en_de")
+                  for z in _glossar.nachschlagen(con, v_en, richtung="en_de")
                   if z["match"] == "exakt"}
         if _glossar.norm_begriff(v_de) in belegt:
             continue
@@ -775,7 +775,7 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
     Bruecken-Seedern. Ein einseitiger Treffer waere Stemming, also Raten.
 
     Die neuen Zeilen sind `offiziell=0` (SUCHVARIANTE): sie bruecken die Suche
-    (`lookup_exakt` fragt `offiziell` nicht ab), aber die Anzeige waehlt weiter die
+    (`nachschlagen_exakt` fragt `offiziell` nicht ab), aber die Anzeige waehlt weiter die
     offizielle Form (`auswahlschluessel` sortiert offiziell zuerst) und `glossar-audit`
     zaehlt sie nicht als Konflikt (es filtert auf `offiziell=1`). Bestehende Paare werden
     NIE angefasst - ein Upsert wuerde ihre Offizialitaet ueberschreiben."""

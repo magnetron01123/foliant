@@ -8,7 +8,7 @@ am Tisch - und hatten dafuer keinen Weg ausser "David sagen". Eine Reaktion ist 
 kuerzeste denkbare Meldeweg: kein Befehl, keine API-Kosten, kein neuer State im Bot.
 
 DER SCHNITT: Diese Datei ist discord-frei und arbeitet auf (ist_bot, inhalt)-Paaren wie
-rebuild.py - damit vollstaendig ohne Discord testbar. Das Uebersetzen echter Reaktionen in
+wiederaufbau.py - damit vollstaendig ohne Discord testbar. Das Uebersetzen echter Reaktionen in
 diese Paare macht bot.py, der duenne Kleber.
 
 WAS PROTOKOLLIERT WIRD - und was bewusst nicht: Gespeichert werden die FRAGE (dieselbe
@@ -66,7 +66,7 @@ def frage_aus_umgebung(vorlauf: list[tuple[bool, str]],
 
     Faellt das aus, greift der Thread-TITEL: Bei `/regel` steht die Frage nirgends im
     Kanal (Slash-Parameter), der Titel ist dort die einzige Spur - derselbe Grund wie fuer
-    `rebuild.baue_verlauf(ersatzfrage=...)`.
+    `wiederaufbau.baue_verlauf(ersatzfrage=...)`.
 
     None ist ein zulaessiges Ergebnis und kein Grund, die Markierung zu verwerfen: der
     Link im Protokoll fuehrt trotzdem zur Antwort, und eine Markierung ohne Frage ist

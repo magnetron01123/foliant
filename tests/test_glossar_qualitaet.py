@@ -67,7 +67,7 @@ def test_a9_kanonische_auswahl_deterministisch(con):
          ("Sample Term", "Unbekannt-Edition", 1, "Ulisses-Glossar (dnddeutsch.de)", None, None),
          ("Sample Term", "Aaa Community", 0, "dnddeutsch.de (Community)", None, None)])
     con.commit()
-    zeilen = gl.lookup(con, "Sample Term", richtung="en_de")
+    zeilen = gl.nachschlagen(con, "Sample Term", richtung="en_de")
     assert [z["term_de"] for z in zeilen][:3] == \
         ["Neuer Begriff", "Alter Begriff", "Unbekannt-Edition"]
     assert zeilen[-1]["term_de"] == "Aaa Community"        # trotz Alphabet ganz hinten

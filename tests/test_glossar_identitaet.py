@@ -55,9 +55,9 @@ def bestand(tmp_path, monkeypatch):
 def test_lookup_traegt_matchtyp(bestand):
     con = adb.connect(str(adb.standard_pfad()))
     try:
-        zeilen = gl.lookup(con, "Aktionen", richtung="de_en")
+        zeilen = gl.nachschlagen(con, "Aktionen", richtung="de_en")
         assert zeilen and all(z["match"] == "fuzzy" for z in zeilen)
-        exakt = gl.lookup(con, "Reaktionen", richtung="de_en")
+        exakt = gl.nachschlagen(con, "Reaktionen", richtung="de_en")
         assert exakt and exakt[0]["match"] == "exakt"
         # term_de nutzt nur exakte Zeilen: fuer 'Actions' gibt es keine -> None.
         # Seit 31.07.2026 None statt ("Actions", False): das In-Band-Signal war von einem
@@ -72,9 +72,9 @@ def test_lookup_traegt_matchtyp(bestand):
 
 def test_term_de_erfindet_keine_uebersetzung(bestand):
     """term_de darf NIE eine fuzzy-aehnliche FREMDE Zeile als Uebersetzung ausgeben
-    (SYN-P0-001). Der Schutz sitzt in den beiden `lookup_exakt`-Aufrufen; getestet war er
+    (SYN-P0-001). Der Schutz sitzt in den beiden `nachschlagen_exakt`-Aufrufen; getestet war er
     bisher nur mit 'Actions', und dessen ratio zu 'Reactions' liegt mit 87.5 UNTER dem
-    Cutoff 88 - eine Mutation von `lookup_exakt` auf `lookup` blieb damit gruen, weil gar
+    Cutoff 88 - eine Mutation von `nachschlagen_exakt` auf `nachschlagen` blieb damit gruen, weil gar
     keine Fuzzy-Zeile entstand. 'Retrained'/'Restrained' liegt mit 94.7 darueber und
     trifft die Invariante wirklich.
 
@@ -93,7 +93,7 @@ def test_term_de_erfindet_keine_uebersetzung(bestand):
 
 
 def test_lookup_exakt_waehlt_genau_wie_lookup(bestand):
-    """lookup_exakt ist eine reine Beschleunigung (Index statt Voll-Scan + Fuzzy-Lauf,
+    """nachschlagen_exakt ist eine reine Beschleunigung (Index statt Voll-Scan + Fuzzy-Lauf,
     30 ms -> 0,07 ms bei 8 Suchtreffern). Es darf sich deshalb NICHTS an der Auswahl
     aendern - auch nicht die Reihenfolge, denn der erste Treffer ist die angezeigte
     Fassung. Homonyme mit mehreren offiziellen Zeilen sind hier der scharfe Fall."""
@@ -102,13 +102,13 @@ def test_lookup_exakt_waehlt_genau_wie_lookup(bestand):
         for richtung, begriffe in (("de_en", ("Aktionen", "Reaktionen", "Gibtsnicht")),
                                    ("en_de", ("Reactions", "Actions", "Gibtsnicht"))):
             for begriff in begriffe:
-                alt = [z for z in gl.lookup(con, begriff, richtung=richtung)
+                alt = [z for z in gl.nachschlagen(con, begriff, richtung=richtung)
                        if z["match"] == "exakt"]
-                neu = gl.lookup_exakt(con, begriff, richtung=richtung)
+                neu = gl.nachschlagen_exakt(con, begriff, richtung=richtung)
                 assert [(z["term_de"], z["term_en"]) for z in alt] == \
                        [(z["term_de"], z["term_en"]) for z in neu], f"{richtung}/{begriff}"
         # Und der Index darf keine FUZZY-Zeile durchlassen (SYN-P0-001):
-        assert gl.lookup_exakt(con, "Aktionen", richtung="de_en") == []
+        assert gl.nachschlagen_exakt(con, "Aktionen", richtung="de_en") == []
     finally:
         con.close()
 
@@ -122,12 +122,12 @@ def test_caches_invalidieren_bei_glossar_aenderung(bestand):
     con = adb.connect(str(adb.standard_pfad()))
     try:
         assert gl.term_de(con, "Reactions") == ("Reaktionen", True)
-        assert gl.lookup_exakt(con, "Frischbegriff", richtung="en_de") == []
+        assert gl.nachschlagen_exakt(con, "Frischbegriff", richtung="en_de") == []
         con.execute("INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle) "
                     "VALUES ('Frischbegriff','Frischwort',1,'Test','2024')")
         con.commit()
         # Ohne Invalidierung wuerde der Index den neuen Begriff nie sehen:
-        assert gl.lookup_exakt(con, "Frischbegriff", richtung="en_de")[0]["term_de"] \
+        assert gl.nachschlagen_exakt(con, "Frischbegriff", richtung="en_de")[0]["term_de"] \
             == "Frischwort"
         assert gl.term_de(con, "Frischbegriff") == ("Frischwort", True)
         assert "frischwort" in adb._brueckennamen(con).get("frischbegriff", set())
