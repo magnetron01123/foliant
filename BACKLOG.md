@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 04.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 06.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -372,11 +372,11 @@ gelesen, wenn jemand die Stelle anfasst, statt hier als Dauer-Eintrag mitzuwachs
 | `gegenstand_meta.seltenheit` bleibt ungeschrieben | keine | Es gibt im Bestand keine belastbare Ableitung (magische Gegenstände führen sie, Ausrüstung nicht) — lieber NULL als geraten (Regel 1) |
 | `Aasimar Traits` u. Ä. erscheinen als eigene **Such**treffer (die Detail-Auskunft ist vollständig) | niedrig | echter, suchbarer Inhalt; die Option rankt zuerst — Ausblenden verschlechterte die Suche |
 | srd-de Drop-Cap-Namen (`wAffen`, `zAuber`) | niedrig | rein kosmetisch; eine Case-Heuristik an der Hauptquelle wäre risiko-unverhältnismäßig |
-| **srd-de-Kapitelköpfe sind keine Einträge** — die Frage „Talent" landet deshalb bei `frhof-en` statt bei der deutschen Hauptquelle | niedrig | Gefunden beim M5-Durchgang 28.07.2026. srd-de führt kein Eintrag namens `Talente`; das Kapitel heißt dort `Beschreibungen der Talente`, der Kapitelkopf selbst wurde nicht zum Eintrag. Deutsch-first (Q2/S10) kann bei kapitelweiten Fragen also gar nicht greifen — nicht weil die Priorität falsch wäre, sondern weil es nichts zu bevorzugen gibt. Die gelieferte Antwort ist korrekt, 2024, `regelwerk` und belegt (kein Spoiler-Band); sie kommt nur aus dem englischen Druckbuch. Eine Behebung hieße, Kapitelköpfe als Einträge zu chunken — das erzeugte bei der Datenbank-QS am 11.07.2026 schon einmal ~109 inhaltsleere Kapitel-Header und wurde bewusst rückgängig gemacht |
+| **srd-de-Kapitelköpfe sind keine Einträge** — die Frage „Talent" landet deshalb bei `frhof-en` statt bei der deutschen Hauptquelle | niedrig | srd-de führt keinen Eintrag `Talente` (das Kapitel heißt dort `Beschreibungen der Talente`, der Kapitelkopf wurde nicht zum Eintrag) — Deutsch-first (Q2/S10) kann bei kapitelweiten Fragen also gar nicht greifen, weil es nichts zu bevorzugen gibt. Die gelieferte Antwort ist korrekt, 2024, `regelwerk` und belegt, nur eben aus dem englischen Druckbuch. Eine Behebung hieße, Kapitelköpfe zu chunken — das erzeugte schon einmal ~109 inhaltsleere Kapitel-Header und wurde rückgängig gemacht |
 | 2014-Sub-Fragmente in DDB-Kategorien | niedrig | erreichen die strikt-2024-Listen nie; die Suche rankt echte Optionen zuerst |
 | ~30 kosmetische Inline-Kapitälchen-Reste, vereinzelte OCR-Garbles in den Druck-Büchern | niedrig | Inhalt korrekt; das Kreuz-Audit bestätigte Würfelwerte 65/65 und GP-Preise 86/87 |
 | Body-Dubletten (Kampfstile je Klasse) | keine | **kein Fehler** — legitime klassenspezifische Instanzen |
-| **3 OCR-zerrissene Überschriften** (Rest) | niedrig | *Am 01.08.2026 von 49 auf 3 gesenkt.* Die Frage „warum kann man das nicht korrigieren?" war berechtigt: 46 der Titel sind für einen Menschen sofort lesbar (`ABERGLAUB E`, `KIN DH EITSERIN N ERU NGEN`) und stehen jetzt kuratiert in `namensreparatur.KURATIERTE_TITEL` — die Reparatur läuft in der Glossar-Kette und überlebt einen Re-Import. **Warum nicht automatisch:** zwei Heuristik-Anläufe schafften 22 bzw. 26 und erzeugten dabei FALSCHE Namen (`HEIMATLÄ N DER` → `HEIMATLÄ NDER`, `DIE S PIELWERTE` → `DIES PIELWERTE`) — welches Leerzeichen echt ist, steht nicht im Namen, und ein falscher Eintragsname ist schlimmer als ein zerrissener, weil er richtig aussieht. **Die letzten drei** (`AURA D`, `MAGISCH R N`, `IJ ER K.A1~v1 PFA BLAU F`) bleiben offen: ihre Zeichen tragen keine eindeutige Lesart, eine Zuordnung wäre geraten (Regel 1) |
+| **3 OCR-zerrissene Überschriften** (Rest) | niedrig | Die lesbaren 46 stehen kuratiert in `namensreparatur.KURATIERTE_TITEL` (läuft in der Glossar-Kette, überlebt einen Re-Import). **Nicht automatisch:** zwei Heuristik-Anläufe erzeugten dabei FALSCHE Namen (`DIE S PIELWERTE` → `DIES PIELWERTE`) — welches Leerzeichen echt ist, steht nicht im Namen, und ein falscher Eintragsname ist schlimmer als ein zerrissener, weil er richtig aussieht. **Die letzten drei** (`AURA D`, `MAGISCH R N`, `IJ ER K.A1~v1 PFA BLAU F`) bleiben offen: ihre Zeichen tragen keine eindeutige Lesart, eine Zuordnung wäre geraten (Regel 1) |
 | 24 Abschnitte des Zauberkapitels tragen `kategorie = "zauber"` (`Dauer`, `Effekte`, `Verbalkomponente (V)`) | niedrig | Der Breadcrumb (`*Kontext: Zauber > Zauber wirken*`) weist sie im Antworttext bereits als Regelabschnitt aus. Ein automatischer Korrektor über den Zauberkopf-Detektor wurde **gemessen und verworfen**: er stufte 134 statt 24 Einträge herab, hätte also echte Zauber verborgen — schlimmer als der Befund |
 | `ddb-br-2024-en` ist ein Vor-Errata-Snapshot: drei Conjure-Zauber mit alter Skalierung (2d8/2d12), „Mind Spike"/„Tashas Gelächter" mit falscher Kopfzeile („Evocation Cantrip") | niedrig | Audit 03.08.2026: nur als explizit ladbare Fremdfassung erreichbar — kanonisch gewinnt überall srd-de mit korrekten Werten. Fix wäre ein DDB-Re-Export; lohnt erst, wenn DDB die Free Rules selbst aktualisiert |
 | open5e „Axe Beak" mit 1W6-Schnabel, wo srd-de UND DDB 1W8 führen | niedrig | SRD-5.2-Altstand der API-Quelle; die Präzedenz (Band 20 vor 60) serviert den richtigen Wert |
@@ -404,18 +404,12 @@ Alle docken laut Datenmodell **ohne Neuaufbau** an (NF7).
 
 Vorgemerkt, aber noch nicht als Arbeit beschlossen — hier steht die Frage, nicht die Antwort.
 
-#### Quellen-Wertigkeit explizit machen · *entschieden 31.07.2026*
+#### Prioritätsbänder: Band 10 vor Band 20?
 
-**Erledigt.** Die Rangfolge heißt jetzt PRIORITÄTSBÄNDER und steht an einer Stelle:
-`importer/quellen.py` (`band_fuer`/`band_passt`). Die Importer beziehen ihre Zahlen daraus,
-`admin check` meldet Ausreißer, `tests/test_prioritaetsbaender.py` prüft die Bänder und die
-echte Config. Tabelle, die drei damals offenen Fragen und ihre Begründung stehen in
-[CONCEPT.md](CONCEPT.md) §10 („Prioritätsbänder statt vier unabhängiger Zahlen").
-
-**Hier bleibt nur der offene Rest:** Ob Band 10 (dt. Kernregelwerk) vor Band 20 (dt. SRD)
-richtig ist, zeigt sich erst mit dem realen PHB-Import (M1) — kommt das Buch als OCR-Scan
-herein, ist der sauberere Text im SRD, und die Zeile in `config/foliant.toml` plus
-`admin quellen-auffrischen` ist der Ort, an dem man es zurückdreht.
+Ob das deutsche Kernregelwerk (Band 10) vor dem deutschen SRD (Band 20) richtig ist, zeigt
+sich erst mit dem realen PHB-Import (M1) — kommt das Buch als OCR-Scan herein, ist der
+sauberere Text im SRD. Zurückgedreht wird es in `config/foliant.toml` plus
+`admin quellen-auffrischen`. Die Bänder selbst sind entschieden: [CONCEPT.md](CONCEPT.md) §10.
 
 #### Errata & Regelauslegung — Rest-Posten · *31.07.2026*
 
@@ -433,37 +427,17 @@ Regressionstest verankert.*
 
 Was noch fehlt:
 
-- ✅ **Die drei Errata-PDFs sind importiert** — 43 Korrekturen (PHB 17, MM 24, DMG 2), am
-  Mac verifiziert. Der Download ist Teil des Imports (`quell_url` + gepinnter `quell_hash`,
-  [CONCEPT.md](CONCEPT.md) §4); das Chunking-Muster ist am echten Dokument justiert und die
-  Bilanz-Zählung korrigiert — beide Befunde stehen in [CONCEPT.md](CONCEPT.md) §8.
-- ✅ **Auf dem Pi importiert** (03.08.2026): 46 Einträge (43 Korrekturen), Golden-Suite
-  16 passed, `admin check: OK`, Bestand 12 503 → 12 549, Qualitäts-Basiswerte unverändert.
-  Korpus-`inhalts_hash` jetzt `9958f4e9…` (vorher `ea1d7e69…`). Am Vollbestand geprüft:
-  Deutsch-first hält, die Errata stehen mit 📌 **hinter** der deutschen Quelle (Band 70).
-  Der Ablauf ist dabei anders als hier ursprünglich beschrieben — siehe
-  [CONCEPT.md](CONCEPT.md) §8: `quellen/` ist im Serving-Container bewusst **read-only**,
-  der Bezug kann dort nicht schreiben.
+Die drei Errata-PDFs sind importiert und stehen seit dem 03.08.2026 auch auf dem Pi;
+Ablauf und Befunde: [CONCEPT.md](CONCEPT.md) §8. Offen ist noch:
+
 - ⬜ **Sage Advice Compendium** einbinden. Der `[[ddb.buch]]`-Block liegt auskommentiert in
   der Config; ungeklärt ist, ob der DDB-Account den Band führt (`ddb-exporter list-owned`).
   Wenn nicht: freies PDF über den `[[quelle]]`-Weg mit `inhaltsart = "regelauslegung"`.
-- ✅ **Errata-Kategorien verfeinern — entschieden am 03.08.2026: nein.** Die Rubriken sind
-  am echten PDF nicht zuverlässig genug (`pymupdf4llm` liest zweispaltig, zwei Zauber
-  landen unter „Appendix C"), eine Rubrik ist gar nicht abbildbar, und der **Rückweg**
-  (Nachträge hängen als `revisionen` an Detailabruf und Suche) löst die Auffindbarkeit für
-  alle 43 Korrekturen ohne Re-Import. Begründung und Messung: [CONCEPT.md](CONCEPT.md) §10.
 - ⬜ **Conversion Guide SRD 5.1→5.2.1** als Beleg für die kuratierten Begriffspaare
   (`SRD_2024_BEGRIFFSPAARE` in `importer/import_glossar.py`). Er klassifiziert
   Umbenennungen offiziell und wäre damit ein stärkerer Beleg als die eigene Auszählung am
   Bestand. Bewusst **keine** Relationstabelle daraus — die wurde gemessen und verworfen
   (§3), der bewährte Weg sind kuratierte Paare mit Beleg im Kommentar.
-- ✅ **Kontextbudget der Instruktion** — *erledigt 31.07.2026.* `config/stil.py` lag bei
-  7486 von 7500 Zeichen (der Test-Docstring behauptete „~6000"; gemessen waren es schon
-  vor dem Fokus-Paket 7398). Gelöst ohne Regelverlust durch **Entdoppeln**: Der Abschnitt
-  „QUELLEN & VERSION" wiederholte die Belegzeilen- und die Altstand-Regel darüber und
-  fehlte im zweiten Kanal ohnehin ganz; die Vorgabe zur „ersten Nennung" stand zweimal da.
-  Stand jetzt 7154, also 346 Zeichen Luft. Jede gestrichene Aussage steht weiter oben
-  wörtlich — geprüft.
 
 ---
 

@@ -20,7 +20,7 @@ der Git-Historie**. Die SYN-IDs aus Code-Kommentaren löst `CONCEPT.md` §14 auf
 Prüfungen: §-Verweise treffen ein Kapitel · die Stand-Angabe ist nicht älter als der jüngste
 im Text genannte Vorgang · jede SPEC-Anforderung hat einen Status im BACKLOG · genannte
 Dateien existieren · kein wortgleicher Absatz in zwei Dateien · es bleiben genau vier
-Doku-Dateien. Drei Regeln beim Schreiben, an denen die Trennung schon zweimal erodiert ist:
+Doku-Dateien. Vier Regeln beim Schreiben, an denen die Trennung schon zweimal erodiert ist:
 
 1. **SPEC nennt keine Modul-, Spalten- oder Funktionsnamen.** Was etwas *können muss*, steht
    dort; *wie* es gebaut ist, in `CONCEPT.md` — mit Verweis statt Wiederholung.
@@ -28,6 +28,10 @@ Doku-Dateien. Drei Regeln beim Schreiben, an denen die Trennung schon zweimal er
    §10), zu den Gotchas (§12) oder in die Git-Historie — nicht als ✅-Zeile stehen bleiben.
 3. **Kapitelnummern sind kein stabiler Anker.** Auf Regeln mit ihrer ID verweisen (S4, V9,
    B11), nicht mit „§5" — Nummern verschieben sich, IDs nie.
+4. **Jede Passage trägt die heute geltende Regel plus höchstens einen Begründungssatz** —
+   außerhalb von `CONCEPT.md` §10, §12 und §14. Verlauf, Messreihen und Vorher/Nachher
+   gehören ins Entscheidungsregister oder in die Git-Historie. Redigiert wird beim
+   Anfassen: wer eine Passage ändert, kürzt ihren Changelog gleich mit weg.
 
 ## Die vier nicht verhandelbaren Regeln (Details: SPEC.md §7)
 
@@ -65,8 +69,9 @@ für Davids Claude-Projekt steht in `config/projektanweisung.md` (Wegweiser: `SP
 
 - **Nie direkt auf `main`** — ein Branch pro Arbeitsthema, PR erst wenn das Thema fertig ist,
   niemals selbst mergen.
-- Code, Commits und Branch-Namen auf Englisch; **Kommentare und Doku auf Deutsch**. Ein
-  Kommentar begründet eine Einschränkung, die der Code nicht selbst zeigt.
+- **Bezeichner, Kommentare und Doku auf Deutsch; Branch- und Commit-Namen auf Englisch.**
+  Ein Kommentar begründet eine Einschränkung, die der Code nicht selbst zeigt. Zu den
+  begründeten Ausnahmen (ddb_exporter-Module, `seed_*`, `cmd_<cli-name>`): `CONCEPT.md` §10.
 - Der Branch `archiv-privat-vor-veroeffentlichung` hält den Repo-Stand vor der
   Veröffentlichung und wurde nie gepusht — **nicht löschen**.
 - ⚠️ **Die privaten Druck-Reparatur-Module haben NIRGENDS einen Git-Stand.**
