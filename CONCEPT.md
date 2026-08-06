@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 04.08.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 06.08.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -106,17 +106,12 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
   (V9):** Ein eingerechneter Text wäre nicht mehr der Buchtext — die Provenienz ginge
   verloren, `body_md` und damit der korpusweite `inhalts_hash` verschöben sich bei jedem
   Errata-Update, und niemand könnte mehr sagen, was im Buch steht und was korrigiert wurde.
-  Der
-  Wertraum steht **allein in `importer/quellen.INHALTSARTEN`**, nicht als CHECK im Schema.
-  Der CHECK ist am 31.07.2026 bewusst gefallen: Er hätte den ersten Errata-Import auf jeder
-  mit v2 angelegten Datenbank mit `IntegrityError` abgebrochen, weil
-  `CREATE TABLE IF NOT EXISTS` eine bestehende Tabelle nicht erneuert und `ALTER TABLE`
-  keine Constraint erzeugt (real reproduziert, bevor es jemanden traf — Pi und Dev-DB
-  tragen den CHECK nicht). Dieselbe Überlegung wie bei `edition`, die aus demselben Grund
-  nur auf `length > 0` prüft. Die Validierung sitzt stattdessen in `registriere_quelle` —
-  dem **einen** Schreibweg, also greift sie auf jeder Datenbank —, und `admin check` meldet
-  zusätzlich unbekannte Werte **im Bestand** sowie eine Datenbank mit veraltetem CHECK.
-  Beides kann ein CHECK nicht: er verhindert nur neue Werte, findet keine vorhandenen.
+  Der Wertraum steht **allein in `importer/quellen.INHALTSARTEN`**, validiert in
+  `registriere_quelle` — dem **einen** Schreibweg, also greift die Prüfung auf jeder
+  Datenbank. Bewusst **kein CHECK im Schema**: eine geschlossene Wertliste, die noch wachsen
+  kann, ist dort eine Migrationsfalle (§12). `admin check` meldet zusätzlich unbekannte
+  Werte **im Bestand** sowie eine Datenbank mit veraltetem CHECK — beides kann ein CHECK
+  nicht, er verhindert nur neue Werte und findet keine vorhandenen.
   **Provenienz (v3, 31.07.2026):** `importiert_am` (ISO-8601 UTC, setzt
   `registriere_quelle` selbst), `versions_stand` (Errata-/Druckstand als Freitext),
   `quell_url`, `quell_hash` (sha256 der Quelldatei beim Import). Alle vier optional —
@@ -125,17 +120,13 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
   *welche Fassung dieses einen Buches steckt im Bestand?* `admin quellen-auffrischen`
   lässt `importiert_am` und `quell_hash` bewusst stehen (`setze_importzeit=False`) — dort
   wurde keine Datei gelesen, und ein fortgeschriebener Hash belegte nichts.
-  **Beschriftungs-Standard (31.07.2026):** `titel` trägt **nur den Werktitel** — kein
-  „(Deutsch)", „(2014)", „(D&D Beyond)", „(Druck)". Sprache, Regelstand und Bezugsweg
-  stehen in `sprache`, `edition` und `herkunft` und werden **daraus** angezeigt. Vorher
-  hängte jeder Importweg einen anderen Zusatz an denselben Werktitel („SRD 5.2.1
-  (Deutsch)", „Basic Rules (2014) (D&D Beyond)", „Spielerhandbuch (Deutsch, 2014er
-  Regeln)"); nebeneinander waren die Quellen dadurch nicht vergleichbar, und die Website
-  musste die Zusätze beim Anzeigen wieder herausrechnen. Durchgesetzt wird der Standard
-  beim **Schreiben** (`importer/quellen.werktitel`, gerufen in `registriere_quelle`) —
-  eine Anzeige-Kosmetik hätte jede Ausgabe einzeln nachbauen müssen. Bestands-DBs zieht
-  `db.stelle_schema_sicher()` einmalig nach (`normalisiere_titel`), damit ein DDB-Buch
-  dafür nicht neu importiert werden muss.
+  **Beschriftungs-Standard:** `titel` trägt **nur den Werktitel** — kein „(Deutsch)",
+  „(2014)", „(D&D Beyond)", „(Druck)". Sprache, Regelstand und Bezugsweg stehen in
+  `sprache`, `edition` und `herkunft` und werden **daraus** angezeigt; sonst hängt jeder
+  Importweg einen anderen Zusatz an denselben Werktitel und die Quellen sind nebeneinander
+  nicht mehr vergleichbar. Durchgesetzt beim **Schreiben**
+  (`importer/quellen.werktitel`, gerufen in `registriere_quelle`); Bestands-DBs zieht
+  `db.stelle_schema_sicher()` einmalig nach (`normalisiere_titel`).
 - **`eintraege`** — Inhalts-Chunks (Rückgrat): `kategorie`, `name_de`/`name_en`, `edition`
   (**NOT NULL** → kein verwaister Inhalt), `seite` (optional), `body_md`, `kontext`
   (Breadcrumb). FK-Cascade von `quellen`.
@@ -144,21 +135,19 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
   gesamte Bestand bräuchte einen Re-Import. Bestands-DBs backfillt
   `db.stelle_schema_sicher()` einmalig aus dem Body; die Lesepfade kommen ohne die Spalte
   aus, weil der Serving-Pfad read-only ist und **nicht** migriert.
-  **Ehrlich zur Wirkung:** Der Laufzeitgewinn ist klein. Die beiden echten Abfragen
-  (`charakter.py`) filtern schon auf `kategorie` + `edition` vor und liefen nie über einen
-  Full Scan — gemessen **0,049 → 0,030 ms (Faktor 1,7)**. Der Ertrag liegt darin, dass der
-  Breadcrumb ein *Feld* ist statt eines in ein LIKE-Muster interpolierten Strings.
+  **Ehrlich zur Wirkung:** Der Laufzeitgewinn ist klein (Faktor 1,7 auf einer Abfrage, die
+  ohnehin auf `kategorie` + `edition` vorfiltert). Der Ertrag ist, dass der Breadcrumb ein
+  *Feld* ist statt eines in ein LIKE-Muster interpolierten Strings.
 - **`zauber_meta`/`monster_meta`/`gegenstand_meta`** — strukturierte Facetten, erscheinen
   additiv als `facetten` in den Detail-Tools (der `body_md` bleibt unangetastet).
   `zauber_meta`: `grad`, `schule`, `klassen`, `reichweite_m`, `komponenten`, `dauer_min`,
   `konzentration`, `ritual` · `monster_meta`: `hg`, `typ`, `rk`, `tp` ·
   `gegenstand_meta`: `seltenheit` (noch ungeschrieben), `preis_cent`.
-  **Einziger Schreiber: `importer/facetten_seeder.py`** (seit 28.07.2026, Befund C1) — er
-  leitet aus `body_md` ab, mit genau den Parsern, die der Serving-Pfad ohnehin ruft
-  (`app/facetten.py`, `srd_zauberbruecken.kopf_felder`, `srd_begriffsbruecken.preis_cent_von`).
-  Vorher schrieb **nur** der Open5e-Import, und zwar aus den nativen API-Feldern in einen
-  zweiten Wertraum (`hg = "10.0"` statt kanonisch `"10"`, `schule = "Evocation"` statt
-  `"hervorrufung"`) — auf dem Pi waren alle drei Tabellen deshalb schlicht leer.
+  **Einziger Schreiber: `importer/facetten_seeder.py`** — er leitet aus `body_md` ab, mit
+  genau den Parsern, die der Serving-Pfad ohnehin ruft (`app/facetten.py`,
+  `srd_zauberbruecken.kopf_felder`, `srd_begriffsbruecken.preis_cent_von`). Ein zweiter
+  Schreiber aus nativen API-Feldern erzeugte einen zweiten Wertraum (`schule = "Evocation"`
+  statt kanonisch `"hervorrufung"`) und damit Facetten, die kein Filter fand.
   Gespeichert wird immer der **kanonische Schlüssel**; die deutsche Anzeigeform macht erst
   die Ausgabe (`_facetten_von`). Was der Text nicht hergibt, bleibt `NULL` — nie geraten.
 - **`glossar`** — DE↔EN: `term_de` (kanonisch), `offiziell` (1 → kein `*`, 0 → `*`), `quelle`,
@@ -327,19 +316,14 @@ niedrig. **Sechs Werkzeuge, sechs verschiedene Handlungen:**
 | `foliant_hol_attributswerte` | Attributsvergabe 2024, am Bestand belegt |
 | `foliant_pruefe_build` | Build gegen den 2024-Bestand prüfen |
 
-**Warum `kategorie` Pflicht ist und nicht optional:** Bis zum 30.07.2026 gab es 16 Werkzeuge,
-davon zwölf Kopien voneinander — acht `foliant_hol_<typ>` mit identischer Signatur und vier
-`foliant_liste_<typ>` ohne jeden Parameter. Ihr unterscheidendes Merkmal war ein fest
-verdrahteter Kategorie-String, also genau der Wert, den `foliant_suche_bestand` seit jeher
-als Parameter führt. Der Werkzeugname **war** damit der Disambiguator: ohne Kategorie liefert
-der Detailpfad bei „Schild" still den Gegenstand statt des Zaubers. Deshalb ist sie das
-einzige Pflichtfeld — die Ersparnis liegt im Schema, nicht in der Genauigkeit.
-Gemessen: 13 910 → 9 239 Byte Schema, rund 1 170 Token weniger je Verbindung.
+**Warum `kategorie` Pflicht ist und nicht optional:** Sie ist der Disambiguator — ohne sie
+liefert der Detailpfad bei „Schild" still den Gegenstand statt des Zaubers. Vorher trugen
+acht `foliant_hol_<typ>`-Werkzeuge dieselbe Unterscheidung im *Namen*; als Parameter kostet
+sie ein Feld statt eines halben Schemas (rund 1 170 Token weniger je Verbindung).
 
 - **Status:** `/health` (offen), `/ready` (prüft DB + FTS, 503 bei kaputtem Bestand)
 
-**Wo der Code liegt** (Stand 30.07.2026 — `app/tools/` war vorher zwei Dateien mit
-1429 und 1124 Zeilen):
+**Wo der Code liegt:**
 
 | Datei | Inhalt |
 |---|---|
@@ -348,9 +332,9 @@ Gemessen: 13 910 → 9 239 Byte Schema, rund 1 170 Token weniger je Verbindung.
 | `nachschlagen.py` | Detailabruf (`foliant_hol_eintrag`) und das Glossar-Werkzeug |
 | `charakter.py` | Optionslisten, Attributsregeln, Build-Prüfung |
 
-Die Richtung ist eine Regel, kein Zufall: **`ausgabe.py` kennt die Werkzeuge nicht.**
-Vorher griff `charakter.py` über sieben Zugriffe in `nachschlagen.py`-Interna hinein
-(`_ns.HINWEIS_LEER`, `_ns._anzeige_name` …); jetzt importieren beide dieselbe Schicht.
+Die Richtung ist eine Regel, kein Zufall: **`ausgabe.py` kennt die Werkzeuge nicht** —
+sonst greift der eine Werkzeug-Pfad in die Interna des anderen, statt dass beide dieselbe
+Schicht importieren.
 Die **Namensrelevanz** (`_name_score`, `_eintrag_namen`) liegt in
 [`app/glossar.py`](app/glossar.py) — dort, wo auch ihre Schwelle `FUZZY_NAME` und die
 Normalisierung wohnen; sie war die einzige Stelle, an der sich Such- und Detailpfad
@@ -718,20 +702,16 @@ Alle vier Schritte hängen zusammen, weil das Weglassen jedes einzelnen schon sc
 ist (Rebuild vergessen → alter Code meldet „Erfolg"; Golden vergessen → korpusabhängige
 Regression bleibt unentdeckt).
 
-**Alle drei Code-Dienste, nicht nur `foliant`** (Befund 03.08.2026): `web` und `discord`
-backen dasselbe Image aus demselben Repo. Bis dahin baute das Ziel nur `foliant` — Bot und
-Website liefen nach einem Deploy still mit dem alten Stand weiter. Real passiert: Der
-`/regel`-Absturz war behoben und deployt und trat in Discord trotzdem weiter auf, weil der
-`discord`-Container nie neu gebaut wurde. `--no-deps` verhindert dabei, dass `depends_on`
-den Tunnel mit durchstartet (§12).
+**Alle drei Code-Dienste, nicht nur `foliant`:** `web` und `discord` backen dasselbe Image
+aus demselben Repo — wird nur `foliant` gebaut, laufen Bot und Website nach einem Deploy
+still mit dem alten Stand weiter. `--no-deps` verhindert dabei, dass `depends_on` den Tunnel
+mit durchstartet (§12).
 
-**Warum der Check seit dem 01.08.2026 dazugehört:** `make test` fährt ihn lokal, aber die
-Dev-DB ist ein **Subset** (7 von 18 Quellen). Alles, was erst am Vollbestand sichtbar wird,
-fällt dort nicht auf — an genau dieser Lücke ist eine falsche Prioritätsband-Tabelle
-durchgegangen, die an einer Config kalibriert war, welche drei der betroffenen Bücher gar
-nicht enthält. `admin check` endet bei Problemen mit Exitcode ≠ 0 und bricht damit den
-Deploy ab: Ein Import, der **neue** Datenmängel einschleppt, geht nicht mehr still live
-(was bekannt ist, steht in `config/qualitaet_basis.json`).
+**Warum der Check dazugehört:** `make test` fährt ihn lokal, aber die Dev-DB ist ein
+**Subset** (7 von 18 Quellen) — alles, was erst am Vollbestand sichtbar wird, fällt dort
+nicht auf. `admin check` endet bei Problemen mit Exitcode ≠ 0 und bricht damit den Deploy
+ab: Ein Import, der **neue** Datenmängel einschleppt, geht nicht mehr still live (was
+bekannt ist, steht in `config/qualitaet_basis.json`).
 
 **Das SSH-Ziel steht einmalig als `PI=` in der `.env`** (gitignored; Vorlage in
 `.env.example`) — nicht in dieser Doku: das Repository ist öffentlich und die
@@ -805,18 +785,12 @@ Nutzers). `DISCORD_GUILD_ID` ist Pflicht — ohne sie startet der Bot nicht.
   geschnitten sind**, steht im Entscheidungsregister (§10).
 - **Rückmeldung der Runde:** Eine **👎-Reaktion** auf eine Bot-Antwort macht sie zum
   Kurations-Kandidaten, eine **👍-Reaktion** zum Kandidaten für Regressionsschutz; der Bot
-  bestätigt beides mit 📝, das Zurücknehmen löscht den Eintrag.
-  Warum das gebaut ist: Der Suchbericht sieht Nulltreffer, Fuzzy-Landungen und
-  Mehrdeutigkeiten — **er sieht nicht die Antwort, die gefunden hat und trotzdem falsch
-  war.** Genau die erkennen die Spieler sofort und hatten dafür keinen Weg außer „David
-  sagen". Eine Reaktion ist der kürzeste denkbare Meldeweg: kein Befehl, keine API-Kosten,
-  kein neuer State. Logik discord-frei in `app/discord_bot/rueckmeldung.py`, Ablage in
-  `protokoll.rueckmeldungen` (was dort steht und was nicht: §13), Ausgabe als erste zwei
-  Abschnitte von `admin suchbericht` — vor jeder Statistik, weil ein Urteil der Runde der
-  stärkste Kandidat ist, den der Bericht kennt; die Art trägt dabei die **Überschrift**,
-  nicht die Zeile. Getrennte Abfragen mit eigenem Limit je Art: 👍 kommt reflexhaft und
-  damit häufiger, und ein gemeinsames Limit ließe einen Schwall Lob die Fehlermeldungen
-  verdrängen.
+  bestätigt beides mit 📝, das Zurücknehmen löscht den Eintrag. Warum es diesen Meldeweg
+  gibt und warum er im Bericht vor jeder Statistik steht: §8.
+  Logik discord-frei in `app/discord_bot/rueckmeldung.py`, Ablage in
+  `protokoll.rueckmeldungen` (was dort steht und was nicht: §13). Getrennte Abfragen mit
+  eigenem Limit je Art: 👍 kommt reflexhaft und damit häufiger, und ein gemeinsames Limit
+  ließe einen Schwall Lob die Fehlermeldungen verdrängen.
   Das Recht *Add Reactions* trägt nur die Bestätigung: fehlt es, wird die Markierung
   dennoch notiert. `deploy/discord_einrichten.sh` fordert es an; wer den Bot vorher
   eingeladen hat, ruft den Einladungslink erneut auf.
@@ -1081,6 +1055,38 @@ umkehrbar; solange `phb-2024-de` nicht importiert ist, ändert sie ohnehin nicht
 relative Ordnung aller vorhandenen Quellen bleibt gleich). Entschärft wird sie zusätzlich
 dadurch, dass die unterlegene Fassung ihre Fundstelle behält (§5) und Wortlaut-Abweichungen
 als Quellkonflikt ausgewiesen werden (SYN-P1-009).
+
+### Entscheidung: Instruktions-Budget durch Entdoppeln (31.07.2026)
+
+`config/stil.py` stand bei 7486 von 7500 erlaubten Zeichen — 14 Zeichen Luft, und der
+Test-Docstring behauptete dabei „~6000". Gelöst **ohne Regelverlust**: Der Abschnitt
+„QUELLEN & VERSION" wiederholte zwei Regeln von weiter oben und fehlte im zweiten Kanal
+ohnehin ganz. Stand danach 7154. Wenn das Budget wieder eng wird, ist Entdoppeln der erste
+Griff — eine Regel zu streichen der letzte.
+
+### Entscheidung: `ddb_exporter`-Module tragen englische Namen (P1-006)
+
+Die Namenskonvention lautet „Bezeichner deutsch" (CLAUDE.md). `importer/ddb_exporter/`
+bricht sie bewusst: `book_archive`, `ddb_client`, `html_to_markdown`, `cli`. Die Module
+bilden fremdes Vokabular ab — D&D-Beyond-API-Felder, Cobalt, Sourcebook, Artefakt-Manifest
+—, und eine deutsche Hülle um englische Feldnamen macht den Abgleich mit der API schwerer
+statt leichter. Die Grenze läuft am Paket: außerhalb von `ddb_exporter/` gilt Deutsch,
+auch für die Aufrufer.
+
+### Entscheidung: `seed_*` bleibt als Verbfamilie (P1-008)
+
+`seed_glossar`, `seed_flexionsbruecke_aus_bestand`, `seed_*` in den Brücken-Modulen: ein
+englisches Verb in sonst deutschem Code. „Seeden" ist der eingeführte Fachbegriff für
+*abgeleitete Daten aus vorhandenem Bestand erzeugen* und trennt diese Läufe sichtbar vom
+`import_*`, das externe Quellen einliest. Eine deutsche Übersetzung („anlegen", „befüllen")
+verwischt genau diesen Unterschied. Als **Familie** angeglichen, nicht einzeln.
+
+### Konvention: `cmd_<cli-name>` spiegelt den CLI-Namen (P1-003)
+
+Jede Admin-Unterbefehls-Funktion heißt wie ihr CLI-Name mit Präfix `cmd_` — so findet man
+von `admin suchbericht` zu `cmd_suchbericht`, ohne zu suchen. **Die CLI-Namen selbst sind
+stabil** und werden nicht umbenannt: Makefile, Deploy-Ablauf und Doku zitieren sie wörtlich,
+eine Umbenennung bräche dokumentierte Befehlszeilen.
 
 ### Gemessen und verworfen (28.–29.07.2026)
 
