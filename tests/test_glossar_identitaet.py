@@ -39,6 +39,11 @@ def bestand(tmp_path, monkeypatch):
     con.execute(
         "INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle) "
         "VALUES ('Reactions','Reaktionen',1,'Spielerhandbuch 2024','2024')")
+    # Zweites Paar fuer die term_de-Exakt-Disziplin: 'Restrained' liegt zu 'Retrained'
+    # fuzzy-nah OBERHALB des Cutoffs (94.7 > 88) - anders als 'Actions'/'Reactions'.
+    con.execute(
+        "INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle) "
+        "VALUES ('Restrained','Festgehalten',1,'Spielerhandbuch 2024','2024')")
     con.commit()
     con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
     con.commit()
@@ -61,6 +66,28 @@ def test_lookup_traegt_matchtyp(bestand):
         # stempelte denen deshalb einen Stern auf.
         assert gl.term_de(con, "Actions") is None
         assert gl.term_de(con, "Reactions") == ("Reaktionen", True)
+    finally:
+        con.close()
+
+
+def test_term_de_erfindet_keine_uebersetzung(bestand):
+    """term_de darf NIE eine fuzzy-aehnliche FREMDE Zeile als Uebersetzung ausgeben
+    (SYN-P0-001). Der Schutz sitzt in den beiden `lookup_exakt`-Aufrufen; getestet war er
+    bisher nur mit 'Actions', und dessen ratio zu 'Reactions' liegt mit 87.5 UNTER dem
+    Cutoff 88 - eine Mutation von `lookup_exakt` auf `lookup` blieb damit gruen, weil gar
+    keine Fuzzy-Zeile entstand. 'Retrained'/'Restrained' liegt mit 94.7 darueber und
+    trifft die Invariante wirklich.
+
+    Zwei Aufrufstellen, zwei Faelle (CONCEPT.md par. 12: die Gegenprobe muss jede einzeln
+    treffen): der direkte Begriff und der Klammer-Suffix-Pfad."""
+    con = adb.connect(str(adb.standard_pfad()))
+    try:
+        # 1. Aufrufstelle: direkter Nachschlag.
+        assert gl.term_de(con, "Retrained") is None
+        # 2. Aufrufstelle: nach Abzug des Klammer-Suffix ("Retrained (Special)" -> "Retrained").
+        assert gl.term_de(con, "Retrained (Special)") is None
+        # Der echte Treffer bleibt selbstverstaendlich einer:
+        assert gl.term_de(con, "Restrained") == ("Festgehalten", True)
     finally:
         con.close()
 

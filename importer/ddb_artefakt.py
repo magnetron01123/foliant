@@ -19,6 +19,10 @@ import json
 from pathlib import Path
 
 SCHEMA_VERSIONEN = {1}
+# Bewusste KOPIE von app.db.KATEGORIEN, kein Import: dieses Modul ist architekturneutral
+# und laeuft auch im separaten Exporter-Venv (requirements-ddb.txt), das die App-
+# Abhaengigkeiten nicht kennt - ein `from app.db import ...` zoege sie herein. Damit die
+# Kopie nicht auseinanderlaeuft, haelt tests/test_datenkonzept.py beide Mengen gegeneinander.
 KATEGORIEN_ERLAUBT = {"regel", "zauber", "monster", "gegenstand", "spezies", "klasse",
                       "hintergrund", "talent"}
 _MANIFEST_PFLICHT = ["schema_version", "status", "source_key", "ddb_source_id", "title",

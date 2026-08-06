@@ -123,6 +123,10 @@ def _datum(roh: str) -> datetime.date:
     return datetime.date(jahr, monat, tag)
 
 
+# Beide Formen kommen echt vor: "Stand: 04.08.2026" und "Stand (03.08.2026)".
+_STAND_KOPF = re.compile(r"Stand:?\s*\(?(\d{2}\.\d{2}\.\d{4})")
+
+
 @pytest.mark.parametrize("name", DOKU)
 def test_stand_ist_nicht_aelter_als_der_juengste_inhalt(name):
     """Alle vier Stand-Angaben waren am 03.08.2026 veraltet - CONCEPT.md um neun Tage
@@ -133,7 +137,7 @@ def test_stand_ist_nicht_aelter_als_der_juengste_inhalt(name):
     "(Review 02.08.2026)" einfuegt, muss den Kopf mitziehen. Ein reiner Tippfehler-Fix
     braucht dagegen kein neues Datum - das waere Buchfuehrung, nicht Pflege."""
     text = lies(name)
-    kopf = re.search(r"Stand:?\s*\(?(\d{2}\.\d{2}\.\d{4})", text)
+    kopf = _STAND_KOPF.search(text)
     assert kopf, f"{name} hat keine erkennbare Stand-Angabe ('Stand: TT.MM.JJJJ')."
     stand = _datum(kopf.group(1))
 
@@ -144,6 +148,34 @@ def test_stand_ist_nicht_aelter_als_der_juengste_inhalt(name):
     assert stand >= juengster, (
         f"{name}: Stand-Angabe {stand:%d.%m.%Y} ist aelter als der juengste im Text "
         f"genannte Vorgang ({juengster:%d.%m.%Y}). Kopfzeile nachziehen."
+    )
+
+
+# Ein Editier-Fenster: die vier Dateien werden nacheinander angefasst, und ein Durchgang
+# darf ueber Mitternacht laufen. Mehr als ein Tag heisst dagegen, dass eine Datei beim
+# Durchgang schlicht vergessen wurde.
+_STAND_SPANNE_TAGE = 1
+
+
+def test_stand_angaben_laufen_nicht_auseinander():
+    """Die Stand-Angaben der vier Dateien duerfen hoechstens einen Tag auseinanderliegen.
+
+    Die Pruefung darueber (Stand >= juengster genannter Vorgang) sieht jede Datei fuer
+    SICH an - und genau durch diese Luecke kam P2-001: README trug einen alten Stand und
+    blieb gruen, weil in README kein juengeres Datum steht. Eine Datei, die keine Daten
+    nennt, kann so beliebig veralten, waehrend die drei anderen mitwandern. Erst der
+    Vergleich der vier Koepfe UNTEREINANDER faengt das."""
+    staende = {}
+    for name in DOKU:
+        kopf = _STAND_KOPF.search(lies(name))
+        assert kopf, f"{name} hat keine erkennbare Stand-Angabe ('Stand: TT.MM.JJJJ')."
+        staende[name] = _datum(kopf.group(1))
+    spanne = (max(staende.values()) - min(staende.values())).days
+    assert spanne <= _STAND_SPANNE_TAGE, (
+        f"Stand-Angaben laufen {spanne} Tage auseinander: "
+        + ", ".join(f"{n} {d:%d.%m.%Y}" for n, d in sorted(staende.items()))
+        + ".\nWer eine Doku-Datei anfasst, prueft die anderen drei mit - sonst veraltet "
+          "die stillste von ihnen unbemerkt."
     )
 
 
@@ -233,7 +265,6 @@ PFADE_OHNE_DATEI = {
     "data/foliant-protokoll.sqlite",
     "data/glossar_web.sqlite",
     "data/private/foliant-private.sqlite",
-    "korpus-manifest.json",
 }
 
 
@@ -243,8 +274,14 @@ def test_genannte_dateien_existieren(name):
     ins Leere - und faellt sonst erst auf, wenn er sie sucht. Umgekehrt hat genau diese
     Pruefung gezeigt, dass die Doku vollstaendig ist: alle 13 Treffer waren
     Tabellen-Kurznamen oder erklaerte Ausnahmen."""
+    # Das Muster verlangt einen Schrägstrich - reine Dateinamen ohne Verzeichnis
+    # (`korpus-manifest.json`) liegen prinzipiell ausserhalb des Rasters und brauchen
+    # deshalb auch keine Ausnahme. Endung bis 7 Zeichen (`.sqlite`) und ein fuehrender
+    # Punkt im ersten Segment (`.claude/…`, `.github/…`) seit dem 06.08.2026: mit
+    # `\w{1,5}` und ohne Punkt sah die Pruefung sieben echte Verweise gar nicht erst an.
     fehlend = sorted({
-        pfad for pfad in re.findall(r"`([A-Za-z_][\w./<>-]*/[\w./<>-]+\.\w{1,5})`", lies(name))
+        pfad for pfad in re.findall(r"`(\.?[A-Za-z_][\w./<>-]*/[\w./<>-]+\.\w{1,7})`",
+                                    lies(name))
         # Platzhalter wie `quellen/md/<kuerzel>.md` sind Muster, keine Dateien.
         if "<" not in pfad and pfad not in PFADE_OHNE_DATEI and not (WURZEL / pfad).exists()
     })
