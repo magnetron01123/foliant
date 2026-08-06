@@ -79,8 +79,6 @@ NICHT_PDF = "Bitte wähle eine PDF-Datei aus."
 KEIN_DDB = "Kein unterstützter D&D-Beyond-Charakterbogen."
 NICHT_SICHER = "Dieser PDF-Bogen kann nicht sicher verarbeitet werden."
 UEBERSETZUNG_WEG = "Die Übersetzung ist momentan nicht verfügbar. Bitte versuche es später erneut."
-PASST_NICHT = ("Der vollständige Inhalt passt nicht auf den offiziellen deutschen "
-               "Charakterbogen. Es wurde keine unvollständige PDF erzeugt.")
 KONVERTER_BELEGT = "Gerade wird bereits ein Charakterbogen verarbeitet. Bitte versuche es gleich noch einmal."
 KENNWORT_FALSCH = "Das Kennwort stimmt nicht."
 ZU_VIELE_VERSUCHE = "Zu viele Fehlversuche. Bitte warte ein paar Minuten."
