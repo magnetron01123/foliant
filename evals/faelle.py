@@ -25,7 +25,9 @@ _KOPF_EMOJI = "[\U0001f4dc\U0001fa84\U0001f409\U0001f392\U0001f9dd⚔\U0001f3d5�
 # (Fireball)**' aus - Emoji am Kopf, aber INNERHALB des Fettdrucks. Das erfuellt B12
 # Slot 1; ein Anker, der daran scheitert, ist ein Fehlalarm derselben Klasse wie
 # frueher A3 ('Schwaeche') und B1 ('-2').
-_KOPF_ANKER = rf"\A[\s*_#>]*{_KOPF_EMOJI}"
+# Oeffentlich, weil es seit dem 07.08.2026 GRADER-Vertrag ist und nicht mehr nur
+# Falldaten-Detail: pruefe_geruest prueft die Kopfzeile fuer JEDE Antwort.
+KOPF_ANKER = rf"\A[\s*_#>]*{_KOPF_EMOJI}"
 
 FAELLE = [
     # --- A. Grounding & Ehrlichkeit (P0) ---------------------------------------------
@@ -91,7 +93,7 @@ FAELLE = [
                 "rueckfragen. FAIL, wenn stattdessen die Regel 'Reaktionen' als "
                 "Antwort ausgegeben wird (P0-001).", korpus="voll"),
     dict(id="B3", frage="Zeig mir den vollständigen Statblock des Solar.",
-         pflicht=["📖", "297"], verboten=[],
+         pflicht=["📖", "297"], verboten=[], statblock_vollstaendig=True,
          erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
          richter=True,
          rubrik="Der Statblock muss VOLLSTAENDIG sein: RK, TP (297), Bewegung und "
@@ -103,7 +105,7 @@ FAELLE = [
                           "foliant_hol_eintrag"],
          richter=False, korpus="voll"),
     dict(id="B5", frage="Gib mir die Vampirbrut.",
-         pflicht=["16", "90", "📖"], verboten=[],
+         pflicht=["16", "90", "📖"], verboten=[], statblock_vollstaendig=True,
          erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
          richter=False, korpus="voll"),
 
@@ -183,7 +185,7 @@ FAELLE = [
     # ausserhalb von Codebloecken, Erwaehnungen) - alles andere waere ein Fehlalarm der
     # Sorte, die A3 und B1 schon zweimal produziert haben.
     dict(id="DC1", system="discord", frage="Zeig mir den Statblock der Vampirbrut.",
-         pflicht=["📖"], keine_md_tabelle=True,
+         pflicht=["📖"], keine_md_tabelle=True, statblock_vollstaendig=True,
          erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
          richter=True,
          rubrik="Die Werte muessen in Discord lesbar dargestellt sein: als Codeblock "
@@ -232,14 +234,14 @@ FAELLE = [
     # ueber die Sprache der Quelle und die Eintragsstruktur, uebersetzte Layout-Artefakte
     # ("ruchlose..." aus der Werbe-Tagline, dazu der Illustratoren-Credit), Fragment-
     # Navigation statt zusammengesetzter Auskunft. Die F-Faelle messen die Gegenregeln.
+    # Kein `muster_pflicht` mehr: Kopfzeile und Beleg-zuletzt prueft seit dem 07.08.2026
+    # `pruefe_geruest` fuer JEDE Antwort. Blieben sie hier stehen, meldete derselbe
+    # Verstoss zweimal. F1 misst damit nur noch, dass eine schlichte Zauberfrage ueberhaupt
+    # belegt beantwortet wird - die Form traegt der globale Vertrag.
     dict(id="F1", frage="Was macht der Zauber Feuerball?",
          pflicht=["📖"],
-         muster_pflicht=[_KOPF_ANKER,                               # B12 Slot 1
-                         r"📖[^\n]*Regelversion:? \d{4}\W*\Z"],     # B12 Slot 5: Beleg zuletzt
          erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
-         richter=False,
-         hinweis="B12-Form: Kopfzeile beginnt mit Katalog-Emoji, Belegzeile ist die "
-                 "letzte Zeile."),
+         richter=False),
     dict(id="F2", frage="Was kann der Undead Patron des Hexenmeisters?",
          pflicht=["Unterklasse", "Form of Dread", "Grave Touched", "Necrotic Husk",
                   "Superior Dread", "📖"],
@@ -248,9 +250,10 @@ FAELLE = [
          # Uebersetzung von 'profane knowledge' aus dem Eintragstext selbst: ein Wort
          # zu verbieten trifft das Layout-Artefakt nicht, nur seinen Wortlaut. Verboten
          # ist deshalb die Tagline SELBST; die Flavor-Laenge (B14) beurteilt der Richter.
-         verboten=["englisch", "Unterabschnitt", "gegliedert", "liegt vor",
-                   "im Bestand vorhanden", "Ignatius Budi", "Defy Death",
-                   "Profane Power", "Datenbank"],
+         # 'Unterabschnitt' und 'Datenbank' stehen seit dem 07.08.2026 in META_VERBOTEN
+         # und gelten damit fuer jede Antwort - hier nur noch das Fallspezifische.
+         verboten=["englisch", "gegliedert", "liegt vor", "im Bestand vorhanden",
+                   "Ignatius Budi", "Defy Death", "Profane Power"],
          erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
          richter=True,
          # Die Rubrik nennt die Belegzeile ausdruecklich als PFLICHT: ohne diesen Satz
@@ -284,7 +287,6 @@ FAELLE = [
                  "Abschluss woertlich mit der Katalog-Phrase."),
     dict(id="F5", frage="Gib mir den Zauber Machtwort Tod im vollen Wortlaut.",
          pflicht=["📖"],
-         muster_pflicht=[_KOPF_ANKER],
          erwartete_tools=["foliant_hol_eintrag", "foliant_suche_bestand"],
          richter=True,
          rubrik="S15-Wiedergabetreue: der Wirkungstext muss dem Bestandsauszug Satz "

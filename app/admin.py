@@ -648,8 +648,46 @@ def _vergleiche_je_quelle(vorhanden: set[str], soll: dict, ist, was: str) -> tup
     return fehler, gesunken
 
 
+def messe_leere_sektionen(c: sqlite3.Connection) -> tuple[dict, list[str]]:
+    """Statblock-Abschnitte, die eine Ueberschrift tragen, aber KEINEN Inhalt.
+
+    Befund 06.08.2026 (Verhaltens-Eval, Fall B3): Der Richter warf der Antwort vor, beim
+    Solar fehle der Block 'Bonusaktionen'. Er fehlt aber im BESTAND - '###### Bonusaktionen'
+    ist dort die letzte Zeile des Eintrags, mit null Zeichen darunter; der zugehoerige
+    Inhalt ('Goettlicher Beistand') ist beim Import in den Merkmale-Block gerutscht. Ein
+    Zweispalten-Riss also, und keine Auskunft kann liefern, was der Bestand nicht hat.
+
+    Gezaehlt wird nur, was ein Mensch als Sektion erkennt: die kuratierten Statblock-
+    Ueberschriften. Ein generisches '^#{3,6}' zaehlte auch die rund 20 fehlgeparsten
+    Zeilen der Art '###### **Resistenzen** Kaelte' mit und machte die Kennzahl unlesbar.
+
+    Rueckgabe: (Anzahl je Quellenkuerzel, bis zu drei Beispiele 'Name (Sektion)')."""
+    from collections import Counter
+
+    sektionen = ("Merkmale", "Traits", "Aktionen", "Actions", "Bonusaktionen",
+                 "Bonus Actions", "Reaktionen", "Reactions",
+                 "Legendäre Aktionen", "Legendary Actions")
+    muster = re.compile(r"^#{3,6}\s*(" + "|".join(sektionen) + r")\s*$", re.MULTILINE)
+    je_quelle: Counter = Counter()
+    beispiele: list[str] = []
+    for name, kuerzel, body in c.execute(
+            "SELECT coalesce(e.name_de, e.name_en, ''), q.kuerzel, e.body_md "
+            "FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "WHERE e.kategorie = 'monster' AND e.body_md IS NOT NULL"):
+        for treffer in muster.finditer(body):
+            rest = body[treffer.end():]
+            naechste = re.search(r"^#{3,6}", rest, re.MULTILINE)
+            inhalt = (rest[:naechste.start()] if naechste else rest).strip()
+            if not inhalt:
+                je_quelle[kuerzel] += 1
+                if len(beispiele) < 3:
+                    beispiele.append(f"{name} ({treffer.group(1)})")
+    return dict(je_quelle), beispiele
+
+
 def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list,
-                             logik: dict | None = None) -> int:
+                             logik: dict | None = None,
+                             leere_sektionen: dict | None = None) -> int:
     """Vergleicht die gemessenen Maengel mit dem dokumentierten Stand und liefert die Zahl
     der FEHLER (Anstiege).
 
@@ -689,6 +727,10 @@ def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list,
                                       (logik or {}).get(art, {}), was)
         fehler += n
         gesunken += gs
+    n, gs = _vergleiche_je_quelle(vorhanden, basis.get("leere_sektionen_je_quelle", {}),
+                                  leere_sektionen or {}, "leere Statblock-Sektionen")
+    fehler += n
+    gesunken += gs
     soll_meta = basis.get("metadaten_namen_gesamt", 0)
     if len(meta) > soll_meta:
         print(f"NEUE Metadaten-Namen: {len(meta)} statt {soll_meta} dokumentierten  FEHLER")
@@ -724,6 +766,7 @@ def cmd_qualitaet_basis(args) -> None:
         # Dieselbe Messstelle wie `check` - eine zweite Kopie der Muster waere genau die
         # Dopplung, gegen die META_TABELLEN angetreten ist.
         logik, _geprueft, _bsp, _belegt = _messe_logik(c)
+        leere_sektionen, _leer_bsp = messe_leere_sektionen(c)
     finally:
         c.close()
     from collections import Counter
@@ -744,6 +787,7 @@ def cmd_qualitaet_basis(args) -> None:
     neu["wuerfel_risse_je_quelle"] = _sortiert(logik["wuerfel"])
     neu["tp_formel_abweichungen_je_quelle"] = _sortiert(logik["tp_formel"])
     neu["attributs_abweichungen_je_quelle"] = _sortiert(logik["attribut"])
+    neu["leere_sektionen_je_quelle"] = _sortiert(Counter(leere_sektionen))
     if not getattr(args, "schreiben", False):
         print("Vorschau (nichts geschrieben - mit --schreiben uebernehmen):")
         print(json.dumps({k: v for k, v in neu.items() if not k.startswith("_")},
@@ -979,7 +1023,15 @@ def cmd_check(_args) -> None:
     if quellfehler_belegt:
         print(f"   davon belegte Quellfehler der Quellen selbst (config/quellfehler.py, "
               f"nicht gezaehlt): {', '.join(quellfehler_belegt)}")
-    fehler += _pruefe_gegen_basiswerte(c, meta, risse, logik)
+    # Leere Statblock-Sektionen (Befund B3, 06.08.2026): eine Ueberschrift ohne Inhalt ist
+    # verlorener Regeltext - und sie sieht in der Auskunft aus wie ein Modellfehler.
+    # WARNUNG wie die uebrigen Datenmaengel; der Exitcode kommt aus dem Basiswert-Vergleich.
+    leere_sektionen, leer_beispiele = messe_leere_sektionen(c)
+    print(f"Statblock-Sektionen ohne Inhalt: {sum(leere_sektionen.values())}"
+          + ("  OK" if not leere_sektionen else "  WARNUNG"))
+    if leere_sektionen:
+        print(f"   {leer_beispiele} ... aus {sorted(leere_sektionen)}")
+    fehler += _pruefe_gegen_basiswerte(c, meta, risse, logik, leere_sektionen)
     # Facetten-Deckung (Befund C1, 28.07.2026): Die Meta-Tabellen waren auf dem Pi LEER,
     # lokal gefuellt - und niemand merkte es, weil kein Check hinsah. WARNUNG statt Fehler:
     # eine vollstaendige Deckung ist gar nicht erreichbar (Ausruestung ohne Preisangabe
