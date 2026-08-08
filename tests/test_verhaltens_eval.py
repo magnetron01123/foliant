@@ -13,7 +13,7 @@ def test_faelle_decken_die_backlog_checkliste():
     erwartet = {"A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "B5",
                 "C1", "C2", "C3", "D1", "D2", "D3", "E1", "E2",
                 "DC1", "DC2", "DC3", "DC4",
-                "F1", "F2", "F3", "F4", "F5"}
+                "F1", "F2", "F3", "F4", "F5", "F6"}
     assert set(ids) == erwartet
     for f in FAELLE:
         if f.get("uebersprungen"):

@@ -73,7 +73,9 @@ _HINWEIS_STERN = "* = keine offizielle deutsche Uebersetzung (einmal erlaeutern,
 GERUEST_JE_KATEGORIE: dict[str, str] = {
     "zauber": "Einordnung: Grad, Schule, Klassen. Kern: Feldzeilen Wirkzeit/Reichweite/"
               "Komponenten/Dauer, dann der Wirkungstext wortgetreu.",
-    "monster": "Einordnung: Groesse, Typ, HG. Kern: der Statblock VOLLSTAENDIG.",
+    "monster": "Einordnung: Groesse, Typ, HG - bei einer Ja/Nein-Frage zum Eintrag "
+               "stattdessen 'Ja' oder 'Nein', direkt NACH der Kopfzeile (das Emoji "
+               "bleibt das erste Zeichen). Kern: der Statblock VOLLSTAENDIG.",
     "gegenstand": "Einordnung: Typ, Seltenheit, Einstimmung ja/nein. Kern: Eigenschaften, "
                   "dann der Wirkungstext wortgetreu.",
     "spezies": "Einordnung: Kreaturentyp, Groesse, Bewegungsrate. Kern: die Merkmale als "
@@ -84,10 +86,11 @@ GERUEST_JE_KATEGORIE: dict[str, str] = {
     "hintergrund": "Einordnung: Attributswerte, Ursprungstalent. Kern: Fertigkeiten, "
                    "Werkzeug, Ausruestung.",
     "talent": "Einordnung: Talentkategorie, Voraussetzung. Kern: der Nutzen als Liste.",
-    "regel": "Einordnung: Ist die Frage eine JA/NEIN-Frage, beginnt sie mit 'Ja' oder "
-             "'Nein' - nie mit dem Regelgebiet, denn am Tisch wird genau dieses eine Wort "
-             "gebraucht; sonst das Regelgebiet. Kern: der Regeltext wortgetreu, dann "
-             "Ausnahmen.",
+    "regel": "Einordnung: Ist die Frage eine JA/NEIN-Frage, steht direkt NACH der "
+             "Kopfzeile 'Ja' oder 'Nein' - nie das Regelgebiet, denn am Tisch wird genau "
+             "dieses eine Wort gebraucht; das Emoji bleibt trotzdem das erste Zeichen "
+             "der Antwort (B12). Sonst nennt die Einordnung das Regelgebiet. Kern: der "
+             "Regeltext wortgetreu, dann Ausnahmen.",
 }
 
 # S12: aus dem EINEN Register (config/abkuerzungen.py) gebaut, nicht abgeschrieben - sonst
