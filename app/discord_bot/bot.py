@@ -490,6 +490,12 @@ class FoliantBot(discord.Client):
                     self._werkzeuge,
                     verlauf + [{"role": "user", "content": frage}],
                     system_cachen=True)
+            # Selbstanzeige (O4/M5): Ablehnung ohne Nachschlag ist regelwidrig UND fuer
+            # das Werkzeug-Protokoll unsichtbar - Begruendung in rueckmeldung.
+            if rueckmeldung.ablehnung_ohne_werkzeug(erg.text, erg.tool_namen):
+                protokoll.merke_rueckmeldung(rueckmeldung.ART_AUTO_ABLEHNUNG,
+                                             verweis=rueckmeldung.auto_verweis(frage),
+                                             frage=frage)
             fehler = antwort.fehlertext(erg.stop_grund)
             if fehler and erg.stop_grund != "max_tokens":
                 return fehler

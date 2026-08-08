@@ -26,6 +26,8 @@ from __future__ import annotations
 # Art), wie beim Bau von 👎 vorgesehen - die zweite Markierung kam damit ohne Migration aus.
 ART_RUNTER = "daumen_runter"
 ART_HOCH = "daumen_hoch"
+# Selbstanzeige des Bots, keine Spieler-Reaktion: siehe ablehnung_ohne_werkzeug().
+ART_AUTO_ABLEHNUNG = "auto_ablehnung_ohne_werkzeug"
 
 # Die zaehlenden Reaktionen. Bis 04.08.2026 war es bewusst nur EINE, mit der Begruendung:
 # zwei Emoji mit feinen Bedeutungsunterschieden muesste man erklaeren, und ein Meldeweg,
@@ -90,3 +92,26 @@ def verweis(guild_id: int, kanal_id: int, nachricht_id: int) -> str:
     Gesicht, das der Fragende danach gemacht hat. Ein abgeschriebener Auszug im Log haette
     weniger Kontext und mehr Inhalt."""
     return f"https://discord.com/channels/{guild_id}/{kanal_id}/{nachricht_id}"
+
+
+def ablehnung_ohne_werkzeug(text: str, tool_namen: list[str]) -> bool:
+    """Traegt eine fertige Antwort einen Ablehnungs-/Leerbefund-Marker, obwohl KEIN
+    Werkzeug gerufen wurde?
+
+    Discord-Befund 08.08.2026: Auf das nackte Wort 'verstecken' kam eine
+    🚫-Spoiler-Ablehnung - ohne einen einzigen Werkzeugaufruf (Repro am Pi: 1 von 4
+    Laeufen). Beide Prompt-Kanaele verbieten das seither ausdruecklich ('nie 🚫 ohne
+    Werkzeugaufruf'; ein ❌ rechtfertigt ohnehin nur eine gueltige Anfrage ohne Treffer).
+    Eine solche Antwort ist also per Definition regelwidrig - und zugleich die einzige
+    Fehlerklasse, die das Abfrage-Protokoll strukturell NICHT sieht: protokolliere()
+    haengt an den Werkzeugen, und genau die liefen nie. Deshalb meldet der Bot sie
+    selbst als Kurations-Kandidat (O4/M5), statt auf ein 👎 der Runde zu warten."""
+    return not tool_namen and ("\N{NO ENTRY SIGN}" in text or "\N{CROSS MARK}" in text)
+
+
+def auto_verweis(frage: str) -> str:
+    """Idempotenz-Schluessel der Selbstanzeige: je Frage EIN Befund, egal wie oft der
+    Fehlalarm auftritt - dieselbe Entscheidung wie bei den Daumen (zweite Markierung
+    derselben Sache ist derselbe Befund). Kein Nachrichten-Link: Die Erkennung faellt
+    VOR dem Senden, eine Message-ID gibt es noch nicht."""
+    return "auto:" + " ".join(frage.split()).lower()[:120]

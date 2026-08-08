@@ -1414,6 +1414,11 @@ def cmd_suchbericht(args) -> None:
             # 👎 wird kuriert, 👍 wird zum Regressionsschutz.
             "markiert": _markierungen(_rueckmeldung.ART_RUNTER),
             "gelobt": _markierungen(_rueckmeldung.ART_HOCH),
+            # Selbstanzeigen des Bots: Ablehnung/Leerbefund OHNE Werkzeugaufruf. Die
+            # einzige Fehlerklasse, die `abfragen` strukturell nicht sieht (die
+            # Ablehnung faellt vor jedem Werkzeugaufruf) - Befund 08.08.2026, das
+            # nackte Wort 'verstecken' bekam eine Spoiler-Ablehnung.
+            "auto_ablehnungen": _markierungen(_rueckmeldung.ART_AUTO_ABLEHNUNG),
         }
 
         if getattr(args, "json", False):
@@ -1455,6 +1460,8 @@ def cmd_suchbericht(args) -> None:
                  bericht["markiert"], "keine ✓")
         _urteile("Von der Runde gelobt (👍 in Discord - Kandidaten fuer Regressionsschutz)",
                  bericht["gelobt"], "keine")
+        _urteile("Selbstanzeige des Bots (🚫/❌ OHNE Werkzeugaufruf - regelwidrig, "
+                 "Prompt-Fall)", bericht["auto_ablehnungen"], "keine ✓")
 
         _abschnitt("Nulltreffer (Glossar-/Synonym-Kandidaten, ggf. fehlt ein Buch)",
                    bericht["nulltreffer"], "keine - alles gefunden ✓")

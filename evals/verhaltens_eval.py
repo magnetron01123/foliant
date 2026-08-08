@@ -245,6 +245,23 @@ def fehlende_statblock_sektionen(text: str, bestandsauszuege: list[str]) -> list
     return [f"Statblock-Abschnitt fehlt in der Antwort: {s!r}" for s in fehlend]
 
 
+def zu_fahrende_varianten(fall: dict, prompt_varianten: dict[str, str],
+                          modus: str) -> list[tuple[str, str]]:
+    """Welche (Variante, System)-Paare ein Fall faehrt.
+
+    'fall' (Default): genau die Variante, die der Fall deklariert - der gemessene
+    Normalzustand. 'beide': JEDER Fall laeuft gegen Konnektor- UND Discord-Prompt -
+    die Paritaetsmessung. Der Eigentuemer-Anspruch (08.08.2026) ist, dass beide Wege
+    moeglichst identisch antworten; bis dahin liess sich das nur von Hand vergleichen
+    (Review-Skript), jetzt traegt der Harness es selbst. Fehlt der Discord-Zusatz,
+    liefert systeme() nur 'standard' - dann faehrt 'beide' ehrlich nur diese."""
+    if modus == "beide":
+        return sorted(prompt_varianten.items())
+    variante = fall.get("system", "standard")
+    system = prompt_varianten.get(variante)
+    return [] if system is None else [(variante, system)]
+
+
 def pruefe_deterministisch(fall: dict, text: str, tool_namen: list[str],
                            bestandsauszuege: list[str] | None = None) -> list[str]:
     """Harte Marker-/Format-Pruefungen; leere Liste = bestanden.
@@ -368,16 +385,19 @@ async def _lauf(argv) -> int:
                                            "begruendung": fall["uebersprungen"]})
                         print(f"  ⏭️  {fall['id']}: uebersprungen")
                         continue
-                    variante = fall.get("system", "standard")
-                    system = prompt_varianten.get(variante)
-                    if system is None:
+                    paare = zu_fahrende_varianten(fall, prompt_varianten, argv.prompt)
+                    if not paare:
                         ergebnisse.append({"id": fall["id"], "status": "uebersprungen",
-                                           "begruendung": f"Prompt-Variante "
-                                                          f"'{variante}' fehlt "
-                                                          f"(config/discord_zusatz.md)"})
+                                           "begruendung": "Prompt-Variante fehlt "
+                                                          "(config/discord_zusatz.md)"})
                         print(f"  ⏭️  {fall['id']}: Prompt-Variante fehlt")
                         continue
-                    try:
+                    for variante, system in paare:
+                      # Bei '--prompt beide' unterscheidet das Suffix die Zeilen im
+                      # Report; im Normalmodus bleibt die ID unveraendert.
+                      fall_id = (fall["id"] if argv.prompt != "beide"
+                                 else f"{fall['id']}@{variante}")
+                      try:
                         # system_cachen=False: Anfrageform identisch zum gemessenen
                         # Stand (26.07.2026) - der Eval ist das Messinstrument.
                         erg = await llm.fahre_schleife(
@@ -386,39 +406,39 @@ async def _lauf(argv) -> int:
                             max_runden=_MAX_RUNDEN)
                         text, tool_namen, auszuege = (erg.text, erg.tool_namen,
                                                       erg.bestandsauszuege)
-                    except Exception as ausnahme:
+                      except Exception as ausnahme:
                         # Ein einzelner Fall darf den Lauf nicht kosten - er faellt
                         # ehrlich als 'abbruch' durch, die uebrigen laufen weiter.
-                        ergebnisse.append({"id": fall["id"], "status": "abbruch",
+                        ergebnisse.append({"id": fall_id, "status": "abbruch",
                                            "begruendung": f"{type(ausnahme).__name__}: "
                                                           f"{ausnahme}"[:300]})
-                        print(f"  💥 {fall['id']}: {type(ausnahme).__name__}")
+                        print(f"  💥 {fall_id}: {type(ausnahme).__name__}")
                         continue
-                    gruende = (pruefe_deterministisch(fall, text, tool_namen, auszuege)
+                      gruende = (pruefe_deterministisch(fall, text, tool_namen, auszuege)
                                + pruefe_geruest(text))
-                    eintrag = {"id": fall["id"], "frage": fall["frage"],
+                      eintrag = {"id": fall_id, "frage": fall["frage"],
                                "prompt": variante,
                                "tools": tool_namen, "deterministisch_gruende": gruende,
                                "antwort": text, "stop_grund": erg.stop_grund}
-                    if gruende:
+                      if gruende:
                         eintrag["status"] = "fail"
-                    elif fall.get("richter") and argv.richter == "an":
+                      elif fall.get("richter") and argv.richter == "an":
                         urteil = await _richter(http, key, argv.richter_modell,
                                                 fall["rubrik"], fall["frage"], text,
                                                 auszuege)
                         eintrag["richter_urteil"] = urteil
                         eintrag["status"] = ("pass_weich" if urteil["bestanden"]
                                              else "fail_weich")
-                    elif fall.get("richter"):
+                      elif fall.get("richter"):
                         eintrag["status"] = "pass_ungerichtet"  # Marker ok, Richter aus
-                    else:
+                      else:
                         eintrag["status"] = "pass"
-                    symbol = {"pass": "✅", "pass_weich": "✅(weich)", "fail": "❌",
+                      symbol = {"pass": "✅", "pass_weich": "✅(weich)", "fail": "❌",
                               "fail_weich": "❌(weich)",
                               "pass_ungerichtet": "✅(ohne Richter)"}
-                    print(f"  {symbol[eintrag['status']]} {fall['id']}"
+                      print(f"  {symbol[eintrag['status']]} {fall_id}"
                           + (f" - {gruende[0]}" if gruende else ""))
-                    ergebnisse.append(eintrag)
+                      ergebnisse.append(eintrag)
     finally:
         # Teilergebnisse sind wertvoll: der Report entsteht AUCH nach Strg-C oder einem
         # Fehler in der Rahmenlogik (sonst waeren die schon bezahlten Faelle verloren).
@@ -457,6 +477,9 @@ def main() -> None:
     parser.add_argument("--modell", default=os.environ.get("ANTHROPIC_MODEL")
                         or llm.STANDARD_MODELL)
     parser.add_argument("--nur", help="nur diese Fall-IDs, z. B. A1,B3")
+    parser.add_argument("--prompt", choices=("fall", "beide"), default="fall",
+                        help="'beide' faehrt JEDEN Fall gegen Konnektor- UND "
+                             "Discord-Prompt (Paritaetsmessung, doppelte Kosten)")
     parser.add_argument("--richter", choices=("an", "aus"), default="an",
                         help="LLM-Richter fuer weiche Kriterien (kostet extra Tokens)")
     parser.add_argument("--richter-modell", dest="richter_modell",
