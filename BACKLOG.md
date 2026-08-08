@@ -191,11 +191,16 @@ Funktionsumfang steht (Thread-Rebuild, `/regel-privat`, `/hilfe`, Kontextmenü,
 Entscheidungsregister ([CONCEPT.md](CONCEPT.md) §10). Offen sind nur noch die zwei Nachweise,
 die Tokens bzw. eine echte Guild brauchen:
 
-- ⬜ Eval-Lauf der DC-Fälle gegen den Pi-Vollbestand:
-  `make eval-verhalten-pi EVAL_ARGS="--nur DC1,DC2,DC3"` (kostet Tokens, deshalb gezielt).
-  Die DC-Fälle sind die ersten, die den Prompt messen, den der Bot wirklich fährt
-  (Projektanweisung **plus** `config/discord_zusatz.md`) — bisher war nur der Prompt-*Text*
-  geprüft, nicht das Verhalten.
+- ✅ **Eval-Lauf der DC-Fälle gegen den Pi-Vollbestand** — mehrfach erbracht (die
+  DC-Fälle laufen seit 06.08.2026 in jedem Volllauf mit), zuletzt als
+  **Paritäts-Baseline** (08.08.2026, `--prompt beide`: jeder der 25 ausführbaren Fälle
+  gegen Konnektor- UND Discord-Prompt). Ergebnis: **23/25 Fälle mit identischem
+  Ausgang**; nach Abzug eines Messmodus-Artefakts (das Discord-Tabellenverbot galt
+  fälschlich auch für den Konnektor — behoben) 22/25 gleich und 3 fallweise
+  Streuungsfälle, die **beide** Richtungen treffen (2× nur Discord rot, 1× nur
+  Konnektor rot) — kein systematischer Kanal-Unterschied. Der größte reale Unterschied
+  der beiden Wege bleibt das MODELL (Bot: `claude-sonnet-5` fest; Konnektor: was der
+  Client wählt) — bewusst nicht angeglichen, Kostenentscheidung des Eigentümers.
 - ✅ **`/regel`-Absturz im Kanal behoben** (Live-Befund 03.08.2026 aus dem Pi-Log): Die
   Slash-Antwort ist eine `WebhookMessage` ohne Guild-Bezug, `Message.create_thread()` warf
   dort `ValueError` **vor** jedem HTTP-Aufruf und lief am Fallback vorbei. Threads entstehen

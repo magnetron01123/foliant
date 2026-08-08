@@ -62,7 +62,18 @@ _pi-ziel:
 # passiert: der /regel-Absturz war im Repo behoben, deployt - und in Discord trotzdem
 # noch da, weil der discord-Container nie neu gebaut wurde. `--no-deps`, damit
 # depends_on nicht gateway/cloudflared mit durchstartet (Gotcha in CONCEPT.md par. 12).
-deploy-pi: _pi-ziel
+# Eval-Reports VOR dem Rebuild aus dem Container ziehen (CONCEPT.md par. 12): Sie leben
+# in /app und sterben mit dem alten Image - dabei sind sie die Kalibriergrundlage fuer
+# jedes neue Pruefmuster. Zweimal in einer Woche (07./08.08.2026) waeren sie ohne den
+# Handgriff verloren gewesen; jetzt macht ihn der Deploy selbst. Fehlertolerant (-):
+# ein frischer Container ohne Reports oder ein gestoppter Dienst bricht keinen Deploy.
+.PHONY: sichere-eval-reports-pi
+sichere-eval-reports-pi: _pi-ziel
+	-ssh $(PI) 'cd ~/foliant && rm -rf /tmp/eval-reports && docker compose cp foliant:/app/evals/ergebnisse /tmp/eval-reports' 2>/dev/null
+	-mkdir -p evals/ergebnisse/pi && scp -q '$(PI):/tmp/eval-reports/*.json' evals/ergebnisse/pi/ 2>/dev/null
+	@ls evals/ergebnisse/pi/*.json 2>/dev/null | wc -l | xargs -I{} echo "Eval-Reports gesichert (lokal gesamt: {})"
+
+deploy-pi: _pi-ziel sichere-eval-reports-pi
 	rsync -a --exclude '.git' --exclude '.venv*' --exclude 'data' --exclude 'quellen' \
 	      --exclude 'config/foliant.toml' --exclude '.env' --exclude '.claude' \
 	      ./ $(PI):~/foliant/

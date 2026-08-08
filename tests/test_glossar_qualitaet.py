@@ -222,3 +222,59 @@ def test_die_kurzhuerde_bleibt_fuer_alltagswoerter(con):
     gl.leere_cache()
     text = "The cat came to his aid, tangled in a web of lies."
     assert gl.begriffe_im_text(con, text) == []
+
+
+def _mit_srd_eintrag(con, name_de):
+    con.execute("INSERT OR IGNORE INTO quellen (kuerzel,titel,sprache,edition,herkunft,"
+                "prioritaet) VALUES ('srd-de','SRD','de','2024','pdf',10)")
+    quelle_id = con.execute("SELECT id FROM quellen WHERE kuerzel='srd-de'").fetchone()[0]
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,"
+                "body_md) VALUES (?,?,?,'de','2024','*Kontext: Regelglossar*')",
+                (quelle_id, "regel", name_de))
+    con.commit()
+
+
+def test_regelglossar_paare_nur_mit_beleg(con):
+    """Der Seeder schreibt NUR, was der srd-de-Bestand fuehrt (nicht raten) - dasselbe
+    Muster wie seed_aktionen. Ohne Beleg keine Zeile, mit Beleg eine offizielle."""
+    ig.seed_regelglossar(con)
+    con.commit()
+    gl.leere_cache()
+    assert gl.term_de(con, "Vulnerability") is None, "ohne Beleg darf nichts entstehen"
+
+    _mit_srd_eintrag(con, "Anfälligkeit")
+    ig.seed_regelglossar(con)
+    con.commit()
+    gl.leere_cache()
+    assert gl.term_de(con, "Vulnerability") == ("Anfälligkeit", True)
+
+
+def test_regelglossar_qualifikator_traegt_den_beleg(con):
+    """Bei den (Gefahr)/(Haltung)/(Wirkungsbereich)-Eintraegen ist der BELEG der volle
+    srd-de-Name, der Begriff die Basis - 'Kugel (Wirkungsbereich)' belegt das Paar
+    Sphere/Kugel. Die 89 Luecken sassen genau an dieser Trennung."""
+    _mit_srd_eintrag(con, "Kugel (Wirkungsbereich)")
+    ig.seed_regelglossar(con)
+    con.commit()
+    gl.leere_cache()
+    assert gl.term_de(con, "Sphere") == ("Kugel", True)
+
+
+def test_regelglossar_dauergaeste_bleiben_aus_dem_annotator(con):
+    """'creature', 'target', 'spell' … stehen in praktisch jedem englischen Regeltext.
+    begriffe_im_text deckelt bei 40 Treffern - die Dauergaeste wuerden die seltenen,
+    wichtigen Begriffe verdraengen. Exakte Suche: volle Nutzung; Inline: gestoppt."""
+    for name in ("Kreatur", "Ziel", "Zauber", "Anfälligkeit"):
+        _mit_srd_eintrag(con, name)
+    ig.seed_regelglossar(con)
+    con.commit()
+    gl.leere_cache()
+    text = ("The creature makes a saving throw. The target of the spell has "
+            "Vulnerability to fire damage.")
+    gefunden = {z["term_en"] for z in gl.begriffe_im_text(con, text)}
+    assert "Creature" not in gefunden and "Target" not in gefunden
+    assert "Spell" not in gefunden
+    # Der seltene Fachbegriff kommt durch - dafuer ist der Annotator da:
+    assert "Vulnerability" in gefunden
+    # Und die exakte Suche verliert nichts:
+    assert gl.term_de(con, "Creature") == ("Kreatur", True)

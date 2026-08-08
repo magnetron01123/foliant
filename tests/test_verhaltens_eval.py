@@ -270,3 +270,19 @@ def test_paritaetsmodus_faehrt_jeden_fall_in_beiden_varianten():
     # 'beide' nur das, was existiert - nie ein stiller Lauf gegen den falschen Prompt.
     assert zu_fahrende_varianten(fall, {"standard": "S"}, "fall") == []
     assert zu_fahrende_varianten(fall, {"standard": "S"}, "beide") == [("standard", "S")]
+
+
+def test_paritaetsmodus_traegt_kanalregeln_nicht_in_den_fremden_kanal():
+    """Erster Paritaetslauf (08.08.2026): DC3@standard fiel wegen einer Markdown-Tabelle
+    durch - aber das Tabellen-Verbot ist eine DISCORD-Regel (der Zusatz verbietet sie,
+    weil Discord sie nicht rendert); im Konnektor sind Tabellen korrekt. Ein Kriterium,
+    das am Kanal haengt, darf im 'beide'-Modus nicht auf die fremde Variante angewendet
+    werden - sonst misst die Paritaetsmessung ihre eigenen Artefakte."""
+    fall = dict(id="DC3", system="discord", keine_md_tabelle=True)
+    tabelle = "🎒 **Waffen**\n| Name | Schaden |\n|---|---|\n| Dolch | 1W4 |"
+    # In der DEKLARIERTEN Variante gilt das Kriterium weiter:
+    assert any("Markdown-Tabelle" in g
+               for g in pruefe_deterministisch(fall, tabelle, []))
+    # Die bereinigte Fassung fuer den fremden Kanal traegt es nicht mehr:
+    bereinigt = {k: v for k, v in fall.items() if k != "keine_md_tabelle"}
+    assert pruefe_deterministisch(bereinigt, tabelle, []) == []

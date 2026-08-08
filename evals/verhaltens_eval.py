@@ -397,6 +397,16 @@ async def _lauf(argv) -> int:
                       # Report; im Normalmodus bleibt die ID unveraendert.
                       fall_id = (fall["id"] if argv.prompt != "beide"
                                  else f"{fall['id']}@{variante}")
+                      # Kanalgebundene Kriterien gelten nur fuer die DEKLARIERTE
+                      # Variante: 'keine_md_tabelle' ist eine Discord-Regel (der Zusatz
+                      # verbietet Tabellen, weil Discord sie nicht rendert) - im
+                      # Konnektor sind sie korrekt. Der erste Paritaetslauf (08.08.2026)
+                      # warf DC3@standard genau dafuer als FAIL, obwohl die Antwort dort
+                      # regelkonform war: ein Artefakt des Messmodus, kein Verhalten.
+                      gefahren = fall
+                      if variante != fall.get("system", "standard"):
+                          gefahren = {k: v for k, v in fall.items()
+                                      if k != "keine_md_tabelle"}
                       try:
                         # system_cachen=False: Anfrageform identisch zum gemessenen
                         # Stand (26.07.2026) - der Eval ist das Messinstrument.
@@ -414,7 +424,7 @@ async def _lauf(argv) -> int:
                                                           f"{ausnahme}"[:300]})
                         print(f"  💥 {fall_id}: {type(ausnahme).__name__}")
                         continue
-                      gruende = (pruefe_deterministisch(fall, text, tool_namen, auszuege)
+                      gruende = (pruefe_deterministisch(gefahren, text, tool_namen, auszuege)
                                + pruefe_geruest(text))
                       eintrag = {"id": fall_id, "frage": fall["frage"],
                                "prompt": variante,
