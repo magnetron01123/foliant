@@ -90,6 +90,11 @@ _TRAGENDE_REGELN = [
     ("Phrase Mehrdeutigkeit (S14)", "Welchen meinst du?"),
     ("Phrase Angebot (S14)", "Sag Bescheid, wenn du"),
     ("Wiedergabetreue (S15)", "wortgetreu"),
+    # Discord-Befund 08.08.2026: Auf das nackte Wort 'verstecken' kam eine 🚫-Ablehnung
+    # OHNE Werkzeugaufruf (Repro: 1 von 4 Laeufen). Die Ablehnung faellt vor jedem
+    # Nachschlag - Kanal 3 kann hier strukturell nicht helfen, die Regel MUSS in beiden
+    # Prompt-Kanaelen stehen: Ein nackter Begriff ist eine Nachschlage-Anfrage.
+    ("Ein-Wort ist Nachschlage-Anfrage", "NACHSCHLAGE-ANFRAGE"),
 ]
 
 
