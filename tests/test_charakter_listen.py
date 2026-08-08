@@ -322,3 +322,16 @@ def test_jede_optionsliste_erklaert_die_kurzzeile(bestand):
         hinweis = antwort.get("hinweis_kurz", "")
         assert "DEUTSCH" in hinweis, f"{kategorie}: keine Deutsch-Regie zur Kurzzeile"
         assert "S3" in hinweis, kategorie
+
+
+def test_jede_optionsliste_traegt_die_kopfzeilen_regel(bestand):
+    """Ueber vier Volllaeufe (07./08.08.2026) stammten die wiederkehrenden
+    Geruest-Verstoesse (C3, DC4) aus Listen-Antworten - foliant_liste_optionen war der
+    einzige Auskunftsweg ohne die Kopfzeilen-Regel. Dieselbe Lueckenklasse wie bei der
+    Mehrdeutigkeit: Der Hinweis hing an einem Werkzeug, das diese Antworten nie liefert."""
+    for kategorie in ("klasse", "spezies", "hintergrund", "talent"):
+        hinweis = ch.foliant_liste_optionen(kategorie).get("hinweis_darstellung", "")
+        assert "B12" in hinweis or "⚔️" in hinweis, f"{kategorie}: keine Kopfzeilen-Regel"
+    # Die Klassenliste muss zusaetzlich das Datenlage-/Feldnamen-Verbot tragen (C3-Befund).
+    klassenhinweis = ch.foliant_liste_optionen("klasse")["hinweis_darstellung"]
+    assert "inhaltsart" in klassenhinweis and "Datenlage" in klassenhinweis

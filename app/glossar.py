@@ -359,6 +359,18 @@ def markiere(begriff_de: str, term_en: str, offiziell: bool) -> str:
 # Rauschen erzeugen.
 _MIN_LEMMA = 4
 
+# Zwei kuratierte 2024-Fachbegriffe sind KUERZER als die Huerde und deshalb bis zum
+# 08.08.2026 nie beim Modell angekommen: die Meisterschaftseigenschaften 'Sap' und 'Vex'.
+# Folge im Review-Lauf: Die Langschwert-Auskunft erfand 'Schwächung*' statt des amtlichen
+# 'Auslaugen' - obwohl das Paar seit jeher im Glossar steht.
+#
+# Am Vollbestand nachgemessen, bevor die Ausnahme entstand: 'Vex' kommt 25-mal vor,
+# ausnahmslos als Waffeneigenschaft. 'Sap' 27-mal, davon 26-mal als Eigenschaft und GENAU
+# EINMAL als Verb ("sap the confidence", College of Lore). Diese eine Fehlstelle ist der
+# bewusste Preis fuer 26 richtige Fachbegriffe - die Huerde selbst bleibt, sie schuetzt
+# vor 'Age', 'Aid', 'Cat', 'Net' und den uebrigen Alltagswoertern.
+_KURZE_FACHLEMMATA = frozenset({"sap", "vex"})
+
 # Die eine Ausnahme davon: ABKUERZUNGEN (Glossar-Zeilen aus `config/abkuerzungen.py`,
 # quelle='abkuerzung'). Der Grund fuer die Schwelle greift bei ihnen nicht - 'AC', 'DC',
 # 'HP' sind keine Alltagswoerter, sondern Grossbuchstaben-Kuerzel, die typisch vor einer
@@ -402,6 +414,13 @@ _HOMONYM_STOP = frozenset({
     # Suche darf sie nutzen, nie der kontextfreie Inline-Annotator
     "attack", "dash", "disengage", "dodge", "help", "hide", "influence", "magic", "search",
     "study", "utilize",
+    # Waffeneigenschaften, deren englisches Lemma im Regeltext etwas ANDERES meint
+    # (08.08.2026): 'Reach' steht in jedem Statblock fuer die Reichweite eines Angriffs,
+    # nicht fuer die Waffeneigenschaft 'Weitreichend'; 'Heavy' traegt jede schwere
+    # Ruestung. Der Inline-Annotator haette dem Modell dort den falschen Fachbegriff
+    # untergeschoben. Die EXAKTE Suche nutzt beide Paare weiterhin voll - genau dafuer
+    # stehen sie im Glossar.
+    "reach", "heavy",
 })
 
 
@@ -429,7 +448,8 @@ def begriffe_im_text(con: sqlite3.Connection, text: str, *,
         if not en:
             continue
         ist_abk = (z["quelle"] or "") == _ABKUERZUNGS_QUELLE
-        if not ist_abk and (len(en) < _MIN_LEMMA or en.lower() in _HOMONYM_STOP):
+        zu_kurz = len(en) < _MIN_LEMMA and en.lower() not in _KURZE_FACHLEMMATA
+        if not ist_abk and (zu_kurz or en.lower() in _HOMONYM_STOP):
             continue
         if nur_offiziell and not z["offiziell"]:
             continue

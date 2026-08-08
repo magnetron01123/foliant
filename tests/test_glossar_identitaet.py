@@ -302,3 +302,42 @@ def test_gekuerztes_suffix_raet_keine_uebersetzung(bestand_mit_zusatz):
     for name in revisionen:
         assert "Fell" not in name, f"geratene Uebersetzung: {name!r}"
         assert name == "Hide", name          # blank statt geraten (Regel 1)
+
+
+def test_suche_erkennt_mehrdeutigkeit_ueber_beide_namensfelder(tmp_path, monkeypatch):
+    """Review-Lauf 08.08.2026, der einzige SYSTEMATISCHE Rest: Auf 'Was macht Schild?'
+    (Zauber ODER Rüstungsteil) begann die Antwort viermal von vier mit Fließtext statt ❓.
+
+    Der Mehrdeutigkeits-Hinweis hing nur am DETAILABRUF - diese Antworten entstehen aber
+    aus der Trefferliste, die ihn nie sah. Jetzt erkennt die Suche den Fall an den Daten.
+
+    Beide Namensfelder müssen zählen: Der Zauber heißt 'Schild', der Gegenstand trägt nur
+    'Shield'. Der erste Anlauf verglich `name_de or name_en` und fand deshalb nichts."""
+    import sqlite3
+
+    from app.tools import suche as su2
+
+    pfad = tmp_path / "mehrdeutig.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(_SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,"
+                "prioritaet) VALUES ('srd-de','SRD','de','2024','pdf','CC-BY-4.0',10)")
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,body_md)"
+        " VALUES (1,?,?,?,'de','2024',?)",
+        [("zauber", "Schild", "Shield", "*Kontext: Zauber*\n\nEine Reaktion erhöht die RK."),
+         # Der Gegenstand traegt NUR den englischen Namen - genau die reale Konstellation.
+         ("gegenstand", None, "Shield", "*Kontext: Ausrüstung*\n\nEin Schild gibt +2 RK."),
+         ("zauber", "Feuerball", "Fireball", "*Kontext: Zauber*\n\n8W6 Feuerschaden.")])
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+
+    hinweis = su2.foliant_suche_bestand("Schild").get("hinweis_mehrdeutig", "")
+    assert "MEHRDEUTIG" in hinweis and "❓" in hinweis, hinweis
+    assert "Welchen meinst du?" in hinweis
+    # Gegenprobe: ein eindeutiger Begriff darf den Hinweis NICHT tragen, sonst fragt der
+    # Bot bei jeder zweiten Auskunft zurueck.
+    assert "hinweis_mehrdeutig" not in su2.foliant_suche_bestand("Feuerball")

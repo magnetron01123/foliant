@@ -150,3 +150,75 @@ def test_geprueftes_homonym_bleibt_von_kanonisierung_unberuehrt(con):
     offizielle = {r[0] for r in con.execute(
         "SELECT term_de FROM glossar WHERE lower(term_en)='hide' AND offiziell=1")}
     assert offizielle == {"Fell", "Verstecken"}
+
+
+def test_waffeneigenschaften_sind_offiziell_gepaart(con):
+    """Review-Befund 08.08.2026: Die Langschwert-Auskunft schrieb „Vielseitig*" — der Stern
+    behauptet „keine offizielle deutsche Übersetzung", dabei steht jede Waffeneigenschaft
+    als eigener srd-de-Eintrag unter „Ausrüstung > Waffen > Eigenschaften". Ein falscher
+    Stern ist eine falsche Aussage über den Bestand.
+
+    Die acht Meisterschaftseigenschaften waren längst gepaart — die Waffeneigenschaften
+    waren die vergessene Schwesterliste."""
+    ig.seed_kern_singulare(con)
+    con.commit()
+    gl.leere_cache()
+    for term_en, term_de in (("Versatile", "Vielseitig"), ("Finesse", "Finesse"),
+                             ("Heavy", "Schwer"), ("Loading", "Laden"),
+                             ("Ammunition", "Geschosse"), ("Thrown", "Wurfwaffe"),
+                             ("Two-Handed", "Zweihändig"), ("Reach", "Weitreichend")):
+        assert gl.term_de(con, term_en) == (term_de, True), term_en
+
+
+def test_light_bleibt_der_zauber(con):
+    """'Light' darf NICHT zusätzlich auf 'Leicht' zeigen: Das Glossar führt den Zauber
+    Licht, und ein zweites Paar machte das Lemma mehrdeutig — `term_de` nähme die erste
+    Zeile. Dieselbe Falle, die aus einem Errata-Verweis 'Fell (Hide)' machte."""
+    paare = {(en, de) for en, de, _ed in ig.KERN_SINGULAR_PAARE}
+    assert ("Light", "Leicht") not in paare
+    assert not [de for en, de in paare if en == "Light"], "Light gehoert dem Zauber"
+
+
+def test_statblock_lemmata_bleiben_aus_dem_inline_annotator(con):
+    """'Reach' steht in JEDEM Statblock für die Reichweite eines Angriffs, nicht für die
+    Waffeneigenschaft 'Weitreichend'; 'Heavy' trägt jede schwere Rüstung. Beide sind als
+    Paar richtig und im Fließtext gefährlich — deshalb Homonym-Stopp: exakte Suche ja,
+    Inline-Annotation nein."""
+    ig.seed_kern_singulare(con)
+    con.commit()
+    gl.leere_cache()
+    text = "Melee Attack Roll: +7, Reach 10 ft. The knight wears Heavy armor."
+    gefunden = {z["term_en"] for z in gl.begriffe_im_text(con, text)}
+    assert "Reach" not in gefunden and "Heavy" not in gefunden, gefunden
+    # Die exakte Suche muss sie trotzdem aufloesen - dafuer stehen sie im Glossar:
+    assert gl.term_de(con, "Reach") == ("Weitreichend", True)
+
+
+def test_kurze_meisterschaftsnamen_erreichen_das_modell(con):
+    """Review-Befund 08.08.2026: Die Langschwert-Auskunft erfand „Schwächung*" statt des
+    amtlichen „Auslaugen" — obwohl das Paar Sap→Auslaugen seit jeher im Glossar steht.
+
+    Ursache: `_MIN_LEMMA = 4` hält kurze englische Lemmata aus dem Inline-Annotator
+    heraus (richtig für „Age", „Aid", „Cat", „Net") — und traf damit auch die
+    dreibuchstabigen Meisterschaftseigenschaften Sap und Vex. Die Hürde bleibt, die zwei
+    kuratierten Fachbegriffe sind die belegte Ausnahme."""
+    ig.seed_kern_singulare(con)
+    con.commit()
+    gl.leere_cache()
+    text = ("**Mastery — Sap.** If you hit a creature with this weapon, that creature has "
+            "Disadvantage on its next attack roll. The Dagger has the Vex property.")
+    gefunden = {z["term_en"]: z["term_de"] for z in gl.begriffe_im_text(con, text)}
+    assert gefunden.get("Sap") == "Auslaugen", gefunden
+    assert gefunden.get("Vex") == "Plagen", gefunden
+
+
+def test_die_kurzhuerde_bleibt_fuer_alltagswoerter(con):
+    """Die Ausnahme darf nicht zur Regel werden: 'Aid', 'Web' und Co. sind der Grund,
+    warum es die Hürde überhaupt gibt."""
+    for term_en, term_de in (("Aid", "Beistand"), ("Web", "Spinnennetz"),
+                             ("Cat", "Katze")):
+        ig._upsert(con, term_en, term_de, 1, "Spielerhandbuch", "2024", None)
+    con.commit()
+    gl.leere_cache()
+    text = "The cat came to his aid, tangled in a web of lies."
+    assert gl.begriffe_im_text(con, text) == []

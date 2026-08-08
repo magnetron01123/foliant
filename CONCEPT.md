@@ -956,6 +956,8 @@ läuft ohne Änderung weiter.
 | **Errata/Auslegung als `inhaltsart`-Werte, nicht als neue Spalte** (31.07.2026) | Die Pipeline gibt es schon: Config-Pflichtfeld → Validator in `registriere_quelle` → DB → Web-Export → Tool-Ausgabe (SYN-P0-007). Eine eigene Spalte hätte jede dieser Stationen neu verkabeln müssen, und semantisch ist es dieselbe Achse: *was für eine Art Inhalt ist diese Quelle?* Der Spoiler-Schutz bleibt unberührt, weil alle Auswerter auf `== 'abenteuer_setting'` prüfen — die eine Ausnahme (`web.py`, `!= 'abenteuer_setting'`) wurde auf eine Positivliste umgestellt |
 | **Sage Advice trägt `edition = "2014"`** | Das Compendium legt ausschließlich die 2014er Regeln aus; für 2024 gibt es keinen Nachfolger. Gewollte Folge: bei der Standardsuche erscheinen seine Treffer unter `andere_editionen` statt als vermeintliches 2024-Ruling. Der Auto-Import lehnt den Band weiter ab (seine DDB-Kategorie trägt kein 5e/5.5e-Präfix) — der explizite `[[ddb.buch]]`-Block ist der Weg, weil dort die Edition **gesetzt** und nicht geraten wird |
 | **Errata-Lizenz nicht „CC-BY…"** | Die Errata-PDFs sind frei verteilt, aber nicht frei lizenziert. Der Präfix `CC-BY` löst in `app/tools/ausgabe.py` automatisch die SRD-Attribution aus — sie hier anzuhängen wäre eine falsche Rechtsaussage |
+| **Antwortgerüst wird gemessen, nicht begutachtet** (07./08.08.2026) | Der LLM-Richter lag bei Strukturfragen in 2 von 3 Urteilen falsch, während der echte Verstoß unbemerkt in derselben Antwort stand — Struktur ist messbar (`pruefe_geruest`), der Richter behält nur Weiches. Drei Folge-Lehren aus derselben Woche: (1) Jedes neue Prüfmuster wird erst an den gespeicherten Antworten bezahlter Läufe kalibriert (vier von fünf F2-Fehlschlägen waren Fehlalarme des Musters, nicht des Modells). (2) Ein Kanal-3-Hinweis wirkt nur am Werkzeug, das die Antwort tatsächlich liefert — die „Rest-Streuung" waren Listen-Antworten, und die Optionslisten trugen als einziger Weg die Kopfzeilen-Regel nicht. (3) Wo eine Regel zweimal nicht wirkt, wirkt ein wörtliches Muster-Beispiel (DC4: 2/3 rot → 5/5 grün) |
+| **`max_tokens` 8000 + Runden-Cap-Schlussrunde ohne Werkzeuge** (08.08.2026) | Seit B15 setzt eine Unterklassen-Auskunft fünf Stufen-Merkmale zu EINER Antwort zusammen — die riss bei 4000 und 6000 jeweils kurz vor der Pflicht-Belegzeile ab. Und am Rundendeckel kam vorher eine LEERE Antwort zurück: acht Runden bezahlte Recherche, nichts geliefert. Die Schlussrunde geht ohne `tools` raus und braucht den expliziten Auftrag — ohne ihn produzierte das Modell einen Denkblock und keinen Text |
 
 ### Entscheidung: Bekannte Quellfehler kennzeichnen, nie korrigieren (03.08.2026)
 
@@ -1227,12 +1229,16 @@ ehrliches „nicht gefunden".
 
 **Dritte Prüfschicht, werkzeuggestützt:** `python -m evals.verhaltens_eval` fährt die
 §2-Fälle gegen die echte Claude-API mit den echten Tools (in-process `fastmcp.Client`,
-System-Prompt = der §8-Block aus SPEC.md, eine Quelle). Deterministische Marker-/
-Format-Grader; weiche Kriterien (C3, D1 …) optional per LLM-Richter, im Report als
-`weich` gekennzeichnet. **Bewusst NICHT in `make test`** — kostet API-Tokens (~15 Fälle
-× 3–5 Runden, niedrige einstellige Dollar). Report nach `evals/ergebnisse/` (gitignored)
-mit den §2-Pflichtfeldern Datum/Modell/`inhalts_hash`; am Subset markiert er
-`korpus: lokal (Subset?)` — beweiskräftig ist der Pi-Lauf:
+System-Prompt aus `config/projektanweisung.md` — dieselbe Leseestelle wie Website und
+Kanal-Sync-Test; die DC-Fälle fahren zusätzlich den Discord-Zusatz). Der deterministische
+Grader ist zweistufig: fallspezifische Marker (`pruefe_deterministisch`, inkl. Opt-in
+`statblock_vollstaendig`) plus das Antwortgerüst für **jede** Antwort (`pruefe_geruest`:
+Kopf-Emoji, Meta-Verbotsliste, Beleg zuletzt, ein Angebot). Der LLM-Richter bewertet nur
+noch, was sich nicht messen lässt (Wiedergabetreue, Spoiler-Feinheiten) — Struktur wird
+gemessen, nicht begutachtet (Register §10). **Bewusst NICHT in `make test`** — kostet
+API-Tokens (24 ausführbare Fälle × 3–5 Runden, niedrige einstellige Dollar). Report nach
+`evals/ergebnisse/` (gitignored) mit den §2-Pflichtfeldern Datum/Modell/`inhalts_hash`;
+am Subset markiert er `korpus: lokal (Subset?)` — beweiskräftig ist der Pi-Lauf:
 ```
 ANTHROPIC_API_KEY=sk-… make eval-verhalten-pi
 ```
@@ -1258,6 +1264,12 @@ Kuratiert. Quellen-spezifische Eigenheiten stehen im Modul-Docstring des jeweili
 Importers (`importer/import_open5e.py` für die Open5e-API, `importer/import_markdown.py`
 für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de).
 
+- **Eval-Reports leben IM Container und überleben `make deploy-pi` nicht.** Sie sind aber
+  die einzige Kalibriergrundlage: Neue Prüfmuster laufen erst gegen die `antwort`-Felder
+  bezahlter Läufe, bevor sie Code werden (Fehlalarm-Reihe A3 → B1 → F2). Vor jedem Deploy,
+  auf den ein Eval-Vergleich folgen soll:
+  `docker compose cp foliant:/app/evals/ergebnisse …` → lokal nach
+  `evals/ergebnisse/pi/` (gitignored). Zweimal in einer Woche wären sie sonst weg gewesen.
 - **pymupdf4llm OCRt textlose Seiten STILL, sobald Tesseract installiert ist** →
   `use_ocr=False` in `pdf_nach_markdown` ist Pflicht und gesetzt; OCR nur über die Vorstufe.
 - **Eine Struktur-Reparatur wird über den KAPITELBEREICH begrenzt, nicht über den Inhalt.**

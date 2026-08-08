@@ -84,8 +84,10 @@ GERUEST_JE_KATEGORIE: dict[str, str] = {
     "hintergrund": "Einordnung: Attributswerte, Ursprungstalent. Kern: Fertigkeiten, "
                    "Werkzeug, Ausruestung.",
     "talent": "Einordnung: Talentkategorie, Voraussetzung. Kern: der Nutzen als Liste.",
-    "regel": "Einordnung: die direkte Antwort (Ja/Nein/Bedingung) bzw. das Regelgebiet. "
-             "Kern: der Regeltext wortgetreu, dann Ausnahmen.",
+    "regel": "Einordnung: Ist die Frage eine JA/NEIN-Frage, beginnt sie mit 'Ja' oder "
+             "'Nein' - nie mit dem Regelgebiet, denn am Tisch wird genau dieses eine Wort "
+             "gebraucht; sonst das Regelgebiet. Kern: der Regeltext wortgetreu, dann "
+             "Ausnahmen.",
 }
 
 # S12: aus dem EINEN Register (config/abkuerzungen.py) gebaut, nicht abgeschrieben - sonst
@@ -116,9 +118,12 @@ HINWEIS_KOPFZEILE = (
     "davor - keine Einleitung, keine Zwischenmeldung ueber die Suche, kein 'Hier ist' "
     "und kein 'Alle Belege liegen vor' (S13). Auch eine ZAEHLUNG ist so ein Satz: "
     "'Alle neun Eigenschaften ...' gehoert in die Einordnung NACH der Kopfzeile "
-    "(B12 Slot 3), nie davor. Kategorie-Emoji (📜 Regel · 🪄 Zauber · "
+    "(B12 Slot 3), nie davor. Dasselbe gilt fuer einen TEIL-Befund: 'Zu X selbst gibt "
+    "es keinen Eintrag, aber ...' beginnt trotzdem mit der Kopfzeile des Gefundenen - "
+    "die Luecke steht in der Einordnung. Kategorie-Emoji (📜 Regel · 🪄 Zauber · "
     "🐉 Monster · 🎒 Gegenstand · 🧝 Spezies · ⚔️ Klasse · 🏕️ Hintergrund · ✨ Talent) "
-    "bei einer Auskunft, ❓ bei einer Rueckfrage, ❌ ohne Treffer. Der NAME kommt woertlich "
+    "bei einer Auskunft, ❓ bei einer Rueckfrage, ❌ ohne Treffer - ANDERE Emojis gibt es "
+    "nicht, auch kein thematisch passendes. Der NAME kommt woertlich "
     "aus 'anzeige_name' - das englische Original steht dort schon, ein zweites Klammerpaar "
     "gehoert nie dahinter. Ein 'namenszusatz' ist das Unterscheidungsmerkmal (B4), nicht "
     "Teil des Namens. Am ENDE gilt dieselbe Reihenfolge wie im Detailabruf: hoechstens "
@@ -128,6 +133,39 @@ HINWEIS_KOPFZEILE = (
 # Das eckige Klammer-Suffix der DDB-Regelglossar-Namen ('Hide \[Action]',
 # 'Blinded \[Condition]') - im Markdown escaped, deshalb der optionale Backslash.
 _ECKIGES_SUFFIX = __import__("re").compile(r"\\?\[[^\]]{1,24}\\?\]\s*$")
+
+
+def markiere_mehrdeutige_treffer(antwort: dict, treffer: list[dict]) -> None:
+    """Tragen mehrere Treffer DENSELBEN Namen in verschiedenen Kategorien, ist die Frage
+    mehrdeutig - und die Antwort ist eine Rueckfrage, keine Auskunft.
+
+    Der Review-Lauf 08.08.2026 zeigte das als einzigen SYSTEMATISCHEN Rest: Auf 'Was macht
+    Schild?' (Zauber ODER Ruestungsteil) begann die Antwort viermal von vier mit einem
+    Fliesstext-Satz statt mit ❓. Inhaltlich waren die Antworten gut - nur die Kopfzeile
+    fehlte. Der Grund liegt auf der Hand: Der Mehrdeutigkeits-Hinweis haengt am
+    DETAILABRUF, und diese Antworten entstehen aus der Trefferliste, die ihn nie sah.
+
+    Deshalb erkennt die Suche den Fall jetzt selbst - an den Daten, nicht per Prompt-Regel:
+    gleicher normalisierter Name, verschiedene Kategorien."""
+    # BEIDE Namensfelder zaehlen: Der Zauber heisst 'Schild', der Ruestungsgegenstand
+    # traegt nur 'Shield'. Wer nur `name_de or name_en` vergleicht, sieht zwei
+    # verschiedene Schluessel und findet die Mehrdeutigkeit nie (erster Anlauf, 08.08.2026).
+    nach_namen: dict[str, set[str]] = {}
+    anzeige: dict[str, str] = {}
+    for t in treffer:
+        for feld in ("name_de", "name_en"):
+            name = _glossar.norm_begriff(t.get(feld) or "")
+            if name:
+                nach_namen.setdefault(name, set()).add(t.get("kategorie") or "")
+                anzeige.setdefault(name, t.get(feld))
+    doppelt = sorted(anzeige[n] for n, kategorien in nach_namen.items()
+                     if len(kategorien) > 1)
+    if doppelt:
+        antwort["hinweis_mehrdeutig"] = (
+            f"MEHRDEUTIG: {', '.join(doppelt)} kommt in mehreren Kategorien vor. Das ist "
+            f"eine Rueckfrage, keine Auskunft (B4): Kopfzeile mit ❓, dann je Kandidat EINE "
+            f"Zeile mit seinem Unterscheidungsmerkmal (Kategorie/Quelle/Version), Abschluss "
+            f"woertlich 'Welchen meinst du?'. Kein Satz vor der Kopfzeile.")
 
 
 def _ohne_eckiges_suffix(name: str | None) -> str | None:
