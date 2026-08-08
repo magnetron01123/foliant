@@ -1,7 +1,7 @@
 # Foliant — Spezifikation (das verbindliche „Was")
 
 **D&D-5e-Regelassistent (Fassung 2024), Deutsch-first · self-hosted MCP-Server**
-**Rev. 10 · Stand: 06.08.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
+**Rev. 10 · Stand: 08.08.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
 Widersprüche aufgelöst, Charakterbogen-Übersetzer aufgenommen; Rev. 10: Datenqualitäts-Schicht
 — S12, V9, V10, B11 — und die Nummerierung aus Rev. 8 geheilt)*
 
@@ -264,7 +264,10 @@ Buch-Datenbank, bei PDFs pro Buch explizit gesetzt. Unklar = **nicht importieren
 
   Auch ❌ (nicht im Bestand), 🚫 (Spoiler/Umfang), ❓ (Mehrdeutigkeit, B4), breite
   Listenfragen, Ableitungen aus mehreren Regeln und 🌐 (Web-Fallback) sind Instanzen
-  desselben Gerüsts — mit Status-Emoji in der Kopfzeile und entfallenden Slots.
+  desselben Gerüsts — mit Status-Emoji in der Kopfzeile und entfallenden Slots. **Auch
+  Gesprächszüge, die keine Auskunft sind** — Rückfragen (❓) und die Schritte der
+  Charaktererstellung (B7) — tragen das Gerüst; „jede Antwort" kennt keine Ausnahme,
+  sonst wäre die Regel nicht prüfbar.
 - **B13 — Meta-Verbot: die Antwort handelt vom Spiel, nie vom Nachschlagewerk.** Keine
   Aussagen über die Sprache der Quelle, den Suchvorgang, Werkzeuge oder die Eintrags- und
   Bestandsstruktur — die Sprachherkunft zeigt allein die `*`-Fußnote; einzige Ausnahme ist

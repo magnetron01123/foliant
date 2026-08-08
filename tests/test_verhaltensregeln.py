@@ -172,6 +172,24 @@ _GROUNDING_HINWEISE = [
      ["EIN Ergebnis", "B15"]),
     ("Zauber-Geruest ist wortgetreu", aus.GERUEST_JE_KATEGORIE["zauber"],
      ["wortgetreu", "Feldzeilen"]),
+    # B3-Thema (07.08.2026): Dass ein Statblock VOLLSTAENDIG kommt, ist die Zusage, an
+    # der sich der Eval-Fall B3 misst - und sie war als einzige Kategorie-Zeile
+    # ungeschuetzt.
+    ("Monster-Geruest fordert Vollstaendigkeit", aus.GERUEST_JE_KATEGORIE["monster"],
+     ["VOLLSTAENDIG", "HG"]),
+    # Die zwei Hinweise der Optionslisten. Der Menue-Hinweis war bis zum 07.08.2026 ein
+    # Dict-Literal und damit der einzige tragende Grounding-Hinweis ohne Waechter.
+    ("Klassenliste antwortet als Menue", ch._HINWEIS_KLASSENMENUE,
+     ["MENUE", "kurz", "B1"]),
+    ("Kurzzeile wird deutsch wiedergegeben", ch._HINWEIS_KURZ, ["DEUTSCH", "S3", "B1"]),
+    # Antworten aus einer Trefferliste sahen keinen der situativen Hinweise - genau dort
+    # fehlte im Pi-Lauf 07.08.2026 zweimal die Kopfzeile (breite Listenfrage, Rueckfrage).
+    # Discord-Befund 08.08.2026: 'Verstecken (Aktion) (Hide [Action])'. Das Modell setzte
+    # die Kopfzeile selbst zusammen und holte sich das Englisch aus der Errata-Revision.
+    # Seither sagen beide Darstellungs-Hinweise, dass der Name woertlich aus
+    # 'anzeige_name' kommt - diese Zusage darf nicht wieder verschwinden.
+    ("Trefferliste nennt die Kopfzeilen-Regel", aus.HINWEIS_KOPFZEILE,
+     ["B12", "❓", "❌", "woertlich", "namenszusatz"]),
 ]
 
 

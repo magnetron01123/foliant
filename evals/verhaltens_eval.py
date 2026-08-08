@@ -36,7 +36,7 @@ import httpx
 
 from app import llm
 from config import stil
-from evals.faelle import FAELLE
+from evals.faelle import FAELLE, KOPF_ANKER
 
 _PROJEKT = Path(__file__).resolve().parents[1]
 _ERGEBNISSE = Path(__file__).resolve().parent / "ergebnisse"
@@ -51,6 +51,66 @@ _RICHTER_MODELL = "claude-haiku-4-5-20251001"
 # (Bug-Fix 06.08.2026: der Name wurde benutzt, war aber nie definiert - JEDER Fall
 # endete als NameError-'abbruch', der Harness konnte keinen einzigen Pass liefern.)
 _MAX_RUNDEN = 8
+
+# B13-Verbotsliste: NUR Feld- und Werkzeugnamen aus den Tool-Ausgaben. Kein legitimer
+# Antworttext nennt je einen Payload-Schluessel - deshalb sind sie sicher zu bannen.
+#
+# Was hier bewusst NICHT steht, jeweils mit Beleg: 'Bestand' (steht in der ❌-, der ⚠️-
+# und der 🌐-Pflichtphrase), 'Quelle' (in der Belegzeile), 'Werkzeug' (D&D-Fachbegriff,
+# das Hintergrund-Geruest verlangt es), 'Suche/suchen' (die Suchen-Aktion ist eine
+# 2024-Regel), 'Treffer' (Statblock-Schadenszeilen), 'deutsch/englisch/Uebersetzung/
+# Fassung' (die *-Fussnote lautet woertlich "keine offizielle deutsche Uebersetzung",
+# und Fall D3 VERLANGT, DE- und EN-Fassung zu nennen). Die snake_case-Form bannen, nie
+# das Wort: 'abenteuer_setting' ja, 'Abenteuer-Setting' nein.
+META_VERBOTEN = (
+    r"foliant_[a-z_]+", r"hinweis_[a-z_]+", r"eintrag_id", r"quelle_kuerzel",
+    r"regeltext_md", r"body_md", r"begriffe_deutsch", r"fremdsprachige_fassungen",
+    r"konflikt_quellen", r"inhaltsart", r"abenteuer_setting", r"nur_im_text",
+    r"weitere_fundstellen", r"anzeige_name", r"\*Kontext:",
+    r"Datenbank", r"Unterabschnitt", r"Datenlage", r"(Werkzeug|Tool)-?[Aa]usgabe",
+    r"[Ii]ch habe (nach)?ge(sucht|schaut)", r"[Ii]ch (suche|schaue nach)",
+)
+# Die eine Phrase, mit der eine Antwort weiterfuehrt (S14) - hoechstens einmal (B16).
+ANGEBOT = "Sag Bescheid, wenn du"
+FUSSNOTE = "keine offizielle deutsche Übersetzung"
+
+
+def beleg_steht_zuletzt(text: str) -> bool:
+    """Traegt die LETZTE nicht-leere Zeile den Beleg (B12 Slot 5)?
+
+    Zeilenbasiert und nicht zeichengenau: Die Kalibrierung an echten Antworten
+    (06.08.2026) zeigte eine Menue-Antwort mit DREI Belegzeilen, deren letzte je Quelle
+    einen Zusatz traegt ('… Regelversion: 2024 (Untoter Schutzherr)'). Mehrere
+    📖-Zeilen sind nach B12 ausdruecklich erlaubt; ein Anker, der ein Ende direkt nach
+    der Jahreszahl verlangt, waere ein Fehlalarm der Klasse A3/B1/F2 gewesen."""
+    zeilen = [z for z in text.splitlines() if z.strip()]
+    return bool(zeilen) and "📖" in zeilen[-1]
+
+
+def pruefe_geruest(text: str) -> list[str]:
+    """Was fuer JEDE Antwort gilt (B12/B13/B16) - unabhaengig davon, was der Fall
+    erklaert hat. Bewusst eine EIGENE Funktion neben pruefe_deterministisch: die
+    Faelle dort beschreiben ihre eigenen Erwartungen, hier steht der Vertrag, den
+    das Antwortgeruest allen Antworten auferlegt.
+
+    Warum ueberhaupt deterministisch: Bis zum 06.08.2026 beurteilte das der
+    LLM-Richter. Im Volllauf lag er bei zwei von drei Beanstandungen falsch, waehrend
+    der tatsaechliche Verstoss unbemerkt in derselben Antwort stand (D1 eroeffnete mit
+    einer Meta-Aussage vor der Kopfzeile, C3 zitierte einen Feldnamen). Struktur ist
+    messbar - dann soll sie gemessen und nicht begutachtet werden."""
+    gruende: list[str] = []
+    if not re.match(KOPF_ANKER, text):
+        gruende.append(f"Kopfzeile ohne Katalog-Emoji (B12 Slot 1): {text[:60]!r}")
+    for muster in META_VERBOTEN:
+        if re.search(muster, text):
+            gruende.append(f"Werkzeug-/Feldname in der Antwort (B13): {muster!r}")
+    if "📖" in text and not beleg_steht_zuletzt(text):
+        gruende.append("Belegzeile ist nicht die letzte Zeile (B12 Slot 5)")
+    if text.count(ANGEBOT) > 1:
+        gruende.append(f"{text.count(ANGEBOT)} Angebote statt hoechstens einem (B16)")
+    if FUSSNOTE in text and "📖" in text and text.index(FUSSNOTE) > text.index("📖"):
+        gruende.append("*-Fussnote steht hinter der Belegzeile (B12 Slot 5)")
+    return gruende
 
 
 def projektanweisung() -> str:
@@ -98,8 +158,99 @@ def systeme() -> dict[str, str]:
     return varianten
 
 
-def pruefe_deterministisch(fall: dict, text: str, tool_namen: list[str]) -> list[str]:
-    """Harte Marker-/Format-Pruefungen; leere Liste = bestanden."""
+# Statblock-Sektionen, kuratiert statt generisch extrahiert. Das Vokabular deckt 100 %
+# der echten Ueberschriften im Bestand ab (srd-de setzt '######', open5e '####') und
+# ignoriert damit automatisch die rund 20 fehlgeparsten Zeilen der Art
+# '###### **Resistenzen** Kaelte', die eine generische Header-Suche als Sektion zaehlte.
+# Je Eintrag: (Ueberschrift im Auszug, im Antworttext akzeptierte Formen).
+_STATBLOCK_SEKTIONEN = (
+    ("Legendäre Aktionen", ("Legendäre Aktionen", "Legendary Actions")),
+    ("Legendary Actions", ("Legendäre Aktionen", "Legendary Actions")),
+    ("Bonusaktionen", ("Bonusaktionen", "Bonus-Aktionen", "Bonus Actions")),
+    ("Bonus Actions", ("Bonusaktionen", "Bonus-Aktionen", "Bonus Actions")),
+    ("Reaktionen", ("Reaktionen", "Reactions")),
+    ("Reactions", ("Reaktionen", "Reactions")),
+    ("Merkmale", ("Merkmale", "Eigenschaften", "Traits")),
+    ("Traits", ("Merkmale", "Eigenschaften", "Traits")),
+    ("Aktionen", ("Aktionen", "Actions")),
+    ("Actions", ("Aktionen", "Actions")),
+)
+# Bewusst KLEIN: uebersprungen werden soll nur, was WIRKLICH leer ist (der verlorene
+# Solar-Block hat null Zeichen). Ein grosszuegiger Wert - 20 Zeichen im ersten Entwurf -
+# haelt eine echte kurze Sektion ('Bogen des Toetens.') faelschlich fuer leer und macht
+# den Check an genau der Stelle blind, an der er greifen soll. Die drei Zeichen fangen
+# uebrig gebliebene Auszeichnung ('**') ab.
+_SEKTION_MIN_INHALT = 3
+
+
+def _sektionsinhalt(auszug: str, ab: int) -> str:
+    """Was zwischen dieser Ueberschrift und der naechsten Grenze steht.
+
+    Zwei Grenzen, beide noetig: die naechste Ueberschrift - und das Ende des
+    JSON-Strings, in dem der Regeltext steckt. Ohne die zweite waere der 'Inhalt' der
+    LETZTEN Sektion der ganze Rest des Payloads, und der leere Solar-Bonusaktionsblock
+    saehe gefuellt aus.
+
+    Das Feldende ist das erste NICHT maskierte Anfuehrungszeichen - nicht ein Trennzeichen
+    wie '","'. Anfuehrungszeichen IM Regeltext stehen als '\\\"' und werden dadurch korrekt
+    uebersprungen, und die Pruefung haengt nicht daran, ob der Serialisierer kompakt
+    (FastMCP) oder mit Leerzeichen schreibt. Die literalen '\\n' zaehlen als Leerraum."""
+    rest = auszug[ab:]
+    feldende = re.search(r'(?<!\\)"', rest)
+    if feldende:
+        rest = rest[:feldende.start()]
+    naechste = re.search(r"#{3,6}", rest)
+    if naechste:
+        rest = rest[:naechste.start()]
+    return rest.replace("\\n", " ").strip()
+
+
+def fehlende_statblock_sektionen(text: str, bestandsauszuege: list[str]) -> list[str]:
+    """Welche Statblock-Abschnitte des gelieferten Eintrags fehlen in der Antwort?
+
+    Drei Eigenheiten, an denen eine naive Fassung scheitert:
+
+    1. Die Auszuege sind JSON, nicht Markdown - ein Zeilenumbruch steht dort als die
+       ZWEI Zeichen '\\' und 'n'. Ein zeilenverankertes '^#{3,6}'-Muster faende null
+       Ueberschriften, der Check bestuende immer, und niemand merkte es. Deshalb
+       Literalsuche nach dem kuratierten Vokabular.
+    2. LEERE Sektionen zaehlen nicht. Der srd-de-Solar traegt '###### Bonusaktionen' als
+       letzte Zeile OHNE Inhalt (Zweispalten-Riss des Imports, 3 Faelle im Bestand) - was
+       der Bestand nicht hat, kann keine Antwort liefern. Dieselbe Regel deckt den
+       abgeschnittenen Auszug mit ab (llm._MAX_AUSZUG_ZEICHEN).
+    3. 'Aktionen' ist Teilstring von 'Legendäre Aktionen' - die langen Formen werden im
+       Antworttext zuerst ausgeblendet, sonst besteht eine Antwort ohne Aktionsblock,
+       nur weil sie legendaere Aktionen nennt.
+
+    Nur Detail-Auszuege werden gelesen: eine Trefferliste enthaelt Abschnitte fremder
+    Kreaturen und wuerde Sektionen einfordern, die gar nicht gefragt waren."""
+    detail = "\n".join(a for a in bestandsauszuege if a.startswith("[foliant_hol_eintrag]"))
+    if not detail:
+        return []
+    rest = text
+    for _, formen in _STATBLOCK_SEKTIONEN:                  # laengste Form zuerst
+        for form in sorted(formen, key=len, reverse=True):
+            if len(form.split()) > 1:
+                rest = rest.replace(form, " ")
+    fehlend: list[str] = []
+    for ueberschrift, formen in _STATBLOCK_SEKTIONEN:
+        treffer = re.search(rf"#{{3,6}}\s*{re.escape(ueberschrift)}\b", detail)
+        if not treffer:
+            continue
+        if len(_sektionsinhalt(detail, treffer.end())) < _SEKTION_MIN_INHALT:
+            continue                                        # leer oder abgeschnitten
+        pruefraum = text if len(ueberschrift.split()) > 1 else rest
+        if not any(form in pruefraum for form in formen) and ueberschrift not in fehlend:
+            fehlend.append(ueberschrift)
+    return [f"Statblock-Abschnitt fehlt in der Antwort: {s!r}" for s in fehlend]
+
+
+def pruefe_deterministisch(fall: dict, text: str, tool_namen: list[str],
+                           bestandsauszuege: list[str] | None = None) -> list[str]:
+    """Harte Marker-/Format-Pruefungen; leere Liste = bestanden.
+
+    `bestandsauszuege` ist optional, damit die vorhandenen Drei-Argument-Aufrufe der
+    Tests gueltig bleiben; gebraucht wird es nur von der Statblock-Pruefung."""
     gruende = []
     for frag in fall.get("pflicht", []):
         if frag not in text:
@@ -125,6 +276,8 @@ def pruefe_deterministisch(fall: dict, text: str, tool_namen: list[str]) -> list
     if fall.get("keine_md_tabelle") and md_tabelle_ausserhalb_code(text):
         gruende.append("Markdown-Tabelle ausserhalb eines Codeblocks (Discord "
                        "rendert sie nicht)")
+    if fall.get("statblock_vollstaendig"):
+        gruende += fehlende_statblock_sektionen(text, bestandsauszuege or [])
     if "📖" in text and not BELEG_RE.search(text):
         gruende.append("Belegzeile ohne Format '📖 Quelle · … · Regelversion JJJJ'")
     if not text.strip():
@@ -241,7 +394,8 @@ async def _lauf(argv) -> int:
                                                           f"{ausnahme}"[:300]})
                         print(f"  💥 {fall['id']}: {type(ausnahme).__name__}")
                         continue
-                    gruende = pruefe_deterministisch(fall, text, tool_namen)
+                    gruende = (pruefe_deterministisch(fall, text, tool_namen, auszuege)
+                               + pruefe_geruest(text))
                     eintrag = {"id": fall["id"], "frage": fall["frage"],
                                "prompt": variante,
                                "tools": tool_namen, "deterministisch_gruende": gruende,

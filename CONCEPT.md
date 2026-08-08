@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 06.08.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 08.08.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
