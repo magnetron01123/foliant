@@ -141,6 +141,29 @@ def md_tabelle_ausserhalb_code(text: str) -> bool:
     return False
 
 
+# Wie breit eine Codeblock-Zeile in Discord sein darf. Der Block bricht dort NICHT um -
+# am Handy muss man breitere Tabellen seitwaerts schieben, und am Tisch ist das Handy das
+# Geraet. Gemessen an echten Bot-Antworten (08.08.2026): 39 bis 93 Zeichen, Median 51 -
+# die Regel sagte bis dahin nur 'Codeblock mit festen Spalten' und nichts ueber Breite.
+CODEBLOCK_MAX_BREITE = 45
+
+
+def zu_breite_codeblock_zeilen(text: str, max_breite: int = CODEBLOCK_MAX_BREITE
+                               ) -> list[str]:
+    """Codeblock-Zeilen, die das Breitenbudget reissen (laengste zuerst).
+
+    Nur INNERHALB von ```-Bloecken: Fliesstext bricht in Discord normal um, dort ist
+    Laenge kein Problem. Die Zaunzeilen selbst zaehlen nicht mit."""
+    im_code, zu_breit = False, []
+    for zeile in text.split("\n"):
+        if zeile.lstrip().startswith("```"):
+            im_code = not im_code
+            continue
+        if im_code and len(zeile.rstrip()) > max_breite:
+            zu_breit.append(zeile.rstrip())
+    return sorted(zu_breit, key=len, reverse=True)
+
+
 def systeme() -> dict[str, str]:
     """Die Prompt-Varianten, gegen die gemessen wird.
 
@@ -293,6 +316,16 @@ def pruefe_deterministisch(fall: dict, text: str, tool_namen: list[str],
     if fall.get("keine_md_tabelle") and md_tabelle_ausserhalb_code(text):
         gruende.append("Markdown-Tabelle ausserhalb eines Codeblocks (Discord "
                        "rendert sie nicht)")
+    # Am selben Schalter wie das Tabellenverbot: Beides sind Discord-Darstellungsregeln
+    # und beide gelten nur dort (im Konnektor sind Tabellen und lange Zeilen korrekt).
+    if fall.get("keine_md_tabelle"):
+        zu_breit = zu_breite_codeblock_zeilen(text)
+        if zu_breit:
+            gruende.append(
+                f"{len(zu_breit)} Codeblock-Zeile(n) breiter als "
+                f"{CODEBLOCK_MAX_BREITE} Zeichen (Discord bricht im Block nicht um, "
+                f"am Handy Seitwaertsscrollen): {len(zu_breit[0])} Zeichen bei "
+                f"{zu_breit[0][:40]!r}")
     if fall.get("statblock_vollstaendig"):
         gruende += fehlende_statblock_sektionen(text, bestandsauszuege or [])
     if "📖" in text and not BELEG_RE.search(text):

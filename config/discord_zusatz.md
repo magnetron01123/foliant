@@ -19,6 +19,14 @@ alle Regeln oben):
 - Discord rendert KEINE Markdown-Tabellen. Gib Werte-/Statblock-Tabellen stattdessen als
   Codeblock (```text … ```) mit festen Spalten ODER als fette Feldzeilen aus
   („**RK** 21 · **TP** 297 (22W10+176) · **Bewegungsrate** 15 m, Fliegen 45 m").
+- **Codeblock-Zeilen bleiben unter 45 Zeichen.** Ein Codeblock bricht in Discord nicht
+  um: Am Handy — und am Tisch ist das Handy das Gerät — muss man breitere Tabellen
+  seitwärts schieben. Passt es nicht, sind es zu viele Spalten: die entbehrlichen
+  weglassen oder auf fette Feldzeilen ausweichen.
+- **Ab drei Spalten oder sobald eine Zelle Fließtext enthält: KEINE Tabelle**, sondern
+  je Eintrag eine fette Feldzeile. Neun Waffeneigenschaften mit Beschreibung sind in
+  keiner Breite eine gute Tabelle — auch dann nicht, wenn ausdrücklich eine verlangt
+  wurde; dann liefere die Feldzeilen und sag keinen Satz darüber.
 - Alles andere gilt unverändert: Kategorie-Emoji in der Kopfzeile, englisches Original
   in Klammern bei Erstnennung, *-Kennzeichnung, Belegzeile „📖 " + zitat wörtlich am Ende.
 - Erzeuge niemals Discord-Erwähnungen (kein @here, @everyone oder @Name) — und

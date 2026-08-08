@@ -409,3 +409,34 @@ def test_englische_unterklasse_nennt_ihre_stufen_merkmale(tmp_path, monkeypatch)
     assert "Undead Patron (Warlock)" not in verwandte, "der Eintrag selbst gehoert nicht dazu"
     assert "B15" in antwort.get("hinweis_abschnitte", ""), \
         "ohne die Zusammensetz-Ansage bietet das Modell die Merkmale nur an"
+
+
+# --- Codeblock-Breite (Messung an echten Antworten, 08.08.2026) ------------------------
+
+def test_discord_zusatz_nennt_dasselbe_breitenbudget_wie_der_grader():
+    """Prompt und Messung müssen DIESELBE Zahl tragen. Driften sie auseinander, wird der
+    Bot an einer Regel gemessen, die ihm nie gesagt wurde — die teuerste Sorte
+    Fehlalarm, weil sie wie ein Modellfehler aussieht.
+
+    Anlass: Codeblöcke in echten Discord-Antworten waren 39–93 Zeichen breit (Median 51).
+    Ein Codeblock bricht in Discord nicht um; am Handy — und am Tisch ist das Handy das
+    Gerät — muss man breitere Tabellen seitwärts schieben."""
+    import pathlib
+
+    from evals.verhaltens_eval import CODEBLOCK_MAX_BREITE
+
+    zusatz = pathlib.Path("config/discord_zusatz.md").read_text(encoding="utf-8")
+    assert str(CODEBLOCK_MAX_BREITE) in zusatz, (
+        f"Der Zusatz nennt das Budget {CODEBLOCK_MAX_BREITE} nicht - "
+        f"gemessen wird dann etwas, das der Bot nie erfahren hat")
+    assert "Codeblock-Zeilen" in zusatz
+
+
+def test_discord_zusatz_verbietet_die_tabelle_bei_fliesstext_zellen():
+    """Neun Waffeneigenschaften mit Beschreibung sind in KEINER Breite eine gute
+    Tabelle. Der Zusatz erlaubte fette Feldzeilen längst - das Modell wählte die Tabelle,
+    weil danach gefragt wurde. Jetzt steht die Grenze ausdrücklich da."""
+    import pathlib
+
+    zusatz = pathlib.Path("config/discord_zusatz.md").read_text(encoding="utf-8")
+    assert "drei Spalten" in zusatz and "Feldzeile" in zusatz

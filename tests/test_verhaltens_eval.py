@@ -286,3 +286,35 @@ def test_paritaetsmodus_traegt_kanalregeln_nicht_in_den_fremden_kanal():
     # Die bereinigte Fassung fuer den fremden Kanal traegt es nicht mehr:
     bereinigt = {k: v for k, v in fall.items() if k != "keine_md_tabelle"}
     assert pruefe_deterministisch(bereinigt, tabelle, []) == []
+
+
+def test_grader_misst_die_codeblock_breite():
+    """Gemessen an echten Bot-Antworten (08.08.2026): Codebloecke waren 39-93 Zeichen
+    breit, Median 51. Ein Codeblock bricht in Discord NICHT um - am Handy muss man
+    breitere Tabellen seitwaerts schieben. Die Regel sagte bis dahin nur 'Codeblock mit
+    festen Spalten' und nichts ueber Breite; jetzt wird sie gemessen."""
+    from evals.verhaltens_eval import (CODEBLOCK_MAX_BREITE,
+                                       zu_breite_codeblock_zeilen)
+
+    schmal = "🐉 **Vampirbrut**\n```text\nRK 16 · TP 90\nGES 16 +3\n```"
+    breit = ("🐉 **Vampirbrut**\n```text\n" + "Eigenschaft      | Wirkung " + "x" * 60
+             + "\n```")
+    assert zu_breite_codeblock_zeilen(schmal) == []
+    assert len(zu_breite_codeblock_zeilen(breit)) == 1
+
+    fall = dict(id="DC1", keine_md_tabelle=True)
+    assert pruefe_deterministisch(fall, schmal, []) == []
+    assert any("breiter als" in g for g in pruefe_deterministisch(fall, breit, []))
+    # Ohne den Discord-Schalter gilt die Regel NICHT - im Konnektor sind lange Zeilen
+    # korrekt, genau wie Tabellen (Paritaets-Artefakt vom 08.08.2026).
+    assert pruefe_deterministisch(dict(id="B3"), breit, []) == []
+
+
+def test_codeblock_breite_ignoriert_langen_fliesstext():
+    """Fliesstext bricht in Discord normal um - nur der Codeblock tut es nicht.
+    Eine lange Prosa-Zeile darf deshalb kein Befund sein (Fehlalarm-Vermeidung)."""
+    from evals.verhaltens_eval import zu_breite_codeblock_zeilen
+
+    lang = "📜 **Regel**\n" + "Ein sehr langer Fliesstext " * 6
+    assert zu_breite_codeblock_zeilen(lang) == []
+    assert pruefe_deterministisch(dict(id="DC1", keine_md_tabelle=True), lang, []) == []
