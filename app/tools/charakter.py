@@ -131,13 +131,17 @@ _HINWEIS_KURZ = ("Das Feld 'kurz' ist die BELEGTE Kurzcharakterisierung der Opti
 # als Dict-Literal war der Text der einzige tragende Grounding-Hinweis, den
 # tests/test_verhaltensregeln.py nicht verankern konnte.
 _HINWEIS_KLASSENMENUE = (
-    "Bei der Frage nach Klassen/Unterklassen: als MENUE antworten - je Option EINE "
+    "Bei der Frage nach Klassen/Unterklassen: als MENUE antworten - Kopfzeile mit ⚔️ als "
+    "ERSTEM Zeichen, z. B. '⚔️ **Hexenmeister (Warlock) - Unterklassen**'; der Satz "
+    "'<Klasse> hat N Unterklassen' ist die Einordnung DARUNTER, nie die Eroeffnung "
+    "(B12). Dann je Option EINE "
     "Kurzzeile aus dem Feld 'kurz' (steht dort keines, per foliant_hol_eintrag "
     "nachladen); NIE aus dem Gedaechtnis charakterisieren, auch nicht 'nur grob' (B1). "
     "Sprachstatus ist eine Fussnote je Option (englische Namen mit * wiedergeben), NIE "
-    "das Ordnungsprinzip. Ein Kampagnen-Band fuer die Runde heisst: ob die Option am "
-    "Tisch erlaubt ist, entscheidet die SL. Belegzeile aus dem Feld 'zitat' der "
-    "gezeigten Option. Mit der Rueckfrage enden, welche Option im Detail gewuenscht ist.")
+    "das Ordnungsprinzip - und auch sonst nie nach Datenlage gruppieren oder Feldnamen "
+    "wie 'inhaltsart' zitieren (B13); ein Kampagnen-Band fuer die Runde heisst: ob die "
+    "Option am Tisch erlaubt ist, entscheidet die SL. Belegzeile aus dem Feld 'zitat' "
+    "der gezeigten Option. Mit der Rueckfrage enden, welche Option gewuenscht ist.")
 
 
 def _norm(text: str | None) -> str:
@@ -409,8 +413,14 @@ def _liste(kategorie: str, schluessel: str, schritt_hinweis: str) -> dict:
         # ohne Faltung sortiert 'ä' (U+00E4) hinter 'z', und "Kämpfer" stand in der
         # Klassenliste hinter "Kleriker". Ein Spieler liest diese Liste.
         zeilen.sort(key=lambda z: _glossar.norm_begriff(z["name_de"] or z["name_en"]))
+        # Auch die Kopfzeilen-Regel: Die Optionslisten waren der EINZIGE Auskunftsweg
+        # ohne sie - und ueber vier Volllaeufe (07./08.08.2026) stammten die
+        # wiederkehrenden Geruest-Verstoesse (C3, DC4) genau aus Listen-Antworten.
+        # Dieselbe Lueckenklasse wie bei der Mehrdeutigkeit: Der Hinweis hing an einem
+        # Werkzeug, das diese Antworten nie liefert.
         antwort = {schluessel: zeilen, "hinweis_reihenfolge": schritt_hinweis,
-                   "hinweis": _HINWEIS_BESTAND, "hinweis_kurz": _HINWEIS_KURZ}
+                   "hinweis": _HINWEIS_BESTAND, "hinweis_kurz": _HINWEIS_KURZ,
+                   "hinweis_darstellung": _aus.HINWEIS_KOPFZEILE}
         _aus._markiere_inhaltsart(con, antwort, zeilen)
         if not zeilen:
             antwort["hinweis"] = _aus.HINWEIS_LEER

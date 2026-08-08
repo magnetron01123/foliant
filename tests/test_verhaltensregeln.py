@@ -180,7 +180,7 @@ _GROUNDING_HINWEISE = [
     # Die zwei Hinweise der Optionslisten. Der Menue-Hinweis war bis zum 07.08.2026 ein
     # Dict-Literal und damit der einzige tragende Grounding-Hinweis ohne Waechter.
     ("Klassenliste antwortet als Menue", ch._HINWEIS_KLASSENMENUE,
-     ["MENUE", "kurz", "B1"]),
+     ["MENUE", "kurz", "B1", "⚔️", "inhaltsart"]),
     ("Kurzzeile wird deutsch wiedergegeben", ch._HINWEIS_KURZ, ["DEUTSCH", "S3", "B1"]),
     # Antworten aus einer Trefferliste sahen keinen der situativen Hinweise - genau dort
     # fehlte im Pi-Lauf 07.08.2026 zweimal die Kopfzeile (breite Listenfrage, Rueckfrage).
