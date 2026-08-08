@@ -184,7 +184,12 @@ _GROUNDING_HINWEISE = [
     ("Kurzzeile wird deutsch wiedergegeben", ch._HINWEIS_KURZ, ["DEUTSCH", "S3", "B1"]),
     # Antworten aus einer Trefferliste sahen keinen der situativen Hinweise - genau dort
     # fehlte im Pi-Lauf 07.08.2026 zweimal die Kopfzeile (breite Listenfrage, Rueckfrage).
-    ("Trefferliste nennt die Kopfzeilen-Regel", aus.HINWEIS_KOPFZEILE, ["B12", "❓", "❌"]),
+    # Discord-Befund 08.08.2026: 'Verstecken (Aktion) (Hide [Action])'. Das Modell setzte
+    # die Kopfzeile selbst zusammen und holte sich das Englisch aus der Errata-Revision.
+    # Seither sagen beide Darstellungs-Hinweise, dass der Name woertlich aus
+    # 'anzeige_name' kommt - diese Zusage darf nicht wieder verschwinden.
+    ("Trefferliste nennt die Kopfzeilen-Regel", aus.HINWEIS_KOPFZEILE,
+     ["B12", "❓", "❌", "woertlich", "namenszusatz"]),
 ]
 
 

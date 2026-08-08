@@ -1,7 +1,7 @@
 # Foliant — Spezifikation (das verbindliche „Was")
 
 **D&D-5e-Regelassistent (Fassung 2024), Deutsch-first · self-hosted MCP-Server**
-**Rev. 10 · Stand: 07.08.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
+**Rev. 10 · Stand: 08.08.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
 Widersprüche aufgelöst, Charakterbogen-Übersetzer aufgenommen; Rev. 10: Datenqualitäts-Schicht
 — S12, V9, V10, B11 — und die Nummerierung aus Rev. 8 geheilt)*
 

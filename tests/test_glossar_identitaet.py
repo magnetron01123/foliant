@@ -177,3 +177,128 @@ def test_suche_boostet_fuzzy_nicht_als_exakt(bestand):
     """Suche 'Aktionen': der Aktionen-Eintrag steht vor dem fuzzy-nahen Reaktionen-Eintrag."""
     s = su.foliant_suche_bestand("Aktionen")
     assert s["treffer"] and s["treffer"][0]["name_de"] == "Aktionen"
+
+
+# --------------------------------------------- Klammer-Zusatz und DDB-Suffix (08.08.2026)
+
+@pytest.fixture()
+def bestand_mit_zusatz(tmp_path, monkeypatch):
+    """Die gemeldete Konstellation: ein deutscher Eintrag mit Klammer-Zusatz im Namen und
+    ohne `name_en`, daneben das gleichnamige Erratum mit eckigem DDB-Suffix. Das Glossar
+    fuehrt - wie im echten Bestand - nur das suffixfreie Paar."""
+    pfad = tmp_path / "foliant-zusatz.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(_SCHEMA.read_text(encoding="utf-8"))
+    con.executemany(
+        "INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,prioritaet,"
+        "inhaltsart) VALUES (?,?,?,?,?,?,?,?)",
+        [("srd-de", "SRD 5.2.1 (Deutsch)", "de", "2024", "pdf", "CC-BY-4.0", 10,
+          "regelwerk"),
+         ("errata-phb-2024-en", "Player's Handbook — Errata", "en", "2024", "pdf",
+          "privat", 5, "errata")])
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (?,?,?,?,?,?,?,?)",
+        [(1, "regel", "Verstecken (Aktion)", None, "de", "2024", "218",
+          "*Kontext: Regelglossar*\n\nMit der Verstecken-Aktion verbirgst du dich."),
+         (2, "regel", None, "Hide \\[Action]", "en", "2024", "1",
+          "*Kontext: Errata*\n\nDer Zustand gilt, solange du versteckt bist."),
+         # Gegenprobe: Klammer-Zusatz OHNE Glossarpaar bleibt unveraendert.
+         (1, "gegenstand", "Alchemistenausrüstung (50 GM)", None, "de", "2024", "70",
+          "*Kontext: Ausruestung*\n\nWerkzeug des Alchemisten.")])
+    # Wie im Vollbestand: 'Hide' hat ZWEI offizielle deutsche Zeilen - das Tierfell und
+    # die Aktion. Der Klammer-Zusatz im Eintragsnamen unterscheidet sie, das blanke
+    # 'Hide' nicht mehr. Ohne diese zweite Zeile ginge der entscheidende Fall durch:
+    # Am Mac-Subset (nur eine Zeile) sah die Anzeige richtig aus, am Pi wurde
+    # 'Fell (Hide)' daraus.
+    con.executemany(
+        "INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle) "
+        "VALUES (?,?,1,?,?)",
+        [("Hide", "Verstecken", "SRD 5.2.1", "2024"),
+         ("Hide", "Fell", "Spielerhandbuch", "2014")])
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+    return pfad
+
+
+def test_klammer_zusatz_verhindert_das_original_nicht(bestand_mit_zusatz):
+    """Gemeldeter Discord-Befund 08.08.2026: Die Kopfzeile lautete
+    'Verstecken (Aktion) (Hide [Action])'.
+
+    Der Eintrag trug kein `name_en`, und die Glossarsuche nach dem VOLLEN Namen fand
+    nichts - die Zeile heisst schlicht Hide/Verstecken. Also blieb die Anzeige ohne
+    Original, und das Modell nahm sich das einzige Englisch im Payload: den Namen der
+    Errata-Revision samt DDB-Klammer-Artefakt."""
+    d = ns.foliant_hol_eintrag("regel", "Verstecken")
+    assert d["gefunden"] is True
+    assert d["anzeige_name"] == "Verstecken (Hide)", d["anzeige_name"]
+    # Der Zusatz ist nicht weg - er steht nur nicht mehr im Namen (B12: Einordnung).
+    assert d["namenszusatz"] == "Aktion"
+
+
+def test_eckiges_ddb_suffix_erreicht_die_anzeige_nie(bestand_mit_zusatz):
+    """'Hide [Action]' ist Buch-Layout, kein Name (B14) - und ohne das Suffix findet das
+    Glossar den Begriff ueberhaupt erst."""
+    d = ns.foliant_hol_eintrag("regel", "Verstecken")
+    namen = [d["anzeige_name"]] + [r["anzeige_name"] for r in d.get("revisionen", [])]
+    assert namen, "Vorbedingung: die Errata-Revision muss angehaengt sein"
+    for name in namen:
+        assert "[" not in name and "]" not in name, name
+
+
+def test_kein_anzeigename_traegt_zwei_klammergruppen(bestand_mit_zusatz):
+    """Zwei Klammerpaare hintereinander sind IMMER falsch - es gibt genau ein Original je
+    Name (S4).
+
+    Dieser Test faellt ohne den Fix NICHT durch, und das ist richtig so: Die gemeldete
+    Doppelklammer hat das MODELL gebaut, nicht das Werkzeug. Er sichert die naheliegende
+    Fehlimplementierung ab - den Zweitversuch einzubauen und den Qualifikator trotzdem im
+    Namen zu lassen, was 'Verstecken (Aktion) (Hide)' ergaebe."""
+    import re
+
+    namen = []
+    for kategorie, frage in (("regel", "Verstecken"), ("gegenstand", "Alchemistenausrüstung")):
+        d = ns.foliant_hol_eintrag(kategorie, frage)
+        namen += [d["anzeige_name"]] + [r["anzeige_name"] for r in d.get("revisionen", [])]
+    namen += [t["anzeige_name"] for t in su.foliant_suche_bestand("Verstecken")["treffer"]]
+    for name in namen:
+        assert not re.search(r"\)\s*\(", name), f"zwei Klammergruppen: {name!r}"
+
+
+def test_zusatz_ohne_glossarpaar_bleibt_im_namen(bestand_mit_zusatz):
+    """Kein Original gefunden, kein Umbau: Sonst verloeren 156 Eintraege ihren
+    Qualifikator, ohne dafuer ein englisches Original zu bekommen."""
+    d = ns.foliant_hol_eintrag("gegenstand", "Alchemistenausrüstung")
+    assert d["anzeige_name"] == "Alchemistenausrüstung (50 GM)"
+    assert "namenszusatz" not in d
+
+
+def test_detail_hinweis_verbietet_das_zweite_klammerpaar(bestand_mit_zusatz):
+    """Kanal 3, der zuverlaessigste: Der Detailabruf muss dem Modell sagen, dass der Name
+    woertlich aus 'anzeige_name' kommt. Ohne diese Ansage holte es sich das Englisch aus
+    der Errata-Revision, obwohl es im Namen laengst stand."""
+    d = ns.foliant_hol_eintrag("regel", "Verstecken")
+    hinweis = d.get("hinweis_darstellung", "")
+    assert "anzeige_name" in hinweis and "WOERTLICH" in hinweis, hinweis
+    assert "revisionen" in hinweis, "die Namensquelle muss ausdruecklich ausgeschlossen sein"
+    assert "namenszusatz" in hinweis
+
+
+def test_gekuerztes_suffix_raet_keine_uebersetzung(bestand_mit_zusatz):
+    """Der Beinahe-Unfall vom 08.08.2026: Das Abziehen von '[Action]' macht 'Hide'
+    mehrdeutig - das Glossar fuehrt Fell (Tierfell) UND Verstecken (Aktion), beide
+    offiziell. `term_de` nahm die erste Zeile, und aus dem Errata-Verweis wurde
+    'Fell (Hide)': eine FALSCHE Uebersetzung, schlimmer als das Artefakt davor.
+
+    Am Mac-Subset war der Fall unsichtbar (nur eine Hide-Zeile) - er fiel erst in der
+    Direktprobe am Pi-Vollbestand auf. Deshalb steht die zweite Zeile jetzt in der
+    Fixture."""
+    d = ns.foliant_hol_eintrag("regel", "Verstecken")
+    revisionen = [r["anzeige_name"] for r in d.get("revisionen", [])]
+    assert revisionen, "Vorbedingung: die Errata-Revision muss angehaengt sein"
+    for name in revisionen:
+        assert "Fell" not in name, f"geratene Uebersetzung: {name!r}"
+        assert name == "Hide", name          # blank statt geraten (Regel 1)
