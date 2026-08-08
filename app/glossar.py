@@ -100,7 +100,8 @@ QUELLE_AKTIONEN = "SRD 5.2.1 (Aktionen)"
 # tests/test_quellen_beschriftung.py haelt sie deshalb gegen die Seeder-Konstanten.
 EIGENE_ABLEITUNG_MARKEN = ("Strukturabgleich", "Kernwortschatz", "Zauberkopf-Abgleich",
                            "Flexions-Bruecke", "Kernbegriff (kuratiert", "Begriffspaar",
-                           "abkuerzung", "(Aktionen)", "Umgangssprache (kuratiert",
+                           "abkuerzung", "(Aktionen)", "(Regelglossar)",
+                           "Umgangssprache (kuratiert",
                            "Teilbegriff aus belegter Zusammensetzung")
 
 
@@ -421,6 +422,16 @@ _HOMONYM_STOP = frozenset({
     # untergeschoben. Die EXAKTE Suche nutzt beide Paare weiterhin voll - genau dafuer
     # stehen sie im Glossar.
     "reach", "heavy",
+    # Regelglossar-Paare (seed_regelglossar, 08.08.2026): Lemmata, die in praktisch
+    # JEDEM englischen Regeltext stehen (creature, target, spell, weapon ...). Ihre
+    # Uebersetzung waere zwar meist korrekt - aber begriffe_im_text deckelt bei
+    # max_treffer=40, und die Dauergaeste verdraengten die seltenen Begriffe, um die es
+    # geht. Dazu die Alltagswoerter mit Fehldeutungsrisiko im Fliesstext (falling,
+    # burning, stable, dead als gewoehnliche Adjektive/Verben statt als Regelbegriff).
+    "action", "creature", "target", "spell", "weapon", "condition", "skill",
+    "enemy", "ally", "attitude", "hostile", "friendly", "indifferent",
+    "dead", "stable", "possession", "burning", "falling", "climbing", "crawling",
+    "hiding", "hazard", "sphere", "traits", "immunity",
 })
 
 

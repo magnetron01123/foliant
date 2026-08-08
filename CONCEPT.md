@@ -1264,12 +1264,13 @@ Kuratiert. Quellen-spezifische Eigenheiten stehen im Modul-Docstring des jeweili
 Importers (`importer/import_open5e.py` für die Open5e-API, `importer/import_markdown.py`
 für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de).
 
-- **Eval-Reports leben IM Container und überleben `make deploy-pi` nicht.** Sie sind aber
+- **Eval-Reports leben IM Container und überleben einen Rebuild nicht.** Sie sind aber
   die einzige Kalibriergrundlage: Neue Prüfmuster laufen erst gegen die `antwort`-Felder
-  bezahlter Läufe, bevor sie Code werden (Fehlalarm-Reihe A3 → B1 → F2). Vor jedem Deploy,
-  auf den ein Eval-Vergleich folgen soll:
-  `docker compose cp foliant:/app/evals/ergebnisse …` → lokal nach
-  `evals/ergebnisse/pi/` (gitignored). Zweimal in einer Woche wären sie sonst weg gewesen.
+  bezahlter Läufe, bevor sie Code werden (Fehlalarm-Reihe A3 → B1 → F2). Seit dem
+  08.08.2026 sichert `make deploy-pi` sie deshalb selbst (erster Schritt, fehlertolerant)
+  nach `evals/ergebnisse/pi/` (gitignored) — zweimal in einer Woche wären sie sonst weg
+  gewesen. Nur wer am Pi von Hand neu baut (`docker compose up -d --build` per SSH),
+  muss weiterhin selbst vorher `docker compose cp foliant:/app/evals/ergebnisse …` ziehen.
 - **pymupdf4llm OCRt textlose Seiten STILL, sobald Tesseract installiert ist** →
   `use_ocr=False` in `pdf_nach_markdown` ist Pflicht und gesetzt; OCR nur über die Vorstufe.
 - **Eine Struktur-Reparatur wird über den KAPITELBEREICH begrenzt, nicht über den Inhalt.**
