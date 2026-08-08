@@ -166,6 +166,25 @@ KERN_SINGULAR_PAARE: list[tuple[str, str, str | None]] = [
     ("Sap", "Auslaugen", "2024"),
     ("Slow", "Verlangsamen", "2024"),
     ("Vex", "Plagen", "2024"),
+    # Die WAFFENEIGENSCHAFTEN - die Schwesterliste der acht Meisterschaftseigenschaften
+    # darueber, und bis zum 08.08.2026 die einzige, die fehlte. Folge im Review-Lauf: Die
+    # Langschwert-Auskunft schrieb "Vielseitig*" und behauptete damit, es gebe keine
+    # offizielle deutsche Uebersetzung - dabei steht jede dieser Eigenschaften als eigener
+    # srd-de-Eintrag unter "Ausrüstung > Waffen > Eigenschaften". Ein falscher Stern ist
+    # eine falsche Aussage ueber den Bestand, kein Schoenheitsfehler.
+    ("Versatile", "Vielseitig", "2024"),
+    ("Finesse", "Finesse", "2024"),
+    ("Heavy", "Schwer", "2024"),
+    ("Loading", "Laden", "2024"),
+    ("Ammunition", "Geschosse", "2024"),
+    ("Thrown", "Wurfwaffe", "2024"),
+    ("Two-Handed", "Zweihändig", "2024"),
+    ("Reach", "Weitreichend", "2024"),
+    # 'Light' fehlt hier BEWUSST: Das Glossar fuehrt bereits 'Light' -> 'Licht' (der
+    # Zauber). Ein zweites Paar 'Light' -> 'Leicht' machte das Lemma mehrdeutig, und
+    # term_de naehme die erste Zeile - dieselbe Falle, die am 08.08.2026 aus einem
+    # Errata-Verweis 'Fell (Hide)' machte. Welche Bedeutung gemeint ist, entscheidet der
+    # Kontext, und den hat das Glossar nicht (Regel 1).
     # Heldische Inspiration: srd-de-Regeleintrag UND vorgedrucktes Feld des offiziellen
     # dt. Charakterbogens 2024 (Befund 16.07.2026: LLM erfand "Heldenhafte Inspiration"
     # direkt neben dem Vordruck "HELDISCHE INSPIRATION").
