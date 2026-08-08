@@ -251,3 +251,22 @@ def test_statblock_check_ignoriert_trefferlisten():
     waere ein Fehlalarm."""
     liste = "[foliant_suche_bestand]\n" + _auszug("###### Aktionen\n\nFremdes Monster.")[22:]
     assert fehlende_statblock_sektionen("🐉 Solar", [liste]) == []
+
+
+def test_paritaetsmodus_faehrt_jeden_fall_in_beiden_varianten():
+    """Eigentuemer-Anspruch (08.08.2026): Discord-Bot und Direkt-Konnektor sollen
+    moeglichst identisch antworten. '--prompt beide' macht die Paritaet messbar, statt
+    sie von Hand zu vergleichen; im Normalmodus ('fall') aendert sich NICHTS am
+    gemessenen Verhalten."""
+    from evals.verhaltens_eval import zu_fahrende_varianten
+
+    varianten = {"standard": "S", "discord": "S\n\nZUSATZ"}
+    fall = {"id": "X", "system": "discord"}
+    assert zu_fahrende_varianten(fall, varianten, "fall") == [("discord", "S\n\nZUSATZ")]
+    assert zu_fahrende_varianten({"id": "Y"}, varianten, "fall") == [("standard", "S")]
+    beide = zu_fahrende_varianten(fall, varianten, "beide")
+    assert [v for v, _s in beide] == ["discord", "standard"]
+    # Fehlende Variante: ehrlich leer (der Lauf meldet 'uebersprungen') bzw. bei
+    # 'beide' nur das, was existiert - nie ein stiller Lauf gegen den falschen Prompt.
+    assert zu_fahrende_varianten(fall, {"standard": "S"}, "fall") == []
+    assert zu_fahrende_varianten(fall, {"standard": "S"}, "beide") == [("standard", "S")]

@@ -214,3 +214,75 @@ def test_json_trennt_die_beiden_arten(protokoll_db, capsys):
     bericht = json.loads(capsys.readouterr().out)
     assert [z["frage"] for z in bericht["markiert"]] == ["Falsch"]
     assert [z["frage"] for z in bericht["gelobt"]] == ["Gut"]
+
+
+# --- Selbstanzeige: Ablehnung ohne Werkzeugaufruf (Befund 08.08.2026) -----------------
+
+def test_ablehnung_ohne_werkzeug_wird_erkannt():
+    """Auf das nackte Wort 'verstecken' kam eine 🚫-Spoiler-Ablehnung OHNE einen einzigen
+    Werkzeugaufruf - regelwidrig (nie 🚫/❌ ohne Nachschlag) und die einzige
+    Fehlerklasse, die das Abfrage-Protokoll strukturell nicht sieht: protokolliere()
+    haengt an den Werkzeugen, und genau die liefen nie."""
+    assert rm.ablehnung_ohne_werkzeug("🚫 **Spoiler-Ablehnung** …", [])
+    assert rm.ablehnung_ohne_werkzeug("❌ Dazu finde ich nichts …", [])
+    # Mit Werkzeugaufruf ist eine Ablehnung legitim (echter Leerbefund/Spoiler):
+    assert not rm.ablehnung_ohne_werkzeug("🚫 …", ["foliant_suche_bestand"])
+    assert not rm.ablehnung_ohne_werkzeug("❌ …", ["foliant_suche_bestand"])
+    # Und eine normale Antwort ohne Werkzeuge (Rueckfrage ❓) ist kein Befund:
+    assert not rm.ablehnung_ohne_werkzeug("❓ Welchen meinst du?", [])
+
+
+def test_auto_verweis_ist_idempotent_je_frage():
+    """Derselbe Fehlalarm auf dieselbe Frage ist DERSELBE Befund - wie bei den Daumen.
+    Whitespace/Case duerfen keine Duplikate erzeugen."""
+    assert rm.auto_verweis("  Verstecken \n bitte ") == rm.auto_verweis("verstecken bitte")
+    assert rm.auto_verweis("x" * 500) == rm.auto_verweis("x" * 500)
+    assert len(rm.auto_verweis("x" * 500)) <= 130
+
+
+def test_selbstanzeige_erscheint_im_suchbericht(protokoll_db, capsys):
+    """Der Bericht ist der Ort, an dem der Befund jemanden erreicht - eine Selbstanzeige,
+    die nur in der Tabelle liegt, waere genauso unsichtbar wie vorher."""
+    import argparse
+    import json as _json
+
+    from app import admin
+    protokoll.merke_rueckmeldung(rm.ART_AUTO_ABLEHNUNG,
+                                 rm.auto_verweis("verstecken"), frage="verstecken")
+    admin.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=False))
+    ausgabe = capsys.readouterr().out
+    assert "Selbstanzeige des Bots" in ausgabe
+    assert "verstecken" in ausgabe
+    # Und maschinenlesbar fuer den zeitgesteuerten Durchgang:
+    admin.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=True))
+    daten = _json.loads(capsys.readouterr().out)
+    assert daten["auto_ablehnungen"][0]["frage"] == "verstecken"
+
+
+def test_der_bot_meldet_die_ablehnung_selbst(protokoll_db, monkeypatch):
+    """Der Kleber in bot.py: Nach der Schleife wird die Selbstanzeige geschrieben - ohne
+    dass die Antwort sich aendert. Vorher waere genau dieser Fall (🚫 ohne Werkzeuge)
+    spurlos geblieben; gefunden hat ihn nur die Meldung eines Spielers."""
+    import asyncio
+    import types
+
+    from app import llm
+    from app.discord_bot.bot import FoliantBot
+
+    bot = FoliantBot(guild_id=1, kanal_ids=frozenset(), tagesdeckel=100,
+                     api_key="x", modell="x", system="x")
+
+    async def fake_schleife(*_a, **_k):
+        return llm.SchleifenErgebnis("🚫 **Spoiler-Ablehnung** …", [], [], "end_turn")
+
+    gemeldet: list[tuple] = []
+    monkeypatch.setattr(llm, "fahre_schleife", fake_schleife)
+    monkeypatch.setattr(protokoll, "merke_rueckmeldung",
+                        lambda art, verweis, frage=None, kanal="discord":
+                        gemeldet.append((art, verweis, frage)))
+
+    text = asyncio.run(bot._beantworte(42, "verstecken", []))
+
+    assert text.startswith("🚫")                        # die Antwort selbst bleibt
+    assert gemeldet == [(rm.ART_AUTO_ABLEHNUNG, rm.auto_verweis("verstecken"),
+                         "verstecken")]
