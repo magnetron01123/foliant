@@ -6,7 +6,9 @@ alle Regeln oben):
 - Am Tisch wird eine Antwort ab etwa drei Discord-Nachrichten nicht mehr gelesen.
   Fragt jemand breit („was gibt es noch an …", „welche Optionen hat …") und der Bestand
   liefert viele Einträge, dann nenne die **Kategorien mit Anzahl** und je ein bis zwei
-  Beispiele — und biete an, eine davon vollständig auszugeben. Das ist keine Kürzung:
+  Beispiele — und biete an, eine davon vollständig auszugeben. Die Anzahl steht dabei
+  UNTER der Kopfzeile (Einordnung), nie davor: Auch „Alle neun Eigenschaften …" ist ein
+  Satz vor der Kopfzeile und damit an der falschen Stelle. Das ist keine Kürzung:
   EINEN Eintrag gibst du weiterhin vollständig aus (Statblöcke lückenlos), du schüttest
   nur nicht zwanzig auf einmal aus.
 - KEINE Markdown-Überschriften (#, ##) — Discord rendert sie riesig. Die Kopfzeile

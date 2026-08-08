@@ -97,9 +97,33 @@ def test_toolfehler_geht_als_is_error_zurueck_statt_zu_reissen():
 def test_runden_cap_ist_expliziter_stop_grund():
     """Der alte Eval-Loop gab beim Cap stumm '' zurueck - ein Bot braucht den Grund."""
     mitschrift = []
-    erg = _fahre([_toolrunde(), _toolrunde(), _toolrunde()], mitschrift, max_runden=3)
-    assert erg.stop_grund == "runden_cap" and erg.text == ""
+    erg = _fahre([_toolrunde(), _toolrunde(), _toolrunde(),
+                  _endrunde("Aus dem Geholten:")], mitschrift, max_runden=3)
+    assert erg.stop_grund == "runden_cap"
     assert len(erg.tool_namen) == 3
+
+
+def test_runden_cap_erzwingt_noch_eine_antwort_ohne_werkzeuge():
+    """Befund 07.08.2026 (Eval-Fall DC3, dreimal in Folge): Bei einer breiten Listenfrage
+    braucht das Modell 12-28 Werkzeugaufrufe, reisst den Rundendeckel - und der Nutzer
+    bekam nach acht Runden bezahlter Recherche eine LEERE Antwort.
+
+    Die letzte Anfrage geht deshalb ohne 'tools' raus: Dann kann das Modell nur noch
+    schreiben, und aus dem bereits Geholten wird eine - womoeglich unvollstaendige -
+    Auskunft. Der Stop-Grund bleibt erhalten, der Bot weist weiterhin darauf hin."""
+    mitschrift = []
+    erg = _fahre([_toolrunde(), _toolrunde(), _endrunde("Aus dem bisher Geholten: ...")],
+                 mitschrift, max_runden=2)
+    assert erg.stop_grund == "runden_cap"
+    assert erg.text == "Aus dem bisher Geholten: ..."
+    assert "tools" not in mitschrift[-1], "die Schlussrunde darf keine Werkzeuge anbieten"
+    assert "tools" in mitschrift[0], "die regulaeren Runden schon"
+    # Der Auftrag haengt am LETZTEN Nutzer-Turn - zwei Nutzer-Turns hintereinander weist
+    # die API zurueck. Ohne ihn kam ein Denkblock und ein leerer Text (gemessen am Pi).
+    letzter = mitschrift[-1]["messages"][-1]
+    assert letzter["role"] == "user"
+    assert any(b.get("type") == "text" and "JETZT abschliessend" in b.get("text", "")
+               for b in letzter["content"]), letzter
 
 
 def test_retry_bei_529_dann_erfolg(monkeypatch):

@@ -182,6 +182,9 @@ _GROUNDING_HINWEISE = [
     ("Klassenliste antwortet als Menue", ch._HINWEIS_KLASSENMENUE,
      ["MENUE", "kurz", "B1"]),
     ("Kurzzeile wird deutsch wiedergegeben", ch._HINWEIS_KURZ, ["DEUTSCH", "S3", "B1"]),
+    # Antworten aus einer Trefferliste sahen keinen der situativen Hinweise - genau dort
+    # fehlte im Pi-Lauf 07.08.2026 zweimal die Kopfzeile (breite Listenfrage, Rueckfrage).
+    ("Trefferliste nennt die Kopfzeilen-Regel", aus.HINWEIS_KOPFZEILE, ["B12", "❓", "❌"]),
 ]
 
 

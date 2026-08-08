@@ -43,11 +43,14 @@ HINWEIS_LEER = ("Nichts im Bestand gefunden. Sag das ehrlich mit ❌ ('Dazu find
 
 HINWEIS_ALT = ("Keine 2024-Fassung im Bestand, nur ein aelterer Regelstand. Klar kennzeichnen "
                "mit ⚠️: 'Keine 2024-Fassung im Bestand; hier der aeltere Stand - ggf. an die "
-               "aktuellen Regeln anzupassen.' (V4/B5)")
+               "aktuellen Regeln anzupassen.' (V4/B5) Die ⚠️-Zeile steht NACH der Kopfzeile "
+               "(B12 Slot 2), nie an ihrer Stelle - die Antwort beginnt weiterhin mit dem "
+               "Kategorie-Emoji.")
 
 HINWEIS_MEHRDEUTIG = ("Mehrere Eintraege passen. NICHT raten (B4): nenne die Kandidaten mit "
                       "Unterscheidungsmerkmal (Kategorie/Quelle/Version) und frag zurueck - "
-                      "oder lade den richtigen direkt per eintrag_id nach (SYN-P1-002).")
+                      "oder lade den richtigen direkt per eintrag_id nach (SYN-P1-002). "
+                      "Kopfzeile mit ❓, Abschluss woertlich 'Welchen meinst du?' (B12/S14).")
 
 # Rueckmeldung der Runde, 04.08.2026: Auf "Kann man 2 Gelegenheitsangriffe machen?" kam ein
 # klares "Ja" - belegt mit der Hydra, also einem MONSTER-Merkmal. Fuer Spielercharaktere
@@ -101,6 +104,21 @@ def _baue_abkuerzungs_hinweis() -> str:
 
 
 HINWEIS_ABKUERZUNGEN = _baue_abkuerzungs_hinweis()
+
+# B12 Slot 1 fuer Antworten, die aus einer TREFFERLISTE entstehen. Der Detailabruf traegt
+# sein Geruest laengst (GERUEST_JE_KATEGORIE), die Suche trug keines - und genau dort
+# fehlte die Kopfzeile: Pi-Lauf 07.08.2026, breite Listenfrage ('Waffeneigenschaften als
+# Tabelle') und Mehrdeutigkeit ('Was macht Schild?') begannen beide mit Fliesstext.
+# Beide Faelle sehen nie einen der situativen Hinweise, weil sie gar keinen Detailabruf
+# machen.
+HINWEIS_KOPFZEILE = (
+    "Antwortgeruest (B12): Das ERSTE Zeichen der Antwort ist das Kopf-Emoji. Kein Satz "
+    "davor - keine Einleitung, keine Zwischenmeldung ueber die Suche, kein 'Hier ist' "
+    "und kein 'Alle Belege liegen vor' (S13). Auch eine ZAEHLUNG ist so ein Satz: "
+    "'Alle neun Eigenschaften ...' gehoert in die Einordnung NACH der Kopfzeile "
+    "(B12 Slot 3), nie davor. Kategorie-Emoji (📜 Regel · 🪄 Zauber · "
+    "🐉 Monster · 🎒 Gegenstand · 🧝 Spezies · ⚔️ Klasse · 🏕️ Hintergrund · ✨ Talent) "
+    "bei einer Auskunft, ❓ bei einer Rueckfrage, ❌ ohne Treffer.")
 
 # Das eckige Klammer-Suffix der DDB-Regelglossar-Namen ('Hide \[Action]',
 # 'Blinded \[Condition]') - im Markdown escaped, deshalb der optionale Backslash.
@@ -173,7 +191,8 @@ INHALTSART_HINWEISE: dict[str, tuple[str, str, str]] = {
     "abenteuer_setting": (
         "🚫", "einem ABENTEUER-/SETTING-Band (nur fuer Terminologie/Werte geladen)",
         "Handlung, Geheimnisse und Ortsdetails NIE wiedergeben (Spoiler-Schutz, oberste "
-        "Regel); reine Regel-/Wertangaben sind ok."),
+        "Regel); reine Regel-/Wertangaben sind ok. Sag dazu 'Kampagnen-Band' - der "
+        "Feldname und sein Wert gehoeren NIE in die Antwort (B13)."),
     "errata": (
         "📌", "einer ERRATA-Quelle (offizielle Korrektur zum Grundtext)",
         "KEIN eigenstaendiger Regeltext: Grundtext UND Korrektur zusammen wiedergeben und "
@@ -541,7 +560,14 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
          "hinweis_sprache_begriffe": _HINWEIS_STERN}
     geruest = GERUEST_JE_KATEGORIE.get(e["kategorie"])
     if geruest:
-        d["hinweis_darstellung"] = f"B12-Antwortgeruest fuer diese Kategorie: {geruest}"
+        # Der Abschluss steht bei JEDER Kategorie gleich - deshalb hier einmal und nicht
+        # zehnmal in der Tabelle. Befund Pi-Lauf 07.08.2026 (D2): Die Antwort endete mit
+        # einem Nachsatz nach der Belegzeile; seit die Pruefung deterministisch ist,
+        # faellt so etwas auf, statt vom Richter uebersehen zu werden.
+        d["hinweis_darstellung"] = (
+            f"B12-Antwortgeruest fuer diese Kategorie: {geruest} Abschluss immer in dieser "
+            f"Reihenfolge: hoechstens EIN Angebot, dann die *-Fussnote, ZULETZT die "
+            f"📖-Belegzeile - nach ihr steht nichts mehr.")
     if e.get("lizenz"):
         # A12/Q6: die Quellenlizenz wird im Detailpfad nicht verworfen; CC-BY verlangt
         # die mitgefuehrte Attribution (Wortlaut konsistent mit README.md, Lizenz & Recht).

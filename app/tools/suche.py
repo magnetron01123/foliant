@@ -25,7 +25,7 @@ from app import facetten as _facetten
 from app import glossar as _glossar
 from app import protokoll as _protokoll
 from app.tools.ausgabe import (
-    _HINWEIS_PARAMETER, HINWEIS_ABKUERZUNGEN, HINWEIS_ALT, HINWEIS_DB_FEHLT, HINWEIS_LEER, _haenge_revisionen_an, _knapp, _markiere_inhaltsart, _reichere_facetten_an,
+    _HINWEIS_PARAMETER, HINWEIS_ABKUERZUNGEN, HINWEIS_ALT, HINWEIS_KOPFZEILE, HINWEIS_DB_FEHLT, HINWEIS_LEER, _haenge_revisionen_an, _knapp, _markiere_inhaltsart, _reichere_facetten_an,
     _verbinde, markiere_unuebersetzte,
 )
 
@@ -277,6 +277,7 @@ def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25,
     _haenge_revisionen_an(con, antwort, treffer)
     if treffer:
         antwort["hinweis_abkuerzungen"] = HINWEIS_ABKUERZUNGEN
+        antwort["hinweis_darstellung"] = HINWEIS_KOPFZEILE
     if not treffer:
         antwort["hinweis"] = ("Kein Eintrag im Bestand passt auf ALLE Filter - ehrlicher "
                               "Nulltreffer (nicht raten, nichts aus Allgemeinwissen ergaenzen); "
@@ -443,6 +444,7 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
         # wer aus ihnen formuliert, braucht die Regel hier, nicht nur im Detailabruf.
         if antwort.get("treffer"):
             antwort["hinweis_abkuerzungen"] = HINWEIS_ABKUERZUNGEN
+            antwort["hinweis_darstellung"] = HINWEIS_KOPFZEILE
         _reichere_facetten_an(con, *listen)
         return antwort
     finally:

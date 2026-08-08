@@ -104,7 +104,12 @@ _HINWEIS_REIHENFOLGE = ("2024-Reihenfolge der Charaktererstellung (B7): 1. Klass
                         "(SYN-P2-005): Zur Herkunft gehoeren laut Regeltext auch ZWEI "
                         "SPRACHEN und Spezies-Pflichtwahlen (z. B. Elfen-Abstammung, "
                         "Mensch-Zusatztalent) - abfragen, nicht ueberspringen; danach "
-                        "Attributswerte und Gesinnung.")
+                        "Attributswerte und Gesinnung. JEDER Schritt ist eine Antwort und "
+                        "traegt das Geruest: Kopfzeile mit dem Kategorie-Emoji des Schritts "
+                        "(⚔️ Klasse, 🏕️ Hintergrund, 🧝 Spezies), Rueckfragen mit ❓ - ein "
+                        "Gespraechszug ist keine Ausnahme (B12). Kein Satz vor der "
+                        "Kopfzeile, auch keine Zaehlung ('Alle zwoelf Klassen ...') - "
+                        "die gehoert in die Einordnung darunter.")
 _HINWEIS_BESTAND = ("Nur Optionen aus dem Bestand. Fehlt eine erwartete Option (z. B. "
                     "Aasimar im reinen SRD), das ehrlich sagen - evtl. fehlt ein Buch (B2). "
                     "Nichts aus Allgemeinwissen ergaenzen (B1).")

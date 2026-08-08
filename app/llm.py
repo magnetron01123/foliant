@@ -135,4 +135,29 @@ async def fahre_schleife(mcp_client, http: httpx.AsyncClient, key: str, modell: 
                 bestandsauszuege.append(f"[{block['name']}]\n"
                                         f"{text_out[:_MAX_AUSZUG_ZEICHEN]}")
         messages.append({"role": "user", "content": ergebnisse})
-    return SchleifenErgebnis("", tool_namen, bestandsauszuege, "runden_cap")
+    # Runden-Cap: EINE letzte Anfrage OHNE Werkzeuge, damit aus dem bereits Geholten noch
+    # eine Antwort wird. Bis zum 07.08.2026 kam hier ein leeres Ergebnis zurueck - der
+    # Nutzer bekam nach 8 Runden bezahlter Recherche gar nichts, und im Discord nur den
+    # Hinweis, die Frage enger zu stellen. Aufgefallen ist es am Eval-Fall DC3 (neun
+    # Waffeneigenschaften, 12-28 Werkzeugaufrufe): dreimal in Folge eine leere Antwort.
+    # Der Stop-Grund bleibt 'runden_cap' - die Auskunft kann unvollstaendig sein, und der
+    # Bot sagt das weiterhin dazu; er sagt es nur nicht mehr STATT einer Antwort.
+    #
+    # Der AUFTRAG muss dabeistehen: Ohne ihn endet das Gespraech mit Werkzeug-Ergebnissen,
+    # und das Modell lieferte gemessen (07.08.2026) einen Denkblock mit 157 Tokens und
+    # einen LEEREN Text - es wartete auf den naechsten Werkzeugaufruf, den es nicht mehr
+    # geben konnte. Der Satz haengt am letzten Nutzer-Turn statt als eigener: zwei
+    # Nutzer-Turns hintereinander weist die API zurueck.
+    if messages and messages[-1]["role"] == "user" and isinstance(
+            messages[-1].get("content"), list):
+        messages[-1]["content"] = messages[-1]["content"] + [{
+            "type": "text",
+            "text": ("Antworte JETZT abschliessend aus dem bereits Geholten - weitere "
+                     "Werkzeugaufrufe sind nicht mehr moeglich. Halte das Antwortgeruest "
+                     "ein und sag dazu, falls die Auskunft unvollstaendig bleibt.")}]
+    daten = await api_aufruf(http, key, {
+        "model": modell, "max_tokens": max_tokens, "system": system_feld,
+        "messages": messages})
+    text = "".join(b.get("text", "") for b in daten.get("content", [])
+                   if b.get("type") == "text")
+    return SchleifenErgebnis(text, tool_namen, bestandsauszuege, "runden_cap")
