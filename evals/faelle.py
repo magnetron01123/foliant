@@ -294,4 +294,14 @@ FAELLE = [
                 "zusammengefasst); Modalwoerter ('kann'/'muss', 'bis zu') und alle "
                 "Zahlen exakt wie im Auszug. FAIL bei sinngemaesser Nacherzaehlung "
                 "oder fehlenden Satzteilen.", korpus="voll"),
+
+    dict(id="F6", frage="verstecken",
+         # Discord-Befund 08.08.2026: Auf das NACKTE Wort kam eine 🚫-Spoiler-Ablehnung -
+         # ohne einen einzigen Werkzeugaufruf. Repro am Pi: 1 von 4 Laeufen. Ein Begriff
+         # ohne Abenteuer-Bezug ist eine Nachschlage-Anfrage; die Ablehnung war eine
+         # Mutmassung ueber eine Absicht, nach der niemand gefragt hat.
+         pflicht=["📖"], verboten=["🚫"],
+         erwartete_tools=["foliant_suche_bestand", "foliant_hol_eintrag"],
+         richter=False,
+         hinweis="Ein-Wort-Anfrage im Discord-Stil: nachschlagen, nie ablehnen."),
 ]
