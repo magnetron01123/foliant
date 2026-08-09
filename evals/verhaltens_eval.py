@@ -494,13 +494,11 @@ async def _lauf(argv) -> int:
 
 
 def _schreibe_report(kopf: dict, ergebnisse: list[dict]) -> None:
-    _ERGEBNISSE.mkdir(exist_ok=True)
     # Datum PLUS Uhrzeit: gleichtaegige Laeufe ueberschrieben sich sonst gegenseitig -
     # der 17-Faelle-Pi-Report ging real an einen 3-Faelle-Nachlauf verloren (26.07.2026).
     stamm = f"{kopf['datum'][:16].replace(':', '')}-{kopf['modell']}"
-    (_ERGEBNISSE / f"{stamm}.json").write_text(
-        json.dumps({"kopf": kopf, "faelle": ergebnisse}, ensure_ascii=False, indent=2),
-        encoding="utf-8")
+    inhalt_json = json.dumps({"kopf": kopf, "faelle": ergebnisse},
+                             ensure_ascii=False, indent=2)
     zeilen = [f"# Verhaltens-Eval {kopf['datum']}", "",
               f"Modell: `{kopf['modell']}` · Client: {kopf['client']} · "
               f"Korpus: {kopf['korpus']} · `inhalts_hash: {kopf['inhalts_hash'][:16]}…`",
@@ -511,7 +509,22 @@ def _schreibe_report(kopf: dict, ergebnisse: list[dict]) -> None:
             e.get("begruendung", "")
         zeilen.append(f"| {e['id']} | {e.get('prompt', '—')} | {e['status']} "
                       f"| {anmerkung} |")
-    (_ERGEBNISSE / f"{stamm}.md").write_text("\n".join(zeilen) + "\n", encoding="utf-8")
+    inhalt_md = "\n".join(zeilen) + "\n"
+    try:
+        _ERGEBNISSE.mkdir(exist_ok=True)
+        (_ERGEBNISSE / f"{stamm}.json").write_text(inhalt_json, encoding="utf-8")
+        (_ERGEBNISSE / f"{stamm}.md").write_text(inhalt_md, encoding="utf-8")
+    except OSError as fehler:
+        # Ein Lauf ist BEZAHLT, bevor er geschrieben wird - ein nicht beschreibbares
+        # Verzeichnis darf ihn nicht kosten. Real passiert am 09.08.2026: derselbe Lauf
+        # im discord-Container statt im foliant-Container, dort ist /app read-only; 25
+        # fertige Faelle endeten in einem Traceback. Dieselbe Lehre wie beim Tool-Fehler
+        # weiter oben - was schon bezahlt ist, gehoert gerettet, nicht geworfen.
+        print(f"\n!!! Report NICHT schreibbar ({type(fehler).__name__}: {fehler})."
+              f" Ergebnisse folgen hier, von dort sind sie rettbar. !!!\n")
+        print(inhalt_md)
+        print(inhalt_json, flush=True)
+        return
     print(f"\nReport: evals/ergebnisse/{stamm}.md")
 
 
