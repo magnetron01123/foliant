@@ -161,7 +161,7 @@ def test_system_cachen_erzeugt_blockform():
     _fahre([_endrunde()], mitschrift, system_cachen=True)
     system = mitschrift[0]["system"]
     assert isinstance(system, list) and system[0]["text"] == "SYSTEM"
-    assert system[0]["cache_control"] == {"type": "ephemeral"}
+    assert system[0]["cache_control"] == llm._CACHE
 
 
 def test_system_cachen_setzt_auch_den_request_weiten_breakpoint():
@@ -171,7 +171,14 @@ def test_system_cachen_setzt_auch_den_request_weiten_breakpoint():
     mitschrift = []
     _fahre([_toolrunde(), _endrunde()], mitschrift, system_cachen=True)
     for anfrage in mitschrift:
-        assert anfrage["cache_control"] == {"type": "ephemeral"}, anfrage
+        assert anfrage["cache_control"] == llm._CACHE, anfrage
+
+
+def test_cache_laeuft_eine_stunde_statt_der_voreingestellten_fuenf_minuten():
+    """Gemessen am Abfrage-Protokoll: MEDIAN 14 Minuten zwischen zwei Fragen. Mit der
+    Voreinstellung (5 min) waere der Cache meistens abgelaufen, bevor die naechste
+    Frage kommt - dann zahlt jede Frage den Aufschlag fuers Schreiben und liest nie."""
+    assert llm._CACHE == {"type": "ephemeral", "ttl": "1h"}
 
 
 def test_ohne_cachen_bleibt_die_anfrage_frei_von_cache_feldern():

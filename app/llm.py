@@ -34,6 +34,15 @@ STANDARD_MODELL = "claude-sonnet-5"
 _MAX_TOOL_RESULT_ZEICHEN = 20_000
 _MAX_AUSZUG_ZEICHEN = 6_000
 
+# Cache-Lebensdauer. Der Standard waeren 5 Minuten - zu kurz fuer diese Runde: das
+# Abfrage-Protokoll (1997 Aufrufe, 26.07.-09.08.2026, zu 113 Fragen gebuendelt) zeigt
+# einen MEDIAN von 14 Minuten zwischen zwei Fragen. Nur 27-31 % der Luecken liegen unter
+# 5 Minuten, aber 59-71 % unter einer Stunde - der Standard-Cache waere also meistens
+# schon abgelaufen, wenn die naechste Frage kommt. Eine Stunde kostet beim Schreiben
+# 2x statt 1,25x und ist damit bei der ERSTEN Frage teurer; ab der zweiten ist sie
+# billiger, weil Treffer die Frist kostenlos verlaengern.
+_CACHE = {"type": "ephemeral", "ttl": "1h"}
+
 
 class LlmFehler(RuntimeError):
     """Harter API-Fehler nach erschoepftem Retry - dieselbe Anfrage heilt das nicht."""
@@ -130,8 +139,7 @@ async def fahre_schleife(mcp_client, http: httpx.AsyncClient, key: str, modell: 
     # Caching-Stelle 1 - der FESTE Breakpoint auf dem System-Block. Er deckt das
     # unveraenderliche Praefix ab (tools+system, rund 7000 Token) und haelt es auch
     # ueber getrennte Fragen hinweg im Cache.
-    system_feld = ([{"type": "text", "text": system,
-                     "cache_control": {"type": "ephemeral"}}]
+    system_feld = ([{"type": "text", "text": system, "cache_control": _CACHE}]
                    if system_cachen else system)
     # Caching-Stelle 2 - der REQUEST-WEITE Breakpoint. Er wandert automatisch auf den
     # letzten cachefaehigen Block und deckt damit den WACHSENDEN Teil ab: die
@@ -139,7 +147,7 @@ async def fahre_schleife(mcp_client, http: httpx.AsyncClient, key: str, modell: 
     # zahlte jede Folgerunde diesen Teil voll, obwohl er byte-gleich zur Vorrunde ist -
     # bei acht Runden das Mehrfache des festen Praefixes. Beide zusammen sind zwei der
     # vier erlaubten Breakpoints.
-    cache_feld = {"cache_control": {"type": "ephemeral"}} if system_cachen else {}
+    cache_feld = {"cache_control": _CACHE} if system_cachen else {}
     for _ in range(max_runden):
         daten = await api_aufruf(http, key, {
             "model": modell, "max_tokens": max_tokens, "system": system_feld,
