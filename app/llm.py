@@ -14,7 +14,7 @@ Key kommt vom Aufrufer und wird nie geloggt."""
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -34,9 +34,55 @@ STANDARD_MODELL = "claude-sonnet-5"
 _MAX_TOOL_RESULT_ZEICHEN = 20_000
 _MAX_AUSZUG_ZEICHEN = 6_000
 
+# Zwei Breakpoints, ZWEI Lebensdauern - sie haben verschiedene Lebenslaeufe, und die
+# gemessenen Zahlen (count_tokens gegen die echte API) machen den Unterschied teuer:
+#
+# System+Werkzeuge (11.638 Token) sind ueber ALLE Fragen stabil und werden zwischen
+# Fragen gelesen. Das Abfrage-Protokoll (1997 Aufrufe, 26.07.-09.08.2026, zu 113 Fragen
+# gebuendelt) zeigt dort einen MEDIAN von 14 Minuten - die voreingestellten 5 Minuten
+# waeren meist abgelaufen, bevor die naechste Frage kommt. Also eine Stunde: teurer beim
+# ersten Schreiben (2x statt 1,25x), ab der zweiten Frage billiger, weil jeder Treffer
+# die Frist kostenlos verlaengert.
+_CACHE_SYSTEM = {"type": "ephemeral", "ttl": "1h"}
+
+# Der Verlauf dagegen waechst JEDE RUNDE um rund 4.500 Token und wird Sekunden spaeter
+# wieder gelesen - fuer diese Spanne haelt auch die Voreinstellung. Eine Stunde wuerde
+# hier nur den doppelten Schreibpreis auf einen Block legen, der ohnehin gleich veraltet:
+# gerechnet ueber einen Spielabend (30 Fragen, 14 Minuten Abstand) kostet 1h/1h rund
+# 43 % mehr als 1h/5m. Nur bei reinen Thread-Nachfragen waere die Stunde besser - der
+# seltenere Fall. Deshalb bleibt es hier bei der Voreinstellung.
+_CACHE_VERLAUF = {"type": "ephemeral"}
+
 
 class LlmFehler(RuntimeError):
     """Harter API-Fehler nach erschoepftem Retry - dieselbe Anfrage heilt das nicht."""
+
+
+@dataclass
+class Verbrauch:
+    """Token-Zaehlung ueber ALLE Runden einer Frage, aus den usage-Feldern der API.
+
+    Ohne sie ist jede Aussage ueber das Prompt-Caching geraten: ob ein Cache-Eintrag
+    getroffen wird, meldet die API NICHT als Fehler oder Warnung - ein zu kurzes
+    Praefix, ein verschobenes Byte oder eine abgelaufene TTL sehen von aussen
+    identisch aus wie ein Volltreffer. Die drei Zahlen sind die einzige Auskunft."""
+    cache_gelesen: int = 0
+    cache_geschrieben: int = 0
+    ungecacht: int = 0
+    ausgabe: int = 0
+
+    def addiere(self, usage: dict | None) -> None:
+        usage = usage or {}
+        self.cache_gelesen += usage.get("cache_read_input_tokens") or 0
+        self.cache_geschrieben += usage.get("cache_creation_input_tokens") or 0
+        self.ungecacht += usage.get("input_tokens") or 0
+        self.ausgabe += usage.get("output_tokens") or 0
+
+    @property
+    def trefferquote(self) -> float:
+        """Anteil der aus dem Cache gelesenen an allen Eingabe-Tokens (0.0 bis 1.0)."""
+        gesamt = self.cache_gelesen + self.cache_geschrieben + self.ungecacht
+        return self.cache_gelesen / gesamt if gesamt else 0.0
 
 
 @dataclass
@@ -51,6 +97,7 @@ class SchleifenErgebnis:
     tool_namen: list[str]
     bestandsauszuege: list[str]
     stop_grund: str
+    verbrauch: Verbrauch = field(default_factory=Verbrauch)
 
 
 async def lade_werkzeuge(mcp_client) -> list[dict]:
@@ -84,9 +131,8 @@ async def fahre_schleife(mcp_client, http: httpx.AsyncClient, key: str, modell: 
 
     `verlauf` ist die komplette messages-Liste des Gespraechs (der Eval uebergibt
     genau eine Nutzerfrage, der Bot den Thread-Verlauf plus neue Frage); sie wird
-    kopiert, nie mutiert. system_cachen=True setzt cache_control ephemeral auf den
-    System-Block - das gecachte Praefix umfasst tools+system (zwischen den Runden
-    einer Frage und zwischen Folgefragen im Cache-Fenster Reads statt Vollpreis).
+    kopiert, nie mutiert. system_cachen=True schaltet das Prompt-Caching zu und
+    formt die Anfrage so, dass der Cache ueberlebt (drei Stellen, siehe unten);
     False haelt die Anfrageform byte-identisch zum gemessenen Eval-Stand.
 
     max_tokens deckt den TEUERSTEN erlaubten Fall ab: seit B15 setzt eine Auskunft ueber
@@ -99,20 +145,32 @@ async def fahre_schleife(mcp_client, http: httpx.AsyncClient, key: str, modell: 
     messages = list(verlauf)
     tool_namen: list[str] = []
     bestandsauszuege: list[str] = []
-    system_feld = ([{"type": "text", "text": system,
-                     "cache_control": {"type": "ephemeral"}}]
+    verbrauch = Verbrauch()
+    # Caching-Stelle 1 - der FESTE Breakpoint auf dem System-Block. Er deckt das
+    # unveraenderliche Praefix ab (tools+system, gemessen 11.638 Token) und haelt es
+    # auch ueber getrennte Fragen hinweg im Cache.
+    system_feld = ([{"type": "text", "text": system, "cache_control": _CACHE_SYSTEM}]
                    if system_cachen else system)
+    # Caching-Stelle 2 - der REQUEST-WEITE Breakpoint. Er wandert automatisch auf den
+    # letzten cachefaehigen Block und deckt damit den WACHSENDEN Teil ab: die
+    # Tool-Ergebnisse (bis 20k Zeichen je Runde) und den Thread-Verlauf. Ohne ihn
+    # zahlte jede Folgerunde diesen Teil voll, obwohl er byte-gleich zur Vorrunde ist -
+    # bei acht Runden das Mehrfache des festen Praefixes. Beide zusammen sind zwei der
+    # vier erlaubten Breakpoints.
+    cache_feld = {"cache_control": _CACHE_VERLAUF} if system_cachen else {}
     for _ in range(max_runden):
         daten = await api_aufruf(http, key, {
             "model": modell, "max_tokens": max_tokens, "system": system_feld,
-            "messages": messages, "tools": werkzeuge})
+            "messages": messages, "tools": werkzeuge, **cache_feld})
+        verbrauch.addiere(daten.get("usage"))
         inhalt = daten.get("content", [])
         messages.append({"role": "assistant", "content": inhalt})
         if daten.get("stop_reason") != "tool_use":
             text = "".join(b.get("text", "") for b in inhalt
                            if b.get("type") == "text")
             return SchleifenErgebnis(text, tool_namen, bestandsauszuege,
-                                     daten.get("stop_reason") or "end_turn")
+                                     daten.get("stop_reason") or "end_turn",
+                                     verbrauch)
         ergebnisse = []
         for block in inhalt:
             if block.get("type") != "tool_use":
@@ -135,8 +193,9 @@ async def fahre_schleife(mcp_client, http: httpx.AsyncClient, key: str, modell: 
                 bestandsauszuege.append(f"[{block['name']}]\n"
                                         f"{text_out[:_MAX_AUSZUG_ZEICHEN]}")
         messages.append({"role": "user", "content": ergebnisse})
-    # Runden-Cap: EINE letzte Anfrage OHNE Werkzeuge, damit aus dem bereits Geholten noch
-    # eine Antwort wird. Bis zum 07.08.2026 kam hier ein leeres Ergebnis zurueck - der
+    # Runden-Cap: EINE letzte Anfrage, in der das Modell keine Werkzeuge mehr aufrufen
+    # kann, damit aus dem bereits Geholten noch eine Antwort wird. Bis zum 07.08.2026
+    # kam hier ein leeres Ergebnis zurueck - der
     # Nutzer bekam nach 8 Runden bezahlter Recherche gar nichts, und im Discord nur den
     # Hinweis, die Frage enger zu stellen. Aufgefallen ist es am Eval-Fall DC3 (neun
     # Waffeneigenschaften, 12-28 Werkzeugaufrufe): dreimal in Folge eine leere Antwort.
@@ -155,9 +214,20 @@ async def fahre_schleife(mcp_client, http: httpx.AsyncClient, key: str, modell: 
             "text": ("Antworte JETZT abschliessend aus dem bereits Geholten - weitere "
                      "Werkzeugaufrufe sind nicht mehr moeglich. Halte das Antwortgeruest "
                      "ein und sag dazu, falls die Auskunft unvollstaendig bleibt.")}]
+    # Caching-Stelle 3 - WIE die Werkzeuge entzogen werden. Die Werkzeuge einfach
+    # wegzulassen entzieht sie zwar, wirft aber auch den gesamten Cache weg: die
+    # Werkzeuge stehen ganz oben im Praefix (tools -> system -> messages), und wer dort
+    # etwas aendert, invalidiert alles dahinter. 'tool_choice: none' erreicht dasselbe
+    # eine Ebene tiefer - das Modell kann keine Werkzeuge aufrufen, das gecachte
+    # tools+system-Praefix bleibt aber gueltig. Ohne Caching bleibt es beim Weglassen:
+    # der Eval ist das Messinstrument und darf seine Anfrageform nicht aendern.
+    schluss = {"tools": werkzeuge, "tool_choice": {"type": "none"}} if system_cachen \
+        else {}
     daten = await api_aufruf(http, key, {
         "model": modell, "max_tokens": max_tokens, "system": system_feld,
-        "messages": messages})
+        "messages": messages, **schluss, **cache_feld})
+    verbrauch.addiere(daten.get("usage"))
     text = "".join(b.get("text", "") for b in daten.get("content", [])
                    if b.get("type") == "text")
-    return SchleifenErgebnis(text, tool_namen, bestandsauszuege, "runden_cap")
+    return SchleifenErgebnis(text, tool_namen, bestandsauszuege, "runden_cap",
+                             verbrauch)

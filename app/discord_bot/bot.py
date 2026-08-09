@@ -490,6 +490,19 @@ class FoliantBot(discord.Client):
                     self._werkzeuge,
                     verlauf + [{"role": "user", "content": frage}],
                     system_cachen=True)
+            # Die drei Eingabe-Zahlen sind die einzige Auskunft darueber, ob das
+            # Prompt-Caching greift: ein verfehlter Cache meldet sich nirgends sonst,
+            # er kostet nur still den vollen Preis. Die Antwortlaenge steht daneben,
+            # weil das Modell ohne 'thinking'-Feld auf Sonnet 5 ADAPTIV DENKT und die
+            # Denk-Tokens als Ausgabe zaehlen: liegt 'Ausgabe' deutlich ueber der
+            # Antwortlaenge, geht der Rest ins Denken - und teilt sich max_tokens mit
+            # der Antwort. Ins Log, nicht in die Antwort.
+            verbrauch = erg.verbrauch
+            _log.info("Tokens: %d Cache gelesen / %d Cache geschrieben / %d ungecacht "
+                      "/ %d Ausgabe bei %d Zeichen Antwort (Trefferquote %.0f %%)",
+                      verbrauch.cache_gelesen, verbrauch.cache_geschrieben,
+                      verbrauch.ungecacht, verbrauch.ausgabe, len(erg.text or ""),
+                      verbrauch.trefferquote * 100)
             # Selbstanzeige (O4/M5): Ablehnung ohne Nachschlag ist regelwidrig UND fuer
             # das Werkzeug-Protokoll unsichtbar - Begruendung in rueckmeldung.
             if rueckmeldung.ablehnung_ohne_werkzeug(erg.text, erg.tool_namen):
