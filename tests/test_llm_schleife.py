@@ -164,6 +164,62 @@ def test_system_cachen_erzeugt_blockform():
     assert system[0]["cache_control"] == {"type": "ephemeral"}
 
 
+def test_system_cachen_setzt_auch_den_request_weiten_breakpoint():
+    """Der System-Breakpoint deckt nur tools+system ab. Der WACHSENDE Teil - die
+    Tool-Ergebnisse (bis 20k Zeichen je Runde) und der Thread-Verlauf - braucht den
+    request-weiten Breakpoint, sonst zahlt jede Folgerunde ihn erneut voll."""
+    mitschrift = []
+    _fahre([_toolrunde(), _endrunde()], mitschrift, system_cachen=True)
+    for anfrage in mitschrift:
+        assert anfrage["cache_control"] == {"type": "ephemeral"}, anfrage
+
+
+def test_ohne_cachen_bleibt_die_anfrage_frei_von_cache_feldern():
+    """Der Eval ist das Messinstrument: seine Anfrageform muss byte-gleich zum
+    gemessenen Stand bleiben, sonst gilt die Messung nicht mehr fuer den Bot."""
+    mitschrift = []
+    _fahre([_toolrunde(), _endrunde()], mitschrift)
+    for anfrage in mitschrift:
+        assert "cache_control" not in anfrage
+        assert "tool_choice" not in anfrage
+
+
+def test_schlussrunde_behaelt_beim_cachen_die_werkzeuge_und_sperrt_sie():
+    """Werkzeuge WEGLASSEN entzieht sie - und wirft den Cache weg, weil die Werkzeuge
+    ganz oben im Praefix stehen. 'tool_choice: none' entzieht sie eine Ebene tiefer:
+    das Modell kann keines aufrufen, das gecachte tools+system-Praefix bleibt gueltig."""
+    mitschrift = []
+    erg = _fahre([_toolrunde(), _toolrunde(), _endrunde("Aus dem Geholten: ...")],
+                 mitschrift, max_runden=2, system_cachen=True)
+    assert erg.stop_grund == "runden_cap"
+    schluss = mitschrift[-1]
+    assert schluss["tools"] == [{"name": "foliant_suche_bestand"}]
+    assert schluss["tool_choice"] == {"type": "none"}
+
+
+def test_verbrauch_summiert_ueber_alle_runden():
+    """Ohne diese Zahlen ist jede Aussage ueber das Caching geraten - ein verfehlter
+    Cache sieht von aussen aus wie ein Treffer, er kostet nur mehr."""
+    runden = [_toolrunde(), _endrunde()]
+    for i, runde in enumerate(runden):
+        runde["usage"] = {"cache_read_input_tokens": 100 * (i + 1),
+                          "cache_creation_input_tokens": 10,
+                          "input_tokens": 5, "output_tokens": 20}
+    erg = _fahre(runden, [])
+    assert erg.verbrauch.cache_gelesen == 300      # 100 + 200
+    assert erg.verbrauch.cache_geschrieben == 20
+    assert erg.verbrauch.ungecacht == 10
+    assert erg.verbrauch.ausgabe == 40
+    assert erg.verbrauch.trefferquote == pytest.approx(300 / 330)
+
+
+def test_verbrauch_ohne_usage_feld_bleibt_null_statt_zu_reissen():
+    """Aeltere/abweichende Antworten duerfen die Schleife nicht kosten - die Messung
+    ist Beiwerk, die Auskunft an den Nutzer ist der Zweck."""
+    erg = _fahre([_endrunde()], [])
+    assert erg.verbrauch.cache_gelesen == 0 and erg.verbrauch.trefferquote == 0.0
+
+
 def test_verlauf_wird_nie_mutiert():
     verlauf = [{"role": "user", "content": "Frage?"}]
 

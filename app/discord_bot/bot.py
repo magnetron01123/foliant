@@ -490,6 +490,14 @@ class FoliantBot(discord.Client):
                     self._werkzeuge,
                     verlauf + [{"role": "user", "content": frage}],
                     system_cachen=True)
+            # Die drei Token-Zahlen sind die einzige Auskunft darueber, ob das
+            # Prompt-Caching greift: ein verfehlter Cache meldet sich nirgends sonst,
+            # er kostet nur still den vollen Preis. Ins Log, nicht in die Antwort.
+            v = erg.verbrauch
+            _log.info("Tokens: %d Cache gelesen / %d Cache geschrieben / %d ungecacht "
+                      "/ %d Ausgabe (Cache-Trefferquote %.0f %%)",
+                      v.cache_gelesen, v.cache_geschrieben, v.ungecacht, v.ausgabe,
+                      v.trefferquote * 100)
             # Selbstanzeige (O4/M5): Ablehnung ohne Nachschlag ist regelwidrig UND fuer
             # das Werkzeug-Protokoll unsichtbar - Begruendung in rueckmeldung.
             if rueckmeldung.ablehnung_ohne_werkzeug(erg.text, erg.tool_namen):
