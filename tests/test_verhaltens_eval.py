@@ -318,3 +318,46 @@ def test_codeblock_breite_ignoriert_langen_fliesstext():
     lang = "📜 **Regel**\n" + "Ein sehr langer Fliesstext " * 6
     assert zu_breite_codeblock_zeilen(lang) == []
     assert pruefe_deterministisch(dict(id="DC1", keine_md_tabelle=True), lang, []) == []
+
+
+def test_ein_nicht_schreibbarer_report_kostet_den_lauf_nicht(monkeypatch, capsys,
+                                                             tmp_path):
+    """Am 09.08.2026 endeten 25 fertige - also bezahlte - Faelle in einem Traceback,
+    weil der Lauf im discord-Container statt im foliant-Container lief und /app dort
+    read-only ist. Ein unbeschreibbares Verzeichnis darf einen bezahlten Lauf nicht
+    kosten: dann gehen die Ergebnisse auf stdout, von wo sie rettbar sind."""
+    from evals import verhaltens_eval as ev
+
+    gesperrt = tmp_path / "gesperrt"
+    gesperrt.mkdir()
+    gesperrt.chmod(0o500)                       # lesbar, nicht beschreibbar
+    monkeypatch.setattr(ev, "_ERGEBNISSE", gesperrt)
+
+    kopf = {"datum": "2026-08-09T12:15:00+00:00", "modell": "claude-sonnet-5",
+            "client": "test", "korpus": "voll", "inhalts_hash": "a" * 32}
+    ergebnisse = [{"id": "DC3", "status": "fail",
+                   "deterministisch_gruende": ["Werkzeugname in der Antwort"]}]
+
+    ev._schreibe_report(kopf, ergebnisse)       # darf NICHT werfen
+
+    ausgabe = capsys.readouterr().out
+    assert "NICHT schreibbar" in ausgabe
+    assert "DC3" in ausgabe and "Werkzeugname in der Antwort" in ausgabe
+    assert '"kopf"' in ausgabe, "das JSON muss mit raus, nicht nur die Tabelle"
+
+
+def test_der_geschriebene_report_bleibt_unveraendert(tmp_path, monkeypatch, capsys):
+    """Die Rettungsleine darf den Normalfall nicht anfassen - der Report ist die
+    Messgrundlage, sein Format traegt den Paritaets-Vergleich."""
+    from evals import verhaltens_eval as ev
+
+    ziel = tmp_path / "ergebnisse"
+    monkeypatch.setattr(ev, "_ERGEBNISSE", ziel)
+    kopf = {"datum": "2026-08-09T12:15:00+00:00", "modell": "m", "client": "c",
+            "korpus": "voll", "inhalts_hash": "b" * 32}
+    ev._schreibe_report(kopf, [{"id": "A1", "status": "pass", "prompt": "standard"}])
+
+    md = (ziel / "2026-08-09T1215-m.md").read_text(encoding="utf-8")
+    assert "| A1 | standard | pass |" in md
+    assert (ziel / "2026-08-09T1215-m.json").exists()
+    assert "Report: evals/ergebnisse/" in capsys.readouterr().out
