@@ -195,6 +195,21 @@ def test_kurzzeile_nimmt_keinen_kuenstlernamen(bestand):
                          "Strength") is None
 
 
+def test_kurzzeile_faengt_den_bildnachweis_auch_mitten_in_der_zeile(bestand):
+    """Befund 07.08.2026 (efota-en 'BATTLE SMITH'): Manche Baende setzen den Nachweis OHNE
+    Umbruch zwischen Schlagzeile und Fliesstext. `_BILDNACHWEIS` ist auf '^' verankert und
+    griff dort nicht - der Kuenstlername stand in der Kurzzeile des Menues.
+
+    Erwartet wird die Schlagzeile, nicht None: Sie ist die belegte Kurzcharakteristik und
+    steht konsistent zu den uebrigen Unterklassen ('Bargain with Whimsical Fey')."""
+    echt = ("*Kontext: THE ARTIFICER > ARTIFICER SUBCLASSES*\n\nCommand a Construct "
+            "Guardian ARTIST: MICHAEL BROUSSARD A Battle Smith is a combination of "
+            "protector and medic, an expert at defending others.")
+    kurz = ch._kurzzeile(echt)
+    assert kurz == "Command a Construct Guardian", kurz
+    assert "BROUSSARD" not in kurz
+
+
 def test_kurzzeile_doppelt_die_talent_typzeile_nicht(bestand):
     """Die Typzeile ('General Feat (Prerequisite: ...)') steht bereits als eigene Felder
     in der Zeile. Als Kurzcharakteristik verdraengte sie den Satz, der wirklich sagt,
@@ -295,3 +310,28 @@ def test_optionslisten_sind_deutsch_alphabetisch_sortiert(bestand):
     if "Kämpfer" in namen and "Kleriker" in namen:
         assert namen.index("Kämpfer") < namen.index("Kleriker"), \
             "'Kämpfer' muss vor 'Kleriker' stehen (ä = a)"
+
+
+def test_jede_optionsliste_erklaert_die_kurzzeile(bestand):
+    """Rund 55 % aller 'kurz'-Zeilen stammen aus englischen Quellen (gemessen 07.08.2026).
+    Bis dahin sagte NUR die Klassenliste, was mit ihnen zu tun ist - Spezies, Hintergruende
+    und Talente lieferten dieselben englischen Schlagzeilen ohne jede Regieanweisung, und
+    das Modell reichte sie roh durch ('Bargain with Whimsical Fey' mitten im Deutschen)."""
+    for kategorie in ("klasse", "spezies", "hintergrund", "talent"):
+        antwort = ch.foliant_liste_optionen(kategorie)
+        hinweis = antwort.get("hinweis_kurz", "")
+        assert "DEUTSCH" in hinweis, f"{kategorie}: keine Deutsch-Regie zur Kurzzeile"
+        assert "S3" in hinweis, kategorie
+
+
+def test_jede_optionsliste_traegt_die_kopfzeilen_regel(bestand):
+    """Ueber vier Volllaeufe (07./08.08.2026) stammten die wiederkehrenden
+    Geruest-Verstoesse (C3, DC4) aus Listen-Antworten - foliant_liste_optionen war der
+    einzige Auskunftsweg ohne die Kopfzeilen-Regel. Dieselbe Lueckenklasse wie bei der
+    Mehrdeutigkeit: Der Hinweis hing an einem Werkzeug, das diese Antworten nie liefert."""
+    for kategorie in ("klasse", "spezies", "hintergrund", "talent"):
+        hinweis = ch.foliant_liste_optionen(kategorie).get("hinweis_darstellung", "")
+        assert "B12" in hinweis or "⚔️" in hinweis, f"{kategorie}: keine Kopfzeilen-Regel"
+    # Die Klassenliste muss zusaetzlich das Datenlage-/Feldnamen-Verbot tragen (C3-Befund).
+    klassenhinweis = ch.foliant_liste_optionen("klasse")["hinweis_darstellung"]
+    assert "inhaltsart" in klassenhinweis and "Datenlage" in klassenhinweis

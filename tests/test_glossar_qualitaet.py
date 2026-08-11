@@ -150,3 +150,131 @@ def test_geprueftes_homonym_bleibt_von_kanonisierung_unberuehrt(con):
     offizielle = {r[0] for r in con.execute(
         "SELECT term_de FROM glossar WHERE lower(term_en)='hide' AND offiziell=1")}
     assert offizielle == {"Fell", "Verstecken"}
+
+
+def test_waffeneigenschaften_sind_offiziell_gepaart(con):
+    """Review-Befund 08.08.2026: Die Langschwert-Auskunft schrieb „Vielseitig*" — der Stern
+    behauptet „keine offizielle deutsche Übersetzung", dabei steht jede Waffeneigenschaft
+    als eigener srd-de-Eintrag unter „Ausrüstung > Waffen > Eigenschaften". Ein falscher
+    Stern ist eine falsche Aussage über den Bestand.
+
+    Die acht Meisterschaftseigenschaften waren längst gepaart — die Waffeneigenschaften
+    waren die vergessene Schwesterliste."""
+    ig.seed_kern_singulare(con)
+    con.commit()
+    gl.leere_cache()
+    for term_en, term_de in (("Versatile", "Vielseitig"), ("Finesse", "Finesse"),
+                             ("Heavy", "Schwer"), ("Loading", "Laden"),
+                             ("Ammunition", "Geschosse"), ("Thrown", "Wurfwaffe"),
+                             ("Two-Handed", "Zweihändig"), ("Reach", "Weitreichend")):
+        assert gl.term_de(con, term_en) == (term_de, True), term_en
+
+
+def test_light_bleibt_der_zauber(con):
+    """'Light' darf NICHT zusätzlich auf 'Leicht' zeigen: Das Glossar führt den Zauber
+    Licht, und ein zweites Paar machte das Lemma mehrdeutig — `term_de` nähme die erste
+    Zeile. Dieselbe Falle, die aus einem Errata-Verweis 'Fell (Hide)' machte."""
+    paare = {(en, de) for en, de, _ed in ig.KERN_SINGULAR_PAARE}
+    assert ("Light", "Leicht") not in paare
+    assert not [de for en, de in paare if en == "Light"], "Light gehoert dem Zauber"
+
+
+def test_statblock_lemmata_bleiben_aus_dem_inline_annotator(con):
+    """'Reach' steht in JEDEM Statblock für die Reichweite eines Angriffs, nicht für die
+    Waffeneigenschaft 'Weitreichend'; 'Heavy' trägt jede schwere Rüstung. Beide sind als
+    Paar richtig und im Fließtext gefährlich — deshalb Homonym-Stopp: exakte Suche ja,
+    Inline-Annotation nein."""
+    ig.seed_kern_singulare(con)
+    con.commit()
+    gl.leere_cache()
+    text = "Melee Attack Roll: +7, Reach 10 ft. The knight wears Heavy armor."
+    gefunden = {z["term_en"] for z in gl.begriffe_im_text(con, text)}
+    assert "Reach" not in gefunden and "Heavy" not in gefunden, gefunden
+    # Die exakte Suche muss sie trotzdem aufloesen - dafuer stehen sie im Glossar:
+    assert gl.term_de(con, "Reach") == ("Weitreichend", True)
+
+
+def test_kurze_meisterschaftsnamen_erreichen_das_modell(con):
+    """Review-Befund 08.08.2026: Die Langschwert-Auskunft erfand „Schwächung*" statt des
+    amtlichen „Auslaugen" — obwohl das Paar Sap→Auslaugen seit jeher im Glossar steht.
+
+    Ursache: `_MIN_LEMMA = 4` hält kurze englische Lemmata aus dem Inline-Annotator
+    heraus (richtig für „Age", „Aid", „Cat", „Net") — und traf damit auch die
+    dreibuchstabigen Meisterschaftseigenschaften Sap und Vex. Die Hürde bleibt, die zwei
+    kuratierten Fachbegriffe sind die belegte Ausnahme."""
+    ig.seed_kern_singulare(con)
+    con.commit()
+    gl.leere_cache()
+    text = ("**Mastery — Sap.** If you hit a creature with this weapon, that creature has "
+            "Disadvantage on its next attack roll. The Dagger has the Vex property.")
+    gefunden = {z["term_en"]: z["term_de"] for z in gl.begriffe_im_text(con, text)}
+    assert gefunden.get("Sap") == "Auslaugen", gefunden
+    assert gefunden.get("Vex") == "Plagen", gefunden
+
+
+def test_die_kurzhuerde_bleibt_fuer_alltagswoerter(con):
+    """Die Ausnahme darf nicht zur Regel werden: 'Aid', 'Web' und Co. sind der Grund,
+    warum es die Hürde überhaupt gibt."""
+    for term_en, term_de in (("Aid", "Beistand"), ("Web", "Spinnennetz"),
+                             ("Cat", "Katze")):
+        ig._upsert(con, term_en, term_de, 1, "Spielerhandbuch", "2024", None)
+    con.commit()
+    gl.leere_cache()
+    text = "The cat came to his aid, tangled in a web of lies."
+    assert gl.begriffe_im_text(con, text) == []
+
+
+def _mit_srd_eintrag(con, name_de):
+    con.execute("INSERT OR IGNORE INTO quellen (kuerzel,titel,sprache,edition,herkunft,"
+                "prioritaet) VALUES ('srd-de','SRD','de','2024','pdf',10)")
+    quelle_id = con.execute("SELECT id FROM quellen WHERE kuerzel='srd-de'").fetchone()[0]
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,"
+                "body_md) VALUES (?,?,?,'de','2024','*Kontext: Regelglossar*')",
+                (quelle_id, "regel", name_de))
+    con.commit()
+
+
+def test_regelglossar_paare_nur_mit_beleg(con):
+    """Der Seeder schreibt NUR, was der srd-de-Bestand fuehrt (nicht raten) - dasselbe
+    Muster wie seed_aktionen. Ohne Beleg keine Zeile, mit Beleg eine offizielle."""
+    ig.seed_regelglossar(con)
+    con.commit()
+    gl.leere_cache()
+    assert gl.term_de(con, "Vulnerability") is None, "ohne Beleg darf nichts entstehen"
+
+    _mit_srd_eintrag(con, "Anfälligkeit")
+    ig.seed_regelglossar(con)
+    con.commit()
+    gl.leere_cache()
+    assert gl.term_de(con, "Vulnerability") == ("Anfälligkeit", True)
+
+
+def test_regelglossar_qualifikator_traegt_den_beleg(con):
+    """Bei den (Gefahr)/(Haltung)/(Wirkungsbereich)-Eintraegen ist der BELEG der volle
+    srd-de-Name, der Begriff die Basis - 'Kugel (Wirkungsbereich)' belegt das Paar
+    Sphere/Kugel. Die 89 Luecken sassen genau an dieser Trennung."""
+    _mit_srd_eintrag(con, "Kugel (Wirkungsbereich)")
+    ig.seed_regelglossar(con)
+    con.commit()
+    gl.leere_cache()
+    assert gl.term_de(con, "Sphere") == ("Kugel", True)
+
+
+def test_regelglossar_dauergaeste_bleiben_aus_dem_annotator(con):
+    """'creature', 'target', 'spell' … stehen in praktisch jedem englischen Regeltext.
+    begriffe_im_text deckelt bei 40 Treffern - die Dauergaeste wuerden die seltenen,
+    wichtigen Begriffe verdraengen. Exakte Suche: volle Nutzung; Inline: gestoppt."""
+    for name in ("Kreatur", "Ziel", "Zauber", "Anfälligkeit"):
+        _mit_srd_eintrag(con, name)
+    ig.seed_regelglossar(con)
+    con.commit()
+    gl.leere_cache()
+    text = ("The creature makes a saving throw. The target of the spell has "
+            "Vulnerability to fire damage.")
+    gefunden = {z["term_en"] for z in gl.begriffe_im_text(con, text)}
+    assert "Creature" not in gefunden and "Target" not in gefunden
+    assert "Spell" not in gefunden
+    # Der seltene Fachbegriff kommt durch - dafuer ist der Annotator da:
+    assert "Vulnerability" in gefunden
+    # Und die exakte Suche verliert nichts:
+    assert gl.term_de(con, "Creature") == ("Kreatur", True)

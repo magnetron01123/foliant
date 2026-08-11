@@ -52,6 +52,9 @@ class FoliantBot(discord.Client):
         self._guild = discord.Object(id=guild_id)
         self.schranken = Schranken(guild_id, kanal_ids, tagesdeckel, cooldown_s)
         self.gespraeche = GespraechsSpeicher()
+        # Welche Frage welche gesendete Antwort beantwortet - damit eine Markierung die
+        # richtige Frage protokolliert statt einer geratenen (rueckmeldung.Fragenspeicher).
+        self.fragen = rueckmeldung.Fragenspeicher()
         self._api_key, self._modell, self._system = api_key, modell, system
         # Semaphore(2): der Pi traegt auch MCP + Website, und die API kostet - mehr
         # als zwei gleichzeitige Schleifen bringt der Runde nichts.
@@ -211,15 +214,19 @@ class FoliantBot(discord.Client):
                 await interaction.followup.send(antwort.HINWEIS_PRIVAT, ephemeral=True)
                 return
             nachricht = await interaction.followup.send(teile[0], wait=True)
+            self._merke_frage(frage, nachricht)
             thread = None
             if isinstance(kanal, discord.TextChannel):
                 thread = await self._eroeffne_thread(kanal, nachricht, frage)
             if thread is not None:
                 for teil in teile[1:]:
-                    await thread.send(teil)
+                    self._merke_frage(frage, await thread.send(teil))
             else:                            # im Thread aufgerufen (nicht verschachteln)
                 for teil in teile[1:]:       # oder Thread verweigert (Fallback: Kanal)
-                    await interaction.followup.send(teil)
+                    # wait=True nur, um die Nachricht zurueckzubekommen: ohne sie waere
+                    # eine Markierung auf einem Folgeteil wieder eine geratene Frage.
+                    self._merke_frage(
+                        frage, await interaction.followup.send(teil, wait=True))
             if thread is not None or not isinstance(kanal, discord.TextChannel):
                 # Ohne Thread gibt es keinen Ort fuer Folgefragen - ein Verlauf unter
                 # der Kanal-ID wuerde nie gelesen und nur 24 h Speicher belegen.
@@ -299,21 +306,39 @@ class FoliantBot(discord.Client):
 
     async def on_raw_reaction_remove(self,
                                      payload: discord.RawReactionActionEvent) -> None:
-        """Markierung zurueckgenommen -> Zeile weg. Ein Fehlgriff soll die Kurationsliste
-        nicht dauerhaft belasten. Die Bestaetigung des Bots bleibt bewusst stehen: sie
-        wieder wegzunehmen hiesse zu wissen, ob NIEMAND mehr markiert hat - und dafuer
-        muesste der Bot Nutzer auseinanderhalten."""
-        art = rueckmeldung.art_der_markierung(str(payload.emoji))
-        if art is None:
+        """Markierung zurueckgenommen -> Zeile weg, ABER nur wenn sie niemand mehr haelt.
+
+        Ein Fehlgriff soll die Kurationsliste nicht dauerhaft belasten. Zwei Spieler mit
+        demselben Daumen ergeben aber nur EINE Zeile (UNIQUE(art, verweis), bewusst ohne
+        Nutzerkennung) - bedingungsloses Loeschen haette den Befund des einen mit der
+        Ruecknahme des anderen entsorgt (Review-Befund 11.08.2026).
+
+        Die Bestaetigung des Bots bleibt in jedem Fall stehen: Sie beantwortet "ist mein
+        Druck angekommen?", und das bleibt wahr, auch wenn der Druck zurueckgenommen wird.
+        """
+        markierung = await self._markierte_antwort(payload)
+        if markierung is None:
             return
-        if payload.user_id == (self.user and self.user.id):
-            return                           # eigene Reaktion, siehe _markierte_antwort
-        if payload.guild_id != self._guild.id:
+        nachricht, _, art = markierung
+        # Frisch geladen, also ohne den, der eben zurueckgenommen hat. Die ANZAHL genuegt
+        # und bleibt PII-frei - sie sagt, dass noch jemand markiert, nie wer.
+        if rueckmeldung.noch_markiert(
+                [(str(r.emoji), r.count) for r in nachricht.reactions], art):
             return
         protokoll.loesche_rueckmeldung(
             art=art,
             verweis=rueckmeldung.verweis(payload.guild_id, payload.channel_id,
                                          payload.message_id))
+
+    def _merke_frage(self, frage: str, *nachrichten) -> None:
+        """Jede gesendete Teilnachricht bekommt dieselbe Frage zugeordnet.
+
+        JEDE, nicht nur die erste: Am 10.08.2026 markierte die Runde beide Haelften
+        derselben Antwort - eine lange Auskunft wird von Discord geteilt, und der Daumen
+        landet auf dem Teil, den man gerade vor sich hat."""
+        for nachricht in nachrichten:
+            if nachricht is not None:
+                self.fragen.merke(nachricht.id, frage)
 
     async def _markierte_antwort(self, payload: discord.RawReactionActionEvent):
         """(Nachricht, Kanal, Art), wenn das Ereignis eine Markierung an einer EIGENEN
@@ -346,7 +371,14 @@ class FoliantBot(discord.Client):
 
     async def _frage_zur_antwort(self, nachricht: discord.Message, kanal) -> str | None:
         """Die Frage, auf die die markierte Antwort geantwortet hat. Best effort - ein
-        leeres Ergebnis verwirft die Markierung NICHT (rueckmeldung.frage_aus_umgebung)."""
+        leeres Ergebnis verwirft die Markierung NICHT (rueckmeldung.frage_aus_umgebung).
+
+        Zuerst das Gedaechtnis aus dem Antwortmoment: Dort steht die Frage exakt, statt aus
+        der Kanal-Historie erraten zu werden. Es ist fluechtig - nach einem Neustart, und
+        genau dann kommen viele Markierungen (RAW-Ereignisse), greift der alte Weg."""
+        gemerkt = self.fragen.frage(nachricht.id)
+        if gemerkt:
+            return gemerkt
         try:
             vorlauf = [(n.author.bot, n.content)
                        async for n in kanal.history(limit=6, before=nachricht)]
@@ -448,7 +480,7 @@ class FoliantBot(discord.Client):
                                                     frage)
                         or nachricht.channel)
             for teil in teile:
-                await ziel.send(teil)
+                self._merke_frage(frage, await ziel.send(teil))
             if isinstance(ziel, discord.Thread):
                 # Nur Threads tragen Folgefragen - im Kanal-Fallback gibt es keinen
                 # Ort, an dem on_message den Verlauf wiederfaende.
@@ -470,7 +502,7 @@ class FoliantBot(discord.Client):
                 text = await self._beantworte(nachricht.author.id, frage,
                                               verlauf=verlauf)
             for teil in antwort.teile(text):
-                await nachricht.channel.send(teil)
+                self._merke_frage(frage, await nachricht.channel.send(teil))
             self.gespraeche.ergaenze(nachricht.channel.id, frage, text)
         finally:
             self.schranken.beende(nachricht.author.id)
@@ -490,6 +522,25 @@ class FoliantBot(discord.Client):
                     self._werkzeuge,
                     verlauf + [{"role": "user", "content": frage}],
                     system_cachen=True)
+            # Die drei Eingabe-Zahlen sind die einzige Auskunft darueber, ob das
+            # Prompt-Caching greift: ein verfehlter Cache meldet sich nirgends sonst,
+            # er kostet nur still den vollen Preis. Die Antwortlaenge steht daneben,
+            # weil das Modell ohne 'thinking'-Feld auf Sonnet 5 ADAPTIV DENKT und die
+            # Denk-Tokens als Ausgabe zaehlen: liegt 'Ausgabe' deutlich ueber der
+            # Antwortlaenge, geht der Rest ins Denken - und teilt sich max_tokens mit
+            # der Antwort. Ins Log, nicht in die Antwort.
+            verbrauch = erg.verbrauch
+            _log.info("Tokens: %d Cache gelesen / %d Cache geschrieben / %d ungecacht "
+                      "/ %d Ausgabe bei %d Zeichen Antwort (Trefferquote %.0f %%)",
+                      verbrauch.cache_gelesen, verbrauch.cache_geschrieben,
+                      verbrauch.ungecacht, verbrauch.ausgabe, len(erg.text or ""),
+                      verbrauch.trefferquote * 100)
+            # Selbstanzeige (O4/M5): Ablehnung ohne Nachschlag ist regelwidrig UND fuer
+            # das Werkzeug-Protokoll unsichtbar - Begruendung in rueckmeldung.
+            if rueckmeldung.ablehnung_ohne_werkzeug(erg.text, erg.tool_namen):
+                protokoll.merke_rueckmeldung(rueckmeldung.ART_AUTO_ABLEHNUNG,
+                                             verweis=rueckmeldung.auto_verweis(frage),
+                                             frage=frage)
             fehler = antwort.fehlertext(erg.stop_grund)
             if fehler and erg.stop_grund != "max_tokens":
                 return fehler

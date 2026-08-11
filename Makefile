@@ -62,7 +62,18 @@ _pi-ziel:
 # passiert: der /regel-Absturz war im Repo behoben, deployt - und in Discord trotzdem
 # noch da, weil der discord-Container nie neu gebaut wurde. `--no-deps`, damit
 # depends_on nicht gateway/cloudflared mit durchstartet (Gotcha in CONCEPT.md par. 12).
-deploy-pi: _pi-ziel
+# Eval-Reports VOR dem Rebuild aus dem Container ziehen (CONCEPT.md par. 12): Sie leben
+# in /app und sterben mit dem alten Image - dabei sind sie die Kalibriergrundlage fuer
+# jedes neue Pruefmuster. Zweimal in einer Woche (07./08.08.2026) waeren sie ohne den
+# Handgriff verloren gewesen; jetzt macht ihn der Deploy selbst. Fehlertolerant (-):
+# ein frischer Container ohne Reports oder ein gestoppter Dienst bricht keinen Deploy.
+.PHONY: sichere-eval-reports-pi
+sichere-eval-reports-pi: _pi-ziel
+	-ssh $(PI) 'cd ~/foliant && rm -rf /tmp/eval-reports && docker compose cp foliant:/app/evals/ergebnisse /tmp/eval-reports' 2>/dev/null
+	-mkdir -p evals/ergebnisse/pi && scp -q '$(PI):/tmp/eval-reports/*.json' evals/ergebnisse/pi/ 2>/dev/null
+	@ls evals/ergebnisse/pi/*.json 2>/dev/null | wc -l | xargs -I{} echo "Eval-Reports gesichert (lokal gesamt: {})"
+
+deploy-pi: _pi-ziel sichere-eval-reports-pi
 	rsync -a --exclude '.git' --exclude '.venv*' --exclude 'data' --exclude 'quellen' \
 	      --exclude 'config/foliant.toml' --exclude '.env' --exclude '.claude' \
 	      ./ $(PI):~/foliant/
@@ -92,13 +103,23 @@ check-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin check'
 
 # Der Suchbericht vom VOLLBESTAND, maschinenlesbar - Einstieg in den
-# Rueckmeldungs-Durchgang (O4/M5, .claude/commands/rueckmeldungen.md). Rein lesend.
+# Rueckmeldungs-Durchgang (O4/M5, .claude/ablaeufe/rueckmeldungen.md). Rein lesend.
 # Bis 04.08.2026 stand dieser Aufruf nur als Copy-Paste-Zeile in der Doku, und eine Zeile,
 # die man abtippt, wird seltener gefahren als eine, die man aufruft.
 TAGE ?= 30
 .PHONY: bericht-pi
 bericht-pi: _pi-ziel
 	@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin suchbericht --tage $(TAGE) --json'
+
+# Die zweite Haelfte desselben Durchgangs: was der Bericht NICHT weiss, weil es im Repo
+# steht und nicht auf dem Pi - Wiederholungszaehler je Regel-ID, offene `spaeter`-Posten,
+# frueher abgelehnte Vorschlaege. Lokal, rein lesend, kein SSH.
+# Als Ziel und nicht als Handarbeit, weil am Zaehler eine Entscheidung haengt: Ab dem
+# dritten Bruch sitzt die Regel im falschen Kanal, und diese Grenze loest die
+# `Achtung`-Zeile der Freigabekarte aus.
+.PHONY: gedaechtnis
+gedaechtnis:
+	@.venv/bin/python deploy/rueckmeldungs_gedaechtnis.py
 
 # Der Gespraechskontext um EINE markierte Antwort, live aus Discord. Der Bot-Token liegt
 # nur in der Umgebung des discord-Containers und verlaesst den Pi nicht.

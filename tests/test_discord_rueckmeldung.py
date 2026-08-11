@@ -43,6 +43,73 @@ def test_variantenselektor_wird_toleriert(emoji, art):
     assert rm.art_der_markierung(emoji + "\N{VARIATION SELECTOR-16}") == art
 
 
+@pytest.mark.parametrize("emoji, art", [("\N{THUMBS DOWN SIGN}", rm.ART_RUNTER),
+                                        ("\N{THUMBS UP SIGN}", rm.ART_HOCH)])
+@pytest.mark.parametrize("ton", [chr(c) for c in range(0x1F3FB, 0x1F400)])
+def test_hautton_zaehlt_wie_der_nackte_daumen(emoji, ton, art):
+    """Review-Befund 11.08.2026, am lebenden Bot gemessen: 👍🏽 lieferte None. Wer den
+    Hautton einmal eingestellt hat, sendet auf iOS und Android IMMER die geschmueckte
+    Form - fuer die gab es weder eine Protokollzeile noch die 📝-Quittung.
+
+    Das ist dieselbe Fehlerklasse wie beim Variantenselektor darueber und trotzdem ein
+    eigener Test: Der alte deckte genau EIN Schmuckzeichen ab, und die Erweiterung von
+    einem auf sechs ist der Schritt, bei dem die naechsten fuenf vergessen werden.
+    Deshalb ueber den ganzen Bereich parametrisiert, nicht an einem Beispiel."""
+    assert rm.art_der_markierung(emoji + ton) == art
+    # Beides zugleich kommt real vor - Hautton aus dem Profil, Selektor vom Client.
+    assert rm.art_der_markierung(emoji + ton + "\N{VARIATION SELECTOR-16}") == art
+
+
+def test_der_hautton_wird_nicht_mitgespeichert():
+    """Ein Hautton ist ein personenbezogenes Merkmal und keine Bedeutung: 👍🏽 heisst
+    dasselbe wie 👍. Er gehoert weggeworfen, nicht ausgewertet (CONCEPT.md par. 13) -
+    sonst haette das Protokoll ueber die Art eine Spur der Person, die markiert hat."""
+    arten = {rm.art_der_markierung("\N{THUMBS UP SIGN}" + chr(c))
+             for c in range(0x1F3FB, 0x1F400)}
+    assert arten == {rm.ART_HOCH}, "der Ton darf die Art nicht veraendern"
+
+
+# --- das Gedaechtnis aus dem Antwortmoment ---------------------------------------------
+
+def test_gemerkte_frage_schlaegt_jede_rekonstruktion():
+    """Durchgang 11.08.2026: Bei 4 von 6 Rueckmeldungen war die gespeicherte Frage
+    unbrauchbar - ein GIF-Link, eine zwei Tage alte Frage zu einem anderen Thema, zweimal
+    leer. `frage_aus_umgebung` raet aus der Kanal-Historie; der Bot KENNT die Frage aber,
+    waehrend er antwortet."""
+    speicher = rm.Fragenspeicher()
+    speicher.merke(4711, "Wie funktioniert Gepackt halten?")
+    assert speicher.frage(4711) == "Wie funktioniert Gepackt halten?"
+    assert speicher.frage(4712) is None, "fremde Nachricht bekommt keine fremde Frage"
+
+
+def test_leere_frage_wird_nicht_gemerkt():
+    """Sonst ueberschriebe ein leerer Eintrag spaeter nichts, blockierte aber den
+    Rueckfall auf `frage_aus_umgebung` - schlimmer als gar nichts zu merken."""
+    speicher = rm.Fragenspeicher()
+    speicher.merke(1, "   ")
+    assert speicher.frage(1) is None
+
+
+def test_der_speicher_waechst_nicht_unbegrenzt():
+    """Ein Bot laeuft wochenlang. Der Deckel wirft die aeltesten zuerst weg - markiert
+    wird binnen Minuten, nicht nach tausend Antworten."""
+    speicher = rm.Fragenspeicher(deckel=3)
+    for i in range(5):
+        speicher.merke(i, f"Frage {i}")
+    assert speicher.frage(0) is None and speicher.frage(1) is None
+    assert speicher.frage(4) == "Frage 4"
+
+
+def test_jede_teilnachricht_traegt_dieselbe_frage():
+    """Eine lange Auskunft teilt Discord auf mehrere Nachrichten. Am 10.08.2026 markierte
+    die Runde BEIDE Haelften derselben Antwort - der Daumen landet auf dem Teil, den man
+    gerade vor sich hat, nicht zwingend auf dem ersten."""
+    speicher = rm.Fragenspeicher()
+    for teil_id in (10, 11, 12):
+        speicher.merke(teil_id, "grapple")
+    assert {speicher.frage(i) for i in (10, 11, 12)} == {"grapple"}
+
+
 # --- welche Frage die markierte Antwort beantwortet hat --------------------------------
 
 def test_letzte_menschliche_frage_gewinnt():
@@ -85,7 +152,11 @@ def test_verweis_ist_ein_anklickbarer_discord_link():
 def protokoll_db(tmp_path, monkeypatch):
     pfad = tmp_path / "protokoll.sqlite"
     monkeypatch.setattr(protokoll, "protokoll_pfad", lambda: pfad)
+    # Beide Gates: `abfragen` und `rueckmeldungen` fuehren seit dem 11.08.2026 eigene
+    # Fehlerzaehler (protokoll._MAX_FEHLER) - ein Test, der nur eines patcht, misst am
+    # naechsten Umbau still das falsche.
     monkeypatch.setattr(protokoll, "protokoll_aktiv", lambda: True)
+    monkeypatch.setattr(protokoll, "rueckmeldungen_aktiv", lambda: True)
     return pfad
 
 
@@ -146,9 +217,30 @@ def test_kaputter_pfad_kostet_die_markierung_nie_den_bot(tmp_path, monkeypatch):
     nicht. Ein Schreibfehler darf nie in ein Discord-Ereignis durchschlagen."""
     monkeypatch.setattr(protokoll, "protokoll_pfad",
                         lambda: tmp_path / "gibt-es-nicht" / "p.sqlite")
-    monkeypatch.setattr(protokoll, "protokoll_aktiv", lambda: True)
+    monkeypatch.setattr(protokoll, "rueckmeldungen_aktiv", lambda: True)
     protokoll.merke_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3", frage="X")  # wirft nie
     protokoll.loesche_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3")
+
+
+def test_maschinenverkehr_schaltet_die_markierungen_nicht_ab(tmp_path, monkeypatch):
+    """Review-Befund 11.08.2026: Beide Schreibwege teilten sich EINEN Fehlerzaehler, und
+    `protokoll_aktiv()` sperrte beide. Zwanzig fehlgeschlagene Statistik-Writes - ein
+    voller Datentraeger, eine gesperrte DB - haetten damit auch die Markierungen bis zum
+    Neustart abgeschaltet.
+
+    Das widerspricht der Begruendung fuer die getrennte Tabelle: Eine Markierung ist zu
+    selten und zu wertvoll, um mit dem Maschinenverkehr wegzulaufen. `abfragen` schreibt
+    bei jeder Anfrage, `rueckmeldungen` ein paar Mal pro Woche - der haeufige Weg darf das
+    Budget des seltenen nicht aufbrauchen."""
+    pfad = tmp_path / "protokoll.sqlite"
+    monkeypatch.setattr(protokoll, "protokoll_pfad", lambda: pfad)
+    monkeypatch.setattr(protokoll, "_fehler_in_folge", protokoll._MAX_FEHLER)
+
+    assert not protokoll.protokoll_aktiv(), "Vorbedingung: der Statistik-Weg ist erschoepft"
+    assert protokoll.rueckmeldungen_aktiv(), "der Meldeweg haengt nicht daran"
+
+    protokoll.merke_rueckmeldung(rm.ART_RUNTER, "https://d/1/2/3", frage="X")
+    assert _zeilen(pfad) == [(rm.ART_RUNTER, "X", "https://d/1/2/3")]
 
 
 def test_die_abfragen_tabelle_bleibt_unberuehrt(protokoll_db):
@@ -201,6 +293,26 @@ def test_lob_steht_nicht_unter_der_fehler_ueberschrift(protokoll_db, capsys):
     assert "Gelungene Frage" in lob and "Gelungene Frage" not in fehler
 
 
+def test_bericht_sagt_es_wenn_er_abschneidet(protokoll_db, capsys):
+    """Review-Befund 11.08.2026: `_markierungen` nahm LIMIT je Art und schwieg darueber.
+    Kommen in einem Fenster mehr Urteile als der Deckel, hielt der Durchgang die Liste
+    fuer alles, was es gab - und weg waren die AELTESTEN, also die mit dem laengsten
+    Leidensweg. Ein stiller Schnitt ist die teuerste Sorte Unvollstaendigkeit."""
+    import argparse
+
+    from app import admin
+    for i in range(7):
+        protokoll.merke_rueckmeldung(rm.ART_RUNTER, f"https://d/1/2/{i}", frage=f"F{i}")
+
+    admin.cmd_suchbericht(argparse.Namespace(tage=30, limit=5, json=False))
+    ausgabe = capsys.readouterr().out
+    assert "2 aeltere nicht gezeigt" in ausgabe, ausgabe
+
+    # Und schweigt, wenn nichts fehlt - ein Hinweis, der immer kommt, wird ueberlesen.
+    admin.cmd_suchbericht(argparse.Namespace(tage=30, limit=50, json=False))
+    assert "nicht gezeigt" not in capsys.readouterr().out
+
+
 def test_json_trennt_die_beiden_arten(protokoll_db, capsys):
     """Der Auswertungs-Durchgang liest JSON. `markiert` behaelt seine Bedeutung
     (nur 👎) - sonst zaehlte ein spaeterer Leser Lob als Fehlerbefund mit."""
@@ -214,3 +326,75 @@ def test_json_trennt_die_beiden_arten(protokoll_db, capsys):
     bericht = json.loads(capsys.readouterr().out)
     assert [z["frage"] for z in bericht["markiert"]] == ["Falsch"]
     assert [z["frage"] for z in bericht["gelobt"]] == ["Gut"]
+
+
+# --- Selbstanzeige: Ablehnung ohne Werkzeugaufruf (Befund 08.08.2026) -----------------
+
+def test_ablehnung_ohne_werkzeug_wird_erkannt():
+    """Auf das nackte Wort 'verstecken' kam eine 🚫-Spoiler-Ablehnung OHNE einen einzigen
+    Werkzeugaufruf - regelwidrig (nie 🚫/❌ ohne Nachschlag) und die einzige
+    Fehlerklasse, die das Abfrage-Protokoll strukturell nicht sieht: protokolliere()
+    haengt an den Werkzeugen, und genau die liefen nie."""
+    assert rm.ablehnung_ohne_werkzeug("🚫 **Spoiler-Ablehnung** …", [])
+    assert rm.ablehnung_ohne_werkzeug("❌ Dazu finde ich nichts …", [])
+    # Mit Werkzeugaufruf ist eine Ablehnung legitim (echter Leerbefund/Spoiler):
+    assert not rm.ablehnung_ohne_werkzeug("🚫 …", ["foliant_suche_bestand"])
+    assert not rm.ablehnung_ohne_werkzeug("❌ …", ["foliant_suche_bestand"])
+    # Und eine normale Antwort ohne Werkzeuge (Rueckfrage ❓) ist kein Befund:
+    assert not rm.ablehnung_ohne_werkzeug("❓ Welchen meinst du?", [])
+
+
+def test_auto_verweis_ist_idempotent_je_frage():
+    """Derselbe Fehlalarm auf dieselbe Frage ist DERSELBE Befund - wie bei den Daumen.
+    Whitespace/Case duerfen keine Duplikate erzeugen."""
+    assert rm.auto_verweis("  Verstecken \n bitte ") == rm.auto_verweis("verstecken bitte")
+    assert rm.auto_verweis("x" * 500) == rm.auto_verweis("x" * 500)
+    assert len(rm.auto_verweis("x" * 500)) <= 130
+
+
+def test_selbstanzeige_erscheint_im_suchbericht(protokoll_db, capsys):
+    """Der Bericht ist der Ort, an dem der Befund jemanden erreicht - eine Selbstanzeige,
+    die nur in der Tabelle liegt, waere genauso unsichtbar wie vorher."""
+    import argparse
+    import json as _json
+
+    from app import admin
+    protokoll.merke_rueckmeldung(rm.ART_AUTO_ABLEHNUNG,
+                                 rm.auto_verweis("verstecken"), frage="verstecken")
+    admin.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=False))
+    ausgabe = capsys.readouterr().out
+    assert "Selbstanzeige des Bots" in ausgabe
+    assert "verstecken" in ausgabe
+    # Und maschinenlesbar fuer den zeitgesteuerten Durchgang:
+    admin.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=True))
+    daten = _json.loads(capsys.readouterr().out)
+    assert daten["auto_ablehnungen"][0]["frage"] == "verstecken"
+
+
+def test_der_bot_meldet_die_ablehnung_selbst(protokoll_db, monkeypatch):
+    """Der Kleber in bot.py: Nach der Schleife wird die Selbstanzeige geschrieben - ohne
+    dass die Antwort sich aendert. Vorher waere genau dieser Fall (🚫 ohne Werkzeuge)
+    spurlos geblieben; gefunden hat ihn nur die Meldung eines Spielers."""
+    import asyncio
+    import types
+
+    from app import llm
+    from app.discord_bot.bot import FoliantBot
+
+    bot = FoliantBot(guild_id=1, kanal_ids=frozenset(), tagesdeckel=100,
+                     api_key="x", modell="x", system="x")
+
+    async def fake_schleife(*_a, **_k):
+        return llm.SchleifenErgebnis("🚫 **Spoiler-Ablehnung** …", [], [], "end_turn")
+
+    gemeldet: list[tuple] = []
+    monkeypatch.setattr(llm, "fahre_schleife", fake_schleife)
+    monkeypatch.setattr(protokoll, "merke_rueckmeldung",
+                        lambda art, verweis, frage=None, kanal="discord":
+                        gemeldet.append((art, verweis, frage)))
+
+    text = asyncio.run(bot._beantworte(42, "verstecken", []))
+
+    assert text.startswith("🚫")                        # die Antwort selbst bleibt
+    assert gemeldet == [(rm.ART_AUTO_ABLEHNUNG, rm.auto_verweis("verstecken"),
+                         "verstecken")]

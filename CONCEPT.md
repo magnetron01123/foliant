@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 06.08.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 11.08.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -555,13 +555,17 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
 - **Der Durchgang läuft zeitgesteuert, nicht auf Zuruf** (04.08.2026). Zweimal pro Woche
   fährt eine geplante Aufgabe auf Davids Mac den Ablauf aus
   `.claude/ablaeufe/rueckmeldungen.md`: Bericht holen (`make bericht-pi`), Gesprächskontext
-  je Markierung nachladen (`make kontext-pi`), gegen die Regel-IDs prüfen, Vorschlagstabelle
+  je Markierung nachladen (`make kontext-pi`), gegen die Regel-IDs prüfen, **Freigabekarten**
   vorlegen. **Ohne neue Rückmeldung endet sie ohne Ausgabe** — eine Aufgabe, die
   regelmäßig Erfolg meldet, wird weggeklickt, und mit ihr die Meldung, die zählt.
-  Sichtungsstand: `config/rueckmeldungen_stand.json` (Hochwassermarke; bewusst versioniert
-  statt in der Protokoll-DB, damit der Fortschritt im Diff steht und die Produktion keinen
-  Schreibbefehl braucht). Umgesetzt wird **nichts** ohne Davids Freigabe — Begründung und
-  die übrigen Zeitläufe: `.claude/ablaeufe/LIESMICH.md`.
+  Sichtungsstand: `config/rueckmeldungen_stand.json` (Hochwassermarke, Entscheidung je
+  Befund; bewusst versioniert statt in der Protokoll-DB, damit der Fortschritt im Diff
+  steht und die Produktion keinen Schreibbefehl braucht). Umgesetzt wird **nichts** ohne
+  Davids Freigabe, mit einer benannten Ausnahme (11.08.2026): ein 👍 auf eine
+  Bestandsaussage darf ohne Rückfrage einen Golden-Test bekommen — die einzige Klasse, die
+  kein Verhalten ändert. Format, Schranken und Ablage: `.claude/ablaeufe/rueckmeldungen.md`,
+  bewacht von `tests/test_rueckmeldungs_ablauf.py`; die übrigen Zeitläufe:
+  `.claude/ablaeufe/LIESMICH.md`.
 
 ### Admin-CLI (vollständig)
 ```
@@ -956,6 +960,8 @@ läuft ohne Änderung weiter.
 | **Errata/Auslegung als `inhaltsart`-Werte, nicht als neue Spalte** (31.07.2026) | Die Pipeline gibt es schon: Config-Pflichtfeld → Validator in `registriere_quelle` → DB → Web-Export → Tool-Ausgabe (SYN-P0-007). Eine eigene Spalte hätte jede dieser Stationen neu verkabeln müssen, und semantisch ist es dieselbe Achse: *was für eine Art Inhalt ist diese Quelle?* Der Spoiler-Schutz bleibt unberührt, weil alle Auswerter auf `== 'abenteuer_setting'` prüfen — die eine Ausnahme (`web.py`, `!= 'abenteuer_setting'`) wurde auf eine Positivliste umgestellt |
 | **Sage Advice trägt `edition = "2014"`** | Das Compendium legt ausschließlich die 2014er Regeln aus; für 2024 gibt es keinen Nachfolger. Gewollte Folge: bei der Standardsuche erscheinen seine Treffer unter `andere_editionen` statt als vermeintliches 2024-Ruling. Der Auto-Import lehnt den Band weiter ab (seine DDB-Kategorie trägt kein 5e/5.5e-Präfix) — der explizite `[[ddb.buch]]`-Block ist der Weg, weil dort die Edition **gesetzt** und nicht geraten wird |
 | **Errata-Lizenz nicht „CC-BY…"** | Die Errata-PDFs sind frei verteilt, aber nicht frei lizenziert. Der Präfix `CC-BY` löst in `app/tools/ausgabe.py` automatisch die SRD-Attribution aus — sie hier anzuhängen wäre eine falsche Rechtsaussage |
+| **Antwortgerüst wird gemessen, nicht begutachtet** (07./08.08.2026) | Der LLM-Richter lag bei Strukturfragen in 2 von 3 Urteilen falsch, während der echte Verstoß unbemerkt in derselben Antwort stand — Struktur ist messbar (`pruefe_geruest`), der Richter behält nur Weiches. Drei Folge-Lehren aus derselben Woche: (1) Jedes neue Prüfmuster wird erst an den gespeicherten Antworten bezahlter Läufe kalibriert (vier von fünf F2-Fehlschlägen waren Fehlalarme des Musters, nicht des Modells). (2) Ein Kanal-3-Hinweis wirkt nur am Werkzeug, das die Antwort tatsächlich liefert — die „Rest-Streuung" waren Listen-Antworten, und die Optionslisten trugen als einziger Weg die Kopfzeilen-Regel nicht. (3) Wo eine Regel zweimal nicht wirkt, wirkt ein wörtliches Muster-Beispiel (DC4: 2/3 rot → 5/5 grün) |
+| **`max_tokens` 8000 + Runden-Cap-Schlussrunde ohne Werkzeuge** (08.08.2026) | Seit B15 setzt eine Unterklassen-Auskunft fünf Stufen-Merkmale zu EINER Antwort zusammen — die riss bei 4000 und 6000 jeweils kurz vor der Pflicht-Belegzeile ab. Und am Rundendeckel kam vorher eine LEERE Antwort zurück: acht Runden bezahlte Recherche, nichts geliefert. Die Schlussrunde geht ohne `tools` raus und braucht den expliziten Auftrag — ohne ihn produzierte das Modell einen Denkblock und keinen Text |
 
 ### Entscheidung: Bekannte Quellfehler kennzeichnen, nie korrigieren (03.08.2026)
 
@@ -1161,6 +1167,8 @@ nicht der Datenbank-Auszug —, kein Charakterbogen-Upload (der bleibt auf der W
 | **Threads entstehen über den KANAL, nicht über die Nachricht** (Live-Befund 03.08.2026) | Die Antwort auf einen Slash-Befehl kommt aus `interaction.followup.send(wait=True)` und ist damit eine `WebhookMessage` — **ohne Guild-Referenz**. `Message.create_thread()` wirft dort `ValueError`, noch **vor** jedem HTTP-Aufruf, und lief damit am `except discord.HTTPException` vorbei: `/regel` im Kanal lieferte Teil 1 der Antwort und brach dann ab — kein Thread, keine Folgeteile, kein Gesprächskontext. Der @Mention-Weg war nicht betroffen (echte Message), **deshalb fiel es nicht auf**. `TextChannel.create_thread(message=…)` nimmt jeden Snowflake, also genügt die ID — ein Weg für beide Einstiege. Lehre: Ein Fallback, der nur `HTTPException` fängt, deckt eine Bibliothek nicht ab, die auch vor dem Netz schon werfen kann |
 | **👍 als zweite Markierung — Polarität ist keine Nuance** (04.08.2026) | Der Meldeweg trug bewusst nur 👎, begründet so: zwei Emoji mit feinen Bedeutungsunterschieden müsste man erklären, und ein Meldeweg, den man erklären muss, wird nicht benutzt. Die Begründung gilt weiter — sie trifft 👍 nur nicht. Ihr Gegenstand ist *Nuance* (👎 gegen 😕 gegen 🤔: „welches nehme ich?"); 👍/👎 ist Polarität, das eine Emoji-Paar, das in jedem Chat dasselbe heißt. Dazu: die Runde reagiert ohnehin schon mit 👍 — das Signal fiel bisher nur stumm auf den Boden, und ein Meldeweg, der bereits benutzt wird, ist der billigste denkbare Ausbau. Umgesetzt **ohne Schema-Migration**, weil `art` beim Bau als Feld statt als Tabelle-je-Art angelegt wurde. Zwei Konstruktionsregeln, die aus der Asymmetrie folgen — 👎 ist eine Beschwerde und selten, 👍 ist Höflichkeit und häufig: Lob fließt **nie** in die Kurationsliste (getrennte Abfrage, getrenntes Limit), und „kein Artefakt" ist ein zulässiges Ergebnis eines 👍, sonst wird jede Nettigkeit zu einem Test und die Suite verrottet |
 | **Erster Kurations-Durchgang aus 👎-Markierungen** (04.08.2026) | Drei markierte Antworten, drei Befunde — und alle drei lagen **nicht** am Modell. (1) Der Eintragsname blieb englisch mit `*`, weil die Begriffsannotation nur `body_md` durchsuchte: Das Modell bekam 30 amtliche Begriffe aus dem Fließtext und ausgerechnet für die Überschrift keinen. (2) Ein Monster-Merkmal wurde als allgemeine Regel ausgegeben — B4 stand längst in beiden Prompt-Kanälen, half aber nicht; der Hinweis musste auf Kanal 1. (3) Die Spekulation über ein fehlendes Buch war **regelkonform**: `HINWEIS_LEER` und beide Prompt-Kanäle gaben sie wörtlich vor. **Die Lehre:** Ein wiederholter Verstoß gegen eine Regel, die bereits in beiden Prompt-Kanälen steht, ist kein Modellfehler — dann sitzt die Regel im falschen Kanal oder die Daten tragen sie nicht. Deshalb führt `config/rueckmeldungen_stand.json` je Befund eine `ursache` (code/verhalten/daten/meldeweg); erst die Struktur macht Wiederholungstäter sichtbar |
+| **Prompt-Caching formt die Anfrage an drei Stellen — der Eval bleibt außen vor** (09.08.2026) | `system_cachen=True` (nur der Bot) setzt einen festen Breakpoint auf den System-Block, einen request-weiten Breakpoint für den wachsenden Teil (Tool-Ergebnisse, Thread-Verlauf), und entzieht dem Modell die Werkzeuge in der Schlussrunde per `tool_choice: none` statt sie wegzulassen. Der dritte Punkt ist der unauffälligste: Werkzeuge stehen **ganz oben** im Präfix (tools → system → messages), wer dort etwas ändert, verwirft alles dahinter — das Weglassen entzog also nicht nur die Werkzeuge, es warf den kompletten Cache weg und schrieb einen nie wieder gelesenen neuen. Der Eval fährt weiter ohne all das: seine Anfrageform ist die Messgrundlage (`SchleifenErgebnis.verbrauch` zählt die Token-Felder mit, weil ein verfehlter Cache sich **nirgends** meldet — er kostet nur still den vollen Preis). Am deployten Stand nachgemessen: eine Folgefrage liest 43.415 Token aus dem Cache, schreibt null und lässt 6 Token ungecacht — **100 % Trefferquote**, gegenüber rund 5,3 ct je Frage vorher jetzt 1,4 ct. Dass `tool_choice: none` die Auskunft beim Runden-Cap nicht verändert, ist an DC3 gegengeprüft (je zwei Läufe beider Formen, gleiche Inhalte, keine leere Antwort) |
+| **Die zwei Breakpoints bekommen verschiedene Lebensdauern: System 1 h, Verlauf 5 min** (09.08.2026) | Gemessen statt geschätzt — `count_tokens` gegen die echte API: das feste Präfix ist **11.638 Token**, eine Werkzeug-Ausgabe 4.283. Das Präfix wird **zwischen** Fragen gelesen, und das Abfrage-Protokoll (1997 Aufrufe, 26.07.–09.08.2026, zu 113 Fragen gebündelt) zeigt dort einen **Median von 14 Minuten**; nur 27–31 % der Lücken liegen unter 5 Minuten. Die Voreinstellung wäre also meist abgelaufen — deshalb dort eine Stunde, die bei der ersten Frage 2× statt 1,25× kostet und sich ab der zweiten zurückzahlt. Der Verlauf hat den umgekehrten Lebenslauf: Er wächst **jede Runde** um rund 4.500 Token und wird Sekunden später gelesen, wofür die Voreinstellung reicht; eine Stunde legte dort nur den doppelten Schreibpreis auf einen Block, der ohnehin gleich veraltet — über einen Spielabend (30 Fragen, 14 Minuten Abstand) gerechnet **43 % teurer**. Nur bei reinen Thread-Nachfragen wäre die Stunde auch dort besser, dem selteneren Fall. Die erste Fassung setzte beide auf eine Stunde; das war mit einer zu groben Byte→Token-Schätzung gerechnet und fiel, sobald die echten Zahlen vorlagen |
 | **Prüfen + Reservieren der Ein-Anfrage-Regel ist atomar** (Review 02.08.2026) | Vorher schlüpften zwei schnelle Nachrichten desselben Nutzers durch. Aus demselben Review: Kanal-Fallback, wenn Discord den Thread verweigert (vorher war die *bezahlte* Antwort weg), und zwei Rebuild-Randfälle (allein stehende `max_tokens`-Meldung galt als Antwort; „vollständig" zählte auf der gefilterten Historie) |
 
 ### ADR: DDB-Buchimport über eigenen Exporter, nicht `ddb-proxy` (10.07.2026)
@@ -1228,12 +1236,16 @@ ehrliches „nicht gefunden".
 
 **Dritte Prüfschicht, werkzeuggestützt:** `python -m evals.verhaltens_eval` fährt die
 §2-Fälle gegen die echte Claude-API mit den echten Tools (in-process `fastmcp.Client`,
-System-Prompt = der §8-Block aus SPEC.md, eine Quelle). Deterministische Marker-/
-Format-Grader; weiche Kriterien (C3, D1 …) optional per LLM-Richter, im Report als
-`weich` gekennzeichnet. **Bewusst NICHT in `make test`** — kostet API-Tokens (~15 Fälle
-× 3–5 Runden, niedrige einstellige Dollar). Report nach `evals/ergebnisse/` (gitignored)
-mit den §2-Pflichtfeldern Datum/Modell/`inhalts_hash`; am Subset markiert er
-`korpus: lokal (Subset?)` — beweiskräftig ist der Pi-Lauf:
+System-Prompt aus `config/projektanweisung.md` — dieselbe Leseestelle wie Website und
+Kanal-Sync-Test; die DC-Fälle fahren zusätzlich den Discord-Zusatz). Der deterministische
+Grader ist zweistufig: fallspezifische Marker (`pruefe_deterministisch`, inkl. Opt-in
+`statblock_vollstaendig`) plus das Antwortgerüst für **jede** Antwort (`pruefe_geruest`:
+Kopf-Emoji, Meta-Verbotsliste, Beleg zuletzt, ein Angebot). Der LLM-Richter bewertet nur
+noch, was sich nicht messen lässt (Wiedergabetreue, Spoiler-Feinheiten) — Struktur wird
+gemessen, nicht begutachtet (Register §10). **Bewusst NICHT in `make test`** — kostet
+API-Tokens (24 ausführbare Fälle × 3–5 Runden, niedrige einstellige Dollar). Report nach
+`evals/ergebnisse/` (gitignored) mit den §2-Pflichtfeldern Datum/Modell/`inhalts_hash`;
+am Subset markiert er `korpus: lokal (Subset?)` — beweiskräftig ist der Pi-Lauf:
 ```
 ANTHROPIC_API_KEY=sk-… make eval-verhalten-pi
 ```
@@ -1259,6 +1271,21 @@ Kuratiert. Quellen-spezifische Eigenheiten stehen im Modul-Docstring des jeweili
 Importers (`importer/import_open5e.py` für die Open5e-API, `importer/import_markdown.py`
 für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de).
 
+- **Ein Meldeweg, der ein Eingabezeichen nicht kennt, schweigt — er meckert nicht.**
+  Der Daumen-Vergleich entfernte den Variantenselektor, nicht die fünf Hautton-Zeichen.
+  Wer den Ton einmal eingestellt hat, sendet auf dem Handy fortan die geschmückte Form,
+  und die ergab weder eine Protokollzeile noch die 📝-Quittung (Review 11.08.2026). Bei
+  einem Kanal, dessen ganzer Zweck die Rückmeldung ist, kostet so ein Loch nicht ein
+  Ereignis, sondern die Statistik: Niemand meldet, dass das Melden nicht geht. Wer ein
+  Zeichen vergleicht, vergleicht deshalb die nackte Form — und prüft **den ganzen
+  Zeichenbereich**, nicht die zwei Varianten, die gerade aufgefallen sind.
+- **Eval-Reports leben IM Container und überleben einen Rebuild nicht.** Sie sind aber
+  die einzige Kalibriergrundlage: Neue Prüfmuster laufen erst gegen die `antwort`-Felder
+  bezahlter Läufe, bevor sie Code werden (Fehlalarm-Reihe A3 → B1 → F2). Seit dem
+  08.08.2026 sichert `make deploy-pi` sie deshalb selbst (erster Schritt, fehlertolerant)
+  nach `evals/ergebnisse/pi/` (gitignored) — zweimal in einer Woche wären sie sonst weg
+  gewesen. Nur wer am Pi von Hand neu baut (`docker compose up -d --build` per SSH),
+  muss weiterhin selbst vorher `docker compose cp foliant:/app/evals/ergebnisse …` ziehen.
 - **pymupdf4llm OCRt textlose Seiten STILL, sobald Tesseract installiert ist** →
   `use_ocr=False` in `pdf_nach_markdown` ist Pflicht und gesetzt; OCR nur über die Vorstufe.
 - **Eine Struktur-Reparatur wird über den KAPITELBEREICH begrenzt, nicht über den Inhalt.**

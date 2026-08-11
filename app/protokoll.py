@@ -63,7 +63,16 @@ CREATE TABLE IF NOT EXISTS rueckmeldungen (
 
 # Nach so vielen Fehlschlaegen IN FOLGE schaltet sich das Logging bis zum Neustart ab.
 _MAX_FEHLER = 20
-_fehler_in_folge = 0
+
+# ZWEI Zaehler, einer je Schreibweg (Review-Befund 11.08.2026). Vorher teilten sich beide
+# einen: Zwanzig fehlgeschlagene Statistik-Writes - ein voller Datentraeger, eine gesperrte
+# DB - haetten damit auch die Markierungen bis zum Neustart abgeschaltet. Das ist genau der
+# Fall, gegen den `rueckmeldungen` schon eine eigene Tabelle ohne Rotation hat: Eine
+# Markierung ist zu selten und zu wertvoll, um mit dem Maschinenverkehr wegzulaufen.
+# `abfragen` schreibt bei jeder Anfrage, `rueckmeldungen` ein paar Mal pro Woche - der
+# haeufige Weg darf das Budget des seltenen nicht aufbrauchen.
+_fehler_in_folge = 0            # Weg `abfragen`
+_fehler_rueckmeldungen = 0      # Weg `rueckmeldungen`
 
 # Rotation amortisiert statt pro Write: im Mittel prueft nur jeder 200. Write den Deckel.
 _ROTATIONS_QUOTE = 200
@@ -75,6 +84,12 @@ def _konfig() -> dict:
 
 def protokoll_aktiv() -> bool:
     return bool(_konfig().get("aktiv", True)) and _fehler_in_folge < _MAX_FEHLER
+
+
+def rueckmeldungen_aktiv() -> bool:
+    """Eigenes Gate mit eigenem Zaehler - siehe die Begruendung bei `_MAX_FEHLER`."""
+    return (bool(_konfig().get("aktiv", True))
+            and _fehler_rueckmeldungen < _MAX_FEHLER)
 
 
 def protokoll_pfad():
@@ -145,9 +160,9 @@ def protokolliere(werkzeug: str, suchbegriff: str | None = None,
 def _schreibe_rueckmeldung(sql: str, werte: tuple) -> None:
     """Gemeinsamer, nie werfender Schreibweg fuer Markierungen. Dieselbe Leitplanke wie
     protokolliere(): Ein Log-Fehler darf das Ereignis kosten, nie den laufenden Bot."""
-    global _fehler_in_folge
+    global _fehler_rueckmeldungen
     try:
-        if not protokoll_aktiv():
+        if not rueckmeldungen_aktiv():
             return
         con = sqlite3.connect(protokoll_pfad(), timeout=0.25)
         try:
@@ -159,9 +174,9 @@ def _schreibe_rueckmeldung(sql: str, werte: tuple) -> None:
             con.commit()
         finally:
             con.close()
-        _fehler_in_folge = 0
+        _fehler_rueckmeldungen = 0
     except Exception:
-        _fehler_in_folge += 1
+        _fehler_rueckmeldungen += 1
 
 
 def merke_rueckmeldung(art: str, verweis: str, frage: str | None = None,

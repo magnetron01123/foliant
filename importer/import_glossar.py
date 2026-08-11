@@ -166,6 +166,25 @@ KERN_SINGULAR_PAARE: list[tuple[str, str, str | None]] = [
     ("Sap", "Auslaugen", "2024"),
     ("Slow", "Verlangsamen", "2024"),
     ("Vex", "Plagen", "2024"),
+    # Die WAFFENEIGENSCHAFTEN - die Schwesterliste der acht Meisterschaftseigenschaften
+    # darueber, und bis zum 08.08.2026 die einzige, die fehlte. Folge im Review-Lauf: Die
+    # Langschwert-Auskunft schrieb "Vielseitig*" und behauptete damit, es gebe keine
+    # offizielle deutsche Uebersetzung - dabei steht jede dieser Eigenschaften als eigener
+    # srd-de-Eintrag unter "Ausrüstung > Waffen > Eigenschaften". Ein falscher Stern ist
+    # eine falsche Aussage ueber den Bestand, kein Schoenheitsfehler.
+    ("Versatile", "Vielseitig", "2024"),
+    ("Finesse", "Finesse", "2024"),
+    ("Heavy", "Schwer", "2024"),
+    ("Loading", "Laden", "2024"),
+    ("Ammunition", "Geschosse", "2024"),
+    ("Thrown", "Wurfwaffe", "2024"),
+    ("Two-Handed", "Zweihändig", "2024"),
+    ("Reach", "Weitreichend", "2024"),
+    # 'Light' fehlt hier BEWUSST: Das Glossar fuehrt bereits 'Light' -> 'Licht' (der
+    # Zauber). Ein zweites Paar 'Light' -> 'Leicht' machte das Lemma mehrdeutig, und
+    # term_de naehme die erste Zeile - dieselbe Falle, die am 08.08.2026 aus einem
+    # Errata-Verweis 'Fell (Hide)' machte. Welche Bedeutung gemeint ist, entscheidet der
+    # Kontext, und den hat das Glossar nicht (Regel 1).
     # Heldische Inspiration: srd-de-Regeleintrag UND vorgedrucktes Feld des offiziellen
     # dt. Charakterbogens 2024 (Befund 16.07.2026: LLM erfand "Heldenhafte Inspiration"
     # direkt neben dem Vordruck "HELDISCHE INSPIRATION").
@@ -235,6 +254,122 @@ AKTIONS_PAARE: list[tuple[str, str, str]] = [
     ("Study", "Studieren", "Studieren (Aktion)"),
     ("Utilize", "Verwenden", "Verwenden (Aktion)"),
 ]
+
+# Die Regelglossar-Bruecke (08.08.2026): Von den 161 Begriffen des srd-de-Regelglossars
+# ('Regelglossar > Regeldefinitionen') hatten 89 KEIN Glossar-Paar - dieselbe
+# Fehlerklasse wie der 'Vielseitig*'-Befund, nur 89-fach: Das Modell erfand deutsche
+# Wiedergaben mit Stern fuer Begriffe, die amtlich existieren, oder liess das Original
+# weg. Die beiden Glossare sind strukturell parallel (DDB 'Rules Definitions': 155
+# Begriffe, Qualifikator-Konvention gespiegelt - '[Condition]' dort ist '(Zustand)'
+# hier), die Zuordnung je Paar eindeutig.
+#
+# Aufgenommen ist NUR, was beidseitig belegt und glasklar ist; kuratiert aus dem
+# vollstaendigen Abgleich beider Listen. Bewusst draussen:
+#   - Gleichlautende (Monster, Ritual, Teleportation): markiere() unterdrueckt die
+#     Klammer ohnehin, die Zeile waere Ballast.
+#   - 'Nahkampfreichweite' -> 'Reach': das Lemma gehoert schon der Waffeneigenschaft
+#     ('Reach' -> 'Weitreichend'), ein zweites Paar machte es mehrdeutig und term_de
+#     naehme irgendeine Zeile - die Fell/Hide-Falle vom 08.08.2026.
+#   - Kapitel-/Schritt-Ueberschriften und der OCR-Riss ('Effektepvonys chischem Stress').
+# Wie bei den Aktionen ist der dritte Wert der srd-de-BELEG (exakter Eintragsname,
+# inkl. Qualifikator) - geschrieben wird nur, was der Bestand fuehrt.
+QUELLE_REGELGLOSSAR = "SRD 5.2.1 (Regelglossar)"
+REGELGLOSSAR_PAARE: list[tuple[str, str, str]] = [
+    ("Ability Check", "Attributswurf", "Attributswurf"),
+    ("Action", "Aktion", "Aktion"),
+    ("Advantage", "Vorteil", "Vorteil"),
+    ("Ally", "Verbündeter", "Verbündeter"),
+    ("Area of Effect", "Wirkungsbereich", "Wirkungsbereich"),
+    ("Armor Training", "Rüstungsvertrautheit", "Rüstungsvertrautheit"),
+    ("Attack Roll", "Angriffswurf", "Angriffswurf"),
+    ("Attitude", "Haltung", "Haltung"),
+    ("Attunement", "Einstimmung", "Einstimmung"),
+    ("Bloodied", "Blutig", "Blutig"),
+    ("Bonus Action", "Bonusaktion", "Bonusaktion"),
+    ("Burning", "Brand", "Brand (Gefahr)"),
+    ("Burrow Speed", "Grabbewegungsrate", "Grabbewegungsrate"),
+    ("Campaign", "Kampagne", "Kampagne"),
+    ("Carrying Capacity", "Traglast", "Traglast"),
+    ("Character Sheet", "Charakterbogen", "Charakterbogen"),
+    ("Climb Speed", "Kletterbewegungsrate", "Kletterbewegungsrate"),
+    ("Climbing", "Klettern", "Klettern"),
+    ("Condition", "Zustand", "Zustand"),
+    ("Crawling", "Kriechen", "Kriechen"),
+    ("Creature", "Kreatur", "Kreatur"),
+    ("Creature Type", "Kreaturentyp", "Kreaturentyp"),
+    ("Critical Hit", "Kritischer Treffer", "Kritischer Treffer"),
+    ("Curses", "Flüche", "Flüche"),
+    ("D20 Test", "W20-Prüfung", "W20-Prüfung"),
+    ("Dead", "Tot", "Tot"),
+    ("Death Saving Throw", "Todesrettungswurf", "Todesrettungswurf"),
+    ("Dehydration", "Dehydrierung", "Dehydrierung (Gefahr)"),
+    ("Disadvantage", "Nachteil", "Nachteil"),
+    ("Encounter", "Begegnung", "Begegnung"),
+    ("Enemy", "Gegner", "Gegner"),
+    ("Falling", "Sturz", "Sturz (Gefahr)"),
+    ("Fly Speed", "Flugbewegungsrate", "Flugbewegungsrate"),
+    ("Friendly", "Freundlich gesinnt", "Freundlich gesinnt (Haltung)"),
+    ("Gaining a Level", "Stufenaufstieg", "Stufenaufstieg"),
+    ("Grappling", "Gepackt halten", "Gepackt halten"),
+    ("Hazard", "Gefahr", "Gefahr"),
+    ("Hiding", "Sich verstecken", "Sich verstecken"),
+    ("High Jump", "Hochsprung", "Hochsprung"),
+    ("Hit Point Dice", "Trefferpunktewürfel", "Trefferpunktewürfel"),
+    ("Hostile", "Feindlich gesinnt", "Feindlich gesinnt (Haltung)"),
+    ("Illusions", "Illusionen", "Illusionen"),
+    ("Immunity", "Immunität", "Immunität"),
+    ("Improvised Weapons", "Improvisierte Waffen", "Improvisierte Waffen"),
+    ("Indifferent", "Gleichgültig", "Gleichgültig (Haltung)"),
+    ("Legendary Actions", "Legendäre Aktionen", "Legendäre Aktionen"),
+    ("Long Jump", "Weitsprung", "Weitsprung"),
+    ("Long Rest", "Lange Rast", "Lange Rast"),
+    ("Magical Effect", "Magischer Effekt", "Magischer Effekt"),
+    ("Malnutrition", "Unterernährung", "Unterernährung (Gefahr)"),
+    ("Occupied Space", "Besetzter Bereich", "Besetzter Bereich"),
+    ("Passive Perception", "Passive Wahrnehmung", "Passive Wahrnehmung"),
+    ("Per Day", "Pro Tag", "Pro Tag"),
+    ("Player Character", "Spielercharakter", "Spielercharakter"),
+    ("Possession", "Besessenheit", "Besessenheit"),
+    ("Reaction", "Reaktion", "Reaktion"),
+    ("Round Down", "Abrunden", "Abrunden"),
+    ("Shape-Shifting", "Gestaltwandeln", "Gestaltwandeln"),
+    ("Short Rest", "Kurze Rast", "Kurze Rast"),
+    ("Simultaneous Effects", "Gleichzeitige Effekte", "Gleichzeitige Effekte"),
+    ("Skill", "Fertigkeit", "Fertigkeit"),
+    ("Spell", "Zauber", "Zauber"),
+    ("Spell Attack", "Zauberangriff", "Zauberangriff"),
+    ("Spellcasting Focus", "Zauberfokus", "Zauberfokus"),
+    ("Sphere", "Kugel", "Kugel (Wirkungsbereich)"),
+    ("Stable", "Stabil", "Stabil"),
+    ("Stat Block", "Wertekasten", "Wertekasten"),
+    ("Suffocation", "Erstickung", "Erstickung (Gefahr)"),
+    ("Swim Speed", "Schwimmbewegungsrate", "Schwimmbewegungsrate"),
+    ("Target", "Ziel", "Ziel"),
+    ("Traits", "Merkmale", "Merkmale"),
+    ("Unarmed Strike", "Waffenloser Angriff", "Waffenloser Angriff"),
+    ("Unoccupied Space", "Freier Bereich", "Freier Bereich"),
+    ("Vulnerability", "Anfälligkeit", "Anfälligkeit"),
+    ("Weapon", "Waffe", "Waffe"),
+    ("Weapon Attack", "Waffenangriff", "Waffenangriff"),
+]
+
+
+def seed_regelglossar(con: sqlite3.Connection) -> int:
+    """Regelglossar-Paare, je Zeile gegen den srd-de-Bestand verifiziert (wie
+    seed_aktionen). Die haeufigen Alltags-Lemmata (Action, Creature, Target, Spell,
+    Weapon ...) stehen in glossar._HOMONYM_STOP - sie wuerden sonst in JEDEM englischen
+    Regeltext matchen und mit max_treffer=40 die seltenen, wichtigen Begriffe aus
+    'begriffe_deutsch' verdraengen. Die exakte Suche nutzt alle Paare voll."""
+    n = 0
+    for term_en, term_de, beleg in REGELGLOSSAR_PAARE:
+        (vorhanden,) = con.execute(
+            "SELECT COUNT(*) FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "WHERE q.kuerzel = 'srd-de' AND e.name_de = ?", (beleg,)).fetchone()
+        if not vorhanden:
+            continue                       # kein srd-de-Beleg -> Zeile entfaellt (nicht raten)
+        _upsert(con, term_en, term_de, 1, QUELLE_REGELGLOSSAR, "2024", None)
+        n += 1
+    return n
 
 
 def seed_aktionen(con: sqlite3.Connection) -> int:
@@ -838,6 +973,12 @@ UMGANGSSPRACHE: tuple[tuple[str, str, str], ...] = (
     ("Dash", "Spurt", "Rennen"),
     ("Dash", "Spurt", "Sprinten"),
     ("Grappled", "Gepackt", "Umklammern"),
+    # Suchbericht 11.08.2026, mit 30 Nulltreffern in 30 Tagen der groesste Einzelposten:
+    # Der Zauber liegt im Bestand und das Glossar fuehrt "Wort der Macht: Tod" als
+    # offiziell - die Runde sagt am Tisch aber "Machtwort Tod". Die Geschwister
+    # (Betaeubung, Heilung) sind bewusst NICHT dabei: Sie sind dieselbe Konstruktion,
+    # aber niemand hat nach ihnen gesucht, und gebrueckt wird, was die Daten zeigen.
+    ("Power Word Kill", "Wort der Macht: Tod", "Machtwort Tod"),
 )
 
 
@@ -1060,6 +1201,7 @@ _KETTE = [
     (seed_srd_paare, "SRD-Paare"),
     (seed_kern_singulare, "Kern-Singulare"),
     (seed_aktionen, "Aktionen"),                       # 2024-Aktionsnamen, Homonym-gestoppt
+    (seed_regelglossar, "Regelglossar-Paare"),         # srd-de-Regeldefinitionen, verifiziert
     (seed_glossar_aus_bestand, "Zeilen aus Bestandsnamen"),
     (seed_glossar_de_aus_bestand, "Zeilen aus deutschen Namen"),
     (repariere_2014_namen, "Namen repariert"),         # zerrissene 2014-Scan-Namen (belegt)

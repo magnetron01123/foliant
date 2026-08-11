@@ -428,3 +428,32 @@ def test_golden_verschraenkte_statbloecke_entwirrt():
         assert ohne == 0, f"{ohne} srd-de-Monster ohne Ruestungsklasse"
     finally:
         con.close()
+
+
+# --- aus 👍-Rueckmeldungen der Runde (O4/M5) --------------------------------------------
+# Was die Runde ausdruecklich gelobt hat, darf nicht unbemerkt kaputtgehen. Diese Faelle
+# stammen NICHT aus einem Review, sondern aus dem Durchgang vom 11.08.2026 - Lob ist die
+# einzige Quelle fuer die Frage, was schon stimmt (SPEC O4).
+
+def test_golden_dunkelheit_traegt_alle_gelobten_werte():
+    """👍 vom 10.08.2026 auf den Zauber Dunkelheit. Gelobt wurde, was aus dem Bestand kam:
+    ein vollstaendiger Steckbrief. Genau daran haengen die Werte, die am Tisch zaehlen -
+    Radius und Reichweite entscheiden, wer drinsteht, die Materialkomponente, ob man ihn
+    ueberhaupt wirken kann."""
+    t = _text(ns.foliant_hol_eintrag("zauber", "Dunkelheit"))
+    for klausel in ("Hervorrufung", "2. Grade", "18 Meter", "4,5",
+                    "Fledermausfell", "Konzentration", "Dunkelsicht"):
+        assert klausel in t, (klausel, t[:300])
+
+
+def test_golden_magieschmied_einstimmung_vier_und_sechs():
+    """👍 vom 10.08.2026 auf die Einstimmungs-Grenzen des Magieschmieds. Die Antwort setzte
+    ZWEI Merkmale zusammen (Stufe 10 und Stufe 18) - beide Zahlen muessen im Bestand
+    stehen bleiben, sonst nennt die naechste Antwort nur die halbe Regel.
+
+    Die Namen stehen in Versalien und ohne `name_de`, weil sie aus einem englischen
+    Kampagnen-Band stammen; das ist der Normalfall fuer diese Quelle und kein Defekt."""
+    vier = _text(ns.foliant_hol_eintrag("klasse", "LEVEL 10: MAGIC ITEM ADEPT"))
+    sechs = _text(ns.foliant_hol_eintrag("klasse", "LEVEL 18: MAGIC ITEM MASTER"))
+    assert "four magic items" in vier, vier[:200]
+    assert "six magic items" in sechs, sechs[:200]

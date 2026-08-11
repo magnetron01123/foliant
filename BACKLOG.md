@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 06.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 11.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -128,9 +128,10 @@ die Entscheidung noch einmal zu prüfen ist.*
 **Der Durchgang läuft seit dem 04.08.2026 zeitgesteuert** — zweimal pro Woche fährt ihn
 eine geplante Aufgabe auf Davids Mac und meldet sich nur, wenn es neue Rückmeldungen gibt.
 Der verbindliche Ablauf steht in `.claude/ablaeufe/rueckmeldungen.md` (Prüfreihenfolge,
-Vorschlagsformat, Ablage je Befundtyp), der Sichtungsstand in
+Freigabeformat, Ablage je Befundtyp), der Sichtungsstand in
 `config/rueckmeldungen_stand.json`, die Einordnung in [CONCEPT.md](CONCEPT.md) §8.
-Umgesetzt wird nichts ohne Davids Freigabe. Aus einem Kandidaten wird ein
+Umgesetzt wird nichts ohne Davids Freigabe — außer einem Golden-Test aus einem 👍
+(seit 11.08.2026, Schranken im Ablauf). Aus einem Kandidaten wird ein
 Glossar-Paar über `admin glossar-paare --nur-neue` (Struktur-Abgleich mit Beweisstufe, Review
 **vor** `import --quelle glossar`); danach dürfen die **echten** Konflikte in
 `admin glossar-audit` nicht zunehmen — editionsgetrennte Formen regelt S8 selbst, und die
@@ -166,6 +167,17 @@ unbequemste Lehre — eine Regel forderte den Fehler selbst — im Entscheidungs
 [CONCEPT.md](CONCEPT.md) §10). Und: ein Test, der beim ersten Lauf grün ist, ist noch
 kein Test (§12).
 
+**Erster Durchgang im Kartenformat (11.08.2026, 4 👎 / 2 👍):** vier Befunde, keiner am
+Modell. Der teuerste war der Meldeweg selbst — bei **vier von sechs** Rückmeldungen war die
+gespeicherte Frage unbrauchbar, weil sie im Moment der Reaktion aus der Kanal-Historie
+erraten statt beim Antworten gemerkt wurde. Dazu B15 (die Ausgabe wies verwandte Abschnitte
+nur bei Klassen aus, nie bei Regeln — der Bestandstext verweist selbst) und eine
+Glossar-Lücke. Der vierte kam aus einem Review der Schleife: Daumen mit Hautton wurden
+still verworfen, eine Rücknahme löschte die Markierung aller, Maschinenverkehr konnte die
+Urteile abschalten, und der Bericht schnitt bei seinem Limit stumm ab. Alle behoben und mit
+Regressionstests belegt; die Lehre zum Zeichenvergleich steht in
+[CONCEPT.md](CONCEPT.md) §12.
+
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking und
 Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 
@@ -191,11 +203,16 @@ Funktionsumfang steht (Thread-Rebuild, `/regel-privat`, `/hilfe`, Kontextmenü,
 Entscheidungsregister ([CONCEPT.md](CONCEPT.md) §10). Offen sind nur noch die zwei Nachweise,
 die Tokens bzw. eine echte Guild brauchen:
 
-- ⬜ Eval-Lauf der DC-Fälle gegen den Pi-Vollbestand:
-  `make eval-verhalten-pi EVAL_ARGS="--nur DC1,DC2,DC3"` (kostet Tokens, deshalb gezielt).
-  Die DC-Fälle sind die ersten, die den Prompt messen, den der Bot wirklich fährt
-  (Projektanweisung **plus** `config/discord_zusatz.md`) — bisher war nur der Prompt-*Text*
-  geprüft, nicht das Verhalten.
+- ✅ **Eval-Lauf der DC-Fälle gegen den Pi-Vollbestand** — mehrfach erbracht (die
+  DC-Fälle laufen seit 06.08.2026 in jedem Volllauf mit), zuletzt als
+  **Paritäts-Baseline** (08.08.2026, `--prompt beide`: jeder der 25 ausführbaren Fälle
+  gegen Konnektor- UND Discord-Prompt). Ergebnis: **23/25 Fälle mit identischem
+  Ausgang**; nach Abzug eines Messmodus-Artefakts (das Discord-Tabellenverbot galt
+  fälschlich auch für den Konnektor — behoben) 22/25 gleich und 3 fallweise
+  Streuungsfälle, die **beide** Richtungen treffen (2× nur Discord rot, 1× nur
+  Konnektor rot) — kein systematischer Kanal-Unterschied. Der größte reale Unterschied
+  der beiden Wege bleibt das MODELL (Bot: `claude-sonnet-5` fest; Konnektor: was der
+  Client wählt) — bewusst nicht angeglichen, Kostenentscheidung des Eigentümers.
 - ✅ **`/regel`-Absturz im Kanal behoben** (Live-Befund 03.08.2026 aus dem Pi-Log): Die
   Slash-Antwort ist eine `WebhookMessage` ohne Guild-Bezug, `Message.create_thread()` warf
   dort `ValueError` **vor** jedem HTTP-Aufruf und lief am Fallback vorbei. Threads entstehen
@@ -242,8 +259,8 @@ Namensdubletten, Facetten-Deckung Monster 100 %, der korrupte Open5e-Datensatz w
 Import verworfen statt gekennzeichnet — `make check-pi` und die Golden-Suite grün.
 
 ### Offene Anforderungen im Überblick
-Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11/S12, V1–V6/V8, NF1–NF3/NF5–NF7,
-B1–B8/B11, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
+Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11–S15, V1–V6/V8, NF1–NF3/NF5–NF7,
+B1–B8/B11–B16, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
 
 | Anf. | Inhalt | Status | Zu |
 |---|---|---|---|
@@ -381,6 +398,9 @@ gelesen, wenn jemand die Stelle anfasst, statt hier als Dauer-Eintrag mitzuwachs
 | `ddb-br-2024-en` ist ein Vor-Errata-Snapshot: drei Conjure-Zauber mit alter Skalierung (2d8/2d12), „Mind Spike"/„Tashas Gelächter" mit falscher Kopfzeile („Evocation Cantrip") | niedrig | Audit 03.08.2026: nur als explizit ladbare Fremdfassung erreichbar — kanonisch gewinnt überall srd-de mit korrekten Werten. Fix wäre ein DDB-Re-Export; lohnt erst, wenn DDB die Free Rules selbst aktualisiert |
 | open5e „Axe Beak" mit 1W6-Schnabel, wo srd-de UND DDB 1W8 führen | niedrig | SRD-5.2-Altstand der API-Quelle; die Präzedenz (Band 20 vor 60) serviert den richtigen Wert |
 | `phb-2014-de` quantifiziert: 45 Würfel-OCR-Risse („1W1O", „2W1 2"), 27 Anhang-D-Statblöcke als namenlose „AKTIONEN"-Chunks, 776 Breadcrumbs „7," | niedrig | bekannter Scan-Qualitätsstand des 2014-Bandes (Band 80, dient Begriffen und Altregeln); Nacharbeit lohnt erst mit dem echten dt. PHB 2024 (M1) |
+| **Rest-Streuung im Antwortgerüst** | niedrig | Nicht geschlossen. Der Volllauf am Pi-Vollbestand (09.08.2026, 25 Fälle) endete mit fünf Fehlschlägen (B3, D1, DC3, DC4, F2), vier davon weich. Gezielte Wiederholungsläufe derselben Fälle beanstandeten jedes Mal etwas **anderes** — D1 einmal „Regeltext mit Ableitung vermischt", beim zweiten Lauf die fehlende Kopfzeile; F2 einmal ein fehlendes Pflicht-Fragment, dann die fehlende Belegzeile. Es streut also die Antwort UND das Urteil, weshalb ein einzelner Lauf hier nichts beweist. DC3/DC4 fielen schon am 08.08.2026 durch, B3 hängt am bekannten Datenposten eine Zeile weiter (leere Statblock-Abschnitte). Nächster Schritt: über mehrere Läufe je Fall aggregieren, bevor an einem Prompt-Kanal etwas geändert wird — die Erfahrung ist, dass zuerst das Prüfmuster verdächtig ist, nicht das Verhalten |
+| **srd-de: fünf Statblock-Abschnitte tragen eine Überschrift ohne Inhalt** (Solar/Bonusaktionen, Kriegerinfanterist/Aktionen, Junger Kupferdrache/Aktionen, Lemure/Merkmale, Vampir/Merkmale) | niedrig | Zweispalten-Riss der PDF-Textschicht: Der Inhalt ist beim Import in den Nachbarblock gerutscht. `admin check` zählt sie seit 07.08.2026 gegen den Basiswert, ein Anstieg bricht den Deploy. Behebung erst mit einem srd-de-Re-Import — mit den bekannten Re-Import-Fallen (Facetten, Namensreparatur) |
+| DDB-Einträge tragen Buch-Layout im Regeltext: Werbe-Taglines und Illustratoren-Credits („Ignatius Budi" beim Undead Patron, Befund 06.08.2026) | niedrig | Der DDB-Import filtert bisher nur Kapitelköpfe über den Namen, keine Artefakte im Text; die Verhaltensregel B14 hält sie aus den Antworten. Ein Import-Filter braucht einen eigenen Durchgang samt Re-Import — mit den bekannten Re-Import-Fallen (Facetten, Namensreparatur) |
 
 ---
 

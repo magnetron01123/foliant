@@ -21,7 +21,7 @@ ausgefüllten offiziellen deutschen WotC-Bogen 2024, druckbar.
    keine offizielle Übersetzung existiert.
 3. **Version immer:** aktuelle Regeln (2024) als Standard; ältere Stände klar gekennzeichnet.
 
-## Stand (06.08.2026)
+## Stand (11.08.2026)
 
 **Technisch fertig, noch nicht am Tisch erprobt.** Der Server läuft auf einem Raspberry Pi 4:
 ~12 500 Einträge aus 18 Quellen (dt. SRD 5.2.1, drei deutsche 2014-Bücher, Open5e,

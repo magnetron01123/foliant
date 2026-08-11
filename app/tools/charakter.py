@@ -104,10 +104,44 @@ _HINWEIS_REIHENFOLGE = ("2024-Reihenfolge der Charaktererstellung (B7): 1. Klass
                         "(SYN-P2-005): Zur Herkunft gehoeren laut Regeltext auch ZWEI "
                         "SPRACHEN und Spezies-Pflichtwahlen (z. B. Elfen-Abstammung, "
                         "Mensch-Zusatztalent) - abfragen, nicht ueberspringen; danach "
-                        "Attributswerte und Gesinnung.")
+                        "Attributswerte und Gesinnung. JEDER Schritt ist eine Antwort und "
+                        "traegt das Geruest: Kopfzeile mit dem Kategorie-Emoji des Schritts "
+                        "(⚔️ Klasse, 🏕️ Hintergrund, 🧝 Spezies), Rueckfragen mit ❓ - ein "
+                        "Gespraechszug ist keine Ausnahme (B12). Kein Satz vor der "
+                        "Kopfzeile, auch keine Zaehlung ('Alle zwoelf Klassen ...') - "
+                        "die gehoert in die Einordnung darunter.")
 _HINWEIS_BESTAND = ("Nur Optionen aus dem Bestand. Fehlt eine erwartete Option (z. B. "
                     "Aasimar im reinen SRD), das ehrlich sagen - evtl. fehlt ein Buch (B2). "
                     "Nichts aus Allgemeinwissen ergaenzen (B1).")
+# Rund 55 % aller 'kurz'-Zeilen stammen aus englischen Quellen (gemessen 07.08.2026:
+# klasse 55/110, talent 44/62, hintergrund 33/43, spezies 20/34). Bis dahin sagte KEIN
+# Kanal, was mit ihnen zu tun ist - Folge war eine Unterklassen-Liste, deren
+# Beschreibungen roh englisch dastanden ("Bargain with Whimsical Fey"), mitten in einer
+# deutschen Antwort. Der Hinweis haengt an JEDER Optionsliste, nicht nur an den Klassen.
+_HINWEIS_KURZ = ("Das Feld 'kurz' ist die BELEGTE Kurzcharakterisierung der Option aus "
+                 "ihrer Quelle - oft eine englische Schlagzeile. Gib sie wie jeden anderen "
+                 "Text auf DEUTSCH wieder (S3/S4: offizieller Begriff, sonst deutsche "
+                 "Wiedergabe mit * und Original in Klammern); reiche sie NIE englisch "
+                 "durch und erfinde nichts dazu (B1).")
+# Discord-Befund 01.08.2026: auf "Welche Unterklassen hat X?" kam eine Inventurliste, nach
+# Datenlage gegliedert ("Namens-Treffer ohne verknuepfte Klassendaten") - fuer die fragende
+# Person unbrauchbar. Der Hinweis steht in der TOOL-AUSGABE, weil sie der zuverlaessigste
+# der drei Verhaltenskanaele ist (SPEC par. 7) und das Instruktions-Budget
+# (test_instruktion_bleibt_kompakt) knapp ist. Seit 07.08.2026 eine benannte Konstante:
+# als Dict-Literal war der Text der einzige tragende Grounding-Hinweis, den
+# tests/test_verhaltensregeln.py nicht verankern konnte.
+_HINWEIS_KLASSENMENUE = (
+    "Bei der Frage nach Klassen/Unterklassen: als MENUE antworten - Kopfzeile mit ⚔️ als "
+    "ERSTEM Zeichen, z. B. '⚔️ **Hexenmeister (Warlock) - Unterklassen**'; der Satz "
+    "'<Klasse> hat N Unterklassen' ist die Einordnung DARUNTER, nie die Eroeffnung "
+    "(B12). Dann je Option EINE "
+    "Kurzzeile aus dem Feld 'kurz' (steht dort keines, per foliant_hol_eintrag "
+    "nachladen); NIE aus dem Gedaechtnis charakterisieren, auch nicht 'nur grob' (B1). "
+    "Sprachstatus ist eine Fussnote je Option (englische Namen mit * wiedergeben), NIE "
+    "das Ordnungsprinzip - und auch sonst nie nach Datenlage gruppieren oder Feldnamen "
+    "wie 'inhaltsart' zitieren (B13); ein Kampagnen-Band fuer die Runde heisst: ob die "
+    "Option am Tisch erlaubt ist, entscheidet die SL. Belegzeile aus dem Feld 'zitat' "
+    "der gezeigten Option. Mit der Rueckfrage enden, welche Option gewuenscht ist.")
 
 
 def _norm(text: str | None) -> str:
@@ -245,6 +279,18 @@ _HAUPTATTRIBUT = re.compile(
 # Lieber kein Feld als ein falsches - der Darstellungs-Hinweis sagt dem Modell, dann
 # nachzuladen.
 _BILDNACHWEIS = re.compile(r"^\s*(artist|kuenstler|künstler|illustration)\b", re.IGNORECASE)
+# Derselbe Nachweis MITTEN in der Zeile: manche Baende setzen ihn ohne Umbruch zwischen
+# Schlagzeile und Fliesstext ('Command a Construct Guardian ARTIST: MICHAEL BROUSSARD A
+# Battle Smith is a combination of...'). `_BILDNACHWEIS` ist auf '^' verankert und greift
+# dort nicht - der Credit stand deshalb bis zum 07.08.2026 in der Kurzzeile des Battle
+# Smith. Ersetzt wird durch einen ZEILENUMBRUCH, nicht durch nichts: so zerfaellt die
+# Doppelzeile in ihre zwei echten Teile und die Schlagzeile bleibt als Kurzzeile uebrig.
+# Der Marker ist schreibungsunabhaengig, der Namenslauf bewusst NUR versal - sonst frisst
+# er den folgenden Satz mit. Mindestens zwei Zeichen je Namensteil laesst das einzelne
+# 'A' von 'A Battle Smith' stehen.
+_BILDNACHWEIS_INLINE = re.compile(
+    r"\s*(?i:artist|illustrator|kuenstler|künstler|illustration)\s*:\s*"
+    r"(?:[A-ZÄÖÜ][A-ZÄÖÜßÉ'’.\-]+\s+){0,3}[A-ZÄÖÜ][A-ZÄÖÜßÉ'’.\-]+\s*")
 # Die Typzeile eines Talents ('General Feat (Prerequisite: ...)', 'Allgemeines Talent
 # (Voraussetzung: ...)') steht schon als eigene Felder `kategorie`/`voraussetzung` in
 # der Zeile - als Kurzcharakteristik waere sie eine Dopplung und verdraengt den Satz,
@@ -272,7 +318,7 @@ def _kurzzeile(body: str | None) -> str | None:
     def sauber(text: str) -> str:
         return _ESCAPE.sub(r"\1", _ZIER.sub("", text)).strip()
 
-    zeilen = [z.strip() for z in (body or "").split("\n")]
+    zeilen = [z.strip() for z in _BILDNACHWEIS_INLINE.sub("\n", body or "").split("\n")]
     zeilen = [z for z in zeilen if z and not z.startswith("*Kontext:")
               and not _BILDNACHWEIS.match(sauber(z))
               and not _TYPZEILE.match(sauber(z))
@@ -367,8 +413,14 @@ def _liste(kategorie: str, schluessel: str, schritt_hinweis: str) -> dict:
         # ohne Faltung sortiert 'ä' (U+00E4) hinter 'z', und "Kämpfer" stand in der
         # Klassenliste hinter "Kleriker". Ein Spieler liest diese Liste.
         zeilen.sort(key=lambda z: _glossar.norm_begriff(z["name_de"] or z["name_en"]))
+        # Auch die Kopfzeilen-Regel: Die Optionslisten waren der EINZIGE Auskunftsweg
+        # ohne sie - und ueber vier Volllaeufe (07./08.08.2026) stammten die
+        # wiederkehrenden Geruest-Verstoesse (C3, DC4) genau aus Listen-Antworten.
+        # Dieselbe Lueckenklasse wie bei der Mehrdeutigkeit: Der Hinweis hing an einem
+        # Werkzeug, das diese Antworten nie liefert.
         antwort = {schluessel: zeilen, "hinweis_reihenfolge": schritt_hinweis,
-                   "hinweis": _HINWEIS_BESTAND}
+                   "hinweis": _HINWEIS_BESTAND, "hinweis_kurz": _HINWEIS_KURZ,
+                   "hinweis_darstellung": _aus.HINWEIS_KOPFZEILE}
         _aus._markiere_inhaltsart(con, antwort, zeilen)
         if not zeilen:
             antwort["hinweis"] = _aus.HINWEIS_LEER
@@ -569,23 +621,8 @@ def _liste_klassen() -> dict:
                          key=lambda z: _glossar.norm_begriff(z["name_de"] or z["name_en"]))
         antwort = {"klassen": klassen,
                    "hinweis_reihenfolge": "Klasse ist SCHRITT 1 von 4. " + _HINWEIS_REIHENFOLGE,
-                   "hinweis": _HINWEIS_BESTAND,
-                   # Discord-Befund 01.08.2026: auf "Welche Unterklassen hat X?" kam eine
-                   # Inventurliste, nach Datenlage gegliedert ("vollstaendig deutsch" /
-                   # "Namens-Treffer ohne verknuepfte Klassendaten") - fuer die fragende
-                   # Person unbrauchbar. Der Hinweis steht HIER, weil die Tool-Ausgabe
-                   # der zuverlaessigste der drei Verhaltenskanaele ist (SPEC par. 7) und
-                   # das Instruktions-Budget (test_instruktion_bleibt_kompakt) knapp ist.
-                   "hinweis_darstellung": (
-                       "Bei der Frage nach Klassen/Unterklassen: als MENUE antworten - je "
-                       "Option EINE Kurzzeile aus dem Feld 'kurz' (steht dort keines, per "
-                       "foliant_hol_eintrag nachladen); NIE aus dem Gedaechtnis "
-                       "charakterisieren, auch nicht 'nur grob' (B1). Sprachstatus ist "
-                       "eine Fussnote je Option (englische Namen mit * wiedergeben), NIE "
-                       "das Ordnungsprinzip. 'abenteuer_setting' fuer die Runde heisst: ob "
-                       "die Option am Tisch erlaubt ist, entscheidet die SL. Belegzeile "
-                       "aus dem Feld 'zitat' der gezeigten Option. Mit der Rueckfrage "
-                       "enden, welche Option im Detail gewuenscht ist.")}
+                   "hinweis": _HINWEIS_BESTAND, "hinweis_kurz": _HINWEIS_KURZ,
+                   "hinweis_darstellung": _HINWEIS_KLASSENMENUE}
         # Auch die geschachtelten Unterklassen kennzeichnen - sie tragen dieselbe
         # Herkunft und sind fuer den Spoiler-Schutz kein Sonderfall.
         _aus._markiere_inhaltsart(con, antwort, klassen,
