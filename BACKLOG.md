@@ -374,21 +374,22 @@ Was von einem Lauf dauerhaft gilt, gehört als Aussage in §1 (offene Arbeit), �
 
 ## 3. Bekannte Rest-Posten (bewusst niedrig priorisiert)
 
-- ⬜ **10 gemeldete Facetten-Widersprüche einzeln prüfen** (Stand 01.08.2026, Liste über
-  `admin import --quelle facetten`). Der Fassungsabgleich korrigiert sie bewusst nicht —
-  jeder Fall braucht eine eigene Entscheidung:
+- ⬜ **8 gemeldete Facetten-Widersprüche einzeln prüfen** (am Vollbestand gemessen
+  11.08.2026, Liste über `admin import --quelle facetten`). Der Fassungsabgleich
+  korrigiert sie bewusst nicht — jeder Fall braucht eine eigene Entscheidung:
   - `Tasha's Hideous Laughter` / `Mind Spike` in `ddb-br-2024-en`: Kopfzeile sagt
     „Evocation Cantrip", die PHB-Fassung Grad 1 bzw. 2 → sehr wahrscheinlich
     Import-/Chunking-Schaden in dieser Quelle.
   - `Summon Celestial/Elemental/Fey` (PHB, Grad 5/4/3) gegen die deutschen SRD-Einträge
     „Celestisches Wesen beschwören" & Co. (Grad 7/6/5): erst klären, ob die Glossarzeile
     (Quelle: *Tashas Kessel mit Allem*, 2014) hier überhaupt dieselben Zauber verbindet.
-  - `Krabbe`/`Crab` und `Riesenhai`/`Giant Shark`: deutsche und englische Fassung nennen
-    verschiedene HG — eine der beiden hat den Wert des Nachbar-Statblocks erwischt.
+  - `Krabbe`/`Crab`: deutsche und englische Fassung nennen verschiedene HG (2 gegen 0) —
+    eine der beiden hat den Wert des Nachbar-Statblocks erwischt.
 - ⬜ **9 verschmolzene Statblöcke im `srd-de`-Import** (Ghul, Dschinni, Worg, Lemure,
   Priester, Schreckhahn, Gruftschrecken, Hobgoblin-Hauptmann, Junger Bronzedrache): Der
   Text enthält jeweils Teile des Nachbareintrags. Die **Facetten** sind seit dem
-  Fassungsabgleich richtig, der **Text** bleibt beschädigt — das Modell muss ihn beim
+  Fassungsabgleich richtig (er hat am 11.08.2026 den Ghul von HG 8 auf 1 gezogen — der
+  Wert stammte vom Geister-Naga-Kopf im selben Chunk), der **Text** bleibt beschädigt — das Modell muss ihn beim
   Vorlesen auseinanderhalten (im Simulationslauf hat es das getan und dazugesagt).
   Saubere Lösung ist eine Chunking-Korrektur im Importer, nicht im Serving-Pfad.
 
