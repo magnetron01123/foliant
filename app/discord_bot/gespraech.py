@@ -1,6 +1,6 @@
 """Thread-Verlaeufe in-memory (Eigentuemer-Entscheidung 26.07.2026): ein Pi-Neustart
 loescht sie. Persistenz waere neuer State ohne Not - die Quelle ist die Discord-Historie
-selbst, aus der rebuild.py den Verlauf bei Bedarf zurueckliest (setze()). Nur wenn dort
+selbst, aus der wiederaufbau.py den Verlauf bei Bedarf zurueckliest (setze()). Nur wenn dort
 nichts Verwertbares steht, sagt der Bot ehrlich, dass er vergessen hat.
 
 Gespeichert werden NUR finale Texte (Frage/Antwort-Paare), keine Tool-Runden: jede
@@ -59,7 +59,7 @@ class GespraechsSpeicher:
         return list(eintrag["verlauf"])
 
     def setze(self, thread_id: int, verlauf: list[dict]) -> None:
-        """Einen rekonstruierten Verlauf einsetzen (rebuild.baue_verlauf nach einem
+        """Einen rekonstruierten Verlauf einsetzen (wiederaufbau.baue_verlauf nach einem
         Neustart). Auch ein LEERER Verlauf wird gespeichert: der Thread gilt danach als
         bekannt, der Bot bedient ihn wieder und fragt die Historie nicht bei jeder
         Nachricht erneut ab. Die Deckel gelten unveraendert."""

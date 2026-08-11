@@ -21,13 +21,17 @@ ausgefüllten offiziellen deutschen WotC-Bogen 2024, druckbar.
    keine offizielle Übersetzung existiert.
 3. **Version immer:** aktuelle Regeln (2024) als Standard; ältere Stände klar gekennzeichnet.
 
-## Stand (29.07.2026)
+## Stand (11.08.2026)
 
-**MVP komplett und live** auf einem Raspberry Pi 4: ~12 500 Einträge aus 15 Quellen (dt. SRD
-5.2.1, drei deutsche 2014-Bücher, Open5e, D&D-Beyond-Bücher), 6 Tools, Zugang über geheimen
-Pfad + IP-Allowlist, Datenbank-QS abgeschlossen. Der Charakterbogen-Übersetzer läuft als
-eigener Container daneben, der Discord-Bot ebenso. Maßgeblich ist immer `admin status`.
-Was noch offen ist: [BACKLOG.md](BACKLOG.md).
+**Technisch fertig, noch nicht am Tisch erprobt.** Der Server läuft auf einem Raspberry Pi 4:
+~12 500 Einträge aus 18 Quellen (dt. SRD 5.2.1, drei deutsche 2014-Bücher, Open5e,
+D&D-Beyond-Bücher, drei Errata-Bände), 6 Tools, Zugang über geheimen Pfad + IP-Allowlist.
+Charakterbogen-Übersetzer und Discord-Bot laufen als eigene Container daneben. Maßgeblich für
+den Bestand ist immer `admin status`.
+
+Was das *nicht* heißt: Eine Spielrunde hat damit noch nicht gearbeitet, und bis ein Off-Site-Ziel
+steht, liegen Bestand und Backup auf derselben SD-Karte. Details und der Rest der offenen
+Posten: [BACKLOG.md](BACKLOG.md).
 
 ## Dokumentation — vier Dateien, mehr nicht
 
@@ -40,6 +44,11 @@ Was noch offen ist: [BACKLOG.md](BACKLOG.md).
 
 `CLAUDE.md` ist kein fünftes Dokument, sondern der Einstiegspunkt für Claude Code — er
 verweist nur auf die vier oben.
+
+Die Zuordnung ist **getestet, nicht nur vereinbart**: `tests/test_doku_pflege.py` (Teil von
+`make test`) prüft, dass §-Verweise ein Kapitel treffen, die Stand-Angaben zum Inhalt passen,
+jede Anforderung aus `SPEC.md` einen Status in `BACKLOG.md` hat, genannte Dateien existieren
+und keine Aussage wortgleich in zwei Dateien gepflegt wird.
 
 ## Aufbau des Repositorys
 
@@ -71,6 +80,14 @@ nach einem Server-Neustart, denn der Bot liest den Thread dann aus der Discord-H
 zurück. Wer nur für sich nachschlagen möchte, nimmt **`/regel-privat <frage>`**: die
 Antwort sieht dann niemand sonst, dafür gibt es keinen Thread für Nachfragen. Es gilt ein
 gemeinsames Tageslimit als Kostendeckel.
+
+**`/bestand`** zeigt, welche Bücher im Bestand stehen — mit Sprache, Regelstand und
+Umfang, gruppiert wie auf der Website. Ephemer und ohne API-Kosten, weil die Liste direkt
+aus der Datenbank kommt.
+
+**War eine Antwort falsch?** Mit 👎 darauf reagieren — Foliant merkt sich die Frage als
+Korrektur-Kandidaten (📝 heißt: notiert) und wird genau dort besser, wo er heute daneben
+liegt. Reaktion wegnehmen löscht den Eintrag.
 Einrichtung (einmalig, Betreiber): [CONCEPT.md](CONCEPT.md) §9 „Discord-Bot einrichten".
 
 Betrieb, Deployment und die Import-Wege im Detail: [CONCEPT.md](CONCEPT.md) §8–9.
@@ -159,5 +176,5 @@ Umgangston: freundlich, respektvoll, sachlich — im Zweifel gilt der
   nicht mitgeliefert und nur privat, rechtmäßig erworben und zum Eigenbedarf verarbeitet
   (`lizenz = "privat"`, `herkunft = "ddb"` an jedem Eintrag). Sie werden der eigenen Spielrunde
   über einen zugangsgeschützten Endpoint bereitgestellt — bewusste, protokollierte
-  Eigentümer-Entscheidung ([SPEC.md](SPEC.md) §12.1). Eine Weitergabe über die Runde hinaus
+  Eigentümer-Entscheidung ([SPEC.md](SPEC.md) §12 Nr. 1). Eine Weitergabe über die Runde hinaus
   findet nicht statt.

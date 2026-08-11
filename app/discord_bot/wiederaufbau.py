@@ -12,11 +12,13 @@ from __future__ import annotations
 from app.discord_bot import antwort, schranken
 
 # Bot-Nachrichten, die KEINE Antwort sind: sie duerfen nicht als Assistant-Turn in den
-# Verlauf wandern. Verglichen wird auf Gleichheit - der max_tokens-Hinweis haengt an
-# einem Teiltext ("<Antwort>\n\n⚠️ ..."), und der bleibt als echte Antwort erhalten.
+# Verlauf wandern. Verglichen wird auf Gleichheit - haengt der max_tokens-Hinweis an
+# einem Teiltext ("<Antwort>\n\n⚠️ ..."), bleibt der als echte Antwort erhalten; nur
+# die ALLEIN stehende Meldung (bot.py sendet sie bei leerem Teiltext) faellt raus.
 _MELDUNGEN = frozenset({
     antwort.FEHLER_API,
     antwort.FEHLER_RUNDEN_CAP,
+    antwort.FEHLER_MAX_TOKENS,
     antwort.FEHLER_REFUSAL,
     antwort.HINWEIS_VERGESSEN,
     schranken.ABGELEHNT_LAEUFT,

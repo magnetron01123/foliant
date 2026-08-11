@@ -36,31 +36,9 @@
           <p class="status" id="status" hidden>Bogen wird geprüft, übersetzt und ausgefüllt …</p>
         </form>
 
-        <div class="block">
-          <h3>Was dabei passiert</h3>
-          <ol class="schritte">
-            <li>Foliant liest deinen englischen D&amp;D-Beyond-Bogen aus — Werte, Listen
-              und Fließtext getrennt voneinander.</li>
-            <li>Die Fachbegriffe kommen aus dem Regelbestand der Runde, nicht aus dem
-              Gedächtnis eines Sprachmodells.</li>
-            <li>Alles wird auf den <em>offiziellen deutschen Charakterbogen (2024)</em>
-              übertragen — als PDF zum Ausdrucken.</li>
-          </ol>
-        </div>
-
-        <div class="block">
-          <h3>Worauf du dich verlassen kannst</h3>
-          <ul class="schritte">
-            <li>Zahlen, Würfel und Modifikatoren werden <em>übertragen</em>, nicht
-              übersetzt — kein Sprachmodell fasst sie an.</li>
-            <li>Gibt es zu einem Begriff kein offizielles Deutsch, steht ein
-              <em>*</em> dahinter, statt dass er als amtlich ausgegeben wird.</li>
-            <li>Dein Bogen wird nur im Arbeitsspeicher verarbeitet. Nichts wird
-              gespeichert — weder das Original noch das Ergebnis.</li>
-            <li>Passt der Inhalt nicht vollständig auf den Bogen, bekommst du eine
-              Meldung statt einer unvollständigen PDF.</li>
-          </ul>
-        </div>
+        <p class="mini">Dauert etwa eine Minute. Ein <em>*</em> hinter einem Begriff heißt:
+          dafür gibt es kein offizielles Deutsch, das ist sinngemäß übersetzt. Dein Bogen
+          wird nicht gespeichert.</p>
       </section>
 
       <section id="mcp" class="karte">
@@ -88,10 +66,15 @@
           <ol class="schritte">
             <li>Link oben kopieren.</li>
             <li>Auf <em>claude.ai</em>: Einstellungen&nbsp;→ Connectoren&nbsp;→
-              <em>„Eigenen Connector hinzufügen"</em> → Link als URL einfügen.</li>
+              <em>„Eigenen Connector hinzufügen"</em> → Link als URL einfügen.
+              Das geht am Rechner (oder im Browser); danach kannst du Foliant auch am
+              Handy benutzen.</li>
             <li>Im Chat einfach auf Deutsch nach Regeln fragen — z.&nbsp;B.
               <em>„Was macht der Zauber Dunkelheit?"</em></li>
           </ol>
+          <p class="mini">Eigene Connectoren sind bei Claude noch Beta: Ist er plötzlich
+            verschwunden, den Link einfach neu hinzufügen. Klappt es gar nicht, nimm den Bot
+            in Discord — der braucht keine Einrichtung.</p>
         </div>
 
         <!--ANWEISUNG-START-->
@@ -121,27 +104,6 @@
         </div>
         <!--ANWEISUNG-ENDE-->
 
-        <div class="block">
-          <h3>Was bringt das?</h3>
-          <div class="vergleich">
-            <div class="ohne">
-              <h4>Claude ohne Foliant</h4>
-              <ul>
-                <li>antwortet aus allgemeinem Trainingswissen</li>
-                <li>mischt alte (2014) und neue (2024) Regeln, oft englische Begriffe</li>
-                <li>kann Details überzeugend klingend erfinden — ohne Quellenangabe</li>
-              </ul>
-            </div>
-            <div class="mit">
-              <h4>Claude mit Foliant</h4>
-              <ul>
-                <li>schlägt im Regelbestand der Runde nach (2024, Deutsch zuerst)</li>
-                <li>nennt Quelle, Seite und Regelversion zu jeder Auskunft</li>
-                <li>sagt ehrlich „nicht gefunden", statt zu raten — und spoilert keine Abenteuer</li>
-              </ul>
-            </div>
-          </div>
-        </div>
       </section>
 
       <section id="discord" class="karte">
@@ -151,66 +113,45 @@
           etwas einrichten, und alle am Tisch lesen dieselbe Antwort.</p>
 
         <div class="block">
-          <h3>So fragst du</h3>
-          <ol class="schritte">
-            <li><span class="befehl">/regel</span> tippen, Frage eintragen, absenden — z.&nbsp;B.
-              <em>„Was macht der Zauber Dunkelheit?"</em>. Die Antwort steht im Kanal,
-              darunter öffnet der Bot einen Thread.</li>
-            <li>Oder ihn in einer normalen Nachricht erwähnen
-              (<span class="befehl">@Foliant</span>) — dann hängt der Thread an deiner
-              Frage.</li>
-            <li>Im Thread einfach weiterschreiben: Nachfragen brauchen weder Befehl noch
-              Erwähnung, der Bot kennt das bisherige Gespräch.</li>
-            <li><span class="befehl">/regel-privat</span> fragt dasselbe, nur sieht die
-              Antwort niemand außer dir. Dafür gibt es keinen Thread für Nachfragen —
-              das kann Discord bei einer privaten Nachricht nicht.</li>
-          </ol>
+          <h3>Die Befehle</h3>
+          <ul class="schritte">
+            <li><span class="befehl">/hilfe</span> — zeigt dir diese Übersicht direkt in
+              Discord, jederzeit und nur dir. <strong>Der eine Befehl, den du dir merken
+              musst</strong> — alles andere steht darin.</li>
+            <li><span class="befehl">/regel</span> — Frage stellen. Die Antwort steht im
+              Kanal, darunter öffnet sich ein Thread; dort einfach weiterschreiben, Nachfragen
+              brauchen keinen Befehl.</li>
+            <li><span class="befehl">/regel-privat</span> — dasselbe, aber die Antwort sieht
+              nur du. Dafür ohne Thread für Nachfragen.</li>
+            <li><span class="befehl">@Foliant</span> in einer normalen Nachricht, oder
+              Rechtsklick auf eine fremde Nachricht → <em>Apps</em> →
+              <em>Foliant fragen</em>, um eine Behauptung zu prüfen.</li>
+            <li><span class="befehl">/bestand</span> — dieselbe Bücherliste wie unten auf
+              dieser Seite, direkt in Discord und nur für dich. Praktisch, wenn am Tisch
+              die Frage aufkommt, ob ein Buch überhaupt drinsteht.</li>
+          </ul>
+          <p class="mini">Beide <span class="befehl">/regel</span>-Befehle haben eine Option
+            <span class="befehl">fassung</span>, falls du nach den 2014er-Regeln fragst
+            (Standard ist 2024).</p>
         </div>
 
         <div class="block">
-          <h3>Woran er sich hält</h3>
-          <p class="mini">Der Bot schlägt in demselben Bestand nach wie der Claude-Chat und
-            bekommt dieselben Regeln mit auf den Weg: Deutsch zuerst, Buch, Seite und
-            Regelstand zu jeder Auskunft, ehrliches „nicht gefunden" statt Raten — und keine
-            Abenteuer-Spoiler. Nur die Form ist auf Discord zugeschnitten: kompakte
-            Nachrichten, Tabellen als Codeblock, lange Antworten in mehreren Teilen.</p>
-        </div>
-
-        <div class="block">
-          <h3>Discord oder Claude-Chat?</h3>
-          <div class="vergleich">
-            <div>
-              <h4>Discord</h4>
-              <ul>
-                <li>die schnelle Frage mitten im Spiel</li>
-                <li>alle am Tisch lesen mit — oder mit
-                  <span class="befehl">/regel-privat</span> nur du</li>
-                <li>nichts einzurichten — der Bot ist schon da</li>
-              </ul>
-            </div>
-            <div>
-              <h4>Claude-Chat</h4>
-              <ul>
-                <li>lange Gespräche, z.&nbsp;B. Charakterbau</li>
-                <li>kein Tageslimit der Runde — es läuft über dein Claude-Konto</li>
-                <li>einmalig einrichten (Abschnitt nebenan)</li>
-              </ul>
-            </div>
-          </div>
+          <h3>Wenn eine Antwort falsch — oder besonders gut war</h3>
+          <p>Reagiere mit <em>👎</em> darauf — Foliant merkt sich die Frage und wird an
+            dieser Stelle besser. <em>📝</em> heißt: notiert. Reaktion wegnehmen löscht es
+            wieder.</p>
+          <p>War eine Antwort richtig gut, geht das genauso mit <em>👍</em>. Die wird als
+            Beispiel festgehalten und gegen spätere Änderungen abgesichert — damit nicht
+            kaputtgeht, was schon stimmt.</p>
         </div>
 
         <div class="block">
           <h3>Gut zu wissen</h3>
           <ul class="schritte">
-            <li>Er antwortet <em>nur</em> im Server unserer Runde. Lädt ihn jemand woandershin
-              ein, verlässt er den fremden Server sofort — der Bestand ist privat.</li>
-            <li>Zwischen zwei Fragen liegen ein paar Sekunden Pause, und die Runde hat ein
-              gemeinsames Tageslimit: jede Antwort kostet Geld. Ist es erreicht, sagt er das.</li>
-            <li>Discord hebt Nachrichten auf: Was im Kanal steht, bleibt für alle lesbar —
-              auch für die, die später dazukommen. Was dort nicht stehen soll, lieber mit
-              <span class="befehl">/regel-privat</span> fragen.</li>
-            <li>Nach einem Neustart holt er sich den Gesprächsfaden aus dem Thread zurück.
-              Findet er nichts mehr, sagt er es — dann die Frage im Ganzen neu stellen.</li>
+            <li>Die Runde hat ein gemeinsames Tageslimit — jede Antwort kostet Geld. Ist es
+              erreicht, sagt er das.</li>
+            <li>Was im Kanal steht, bleibt für alle lesbar, auch für später Dazukommende.
+              Was dort nicht stehen soll: <span class="befehl">/regel-privat</span>.</li>
           </ul>
         </div>
       </section>

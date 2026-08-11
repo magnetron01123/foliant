@@ -38,6 +38,7 @@ import time
 
 from app import db as _db
 from importer import quellen as _quellen
+from importer.import_markdown import _BILANZ
 from importer import schwellen as _schwellen
 
 API_BASE = "https://api.open5e.com/v2/"   # Default; [open5e].api_base gewinnt (A8)
@@ -162,6 +163,37 @@ def _aktions_name(a: dict) -> str:
     ) if z]
     name = (a.get("name") or "").strip()
     return f"{name} ({'; '.join(zusaetze)})" if name and zusaetze else name
+
+
+def kreatur_unplausibel(r: dict) -> str | None:
+    """Nennt den Grund, wenn ein Kreatur-Datensatz rechnerisch unmoeglich ist - sonst None.
+
+    WARUM DIESER GURT EXISTIERT (Datenbank-Audit 03.08.2026): Der Open5e-Datensatz des
+    'Octopus' trug KON 0, CHA -3 und einen Konstitutions-Rettungswurf von +30. Die Werte
+    kamen unveraendert aus der API - der Importer rechnet nichts, er reicht durch -, und
+    im Bestand stand danach ein Statblock, mit dem man wuerfeln kann und der grob falsch
+    ist. Ein Attributswert unter 1 gibt es in D&D nicht; die Modifikatoren passten sogar
+    zu den kaputten Werten und verrieten deshalb nichts.
+
+    VERWERFEN statt reparieren: Einen Wert zu erfinden waere ein Regel-1-Bruch, und ein
+    Statblock mit unmoeglichen Zahlen ist schaedlicher als eine ehrliche Luecke - ihn
+    stillschweigend halb zu uebernehmen waere das Schlimmste, weil er dann vollstaendig
+    aussieht. Repariert die Quelle den Datensatz, kommt der Eintrag beim naechsten Import
+    von selbst zurueck; bis dahin steht der Ausfall in der Importbilanz."""
+    scores = r.get("ability_scores") or {}
+    schlecht = [f"{name} {wert}" for name, wert in scores.items()
+                if not isinstance(wert, int) or not 1 <= wert <= 30]
+    if schlecht:
+        return f"Attributswert ausserhalb 1-30 ({', '.join(sorted(schlecht))})"
+    # Ein Rettungswurf haengt am Attributsmodifikator plus hoechstens dem Uebungsbonus
+    # (max. +9 bei HG 30). Alles darueber ist ein Datenfehler, kein starkes Monster.
+    for attribut, wurf in (r.get("saving_throws") or {}).items():
+        wert = scores.get(attribut)
+        if isinstance(wert, int) and isinstance(wurf, int) and 1 <= wert <= 30:
+            if abs(wurf - (wert - 10) // 2) > 9:
+                return (f"Rettungswurf {attribut} {wurf:+d} passt zu keinem "
+                        f"Uebungsbonus (Attribut {wert})")
+    return None
 
 
 def _md_creature(r: dict) -> str:
@@ -401,6 +433,12 @@ def import_open5e(con: sqlite3.Connection, dokumente: list[str] | None = None,
                 rohe = _hole_alle(client, endpunkt, dokument, basis)
                 for r in rohe:
                     name = (r.get("name") or "").strip()
+                    if endpunkt == "creatures":
+                        grund = kreatur_unplausibel(r)
+                        if grund:
+                            _BILANZ.verwirf(f"open5e-Kreatur unplausibel: {grund}")
+                            print(f"    VERWORFEN {name!r}: {grund}")
+                            continue
                     body = _body_md(endpunkt, r)
                     if not name or not body:
                         continue

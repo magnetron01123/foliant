@@ -3,7 +3,6 @@
 #2 idempotenter Schema-Sicherstellungs-Schritt in db.connect() (inhaltsart + ehrliche user_version),
 #3 zauber_meta/monster_meta aus Open5es nativen Feldern (Facetten-Seitenwagen) + Detail-Ausgabe.
 """
-import inspect
 import re
 import sqlite3
 import types
@@ -284,7 +283,7 @@ def test_standard_pfad_nutzt_den_konfig_cache():
     assert aufrufe, "standard_pfad liest die TOML wieder am Cache vorbei"
 
 
-def test_ranking_faltet_diakritika_wie_die_gruppierung():
+def test_ranking_faltet_diakritika_wie_die_gruppierung(tmp_path, monkeypatch):
     """Der Gruppenschluessel in _dedupe_und_sortiere faltet Diakritika (norm_begriff), der
     Exakt-Namens-Boost daneben tat es nicht (eigene .lower()-Kopie db._norm). Eine Anfrage
     OHNE Umlaut verlor dadurch die Namensgleichheit und damit den Boost.
@@ -292,17 +291,54 @@ def test_ranking_faltet_diakritika_wie_die_gruppierung():
     Gemessen am echten Bestand ueber 120 Namen mit Diakritika: 6 rankten anders, 3 mit
     einem ANDEREN Top-Treffer ('Fluche' -> 'Fluch' statt 'Flueche'). Das ist der
     Alltagsfall, nicht der Sonderfall - auf einer Handy-Tastatur schreibt niemand Umlaute.
-    norm_begriff sagt genau das in seinem eigenen Docstring (A3)."""
-    from app import db as adb
-    from app.glossar import norm_begriff
+    norm_begriff sagt genau das in seinem eigenen Docstring (A3).
 
-    # Die Vergleichspfade muessen DIESELBE Funktion benutzen, nicht nur dasselbe Ergebnis.
-    # Wortgrenze davor, sonst trifft das Muster auch das gewollte '_gl_norm('.
-    quelle = inspect.getsource(adb._dedupe_und_sortiere)
-    rueckfaelle = re.findall(r"(?<![\w.])_norm\(", quelle)
-    assert not rueckfaelle, \
-        f"{len(rueckfaelle)}x die ungefaltete Kopie db._norm statt norm_begriff"
+    Geprueft wird seit dem 06.08.2026 das VERHALTEN, nicht der Quelltext: die fruehere
+    `inspect.getsource`-Regex auf `_dedupe_und_sortiere` hielt eine Schreibweise fest, kein
+    Ergebnis - sie waere gruen geblieben, wenn die Faltung an einer anderen Stelle der
+    Kette weggefallen waere, und rot bei einer harmlosen Umbenennung.
+
+    Der Aufbau ist genau der Fall aus dem Docstring: 'Fluch' steht im rohen FTS-Lauf VORN
+    (sein Rumpf nennt den Suchbegriff mehrfach), nur der diakritika-feste Exakt-Boost hebt
+    'Flüche' darueber. Faellt die Faltung weg, dreht sich die Reihenfolge."""
+    from app.glossar import norm_begriff
+    from app.tools import suche as su
+
+    pfad = tmp_path / "diakritika.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(_SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,"
+                "prioritaet) VALUES ('srd-de','SRD 5.2.1 (Deutsch)','de','2024','pdf',"
+                "'CC-BY-4.0',10)")
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (1,'regel',?,NULL,'de','2024',?,?)",
+        [("Flüche", "1", "Sammelabschnitt ueber magische Buerden. " + "Fuelltext " * 80),
+         ("Fluch", "2", "Fluch Fluch Fluch Flüche Flüche Flüche Flüche")])
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+
+    for anfrage in ("Fluche", "Flüche"):     # ohne und mit Umlaut - dasselbe Ergebnis
+        treffer = su.foliant_suche_bestand(anfrage)["treffer"]
+        assert treffer and treffer[0]["name_de"] == "Flüche", (anfrage, treffer)
     assert norm_begriff("Flüche") == norm_begriff("Fluche")
+
+
+def test_ddb_artefakt_kennt_dieselben_kategorien():
+    """`importer/ddb_artefakt.KATEGORIEN_ERLAUBT` ist eine bewusste KOPIE von
+    `app.db.KATEGORIEN` - das Modul ist architekturneutral und laeuft auch im separaten
+    Exporter-Venv, wo die App-Abhaengigkeiten fehlen; ein Import zoege sie herein.
+
+    Eine Kopie ohne Waechter laeuft aber auseinander, und der Schaden waere still: Eine
+    neue Kategorie in app.db, die hier fehlt, laesst die Artefakt-Validierung jeden Eintrag
+    dieser Kategorie abweisen - der DDB-Import verlaese sich auf 'kenne ich nicht' statt
+    zu importieren. Dieser Test laeuft im HAUPT-Testlauf und sieht damit beide Seiten."""
+    from importer import ddb_artefakt
+
+    assert ddb_artefakt.KATEGORIEN_ERLAUBT == set(adb.KATEGORIEN)
 
 
 def test_neue_db_nimmt_alle_inhaltsarten_an(tmp_path):

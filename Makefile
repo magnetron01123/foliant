@@ -56,11 +56,28 @@ _pi-ziel:
 # den Vollbestand ist laut CONCEPT.md §11 Pflicht NACH jedem Deploy - deshalb haengt sie
 # hier dran, statt vergessen werden zu koennen.
 .PHONY: deploy-pi
-deploy-pi: _pi-ziel
+# ALLE drei Dienste, die Code aus dem Repo backen (build: .) - foliant, web, discord.
+# Bis zum 03.08.2026 stand hier nur `foliant`: Nach einem Deploy liefen Bot und Website
+# still mit dem ALTEN Image weiter, obwohl das Image den Code per COPY einbackt. Real
+# passiert: der /regel-Absturz war im Repo behoben, deployt - und in Discord trotzdem
+# noch da, weil der discord-Container nie neu gebaut wurde. `--no-deps`, damit
+# depends_on nicht gateway/cloudflared mit durchstartet (Gotcha in CONCEPT.md par. 12).
+# Eval-Reports VOR dem Rebuild aus dem Container ziehen (CONCEPT.md par. 12): Sie leben
+# in /app und sterben mit dem alten Image - dabei sind sie die Kalibriergrundlage fuer
+# jedes neue Pruefmuster. Zweimal in einer Woche (07./08.08.2026) waeren sie ohne den
+# Handgriff verloren gewesen; jetzt macht ihn der Deploy selbst. Fehlertolerant (-):
+# ein frischer Container ohne Reports oder ein gestoppter Dienst bricht keinen Deploy.
+.PHONY: sichere-eval-reports-pi
+sichere-eval-reports-pi: _pi-ziel
+	-ssh $(PI) 'cd ~/foliant && rm -rf /tmp/eval-reports && docker compose cp foliant:/app/evals/ergebnisse /tmp/eval-reports' 2>/dev/null
+	-mkdir -p evals/ergebnisse/pi && scp -q '$(PI):/tmp/eval-reports/*.json' evals/ergebnisse/pi/ 2>/dev/null
+	@ls evals/ergebnisse/pi/*.json 2>/dev/null | wc -l | xargs -I{} echo "Eval-Reports gesichert (lokal gesamt: {})"
+
+deploy-pi: _pi-ziel sichere-eval-reports-pi
 	rsync -a --exclude '.git' --exclude '.venv*' --exclude 'data' --exclude 'quellen' \
 	      --exclude 'config/foliant.toml' --exclude '.env' --exclude '.claude' \
 	      ./ $(PI):~/foliant/
-	ssh $(PI) 'cd ~/foliant && docker compose up -d --build foliant'
+	ssh $(PI) 'cd ~/foliant && docker compose up -d --build --no-deps foliant web discord'
 	@echo "--- Rebuild durch, jetzt die Pflicht-Pruefung am Vollbestand ---"
 	$(MAKE) test-golden-pi PI=$(PI)
 	@echo "--- Regel-Semantik ok, jetzt die DATENQUALITAET am Vollbestand ---"
@@ -84,6 +101,56 @@ test-golden-pi: _pi-ziel
 # live gehen (die Basiswerte in config/qualitaet_basis.json sagen, was bekannt ist).
 check-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin check'
+
+# Der Suchbericht vom VOLLBESTAND, maschinenlesbar - Einstieg in den
+# Rueckmeldungs-Durchgang (O4/M5, .claude/ablaeufe/rueckmeldungen.md). Rein lesend.
+# Bis 04.08.2026 stand dieser Aufruf nur als Copy-Paste-Zeile in der Doku, und eine Zeile,
+# die man abtippt, wird seltener gefahren als eine, die man aufruft.
+TAGE ?= 30
+.PHONY: bericht-pi
+bericht-pi: _pi-ziel
+	@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin suchbericht --tage $(TAGE) --json'
+
+# Die zweite Haelfte desselben Durchgangs: was der Bericht NICHT weiss, weil es im Repo
+# steht und nicht auf dem Pi - Wiederholungszaehler je Regel-ID, offene `spaeter`-Posten,
+# frueher abgelehnte Vorschlaege. Lokal, rein lesend, kein SSH.
+# Als Ziel und nicht als Handarbeit, weil am Zaehler eine Entscheidung haengt: Ab dem
+# dritten Bruch sitzt die Regel im falschen Kanal, und diese Grenze loest die
+# `Achtung`-Zeile der Freigabekarte aus.
+.PHONY: gedaechtnis
+gedaechtnis:
+	@.venv/bin/python deploy/rueckmeldungs_gedaechtnis.py
+
+# Der Gespraechskontext um EINE markierte Antwort, live aus Discord. Der Bot-Token liegt
+# nur in der Umgebung des discord-Containers und verlaesst den Pi nicht.
+# Die Ausgabe gehoert in die Auswertungs-Sitzung und in KEINE Datei: Der Antworttext steht
+# bewusst nicht im Protokoll (CONCEPT.md par. 13), ihn beim Auswerten wegzuschreiben waere
+# derselbe Schritt durch die Hintertuer.
+.PHONY: kontext-pi
+kontext-pi: _pi-ziel
+	@test -n "$(KANAL)" -a -n "$(NACHRICHT)" || { \
+	  echo "FEHLER: KANAL= und NACHRICHT= noetig (aus dem Discord-Link der Markierung)."; \
+	  echo "  make kontext-pi KANAL=<kanal-id> NACHRICHT=<nachricht-id>"; \
+	  exit 1; }
+	@ssh $(PI) 'cd ~/foliant && docker compose exec -T discord python deploy/discord_api.py nachrichten $(KANAL) $(NACHRICHT)'
+
+# Steht ein gekauftes DDB-Buch noch nicht im Bestand? Rein lesend: `--dry-run` zeigt nur,
+# was einliefe. Beide Teile in EINEM Ziel, weil die Frage nur aus beiden zusammen zu
+# beantworten ist - was liegt drin, und was laege drin.
+# Ein gekauftes, nie importiertes Buch ist im Betrieb unsichtbar: Foliant sagt ehrlich
+# "nicht im Bestand", und das sieht wie eine korrekte Auskunft aus.
+#
+# Das fuehrende `-` beim Trockenlauf ist Absicht: "Keine DDB-Artefakte vorhanden" ist ein
+# NORMALER Zustand (die Artefakte entstehen erst mit `ddb-exporter sync`) und endet
+# trotzdem mit Exitcode 1. Ohne das `-` meldete der monatliche Lauf jedes Mal einen
+# Fehler, obwohl nichts kaputt ist - und ein Waechter, der grundlos schreit, wird
+# abgeschaltet. Bewertet wird die AUSGABE, nicht der Exitcode: ein echter Fehler (etwa
+# ein abgelaufener Cobalt-Cookie) steht dort im Klartext.
+.PHONY: ddb-abgleich-pi
+ddb-abgleich-pi: _pi-ziel
+	@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin status'
+	@echo
+	-@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin ddb-import-all --dry-run'
 
 # B9 unter Sessionlast: Antwortzeiten bei mehreren gleichzeitigen Spielern, gegen den
 # VOLLEN Pi-Korpus. Rein lesend, gefahrlos neben dem Live-Betrieb. Exitcode != 0, wenn

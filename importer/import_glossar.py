@@ -17,11 +17,9 @@ Review-Funde (umgesetzt):
 - ABKUERZUNGEN PFLEGEN (T7/B3): AoO/HP/AC/... als eigene Glossar-Zeilen (quelle='abkuerzung')."""
 from __future__ import annotations
 
-import json
 import re
 import sqlite3
 import sys
-import time
 from pathlib import Path
 
 from app import dnddeutsch
@@ -168,6 +166,25 @@ KERN_SINGULAR_PAARE: list[tuple[str, str, str | None]] = [
     ("Sap", "Auslaugen", "2024"),
     ("Slow", "Verlangsamen", "2024"),
     ("Vex", "Plagen", "2024"),
+    # Die WAFFENEIGENSCHAFTEN - die Schwesterliste der acht Meisterschaftseigenschaften
+    # darueber, und bis zum 08.08.2026 die einzige, die fehlte. Folge im Review-Lauf: Die
+    # Langschwert-Auskunft schrieb "Vielseitig*" und behauptete damit, es gebe keine
+    # offizielle deutsche Uebersetzung - dabei steht jede dieser Eigenschaften als eigener
+    # srd-de-Eintrag unter "Ausrüstung > Waffen > Eigenschaften". Ein falscher Stern ist
+    # eine falsche Aussage ueber den Bestand, kein Schoenheitsfehler.
+    ("Versatile", "Vielseitig", "2024"),
+    ("Finesse", "Finesse", "2024"),
+    ("Heavy", "Schwer", "2024"),
+    ("Loading", "Laden", "2024"),
+    ("Ammunition", "Geschosse", "2024"),
+    ("Thrown", "Wurfwaffe", "2024"),
+    ("Two-Handed", "Zweihändig", "2024"),
+    ("Reach", "Weitreichend", "2024"),
+    # 'Light' fehlt hier BEWUSST: Das Glossar fuehrt bereits 'Light' -> 'Licht' (der
+    # Zauber). Ein zweites Paar 'Light' -> 'Leicht' machte das Lemma mehrdeutig, und
+    # term_de naehme die erste Zeile - dieselbe Falle, die am 08.08.2026 aus einem
+    # Errata-Verweis 'Fell (Hide)' machte. Welche Bedeutung gemeint ist, entscheidet der
+    # Kontext, und den hat das Glossar nicht (Regel 1).
     # Heldische Inspiration: srd-de-Regeleintrag UND vorgedrucktes Feld des offiziellen
     # dt. Charakterbogens 2024 (Befund 16.07.2026: LLM erfand "Heldenhafte Inspiration"
     # direkt neben dem Vordruck "HELDISCHE INSPIRATION").
@@ -238,6 +255,122 @@ AKTIONS_PAARE: list[tuple[str, str, str]] = [
     ("Utilize", "Verwenden", "Verwenden (Aktion)"),
 ]
 
+# Die Regelglossar-Bruecke (08.08.2026): Von den 161 Begriffen des srd-de-Regelglossars
+# ('Regelglossar > Regeldefinitionen') hatten 89 KEIN Glossar-Paar - dieselbe
+# Fehlerklasse wie der 'Vielseitig*'-Befund, nur 89-fach: Das Modell erfand deutsche
+# Wiedergaben mit Stern fuer Begriffe, die amtlich existieren, oder liess das Original
+# weg. Die beiden Glossare sind strukturell parallel (DDB 'Rules Definitions': 155
+# Begriffe, Qualifikator-Konvention gespiegelt - '[Condition]' dort ist '(Zustand)'
+# hier), die Zuordnung je Paar eindeutig.
+#
+# Aufgenommen ist NUR, was beidseitig belegt und glasklar ist; kuratiert aus dem
+# vollstaendigen Abgleich beider Listen. Bewusst draussen:
+#   - Gleichlautende (Monster, Ritual, Teleportation): markiere() unterdrueckt die
+#     Klammer ohnehin, die Zeile waere Ballast.
+#   - 'Nahkampfreichweite' -> 'Reach': das Lemma gehoert schon der Waffeneigenschaft
+#     ('Reach' -> 'Weitreichend'), ein zweites Paar machte es mehrdeutig und term_de
+#     naehme irgendeine Zeile - die Fell/Hide-Falle vom 08.08.2026.
+#   - Kapitel-/Schritt-Ueberschriften und der OCR-Riss ('Effektepvonys chischem Stress').
+# Wie bei den Aktionen ist der dritte Wert der srd-de-BELEG (exakter Eintragsname,
+# inkl. Qualifikator) - geschrieben wird nur, was der Bestand fuehrt.
+QUELLE_REGELGLOSSAR = "SRD 5.2.1 (Regelglossar)"
+REGELGLOSSAR_PAARE: list[tuple[str, str, str]] = [
+    ("Ability Check", "Attributswurf", "Attributswurf"),
+    ("Action", "Aktion", "Aktion"),
+    ("Advantage", "Vorteil", "Vorteil"),
+    ("Ally", "Verbündeter", "Verbündeter"),
+    ("Area of Effect", "Wirkungsbereich", "Wirkungsbereich"),
+    ("Armor Training", "Rüstungsvertrautheit", "Rüstungsvertrautheit"),
+    ("Attack Roll", "Angriffswurf", "Angriffswurf"),
+    ("Attitude", "Haltung", "Haltung"),
+    ("Attunement", "Einstimmung", "Einstimmung"),
+    ("Bloodied", "Blutig", "Blutig"),
+    ("Bonus Action", "Bonusaktion", "Bonusaktion"),
+    ("Burning", "Brand", "Brand (Gefahr)"),
+    ("Burrow Speed", "Grabbewegungsrate", "Grabbewegungsrate"),
+    ("Campaign", "Kampagne", "Kampagne"),
+    ("Carrying Capacity", "Traglast", "Traglast"),
+    ("Character Sheet", "Charakterbogen", "Charakterbogen"),
+    ("Climb Speed", "Kletterbewegungsrate", "Kletterbewegungsrate"),
+    ("Climbing", "Klettern", "Klettern"),
+    ("Condition", "Zustand", "Zustand"),
+    ("Crawling", "Kriechen", "Kriechen"),
+    ("Creature", "Kreatur", "Kreatur"),
+    ("Creature Type", "Kreaturentyp", "Kreaturentyp"),
+    ("Critical Hit", "Kritischer Treffer", "Kritischer Treffer"),
+    ("Curses", "Flüche", "Flüche"),
+    ("D20 Test", "W20-Prüfung", "W20-Prüfung"),
+    ("Dead", "Tot", "Tot"),
+    ("Death Saving Throw", "Todesrettungswurf", "Todesrettungswurf"),
+    ("Dehydration", "Dehydrierung", "Dehydrierung (Gefahr)"),
+    ("Disadvantage", "Nachteil", "Nachteil"),
+    ("Encounter", "Begegnung", "Begegnung"),
+    ("Enemy", "Gegner", "Gegner"),
+    ("Falling", "Sturz", "Sturz (Gefahr)"),
+    ("Fly Speed", "Flugbewegungsrate", "Flugbewegungsrate"),
+    ("Friendly", "Freundlich gesinnt", "Freundlich gesinnt (Haltung)"),
+    ("Gaining a Level", "Stufenaufstieg", "Stufenaufstieg"),
+    ("Grappling", "Gepackt halten", "Gepackt halten"),
+    ("Hazard", "Gefahr", "Gefahr"),
+    ("Hiding", "Sich verstecken", "Sich verstecken"),
+    ("High Jump", "Hochsprung", "Hochsprung"),
+    ("Hit Point Dice", "Trefferpunktewürfel", "Trefferpunktewürfel"),
+    ("Hostile", "Feindlich gesinnt", "Feindlich gesinnt (Haltung)"),
+    ("Illusions", "Illusionen", "Illusionen"),
+    ("Immunity", "Immunität", "Immunität"),
+    ("Improvised Weapons", "Improvisierte Waffen", "Improvisierte Waffen"),
+    ("Indifferent", "Gleichgültig", "Gleichgültig (Haltung)"),
+    ("Legendary Actions", "Legendäre Aktionen", "Legendäre Aktionen"),
+    ("Long Jump", "Weitsprung", "Weitsprung"),
+    ("Long Rest", "Lange Rast", "Lange Rast"),
+    ("Magical Effect", "Magischer Effekt", "Magischer Effekt"),
+    ("Malnutrition", "Unterernährung", "Unterernährung (Gefahr)"),
+    ("Occupied Space", "Besetzter Bereich", "Besetzter Bereich"),
+    ("Passive Perception", "Passive Wahrnehmung", "Passive Wahrnehmung"),
+    ("Per Day", "Pro Tag", "Pro Tag"),
+    ("Player Character", "Spielercharakter", "Spielercharakter"),
+    ("Possession", "Besessenheit", "Besessenheit"),
+    ("Reaction", "Reaktion", "Reaktion"),
+    ("Round Down", "Abrunden", "Abrunden"),
+    ("Shape-Shifting", "Gestaltwandeln", "Gestaltwandeln"),
+    ("Short Rest", "Kurze Rast", "Kurze Rast"),
+    ("Simultaneous Effects", "Gleichzeitige Effekte", "Gleichzeitige Effekte"),
+    ("Skill", "Fertigkeit", "Fertigkeit"),
+    ("Spell", "Zauber", "Zauber"),
+    ("Spell Attack", "Zauberangriff", "Zauberangriff"),
+    ("Spellcasting Focus", "Zauberfokus", "Zauberfokus"),
+    ("Sphere", "Kugel", "Kugel (Wirkungsbereich)"),
+    ("Stable", "Stabil", "Stabil"),
+    ("Stat Block", "Wertekasten", "Wertekasten"),
+    ("Suffocation", "Erstickung", "Erstickung (Gefahr)"),
+    ("Swim Speed", "Schwimmbewegungsrate", "Schwimmbewegungsrate"),
+    ("Target", "Ziel", "Ziel"),
+    ("Traits", "Merkmale", "Merkmale"),
+    ("Unarmed Strike", "Waffenloser Angriff", "Waffenloser Angriff"),
+    ("Unoccupied Space", "Freier Bereich", "Freier Bereich"),
+    ("Vulnerability", "Anfälligkeit", "Anfälligkeit"),
+    ("Weapon", "Waffe", "Waffe"),
+    ("Weapon Attack", "Waffenangriff", "Waffenangriff"),
+]
+
+
+def seed_regelglossar(con: sqlite3.Connection) -> int:
+    """Regelglossar-Paare, je Zeile gegen den srd-de-Bestand verifiziert (wie
+    seed_aktionen). Die haeufigen Alltags-Lemmata (Action, Creature, Target, Spell,
+    Weapon ...) stehen in glossar._HOMONYM_STOP - sie wuerden sonst in JEDEM englischen
+    Regeltext matchen und mit max_treffer=40 die seltenen, wichtigen Begriffe aus
+    'begriffe_deutsch' verdraengen. Die exakte Suche nutzt alle Paare voll."""
+    n = 0
+    for term_en, term_de, beleg in REGELGLOSSAR_PAARE:
+        (vorhanden,) = con.execute(
+            "SELECT COUNT(*) FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "WHERE q.kuerzel = 'srd-de' AND e.name_de = ?", (beleg,)).fetchone()
+        if not vorhanden:
+            continue                       # kein srd-de-Beleg -> Zeile entfaellt (nicht raten)
+        _upsert(con, term_en, term_de, 1, QUELLE_REGELGLOSSAR, "2024", None)
+        n += 1
+    return n
+
 
 def seed_aktionen(con: sqlite3.Connection) -> int:
     """2024-Aktionsnamen als Glossar-Bruecken, je Paar gegen den srd-de-Bestand verifiziert.
@@ -306,9 +439,18 @@ def seed_glossar(con: sqlite3.Connection, begriffe_en: list[str]) -> int:
     geschrieben = 0
     with httpx.Client(timeout=20.0, headers={"User-Agent": dnddeutsch.USER_AGENT}) as client:
         for i, begriff in enumerate(begriffe_en, start=1):
+            # Einzelfehler ueberspringen, Lauf fortsetzen - aber nur die drei Familien,
+            # die `dnddeutsch.hole` wirklich werfen kann (Vorbild:
+            # importer/ddb_exporter/cli.py in cmd_sync): httpx.HTTPError deckt Transport
+            # UND raise_for_status ab, ValueError den JSON-Zerfall einer Antwort oder
+            # einer beschaedigten Cache-Datei (json.JSONDecodeError ist einer), OSError
+            # das Lesen eben dieser Datei. Ein blankes `except Exception` fing daneben
+            # auch Tippfehler und KeyboardInterrupt: Der Lauf haette einen Programmfehler
+            # als "FEHLER bei diesem Begriff" gemeldet und waere weitergelaufen - 2600
+            # Zeilen spaeter sucht das niemand mehr.
             try:
                 daten = _hole_api(client, begriff)
-            except Exception as fehler:  # Einzelfehler ueberspringen, Lauf fortsetzen
+            except (httpx.HTTPError, ValueError, OSError) as fehler:
                 print(f"  [{i}/{len(begriffe_en)}] {begriff}: FEHLER {fehler}", file=sys.stderr)
                 continue
             # Bewertung (Ulisses/Buchbeleg -> offiziell, konservative Edition, A9) und die
@@ -372,7 +514,7 @@ def seed_glossar_de_aus_bestand(con: sqlite3.Connection) -> int:
         if not nr.name_sauber(sauber):
             continue
         if any(z["match"] == "exakt"
-               for z in _glossar.lookup(con, sauber, richtung="de_en")):
+               for z in _glossar.nachschlagen(con, sauber, richtung="de_en")):
             continue                       # Bruecke existiert bereits
         kandidaten.append(sauber)
     print(f"Rueckwaerts-Seeding: {len(kandidaten)} deutsche Begriffe ohne Gegenstueck "
@@ -575,9 +717,9 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
                     entspacet = re.sub(r"\s+", "", variante)
                     if len(entspacet) < 5:
                         continue
-                    try:
+                    try:                     # dieselbe Fehlerfamilie wie in seed_glossar
                         daten = _hole_api(client, entspacet)
-                    except Exception:
+                    except (httpx.HTTPError, ValueError, OSError):
                         continue
                     zeilen = dnddeutsch.zeilen_aus_antwort(daten) or []
                     passend = {z.term_de for z in zeilen
@@ -722,7 +864,7 @@ def seed_gegenstands_bruecke_aus_bestand(con: sqlite3.Connection) -> int:
         # quelle ueberschreiben und die Selbstbereinigung des naechsten Laufs loeschte
         # dann eine fremde Zeile, falls der Abgleich sie nicht wiederfindet.
         belegt = {_glossar.norm_begriff(z["term_de"])
-                  for z in _glossar.lookup(con, v_en, richtung="en_de")
+                  for z in _glossar.nachschlagen(con, v_en, richtung="en_de")
                   if z["match"] == "exakt"}
         if _glossar.norm_begriff(v_de) in belegt:
             continue
@@ -768,7 +910,7 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
     Bruecken-Seedern. Ein einseitiger Treffer waere Stemming, also Raten.
 
     Die neuen Zeilen sind `offiziell=0` (SUCHVARIANTE): sie bruecken die Suche
-    (`lookup_exakt` fragt `offiziell` nicht ab), aber die Anzeige waehlt weiter die
+    (`nachschlagen_exakt` fragt `offiziell` nicht ab), aber die Anzeige waehlt weiter die
     offizielle Form (`auswahlschluessel` sortiert offiziell zuerst) und `glossar-audit`
     zaehlt sie nicht als Konflikt (es filtert auf `offiziell=1`). Bestehende Paare werden
     NIE angefasst - ein Upsert wuerde ihre Offizialitaet ueberschreiben."""
@@ -803,6 +945,138 @@ def seed_flexionsbruecke_aus_bestand(con: sqlite3.Connection) -> int:
                                 None, None)
                         vorhanden.add((en, de))
                         n += 1
+    _glossar.leere_cache()
+    return n
+
+
+UMGANGS_QUELLE = "Umgangssprache (kuratiert, Suchbericht)"
+
+# Woerter, die am Tisch fallen, aber in keinem Regelwerk stehen - jedes einzeln aus dem
+# Abfrage-Protokoll belegt (admin suchbericht) und von Hand zugeordnet.
+#
+# WARUM KURATIERT UND NICHT ABGELEITET: Die vier Bruecken-Seeder darueber beweisen ihre
+# Paare aus der STRUKTUR (zwei Sprachen, die sich einig sind). Umgangssprache hat keine
+# solche Struktur - "Rennen" ist dem Bestand nach nichts, es ist einfach das Wort, das ein
+# Spieler benutzt. Diese Zuordnung ist deshalb eine Entscheidung und gehoert als Liste in
+# den Diff, nicht in eine Heuristik.
+#
+# DIE SCHRANKE, die sie von Raterei trennt: Der Seeder legt eine Zeile NUR an, wenn die
+# offizielle deutsche Form als EINTRAGSNAME im Bestand steht. Was der Bestand nicht fuehrt,
+# bekommt keine Bruecke - sonst schickte die Suche jemanden auf eine Regel, die es hier
+# nicht gibt (B1/B2: ein ehrlicher Nulltreffer ist besser als ein falscher Treffer).
+#
+# NICHT aufgenommen, obwohl im Bericht: 'erzwungene bewegung' (der Bestand fuehrt dazu
+# keinen Eintrag - der Nulltreffer ist korrekt), 'samurai' und 'zwingender zweikampf'
+# (nicht SRD-lizenziert, es fehlt ein Buch), 'gewitzte tat' (der deutsche SRD nennt das
+# Schurken-Merkmal nicht so; welchen Namen er benutzt, ist offen - raten verbietet sich).
+UMGANGSSPRACHE: tuple[tuple[str, str, str], ...] = (
+    ("Dash", "Spurt", "Rennen"),
+    ("Dash", "Spurt", "Sprinten"),
+    ("Grappled", "Gepackt", "Umklammern"),
+    # Suchbericht 11.08.2026, mit 30 Nulltreffern in 30 Tagen der groesste Einzelposten:
+    # Der Zauber liegt im Bestand und das Glossar fuehrt "Wort der Macht: Tod" als
+    # offiziell - die Runde sagt am Tisch aber "Machtwort Tod". Die Geschwister
+    # (Betaeubung, Heilung) sind bewusst NICHT dabei: Sie sind dieselbe Konstruktion,
+    # aber niemand hat nach ihnen gesucht, und gebrueckt wird, was die Daten zeigen.
+    ("Power Word Kill", "Wort der Macht: Tod", "Machtwort Tod"),
+)
+
+
+def seed_umgangssprache(con: sqlite3.Connection) -> int:
+    """Umgangssprachliche Suchvarianten als `offiziell=0`-Zeilen (Suchbericht 03.08.2026).
+
+    Befund: 'rennen' und 'sprinten' fragte die Runde nach der Spurt-Aktion - 'sprinten'
+    lief ins Leere, und 'rennen' landete ueber die Teilstring-Toleranz ausgerechnet bei
+    'B-rennen-de Haende'. Ein falscher Treffer ist schlimmer als keiner: Er sieht aus wie
+    eine Antwort.
+
+    `offiziell=0` ist wesentlich - dieselbe Mechanik wie bei der Flexions-Bruecke: Die
+    Zeile bruecket die SUCHE, aber die Anzeige waehlt weiter die offizielle Form ('Spurt'),
+    und `glossar-audit` zaehlt sie nicht als Konflikt. Bestehende Zeilen werden nie
+    ueberschrieben."""
+    con.execute("DELETE FROM glossar WHERE quelle = ?", (UMGANGS_QUELLE,))
+    _glossar.leere_cache()
+    namen = {_glossar.norm_begriff(r[0]) for r in con.execute(
+        "SELECT coalesce(name_de, name_en) FROM eintraege") if r[0]}
+    vorhanden = {(_glossar.norm_begriff(a), _glossar.norm_begriff(b))
+                 for a, b in con.execute("SELECT term_en, term_de FROM glossar")}
+    n = 0
+    for englisch, offiziell_de, umgangssprachlich in UMGANGSSPRACHE:
+        # Die Schranke: Traegt der Bestand die offizielle Form ueberhaupt? Der
+        # Klammerzusatz der Aktionsnamen ('Spurt (Aktion)') zaehlt mit.
+        ziel = _glossar.norm_begriff(offiziell_de)
+        if not any(name == ziel or name.startswith(ziel + " (") for name in namen):
+            continue
+        schluessel = (_glossar.norm_begriff(englisch),
+                      _glossar.norm_begriff(umgangssprachlich))
+        if schluessel in vorhanden:
+            continue
+        _upsert(con, englisch, umgangssprachlich, 0, UMGANGS_QUELLE, None, None)
+        vorhanden.add(schluessel)
+        n += 1
+    _glossar.leere_cache()
+    return n
+
+
+TEIL_QUELLE = "Teilbegriff aus belegter Zusammensetzung (kuratiert)"
+
+# Begriffe, die das Glossar NUR als Teil einer laengeren offiziellen Form fuehrt
+# (Rueckmeldung der Runde, 04.08.2026). Befund: Der Bestand fuehrt "Archfey Patron"
+# englisch, das Glossar aber nur "Warlock of the Archfey" -> "Hexenmeister der Erzfee".
+# Ein Lookup auf "Archfey" lief damit ins Leere, und die Antwort gab den Namen englisch
+# mit '*' aus - mit der Begruendung, es gebe keine offizielle Uebersetzung. Die gibt es,
+# sie stand nur an einem Lemma, das niemand nachschlaegt (S2/S3/S7/S11).
+#
+# Je Zeile: (englisch, deutsch, laengere Form, die es belegt).
+# Aufgenommen wird NUR, was aus der laengeren Form eindeutig hervorgeht - die Schranke
+# unten prueft, dass diese Form im Glossar als OFFIZIELL steht und den deutschen Teil
+# woertlich enthaelt. Damit ist die Zeile abgeleitet, nicht geraten (Regel 1).
+#
+# BEWUSST NICHT aufgenommen:
+# - 'Celestial' (Patron): Das Glossar kennt nur "Celestisches Wesen beschwoeren" - wie der
+#   SCHUTZHERR heisst, geht daraus nicht hervor. "Celestischer Schutzherr" waere geraten.
+# - 'Undead' (Patron): aus einem Band ohne deutsche Fassung; hier ist '*' richtig.
+# - 'Great Old One': Der einzige Beleg ist "Hexenmeister des Grossen Alten" - ein GENITIV.
+#   Die Nominativform "Grosser Alter" steht nirgends im Bestand, waere also eine
+#   grammatische Ableitung. Genau daran ist der erste Seeding-Lauf am 04.08.2026 gescheitert
+#   (die Schranke unten meldete es), und das ist die richtige Entscheidung: Flexion ist
+#   Sache der Flexions-Bruecke, die auf BELEGTEN Lemmata arbeitet - nicht Sache einer
+#   kuratierten Liste, die neue Lemmata erfindet. Kommt ein deutsches Buch mit der
+#   Nominativform herein, faellt der Fall von selbst.
+TEILBEGRIFFE: tuple[tuple[str, str, str], ...] = (
+    ("Archfey", "Erzfee", "Warlock of the Archfey"),
+)
+
+
+def seed_teilbegriffe(con: sqlite3.Connection) -> int:
+    """Kernbegriffe nachziehen, die nur in einer laengeren offiziellen Form belegt sind.
+
+    `offiziell=1` ist hier richtig und anderswo gefaehrlich - deshalb die Schranke: Die
+    belegende Form muss im Glossar stehen, als offiziell markiert sein und den deutschen
+    Begriff woertlich enthalten. Faellt eine der drei Bedingungen weg (etwa weil ein
+    Re-Import die Quelle aendert), entsteht die Zeile NICHT und die Antwort faellt auf das
+    ehrliche '*' zurueck. Lieber eine fehlende Bruecke als eine erfundene."""
+    con.execute("DELETE FROM glossar WHERE quelle = ?", (TEIL_QUELLE,))
+    _glossar.leere_cache()
+    belegt = {(r["term_en"] or "").lower(): r for r in con.execute(
+        "SELECT term_en, term_de, offiziell FROM glossar WHERE offiziell = 1")}
+    n = 0
+    for englisch, deutsch, belegende_form in TEILBEGRIFFE:
+        zeile = belegt.get(belegende_form.lower())
+        if zeile is None:
+            print(f"  teilbegriff: {belegende_form!r} nicht mehr belegt - {englisch!r} "
+                  f"uebersprungen", file=sys.stderr)
+            continue
+        if deutsch.lower() not in (zeile["term_de"] or "").lower():
+            # Die laengere Form fuehrt den Begriff anders - dann ist die Ableitung nicht
+            # mehr gedeckt. Beispiel, das das faengt: 'Hexenmeister der Feenfuerstin'.
+            print(f"  teilbegriff: {deutsch!r} steht nicht in {zeile['term_de']!r} - "
+                  f"{englisch!r} uebersprungen", file=sys.stderr)
+            continue
+        # edition_quelle bewusst OFFEN: belegt ist die Begriffsgleichheit, nicht die
+        # Regelfassung (S7 - die Vokabel ist stabil, die Regel dahinter nicht).
+        _upsert(con, englisch, deutsch, 1, TEIL_QUELLE, None, None)
+        n += 1
     _glossar.leere_cache()
     return n
 
@@ -927,6 +1201,7 @@ _KETTE = [
     (seed_srd_paare, "SRD-Paare"),
     (seed_kern_singulare, "Kern-Singulare"),
     (seed_aktionen, "Aktionen"),                       # 2024-Aktionsnamen, Homonym-gestoppt
+    (seed_regelglossar, "Regelglossar-Paare"),         # srd-de-Regeldefinitionen, verifiziert
     (seed_glossar_aus_bestand, "Zeilen aus Bestandsnamen"),
     (seed_glossar_de_aus_bestand, "Zeilen aus deutschen Namen"),
     (repariere_2014_namen, "Namen repariert"),         # zerrissene 2014-Scan-Namen (belegt)
@@ -942,6 +1217,10 @@ _KETTE = [
     (kanonisiere_konflikte, "Konflikte kanonisiert"),  # kuratierte Fassung schlaegt konkurrierende
     (kanonisiere_schreibvarianten, "Schreibvarianten demotet"),
     (seed_flexionsbruecke_aus_bestand, "Flexions-Bruecken"),     # ZULETZT, auf dem fertigen Stand
+    (seed_umgangssprache, "Umgangssprache-Bruecken"),            # kuratiert, nach allem Abgeleiteten
+    # Ebenfalls kuratiert und ZULETZT: die Schranke prueft gegen den FERTIGEN Glossarstand,
+    # ob die belegende Zusammensetzung noch offiziell dasteht.
+    (seed_teilbegriffe, "Teilbegriff-Bruecken"),
 ]
 
 

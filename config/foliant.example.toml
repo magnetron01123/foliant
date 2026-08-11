@@ -101,6 +101,70 @@ prioritaet = 60          # geringer als deutsche Quellen -> fuellt Luecken, gewi
 inhaltsart = "regelwerk"
 # dateipfad entfaellt: API-Quelle (siehe [open5e])
 
+# -------------------------------------------------------------------------------------
+# Offizielle Errata (WotC). EINSATZBEREIT - hier steht nichts Privates: WotC verteilt die
+# drei PDFs frei, und die Bloecke tragen nur oeffentliche URLs plus die Pruefsummen der
+# am 03.08.2026 geladenen Fassungen. Uebernimm sie unveraendert - ALLE Zeilen ab
+# `[[quelle]]`, nicht erst ab `kuerzel` (sonst fehlt der Tabellenkopf und die Config bricht).
+#
+# Wer die DATEIEN besorgt, haengt vom Ort ab: Am Mac holt der Import sie selbst aus
+# `quell_url`. Im Pi-Container NICHT - `quellen/` ist dort bewusst read-only, dort erst
+# auf dem Host laden und den sha256 gegen `quell_hash` pruefen (CONCEPT.md par. 8,
+# "Errata importieren").
+#
+# `quell_hash` ist ein PIN, kein Protokoll: Erscheint an derselben URL eine korrigierte
+# Auflage, bricht der Import ab, statt sie stumm als "Errata Version 1.0" einzulesen. Dann
+# gehoeren `versions_stand` UND `quell_hash` nachgezogen - bewusst und im Diff sichtbar.
+#
+# lizenz bewusst NICHT "CC-BY...": frei verteilt heisst nicht frei lizenziert, und der
+# Praefix "CC-BY" haengt in der Ausgabe automatisch die SRD-Attribution an - das waere
+# eine falsche Rechtsaussage (README, "Lizenz & Recht").
+[[quelle]]
+kuerzel = "errata-phb-2024-en"
+titel = "Player’s Handbook — Errata"
+sprache = "en"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70          # Band 70: hinter jedem Regelwerk (importer/quellen.band_fuer)
+inhaltsart = "errata"
+versions_stand = "Errata Version 1.0"
+dateipfad = "quellen/errata/PHB-2024_v1.pdf"
+quell_url = "https://media.dndbeyond.com/compendium-images/errata/PHB-24/PHB-2024_v1.pdf"
+quell_hash = "82805de932a57cecdfa81e81ea77a2b9e479913cae47df79aae00bb62a992d30"
+
+[[quelle]]
+kuerzel = "errata-dmg-2024-en"
+titel = "Dungeon Master’s Guide — Errata"
+sprache = "en"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+inhaltsart = "errata"
+versions_stand = "Errata Version 1.0"
+dateipfad = "quellen/errata/DMG-24_v1.pdf"
+quell_url = "https://media.dndbeyond.com/compendium-images/errata/DMG-24/DMG-24_v1.pdf"
+quell_hash = "53b6d32fa6ca3a0eb8105a95c0b02a1d46853fffaf31ab1c5ebf41a4167ac073"
+
+[[quelle]]
+# Das Monsterhandbuch 2025 gehoert zum 2024er Regelsatz - deshalb edition = "2024". Die
+# Jahreszahl im Titel ist das Erscheinungsjahr, keine Regelversion (Regel 2: Editionen
+# werden nie geraten, und hier ist sie bekannt).
+kuerzel = "errata-mm-2025-en"
+titel = "Monster Manual — Errata"
+sprache = "en"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+inhaltsart = "errata"
+versions_stand = "Errata Version 1.0"
+dateipfad = "quellen/errata/MM-2025_v1.pdf"
+quell_url = "https://media.dndbeyond.com/compendium-images/errata/MM-25/MM-2025_v1.pdf"
+quell_hash = "3d8951d4c7a596d73a6b4579e7dec7634b1cab84e82d1f76e13f75f42ce27a18"
+# -------------------------------------------------------------------------------------
+
 # Beispiel fuer einen Abenteuer-/Kampagnenband aus einem eigenen PDF. Der Unterschied zu
 # den Bloecken oben ist EINE Zeile - und ohne sie greift der Spoiler-Schutz nicht.
 # [[quelle]]

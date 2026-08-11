@@ -8,7 +8,7 @@ from pathlib import Path
 
 SCHEMA = Path(__file__).with_name("schema.sql")
 
-def init_db(db_path: str | Path) -> None:
+def lege_schema_an(db_path: str | Path) -> None:
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(db_path)
@@ -28,4 +28,4 @@ def init_db(db_path: str | Path) -> None:
     print(f"OK: Schema angelegt in {db_path}")
 
 if __name__ == "__main__":
-    init_db(sys.argv[1] if len(sys.argv) > 1 else "data/foliant.sqlite")
+    lege_schema_an(sys.argv[1] if len(sys.argv) > 1 else "data/foliant.sqlite")

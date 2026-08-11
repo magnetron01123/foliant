@@ -39,9 +39,40 @@ CREATE TABLE IF NOT EXISTS abfragen (
 );
 """
 
+# Rueckmeldungen der Runde (O4/M5): eine markierte Antwort, ein Kurations-Kandidat.
+#
+# Eigene Tabelle statt einer Spalte an `abfragen`: Die Markierung gilt einer ANTWORT (die
+# aus mehreren Tool-Aufrufen entstand), nicht einer einzelnen Abfrage - es gibt keine
+# Zeile, an die sie gehoerte. Ausserdem rotiert `abfragen` bei 50 000 Zeilen; eine
+# Markierung ist zu selten und zu wertvoll, um mit dem Maschinenverkehr wegzulaufen.
+#
+# UNIQUE(art, verweis) ist die PII-freie Entdopplung: Eine Antwort ist markiert oder nicht,
+# egal wer und wie oft - so braucht es keine Nutzerkennung, um doppelte Zeilen zu vermeiden
+# (CONCEPT.md par. 13).
+_SCHEMA_RUECKMELDUNGEN = """
+CREATE TABLE IF NOT EXISTS rueckmeldungen (
+    id INTEGER PRIMARY KEY,
+    zeitpunkt TEXT NOT NULL,
+    kanal TEXT NOT NULL DEFAULT 'discord',
+    art TEXT NOT NULL,
+    frage TEXT,
+    verweis TEXT NOT NULL,
+    UNIQUE(art, verweis)
+);
+"""
+
 # Nach so vielen Fehlschlaegen IN FOLGE schaltet sich das Logging bis zum Neustart ab.
 _MAX_FEHLER = 20
-_fehler_in_folge = 0
+
+# ZWEI Zaehler, einer je Schreibweg (Review-Befund 11.08.2026). Vorher teilten sich beide
+# einen: Zwanzig fehlgeschlagene Statistik-Writes - ein voller Datentraeger, eine gesperrte
+# DB - haetten damit auch die Markierungen bis zum Neustart abgeschaltet. Das ist genau der
+# Fall, gegen den `rueckmeldungen` schon eine eigene Tabelle ohne Rotation hat: Eine
+# Markierung ist zu selten und zu wertvoll, um mit dem Maschinenverkehr wegzulaufen.
+# `abfragen` schreibt bei jeder Anfrage, `rueckmeldungen` ein paar Mal pro Woche - der
+# haeufige Weg darf das Budget des seltenen nicht aufbrauchen.
+_fehler_in_folge = 0            # Weg `abfragen`
+_fehler_rueckmeldungen = 0      # Weg `rueckmeldungen`
 
 # Rotation amortisiert statt pro Write: im Mittel prueft nur jeder 200. Write den Deckel.
 _ROTATIONS_QUOTE = 200
@@ -53,6 +84,12 @@ def _konfig() -> dict:
 
 def protokoll_aktiv() -> bool:
     return bool(_konfig().get("aktiv", True)) and _fehler_in_folge < _MAX_FEHLER
+
+
+def rueckmeldungen_aktiv() -> bool:
+    """Eigenes Gate mit eigenem Zaehler - siehe die Begruendung bei `_MAX_FEHLER`."""
+    return (bool(_konfig().get("aktiv", True))
+            and _fehler_rueckmeldungen < _MAX_FEHLER)
 
 
 def protokoll_pfad():
@@ -118,3 +155,45 @@ def protokolliere(werkzeug: str, suchbegriff: str | None = None,
     except Exception:
         # Bewusst schlucken: die Antwort ist laengst berechnet, das Log ist Beiwerk.
         _fehler_in_folge += 1
+
+
+def _schreibe_rueckmeldung(sql: str, werte: tuple) -> None:
+    """Gemeinsamer, nie werfender Schreibweg fuer Markierungen. Dieselbe Leitplanke wie
+    protokolliere(): Ein Log-Fehler darf das Ereignis kosten, nie den laufenden Bot."""
+    global _fehler_rueckmeldungen
+    try:
+        if not rueckmeldungen_aktiv():
+            return
+        con = sqlite3.connect(protokoll_pfad(), timeout=0.25)
+        try:
+            con.execute("PRAGMA journal_mode=WAL;")
+            con.execute("PRAGMA busy_timeout=250;")
+            con.execute(_SCHEMA)                 # Bestands-DBs kennen die zweite Tabelle
+            con.execute(_SCHEMA_RUECKMELDUNGEN)  # noch nicht - CREATE IF NOT EXISTS genuegt
+            con.execute(sql, werte)
+            con.commit()
+        finally:
+            con.close()
+        _fehler_rueckmeldungen = 0
+    except Exception:
+        _fehler_rueckmeldungen += 1
+
+
+def merke_rueckmeldung(art: str, verweis: str, frage: str | None = None,
+                       kanal: str = "discord") -> None:
+    """Eine markierte Antwort als Kurations-Kandidat ablegen (idempotent).
+
+    INSERT OR IGNORE statt eines Zaehlers: Markiert ein zweiter Spieler dieselbe Antwort,
+    ist das derselbe Befund - und die Alternative waere, Nutzer auseinanderzuhalten."""
+    _schreibe_rueckmeldung(
+        "INSERT OR IGNORE INTO rueckmeldungen (zeitpunkt, kanal, art, frage, verweis)"
+        " VALUES (?,?,?,?,?)",
+        (datetime.now(timezone.utc).isoformat(timespec="seconds"),
+         kanal, art, frage, verweis))
+
+
+def loesche_rueckmeldung(art: str, verweis: str) -> None:
+    """Markierung zurueckgenommen -> Zeile weg. Ein Fehlgriff soll die Kurationsliste
+    nicht dauerhaft belasten, und die Liste soll dem entsprechen, was in Discord steht."""
+    _schreibe_rueckmeldung(
+        "DELETE FROM rueckmeldungen WHERE art = ? AND verweis = ?", (art, verweis))

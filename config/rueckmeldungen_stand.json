@@ -1,0 +1,133 @@
+{
+  "_zweck": "Der Sichtungsstand der Rückmeldungs-Durchgänge (O4/M5). `zuletzt_gesichtet_bis` ist eine Hochwassermarke gegen `rueckmeldungen.zeitpunkt`: Der nächste Durchgang (.claude/ablaeufe/rueckmeldungen.md) arbeitet nur, was jünger ist. Das funktioniert, weil der Zeitstempel den Moment der REAKTION festhält, nicht den der Antwort — ein 👎 auf eine alte Antwort gilt damit korrekt als neu.",
+  "_warum": "Ohne diese Datei war der Stand ausschließlich ein handgeschriebener Absatz in BACKLOG.md M5. Was schon gesichtet und was bewusst verworfen wurde, stand damit nirgends nachvollziehbar — und ein Durchgang, der nicht weiß, wo der letzte aufhörte, prüft entweder doppelt oder übersieht.",
+  "_pflege": "Liegt im Git, damit jede Änderung im Diff sichtbar wird. Bewusst NICHT in der Protokoll-DB auf dem Pi: Der Zustand einer Arbeitsschleife gehört dorthin, wo die Arbeit reviewt wird, und ein Schreibbefehl auf der Produktion wäre der teurere Weg zum schlechteren Ergebnis.",
+  "_datenschutz": "Hier stehen Zählwerte und je ein Satz pro Befund. KEINE Discord-Links, keine Guild-/Kanal-/Nachrichten-IDs, keine Namen — das Repo ist öffentlich, und ein Permalink verriete die Guild. Die Datei enthält damit bewusst weniger als die Protokoll-DB (CONCEPT.md §13).",
+  "_befund_format": "`regeln` sind die verletzten SPEC-IDs (S*, B*, V*, Q*, T*), `ursache` ist eine von: 'code' (ein Fehler im Programm — keine Prompt-Regel hätte ihn behoben), 'verhalten' (das Modell hielt eine Regel nicht ein), 'daten' (Bestand oder Glossar), 'meldeweg' (die Rückmeldungs-Mechanik selbst). Strukturiert statt als Fließtext, weil erst darüber sichtbar wird, welche Regel WIEDERHOLT bricht — und eine Regel, die dreimal bricht, ist kein Modellfehler mehr, sondern eine Regel, die an der falschen Stelle steht.",
+  "_entscheidung_format": "`entscheidung` hält Davids Freigabe fest und ist eine von: 'ja' (umgesetzt), 'nein' (verworfen), 'spaeter' (Befund gilt, Umsetzung vertagt). Bei 'nein' und 'spaeter' steht in `grund` sein Satz, gekürzt — bei 'ja' wäre er Rauschen, denn was daraus wurde, sagt `behoben_durch`. Zwei Gründe für das Feld: Ein 'spaeter' überlebt so das Vorrücken der Hochwassermarke und kommt im nächsten Durchgang als erste Karte zurück. Und ein 'nein' wird beim nächsten gleichartigen Vorschlag als `Achtung`-Zeile mitzitiert, statt David dieselbe Entscheidung zweimal zu kosten — vorgelegt wird er trotzdem, denn ein 'nein' kann situativ gewesen sein, und dauerhaftes Stummschalten wäre schlimmer als eine offen deklarierte Wiedervorlage.",
+  "_automatisch": "Was der Durchgang OHNE Rückfrage erledigt hat — je Eintrag eine Zeile. Erlaubt ist genau eine Klasse: ein Golden-Test aus einem 👍 auf eine Bestandsaussage (ändert kein Verhalten, kostet nichts, friert nur ein, was schon richtig ist). Die Schranken stehen in .claude/ablaeufe/rueckmeldungen.md. Leer bei allen Durchgängen vor dem 11.08.2026 — bis dahin galt die Ausnahme nicht.",
+  "zuletzt_gesichtet_bis": "2026-08-11T00:00:00+00:00",
+  "durchgaenge": [
+    {
+      "datum": "2026-08-04",
+      "fenster_tage": 30,
+      "daumen_runter": 3,
+      "daumen_hoch": 0,
+      "ohne_befund": 0,
+      "befunde": [
+        {
+          "regeln": [
+            "S2",
+            "S3",
+            "S7",
+            "S11"
+          ],
+          "ursache": "code",
+          "was": "Englischer Unterklassen-Name mit '*' ausgegeben und als 'keine offizielle Übersetzung' bezeichnet, obwohl das Glossar den deutschen Begriff als offiziell führt. Die Begriffsannotation durchsucht nur den Eintragstext, nie den Eintragsnamen — und das Glossar-Lemma trägt eine längere Form als der Eintrag.",
+          "entscheidung": "ja"
+        },
+        {
+          "regeln": [
+            "B4"
+          ],
+          "ursache": "verhalten",
+          "was": "Auf eine Spielerfrage nach einer Regelgrenze kam ein 'Ja' mit einem Monster-Merkmal als einzigem Beleg; für Spielercharaktere gilt das Gegenteil. Mehrdeutigkeit geraten statt aufgelöst.",
+          "entscheidung": "ja"
+        },
+        {
+          "regeln": [
+            "B2"
+          ],
+          "ursache": "verhalten",
+          "was": "Bei einem Leerbefund kam eine unbelegte Vermutung über ein fehlendes Buch dazu, statt schlicht die Lücke zu benennen.",
+          "entscheidung": "ja"
+        }
+      ],
+      "automatisch": [],
+      "bemerkung": "Erster Durchgang, noch von Hand gefahren — er hat den Ablauf begründet, den .claude/ablaeufe/rueckmeldungen.md jetzt festhält.",
+      "erledigt_am": "2026-08-04",
+      "behoben_durch": [
+        "Befund 1: die Detailausgabe annotiert jetzt auch den Eintragsnamen; dazu ein kuratierter Teilbegriff (Archfey→Erzfee) mit Beleg-Schranke im Glossar-Seeding. Celestial, Undead und Great Old One bewusst NICHT: dort ist die deutsche Form nicht wörtlich belegt (bei Great Old One nur im Genitiv) — die Schranke hat das im ersten echten Seeding-Lauf selbst gemeldet.",
+        "Befund 2: neuer Grounding-Hinweis (Kanal 1) an jedem Monster-Steckbrief. B4 stand längst in beiden Prompt-Kanälen und half nicht — das war der Hinweis darauf, dass die Regel im falschen Kanal saß.",
+        "Befund 3: 'eventuell fehlt ein Buch' aus dem Leerbefund-Hinweis und beiden Prompt-Kanälen entfernt; stattdessen Verweis auf /bestand. Der Bot war regelkonform — der Befund lag in der Regel.",
+        "Regressionstests: tests/test_rueckmeldungs_befunde.py (12 Fälle) und tests/test_discord_reaktionen.py (15 Fälle) für den bis dahin ungetesteten Reaktions-Kleber in bot.py."
+      ]
+    },
+    {
+      "datum": "2026-08-04",
+      "anlass": "direkt gemeldete Antwort (nicht über eine Reaktion)",
+      "befunde": [
+        {
+          "regeln": [
+            "S3",
+            "S4"
+          ],
+          "ursache": "code",
+          "was": "Eine Übersichtsantwort gab englische Namen mit '*' aus ('Mist Wanderer*', 'Touch of Death*'). Das '*' markiert die fehlende offizielle Übersetzung, es ersetzt sie nicht. Die Regel stand in beiden Prompt-Kanälen und im Detail-Hinweis — nur die TREFFERLISTE trug sie nie, und genau aus ihr werden Übersichtsfragen beantwortet.",
+          "entscheidung": "ja"
+        },
+        {
+          "regeln": [
+            "B9"
+          ],
+          "ursache": "code",
+          "was": "Die Antwort riss mitten im Satz ab; der Hinweis darauf kommt nach der bereits bezahlten Antwort. Limit von 3000 auf 4000 Tokens — bewusst nur ein Schritt, denn 3000 trugen deutsch schon vier Discord-Nachrichten.",
+          "entscheidung": "ja"
+        },
+        {
+          "regeln": [
+            "B9"
+          ],
+          "ursache": "verhalten",
+          "was": "Eigentliche Ursache der Länge: Auf eine breite Frage wurde alles ausgeschüttet statt gegliedert. Neue Formregel im Discord-Zusatz — Kategorien mit Anzahl nennen und anbieten; EIN Eintrag bleibt vollständig.",
+          "entscheidung": "ja"
+        }
+      ],
+      "automatisch": [],
+      "bemerkung": "Zweiter Mutationslauf desselben Tages deckte erneut einen Scheintest auf — diesmal traf die Mutation den Struktur-Pfad und der Test den Freitext-Pfad. Beide Ausgabewege sind jetzt einzeln abgesichert."
+    },
+    {
+      "datum": "2026-08-11",
+      "fenster_tage": 30,
+      "daumen_runter": 4,
+      "daumen_hoch": 2,
+      "ohne_befund": 2,
+      "befunde": [
+        {
+          "regeln": [
+            "O4"
+          ],
+          "ursache": "meldeweg",
+          "was": "Bei 4 von 6 Rueckmeldungen war die gespeicherte Frage unbrauchbar: ein GIF-Link, eine zwei Tage alte Frage zu einem anderen Thema, zweimal leer. Die Frage wurde im Moment der Reaktion aus der Kanal-Historie erraten, statt beim Antworten gemerkt zu werden - bei einem Slash-Befehl steht sie nirgends im Kanal.",
+          "entscheidung": "ja"
+        },
+        {
+          "regeln": [
+            "B15"
+          ],
+          "ursache": "code",
+          "was": "Auf eine Regelfrage kam nur der halbe Regeltext; der ausloesende Teil wurde bloss angeboten, obwohl der Bestandstext selbst darauf verweist und der Eintrag da ist. Die Ausgabe wies verwandte Abschnitte nur bei Klassen aus, nie bei Regeln.",
+          "entscheidung": "ja"
+        },
+        {
+          "regeln": [
+            "B3"
+          ],
+          "ursache": "daten",
+          "was": "Groesster Nulltreffer-Posten des Fensters: Die Runde sucht einen Zauber unter seiner umgangssprachlichen deutschen Form, das Glossar fuehrt nur die offizielle. Als Suchvariante mit offiziell=0 gebrueckt; die gleichgebauten Geschwister bewusst nicht, da nach ihnen niemand gesucht hat.",
+          "entscheidung": "ja"
+        },
+        {
+          "regeln": [
+            "O4"
+          ],
+          "ursache": "meldeweg",
+          "was": "Review der Schleife, vier eigene Befunde: Daumen mit Hautton wurden still verworfen (der haeufigste Fall auf Mobilgeraeten); eine Ruecknahme loeschte die Markierung aller, weil bewusst ohne Nutzerkennung entdoppelt wird; Statistik- und Meldeweg teilten sich einen Fehlerzaehler, sodass Maschinenverkehr die Urteile abschalten konnte; und der Bericht schnitt bei seinem Limit still ab.",
+          "entscheidung": "ja"
+        }
+      ],
+      "automatisch": [],
+      "bemerkung": "Erster Durchgang im neuen Kartenformat und zugleich dessen Abnahme - er hat vier Formatluecken gezeigt, die alle im 👎-Fall entworfen waren: kein Ort fuer den Kartenblock (er landete in einer Werkzeug-Ausgabe und war fuer David unsichtbar), keine Art fuer Statistik-Kandidaten ohne Markierung, kein Kopf fuer Lob ohne verletzte Regel, kein Grund 'bereits behoben'. Die Automatik-Schranke hat korrekt gehalten: Der Golden-Test kam als Karte, weil der Lauf nicht auf main stattfand."
+    }
+  ]
+}

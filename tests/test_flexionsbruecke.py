@@ -171,3 +171,117 @@ def test_seeder_ist_selbstbereinigend_und_idempotent(bestand):
                            (FLEXION_QUELLE,)).fetchone()[0] == erst
     finally:
         con.close()
+
+
+# ---------------------------------------------------------------------------------------
+# Umgangssprachliche Suchvarianten (Suchbericht 03.08.2026)
+#
+# Die vier Bruecken-Seeder darueber beweisen ihre Paare aus der STRUKTUR. Umgangssprache
+# hat keine - 'Rennen' ist dem Bestand nach nichts, es ist das Wort, das ein Spieler
+# benutzt. Deshalb eine kuratierte Liste, und deshalb eine harte Schranke: eine Bruecke
+# entsteht NUR, wenn die offizielle deutsche Form als Eintragsname im Bestand steht.
+# ---------------------------------------------------------------------------------------
+
+def test_umgangssprache_braucht_die_offizielle_form_im_bestand(tmp_path):
+    """Die Schranke gegen Raterei: Fuehrt der Bestand das Ziel nicht, entsteht keine
+    Bruecke. Sonst schickte die Suche jemanden auf eine Regel, die es hier nicht gibt -
+    ein falscher Treffer ist schlimmer als ein ehrlicher Nulltreffer (B1/B2)."""
+    import sqlite3
+
+    from importer.import_glossar import seed_umgangssprache
+    from tests.hilfen import SCHEMA
+
+    pfad = tmp_path / "umgang.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,prioritaet) "
+                "VALUES ('srd-de','SRD','de','2024','pdf',20)")
+    # NUR 'Spurt (Aktion)' ist im Bestand - 'Gepackt' fehlt bewusst.
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,body_md) "
+                "VALUES (1,'regel','Spurt (Aktion)','de','2024','Du bewegst dich.')")
+    con.commit()
+    n = seed_umgangssprache(con)
+    zeilen = {(r[0], r[1]): r[2] for r in con.execute(
+        "SELECT term_en, term_de, offiziell FROM glossar")}
+    con.close()
+    assert ("Dash", "Rennen") in zeilen and ("Dash", "Sprinten") in zeilen
+    assert ("Grappled", "Umklammern") not in zeilen, \
+        "Bruecke ohne Ziel im Bestand angelegt - genau das soll die Schranke verhindern"
+    assert n == 2
+    assert all(off == 0 for off in zeilen.values()), \
+        "Umgangssprache muss offiziell=0 sein, sonst konkurriert sie mit der Buchform"
+
+
+def test_machtwort_tod_bruecket_auf_den_zauber(tmp_path):
+    """Suchbericht 11.08.2026: 30 Nulltreffer auf „machtwort tod" in 30 Tagen - der
+    groesste Einzelposten. Der Zauber liegt im Bestand, das Glossar fuehrt „Wort der
+    Macht: Tod" als offiziell; am Tisch sagt die Runde „Machtwort Tod".
+
+    Geprueft wird beides: dass die Bruecke entsteht UND dass sie offiziell=0 bleibt. Mit
+    offiziell=1 wuerde die Anzeige irgendwann die umgangssprachliche Form waehlen und der
+    Bot einen Namen ausgeben, den kein Buch kennt (S3)."""
+    import sqlite3
+
+    from importer.import_glossar import seed_umgangssprache
+    from tests.hilfen import SCHEMA
+
+    pfad = tmp_path / "machtwort.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,prioritaet) "
+                "VALUES ('srd-de','SRD','de','2024','pdf',20)")
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,body_md)"
+                " VALUES (1,'zauber','Wort der Macht: Tod','de','2024','Du sprichst.')")
+    con.commit()
+    seed_umgangssprache(con)
+    zeile = con.execute("SELECT term_en, offiziell FROM glossar "
+                        "WHERE term_de = 'Machtwort Tod'").fetchone()
+    con.close()
+    assert zeile, "die Bruecke fehlt - die Runde bekommt weiter einen Nulltreffer"
+    assert zeile[0] == "Power Word Kill"
+    assert zeile[1] == 0, "als offiziell=1 konkurrierte sie mit der Buchform"
+
+
+def test_umgangssprache_ueberschreibt_keine_offizielle_zeile(tmp_path):
+    """Ein Upsert auf eine bestehende Zeile wuerde ihre Offizialitaet kippen - dieselbe
+    Zusage wie bei der Flexions-Bruecke."""
+    import sqlite3
+
+    from importer.import_glossar import seed_umgangssprache
+    from tests.hilfen import SCHEMA
+
+    pfad = tmp_path / "umgang2.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,prioritaet) "
+                "VALUES ('srd-de','SRD','de','2024','pdf',20)")
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,body_md) "
+                "VALUES (1,'regel','Spurt (Aktion)','de','2024','Du bewegst dich.')")
+    con.execute("INSERT INTO glossar (term_en,term_de,offiziell) VALUES ('Dash','Rennen',1)")
+    con.commit()
+    seed_umgangssprache(con)
+    off = con.execute("SELECT offiziell FROM glossar WHERE term_de='Rennen'").fetchone()[0]
+    con.close()
+    assert off == 1, "bestehende Zeile wurde ueberschrieben"
+
+
+def test_umgangssprache_ist_wiederholbar(tmp_path):
+    """Zweimal laufen darf keine Dubletten erzeugen - die Kette laeuft bei jedem Import."""
+    import sqlite3
+
+    from importer.import_glossar import seed_umgangssprache
+    from tests.hilfen import SCHEMA
+
+    pfad = tmp_path / "umgang3.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,prioritaet) "
+                "VALUES ('srd-de','SRD','de','2024','pdf',20)")
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,body_md) "
+                "VALUES (1,'regel','Gepackt (Zustand)','de','2024','Deine Bewegungsrate ist 0.')")
+    con.commit()
+    seed_umgangssprache(con)
+    seed_umgangssprache(con)
+    n = con.execute("SELECT count(*) FROM glossar WHERE term_de='Umklammern'").fetchone()[0]
+    con.close()
+    assert n == 1, f"{n} Zeilen statt einer"

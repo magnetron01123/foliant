@@ -22,6 +22,38 @@ HINWEIS_VERGESSEN = ("⚠️ Ich habe den bisherigen Verlauf nach einem Neustart
 HINWEIS_PRIVAT = ("ℹ️ Diese Antwort sieht nur du - deshalb gibt es hier keinen Thread "
                   "fuer Nachfragen. Fuer ein Gespraech dieselbe Frage mit `/regel` "
                   "stellen.")
+# Kontextmenue auf einer Nachricht ohne Text (nur Bild/Anhang/Embed).
+HINWEIS_KEIN_TEXT = ("🚫 Diese Nachricht enthaelt keinen Text, den ich als Regelfrage "
+                     "pruefen koennte.")
+# Kontextmenue auf einer Bot-Nachricht: eine ganze Bot-Antwort als "Frage" waere nur
+# ein teurer Selbstbezug.
+HINWEIS_BOT_NACHRICHT = ("🚫 Bot-Nachrichten pruefe ich nicht - fuer Nachfragen einfach "
+                         "im Thread antworten oder `/regel` nutzen.")
+# Statischer /hilfe-Text: die Wege zum Bot stehen sonst nur im Code und auf der
+# Website - ein Mitspieler in Discord sieht keinen davon. Ephemer und ohne API-Kosten.
+HILFE = (
+    "**So fragst du Foliant**\n"
+    "- `/regel` - Regelfrage stellen; die Antwort steht im Kanal und oeffnet einen "
+    "Thread fuer Nachfragen. Optional `fassung` waehlen (Standard: 2024).\n"
+    "- `/regel-privat` - dieselbe Frage, aber die Antwort siehst nur du; dafuer ohne "
+    "Thread fuer Nachfragen.\n"
+    "- `@Foliant <Frage>` in einer normalen Nachricht - die Antwort landet in einem "
+    "Thread unter deiner Frage.\n"
+    "- In einem Foliant-Thread einfach weiterschreiben - Nachfragen brauchen keine "
+    "Erwaehnung.\n"
+    "- Rechtsklick auf eine Nachricht → Apps → **Foliant fragen** prueft deren "
+    "Aussage als Regelfrage.\n"
+    "- `/bestand` - welche Buecher im Bestand stehen, mit Sprache und Regelstand. "
+    "Zeigt nur dir und kostet nichts.\n\n"
+    "**War eine Antwort falsch?** Reagiere mit 👎 darauf. Foliant merkt sich die Frage "
+    "als Korrektur-Kandidat (📝 heisst: notiert) - so wird der Bestand genau dort besser, "
+    "wo er heute daneben liegt. Reaktion wieder wegnehmen loescht den Eintrag.\n"
+    "**War eine besonders gut?** Dann reagiere mit 👍 - Foliant merkt sie sich als "
+    "Beispiel, das so bleiben soll, und sichert es gegen spaetere Aenderungen ab. "
+    "Auch hier heisst 📝: notiert.\n\n"
+    "Foliant antwortet nur aus dem Regelbestand der Runde, nennt immer Quelle und "
+    "Regelversion und verraet nichts aus Abenteuern (Spoiler-Schutz)."
+)
 
 
 def fehlertext(stop_grund: str) -> str | None:

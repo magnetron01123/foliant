@@ -174,6 +174,23 @@ def cmd_import(args) -> None:
                 sys.exit(f"Quelle '{kuerzel}': dateipfad fehlt in der config.")
             # A8: Quellpfade projektroot-relativ aufloesen (Container-CWD ist egal).
             p = _db.projekt_pfad(pfad)
+            # Fehlt die Datei, aber die Quelle fuehrt eine `quell_url`? Dann holen, statt
+            # den Nutzer mit "dateipfad fehlt" in den Browser zu schicken (O2). Eine
+            # VORHANDENE Datei fasst der Bezug nie an - siehe importer/quellbezug.py.
+            from importer.quellbezug import BezugFehler, hole_wenn_fehlt
+            try:
+                gemeldet = hole_wenn_fehlt(p, eintrag.get("quell_url"),
+                                           erwarteter_hash=eintrag.get("quell_hash"))
+            except BezugFehler as fehler:
+                sys.exit(f"Quelle '{kuerzel}': {fehler}")
+            if gemeldet:
+                print(gemeldet)
+            if not p.exists():
+                # Ohne URL (gekaufte PDFs, Scans) bleibt es bei der gewohnten Meldung -
+                # jetzt aber mit dem Hinweis, dass es einen Bezugsweg gibt.
+                sys.exit(f"Quelle '{kuerzel}': {pfad} fehlt. Datei dorthin legen - oder "
+                         f"eine `quell_url` in den [[quelle]]-Block, wenn die Quelle "
+                         f"frei herunterladbar ist.")
             if str(p).lower().endswith(".pdf"):
                 from importer.pdf_nach_markdown import pdf_zu_markdown
                 markdown = pdf_zu_markdown(p)
@@ -495,7 +512,7 @@ def cmd_quellen_auffrischen(args) -> None:
     _web_db_auffrischen(getattr(args, "db", None))
 
 
-def cmd_reindex(_args) -> None:
+def cmd_reindex_fts(_args) -> None:
     c = _con()
     with c:                    # fts_rebuild committet nicht mehr selbst - die Transaktion fuehrt der Aufrufer
         _db.fts_rebuild(c)
@@ -577,7 +594,121 @@ def _lade_basiswerte() -> dict:
         return {}
 
 
-def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list) -> int:
+def _messe_logik(c: sqlite3.Connection) -> tuple[dict, dict, dict, list[str]]:
+    """Die rechnerischen Widersprueche im Bestand, je Pruefung und Quelle gezaehlt.
+
+    Liefert (befunde_je_quelle, geprueft_gesamt, beispiele) - EIN Durchgang ueber alle
+    Bodys fuer alle drei Textpruefungen (app/logikpruefung.py).
+
+    `geprueft` ist keine Zierde: Ein Muster, das nach einem Formatwechsel ins Leere
+    greift, meldet null Befunde - genau wie ein sauberer Bestand. Erst die Zahl daneben
+    macht die beiden unterscheidbar (dieselbe Lehre wie bei den Qualitaets-Basiswerten:
+    eine Kennzahl ohne Bezugsgroesse ist Rauschen).
+
+    Bekannte Fehler der QUELLEN selbst (config/quellfehler.py) zaehlen NICHT als Befund,
+    solange ihr Wortlaut noch genau so im Bestand steht - sie sind belegt und
+    dokumentiert. Steht er nicht mehr da, faellt das als eigene Meldung auf: Beleg, kein
+    Deckel (dasselbe Prinzip wie bei den geprueften Homonymen)."""
+    from collections import Counter
+
+    from app import logikpruefung as _logik
+    from config import quellfehler as _quellfehler
+
+    befunde: dict[str, Counter] = {art: Counter()
+                                   for art in ("tp_formel", "attribut", "wuerfel")}
+    geprueft: Counter = Counter()
+    beispiele: dict[str, list] = {art: [] for art in befunde}
+    entschuldigt: set[tuple[str, str]] = set()
+
+    for name_de, name_en, kuerzel, body in c.execute(
+            "SELECT e.name_de, e.name_en, q.kuerzel, e.body_md FROM eintraege e "
+            "JOIN quellen q ON q.id = e.quelle_id"):
+        for art, n in _logik.zaehle_geprueft(body).items():
+            geprueft[art] += n
+        bekannt = _quellfehler.quellfehler_zu(kuerzel, name_de, name_en)
+        if bekannt and bekannt.steht_noch_im_bestand(body):
+            entschuldigt.add((bekannt.quelle, bekannt.name))
+        for fund in _logik.pruefe_text(body):
+            if bekannt and bekannt.deckt_ab(fund.fundstelle):
+                continue                   # belegter Quellfehler, siehe Registerkommentar
+            befunde[fund.art][kuerzel] += 1
+            if len(beispiele[fund.art]) < 3:
+                beispiele[fund.art].append(f"{name_de or name_en}: {fund.fundstelle}")
+
+    # Registereintraege, deren Wortlaut nicht mehr im Bestand steht - der Fall ist damit
+    # ungeprueft, nicht geheilt. Quellen, die diese DB gar nicht fuehrt, bleiben aussen vor
+    # (Mac-Subset, gleiche Regel wie im Basiswert-Vergleich).
+    vorhanden = {r[0] for r in c.execute("SELECT kuerzel FROM quellen")}
+    for eintrag in _quellfehler.BEKANNTE_QUELLFEHLER:
+        if eintrag.quelle in vorhanden and (eintrag.quelle, eintrag.name) not in entschuldigt:
+            print(f"Quellfehler-Register veraltet: '{eintrag.name}' ({eintrag.quelle}) - der "
+                  f"dokumentierte Wortlaut {eintrag.wortlaute} steht nicht mehr im Bestand. "
+                  f"Eintrag in config/quellfehler.py pruefen und nachziehen  WARNUNG")
+    belegt = sorted(f"{name} ({quelle})" for quelle, name in entschuldigt)
+    return befunde, dict(geprueft), beispiele, belegt
+
+
+def _vergleiche_je_quelle(vorhanden: set[str], soll: dict, ist, was: str) -> tuple[int, list]:
+    """Ein Basiswert-Vergleich je Quelle: steigt = FEHLER, sinkt = nachziehen, gleich =
+    still. Quellen, die diese Datenbank nicht fuehrt, werden uebersprungen - das Mac-Subset
+    meldete sonst lauter Scheinverbesserungen (CONCEPT.md §11, Korpus-Luecke).
+
+    Als Helfer herausgezogen (03.08.2026), weil derselbe Dreisatz jetzt fuer sechs
+    Kennzahlen gilt statt fuer eine."""
+    fehler, gesunken = 0, []
+    for quelle in sorted(set(soll) | set(ist)):
+        if quelle not in vorhanden:
+            continue
+        erwartet, gemessen = soll.get(quelle, 0), ist.get(quelle, 0)
+        if gemessen > erwartet:
+            print(f"NEUE {was} in '{quelle}': {gemessen} statt {erwartet} dokumentierten "
+                  f"- ein Import hat sie eingeschleppt  FEHLER")
+            fehler += 1
+        elif gemessen < erwartet:
+            gesunken.append(f"{was}/{quelle} {erwartet}->{gemessen}")
+    return fehler, gesunken
+
+
+def messe_leere_sektionen(c: sqlite3.Connection) -> tuple[dict, list[str]]:
+    """Statblock-Abschnitte, die eine Ueberschrift tragen, aber KEINEN Inhalt.
+
+    Befund 06.08.2026 (Verhaltens-Eval, Fall B3): Der Richter warf der Antwort vor, beim
+    Solar fehle der Block 'Bonusaktionen'. Er fehlt aber im BESTAND - '###### Bonusaktionen'
+    ist dort die letzte Zeile des Eintrags, mit null Zeichen darunter; der zugehoerige
+    Inhalt ('Goettlicher Beistand') ist beim Import in den Merkmale-Block gerutscht. Ein
+    Zweispalten-Riss also, und keine Auskunft kann liefern, was der Bestand nicht hat.
+
+    Gezaehlt wird nur, was ein Mensch als Sektion erkennt: die kuratierten Statblock-
+    Ueberschriften. Ein generisches '^#{3,6}' zaehlte auch die rund 20 fehlgeparsten
+    Zeilen der Art '###### **Resistenzen** Kaelte' mit und machte die Kennzahl unlesbar.
+
+    Rueckgabe: (Anzahl je Quellenkuerzel, bis zu drei Beispiele 'Name (Sektion)')."""
+    from collections import Counter
+
+    sektionen = ("Merkmale", "Traits", "Aktionen", "Actions", "Bonusaktionen",
+                 "Bonus Actions", "Reaktionen", "Reactions",
+                 "Legendäre Aktionen", "Legendary Actions")
+    muster = re.compile(r"^#{3,6}\s*(" + "|".join(sektionen) + r")\s*$", re.MULTILINE)
+    je_quelle: Counter = Counter()
+    beispiele: list[str] = []
+    for name, kuerzel, body in c.execute(
+            "SELECT coalesce(e.name_de, e.name_en, ''), q.kuerzel, e.body_md "
+            "FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "WHERE e.kategorie = 'monster' AND e.body_md IS NOT NULL"):
+        for treffer in muster.finditer(body):
+            rest = body[treffer.end():]
+            naechste = re.search(r"^#{3,6}", rest, re.MULTILINE)
+            inhalt = (rest[:naechste.start()] if naechste else rest).strip()
+            if not inhalt:
+                je_quelle[kuerzel] += 1
+                if len(beispiele) < 3:
+                    beispiele.append(f"{name} ({treffer.group(1)})")
+    return dict(je_quelle), beispiele
+
+
+def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list,
+                             logik: dict | None = None,
+                             leere_sektionen: dict | None = None) -> int:
     """Vergleicht die gemessenen Maengel mit dem dokumentierten Stand und liefert die Zahl
     der FEHLER (Anstiege).
 
@@ -603,20 +734,24 @@ def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list) -> 
     from collections import Counter
 
     vorhanden = {r[0] for r in c.execute("SELECT kuerzel FROM quellen")}
-    ist = Counter(q for _n, q in risse)
-    soll = basis.get("ocr_risse_je_quelle", {})
-    fehler = 0
-    gesunken: list[str] = []
-    for quelle in sorted(set(soll) | set(ist)):
-        if quelle not in vorhanden:
-            continue                       # Quelle in dieser DB nicht importiert
-        erwartet, gemessen = soll.get(quelle, 0), ist.get(quelle, 0)
-        if gemessen > erwartet:
-            print(f"NEUE Namensmaengel in '{quelle}': {gemessen} statt {erwartet} "
-                  f"dokumentierten - ein Import hat sie eingeschleppt  FEHLER")
-            fehler += 1
-        elif gemessen < erwartet:
-            gesunken.append(f"{quelle} {erwartet}->{gemessen}")
+    fehler, gesunken = _vergleiche_je_quelle(
+        vorhanden, basis.get("ocr_risse_je_quelle", {}),
+        Counter(q for _n, q in risse), "Namensmaengel")
+    # Die drei Logikpruefungen teilen sich denselben Dreisatz (03.08.2026). Ihr Basiswert
+    # steht je Quelle, damit das Mac-Subset keine Scheinverbesserung meldet.
+    for schluessel, art, was in (("wuerfel_risse_je_quelle", "wuerfel", "Wuerfelrisse"),
+                                 ("tp_formel_abweichungen_je_quelle", "tp_formel",
+                                  "TP-Formel-Abweichungen"),
+                                 ("attributs_abweichungen_je_quelle", "attribut",
+                                  "Attributs-Abweichungen")):
+        n, gs = _vergleiche_je_quelle(vorhanden, basis.get(schluessel, {}),
+                                      (logik or {}).get(art, {}), was)
+        fehler += n
+        gesunken += gs
+    n, gs = _vergleiche_je_quelle(vorhanden, basis.get("leere_sektionen_je_quelle", {}),
+                                  leere_sektionen or {}, "leere Statblock-Sektionen")
+    fehler += n
+    gesunken += gs
     soll_meta = basis.get("metadaten_namen_gesamt", 0)
     if len(meta) > soll_meta:
         print(f"NEUE Metadaten-Namen: {len(meta)} statt {soll_meta} dokumentierten  FEHLER")
@@ -649,6 +784,10 @@ def cmd_qualitaet_basis(args) -> None:
             "FROM eintraege e JOIN quellen q ON q.id = e.quelle_id")]
         quellen = c.execute("SELECT count(*) FROM quellen").fetchone()[0]
         eintraege = c.execute("SELECT count(*) FROM eintraege").fetchone()[0]
+        # Dieselbe Messstelle wie `check` - eine zweite Kopie der Muster waere genau die
+        # Dopplung, gegen die META_TABELLEN angetreten ist.
+        logik, _geprueft, _bsp, _belegt = _messe_logik(c)
+        leere_sektionen, _leer_bsp = messe_leere_sektionen(c)
     finally:
         c.close()
     from collections import Counter
@@ -656,13 +795,20 @@ def cmd_qualitaet_basis(args) -> None:
     risse = {(n, q) for n, q in namen
              if re.search(r"(?:^|\s)[B-HJ-Zb-hj-zÄÖÜäöüß](?:\s|$)", n)
              and not _REGISTER_KOPF.match(n)}
+
+    def _sortiert(zaehler) -> dict:
+        return dict(sorted(zaehler.items(), key=lambda kv: (-kv[1], kv[0])))
+
     alt = _lade_basiswerte()
     neu = dict(alt)
     neu["erhoben_am"] = __import__("datetime").date.today().isoformat()
     neu["erhoben_an"] = f"{eintraege} Eintraege, {quellen} Quellen"
-    neu["ocr_risse_je_quelle"] = dict(sorted(Counter(q for _n, q in risse).items(),
-                                             key=lambda kv: (-kv[1], kv[0])))
+    neu["ocr_risse_je_quelle"] = _sortiert(Counter(q for _n, q in risse))
     neu["metadaten_namen_gesamt"] = len(meta)
+    neu["wuerfel_risse_je_quelle"] = _sortiert(logik["wuerfel"])
+    neu["tp_formel_abweichungen_je_quelle"] = _sortiert(logik["tp_formel"])
+    neu["attributs_abweichungen_je_quelle"] = _sortiert(logik["attribut"])
+    neu["leere_sektionen_je_quelle"] = _sortiert(Counter(leere_sektionen))
     if not getattr(args, "schreiben", False):
         print("Vorschau (nichts geschrieben - mit --schreiben uebernehmen):")
         print(json.dumps({k: v for k, v in neu.items() if not k.startswith("_")},
@@ -875,7 +1021,38 @@ def cmd_check(_args) -> None:
         if funde:
             quellen_ = sorted({q for _, q in funde})
             print(f"   {titel}: {[n for n, _ in funde[:3]]} ... aus {quellen_}")
-    fehler += _pruefe_gegen_basiswerte(c, meta, risse)
+    # Rechnerische Plausibilitaet (Datenbank-Audit 03.08.2026): Ein OCR-Riss oder ein
+    # Importfehler aendert fast immer eine ZAHL, und eine falsche Zahl sieht aus wie eine
+    # richtige. Was sie verraet, ist der Widerspruch zu einer anderen Zahl im selben Text.
+    # WARNUNG statt Fehler - der Exitcode kommt allein aus dem Basiswert-Vergleich, sonst
+    # stuende das Gate wegen der bekannten 2014-Scan-Risse dauerhaft rot.
+    logik, geprueft, logik_beispiele, quellfehler_belegt = _messe_logik(c)
+    print("Logikpruefung: "
+          + ", ".join(f"{sum(logik[art].values())} {titel}"
+                      for art, titel in (("tp_formel", "TP-Formeln"),
+                                         ("attribut", "Attributswerte"),
+                                         ("wuerfel", "Wuerfelnotationen")))
+          + f"  (geprueft: {geprueft.get('tp_formel', 0)}/{geprueft.get('attribut', 0)}/"
+            f"{geprueft.get('wuerfel', 0)})"
+          + ("  OK" if not any(logik[a] for a in logik) else "  WARNUNG"))
+    for art, titel in (("tp_formel", "TP"), ("attribut", "Attribut"), ("wuerfel", "Wuerfel")):
+        if logik[art]:
+            print(f"   {titel}: {logik_beispiele[art]} ... aus {sorted(logik[art])}")
+    # Die entschuldigten Faelle NENNEN statt sie bloss wegzurechnen: Eine Null, die durch
+    # eine Ausnahmeliste entsteht, sieht sonst aus wie eine Null ohne Maengel - und die
+    # bekannten Quellfehler sollen sichtbar bleiben, nicht verschwinden.
+    if quellfehler_belegt:
+        print(f"   davon belegte Quellfehler der Quellen selbst (config/quellfehler.py, "
+              f"nicht gezaehlt): {', '.join(quellfehler_belegt)}")
+    # Leere Statblock-Sektionen (Befund B3, 06.08.2026): eine Ueberschrift ohne Inhalt ist
+    # verlorener Regeltext - und sie sieht in der Auskunft aus wie ein Modellfehler.
+    # WARNUNG wie die uebrigen Datenmaengel; der Exitcode kommt aus dem Basiswert-Vergleich.
+    leere_sektionen, leer_beispiele = messe_leere_sektionen(c)
+    print(f"Statblock-Sektionen ohne Inhalt: {sum(leere_sektionen.values())}"
+          + ("  OK" if not leere_sektionen else "  WARNUNG"))
+    if leere_sektionen:
+        print(f"   {leer_beispiele} ... aus {sorted(leere_sektionen)}")
+    fehler += _pruefe_gegen_basiswerte(c, meta, risse, logik, leere_sektionen)
     # Facetten-Deckung (Befund C1, 28.07.2026): Die Meta-Tabellen waren auf dem Pi LEER,
     # lokal gefuellt - und niemand merkte es, weil kein Check hinsah. WARNUNG statt Fehler:
     # eine vollstaendige Deckung ist gar nicht erreichbar (Ausruestung ohne Preisangabe
@@ -1134,7 +1311,7 @@ def cmd_glossar_paare(args) -> None:
         def _neu(term_en: str, term_de: str) -> bool:
             return _glossar.norm_begriff(term_de) not in {
                 _glossar.norm_begriff(z["term_de"])
-                for z in _glossar.lookup(c, term_en, richtung="en_de")
+                for z in _glossar.nachschlagen(c, term_en, richtung="en_de")
                 if z["match"] == "exakt"}
 
         gegenstaende, report = finde_gegenstands_paare(c)
@@ -1181,6 +1358,10 @@ def cmd_suchbericht(args) -> None:
     from datetime import datetime, timedelta, timezone
 
     from app import protokoll as _protokoll
+    # Der Bericht nennt die Arten nicht selbst, sondern holt sie dort, wo der Bot sie
+    # setzt - sonst driften Schreiber und Leser auseinander. Das Modul ist discord-frei
+    # und zieht keine Bot-Abhaengigkeit in die CLI.
+    from app.discord_bot import rueckmeldung as _rueckmeldung
 
     con = _protokoll.verbinde_lesend()
     if con is None:
@@ -1202,6 +1383,35 @@ def cmd_suchbericht(args) -> None:
                     GROUP BY lower(suchbegriff)
                     ORDER BY anzahl DESC, zuletzt DESC LIMIT ?""",
                 (seit, *params, limit))]
+
+        def _markierungen(art: str) -> list[dict]:
+            """Markierte Antworten EINER Art im Zeitraum. Bestands-Protokolle kennen die
+            Tabelle noch nicht (sie entsteht mit der ersten Markierung) - ein fehlender
+            Table darf den Bericht nicht kosten, dessen uebrige Abschnitte in Ordnung sind.
+
+            Je Art eine eigene Abfrage mit eigenem LIMIT, nicht eine gemeinsame mit
+            nachtraeglichem Aufteilen: 👍 kommt reflexhaft und damit haeufiger als 👎 - ein
+            gemeinsames LIMIT liesse einen Schwall Lob die Fehlermeldungen verdraengen, und
+            genau die duerfen nie verloren gehen."""
+            try:
+                zeilen = [dict(r) for r in con.execute(
+                    """SELECT zeitpunkt, art, frage, verweis FROM rueckmeldungen
+                        WHERE zeitpunkt >= ? AND art = ?
+                        ORDER BY zeitpunkt DESC LIMIT ?""",
+                    (seit, art, limit))]
+                # Ein stiller Schnitt ist die teuerste Sorte Unvollstaendigkeit: Der
+                # Durchgang haelt die Liste fuer alles, was es gab, und die aeltesten
+                # Urteile - die mit dem laengsten Leidensweg - fallen als erste raus
+                # (Review-Befund 11.08.2026). Nur zaehlen, wenn der Deckel greift.
+                if len(zeilen) == limit:
+                    gesamt = con.execute(
+                        "SELECT count(*) FROM rueckmeldungen "
+                        "WHERE zeitpunkt >= ? AND art = ?", (seit, art)).fetchone()[0]
+                    if gesamt > limit and zeilen:
+                        zeilen[-1] = {**zeilen[-1], "abgeschnitten": gesamt - limit}
+                return zeilen
+            except sqlite3.OperationalError:
+                return []
 
         dauern = sorted(r[0] for r in con.execute(
             "SELECT dauer_ms FROM abfragen WHERE zeitpunkt >= ? AND dauer_ms IS NOT NULL",
@@ -1228,6 +1438,19 @@ def cmd_suchbericht(args) -> None:
             "mehrdeutig": _gruppe("mehrdeutig = 1"),
             "uebersetzungs_luecken": _gruppe("werkzeug = 'uebersetze_begriff' "
                                              "AND gefunden = 0"),
+            # Von der Runde MARKIERTE Antworten (👎/👍 in Discord). Anders als alles
+            # darueber kein Statistik-Signal, sondern ein Urteil: technisch gefunden,
+            # inhaltlich falsch (bzw. richtig gut). Genau die Klasse Fehler, die kein
+            # Zaehler je zeigt. Eigene Tabelle -> eigene Abfrage; `_gruppe` liest
+            # `abfragen`. Getrennte Schluessel, weil die beiden zu Verschiedenem fuehren:
+            # 👎 wird kuriert, 👍 wird zum Regressionsschutz.
+            "markiert": _markierungen(_rueckmeldung.ART_RUNTER),
+            "gelobt": _markierungen(_rueckmeldung.ART_HOCH),
+            # Selbstanzeigen des Bots: Ablehnung/Leerbefund OHNE Werkzeugaufruf. Die
+            # einzige Fehlerklasse, die `abfragen` strukturell nicht sieht (die
+            # Ablehnung faellt vor jedem Werkzeugaufruf) - Befund 08.08.2026, das
+            # nackte Wort 'verstecken' bekam eine Spoiler-Ablehnung.
+            "auto_ablehnungen": _markierungen(_rueckmeldung.ART_AUTO_ABLEHNUNG),
         }
 
         if getattr(args, "json", False):
@@ -1247,6 +1470,33 @@ def cmd_suchbericht(args) -> None:
                 print(f"    {z['anzahl']:>4}x  {z['begriff']}{zusatz}  "
                       f"(zuletzt {z['zuletzt'][:10]})")
             print()
+
+        def _urteile(titel: str, zeilen: list[dict], leer: str) -> None:
+            """Zwei Zeilen je Eintrag: Datum + Frage, darunter der Link. Die ART traegt
+            die UEBERSCHRIFT, nicht die Zeile - sonst muesste jede Zeile ein Feld
+            mitschleppen, das fuer den ganzen Abschnitt gilt."""
+            print(f"  {titel}:")
+            if not zeilen:
+                print(f"    {leer}")
+            for z in zeilen:
+                print(f"    {z['zeitpunkt'][:10]}  "
+                      f"{z['frage'] or '(Frage nicht ermittelt)'}")
+                print(f"                {z['verweis']}")
+                if z.get("abgeschnitten"):
+                    print(f"    ... {z['abgeschnitten']} aeltere nicht gezeigt "
+                          f"(--limit erhoehen)")
+            print()
+
+        # Bewusst VOR den Statistik-Abschnitten: Ein Urteil der Runde ist der staerkste
+        # Kandidat, den dieser Bericht kennt - staerker als jeder Messwert. Innerhalb
+        # dessen zuerst das Falsche: ein Fehler kostet am Tisch mehr, als ein gelungener
+        # Treffer einbringt.
+        _urteile("Von der Runde markiert (👎 in Discord - inhaltlich falsch trotz Treffer)",
+                 bericht["markiert"], "keine ✓")
+        _urteile("Von der Runde gelobt (👍 in Discord - Kandidaten fuer Regressionsschutz)",
+                 bericht["gelobt"], "keine")
+        _urteile("Selbstanzeige des Bots (🚫/❌ OHNE Werkzeugaufruf - regelwidrig, "
+                 "Prompt-Fall)", bericht["auto_ablehnungen"], "keine ✓")
 
         _abschnitt("Nulltreffer (Glossar-/Synonym-Kandidaten, ggf. fehlt ein Buch)",
                    bericht["nulltreffer"], "keine - alles gefunden ✓")
@@ -1361,7 +1611,7 @@ def baue_parser() -> argparse.ArgumentParser:
                              "bleiben unberuehrt")
     pq.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad)")
     pq.set_defaults(func=cmd_quellen_auffrischen)
-    sub.add_parser("reindex-fts", help="FTS-Index neu aufbauen").set_defaults(func=cmd_reindex)
+    sub.add_parser("reindex-fts", help="FTS-Index neu aufbauen").set_defaults(func=cmd_reindex_fts)
     sub.add_parser("check", help="Smoke-/Qualitaetschecks").set_defaults(func=cmd_check)
     pqb = sub.add_parser("qualitaet-basis",
                          help="Basiswert bekannter Datenmaengel neu erheben (nur am Vollbestand)")

@@ -31,6 +31,7 @@ from starlette.responses import HTMLResponse, PlainTextResponse, RedirectRespons
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
+from app import bestand as _bestand
 from app.charakterbogen.ddb_pdf import DDBFormatFehler, extrahiere
 from app.glossar import ist_eigene_ableitung
 from app.charakterbogen.de_bogen import rendere
@@ -78,8 +79,6 @@ NICHT_PDF = "Bitte wähle eine PDF-Datei aus."
 KEIN_DDB = "Kein unterstützter D&D-Beyond-Charakterbogen."
 NICHT_SICHER = "Dieser PDF-Bogen kann nicht sicher verarbeitet werden."
 UEBERSETZUNG_WEG = "Die Übersetzung ist momentan nicht verfügbar. Bitte versuche es später erneut."
-PASST_NICHT = ("Der vollständige Inhalt passt nicht auf den offiziellen deutschen "
-               "Charakterbogen. Es wurde keine unvollständige PDF erzeugt.")
 KONVERTER_BELEGT = "Gerade wird bereits ein Charakterbogen verarbeitet. Bitte versuche es gleich noch einmal."
 KENNWORT_FALSCH = "Das Kennwort stimmt nicht."
 ZU_VIELE_VERSUCHE = "Zu viele Fehlversuche. Bitte warte ein paar Minuten."
@@ -221,30 +220,14 @@ def _tabelle(zeilen: list[dict], kopf: tuple[str, str, str, str], groesste: int,
     return f'<ul class="buecher{klasse}">{"".join(teil)}</ul>'
 
 
-# Foliant führt heute nur deutsche und englische Quellen. Eine dritte Sprache wäre
-# deshalb nicht "unbekannt", sondern schlicht neu - und würde ohne diese Zuordnung als
-# "Englisch" ausgewiesen, weil alles Nicht-Deutsche vorher in den Englisch-Zweig fiel.
-# Ein falsches Etikett ist schlechter als ein ungewohntes: der Sprachcode ist ehrlich.
-_SPRACHNAMEN = {"de": "Deutsch", "en": "Englisch"}
-
-
 def _quellzeile(q: dict) -> dict:
     """Eine Bestandsquelle als Tabellenzeile: Titel, Sprache, Regelstand, Eintragszahl.
-    Die Regelversion trägt ihr Wort mit ("Regeln 2024") - eine nackte Jahreszahl neben
-    einem Buchtitel liest sich wie ein Erscheinungsjahr.
 
-    Steht ein `versions_stand` dabei, gehört er an dieselbe Marke: er präzisiert genau
-    diese Angabe ("Regeln 2024 · Errata Version 1.0"). An den Titel dürfte er nicht -
-    der trägt nach dem Beschriftungs-Standard nur den Werktitel."""
-    edition = str(q["edition"] or "").strip()
-    code = (q["sprache"] or "").strip().lower()[:2]
-    stand = str(q.get("versions_stand") or "").strip()
-    marke_b = f"Regeln {edition}" if edition else "Regelversion offen"
-    if stand:
-        marke_b += f" · {stand}"
+    Die Beschriftung selbst kommt aus `app/bestand.py` - der Discord-Befehl `/bestand`
+    beantwortet dieselbe Frage und muss dieselben Worte benutzen."""
     return {"titel": q["titel"],
-            "marke_a": _SPRACHNAMEN.get(code, code.upper() or "Sprache offen"),
-            "marke_b": marke_b,
+            "marke_a": _bestand.sprachname(q["sprache"]),
+            "marke_b": _bestand.regelstand(q["edition"], q.get("versions_stand")),
             "zahl": q["eintraege"] or 0}
 
 
@@ -268,13 +251,10 @@ def _bestand_html(quellen: list[dict], glossar: list[dict] | None = None) -> str
     if not quellen:
         return ""
     groesste = max(q["eintraege"] or 0 for q in quellen) or 1
-    # Nach inhaltsart aufteilen, und zwar mit einer POSITIVLISTE für die Regelwerke:
-    # ein `!= 'abenteuer_setting'` liess bis zum 31.07.2026 alles Neue unter den
-    # Regelwerken landen - die Errata-Quellen staenden dort als waeren sie Regelbuecher.
-    revision = [q for q in quellen if q["inhaltsart"] in ("errata", "regelauslegung")]
-    abenteuer = [q for q in quellen if q["inhaltsart"] == "abenteuer_setting"]
-    sonder = {id(q) for q in revision} | {id(q) for q in abenteuer}
-    regel = [q for q in quellen if id(q) not in sonder]
+    gruppen = _bestand.gruppiere(quellen)      # dieselbe Zuordnung wie in Discord
+    regel = gruppen[_bestand.REGELWERKE]
+    revision = gruppen[_bestand.REVISION]
+    abenteuer = gruppen[_bestand.ABENTEUER]
     gesamt = sum(q["eintraege"] or 0 for q in quellen)
 
     html = [f'<p class="unter">Foliant schlägt in '
@@ -284,7 +264,7 @@ def _bestand_html(quellen: list[dict], glossar: list[dict] | None = None) -> str
             f'</p>'.replace(",", ".")]
     if regel:
         html.append(
-            '<h3>Regelwerke</h3>'
+            f'<h3>{_escape(_bestand.REGELWERKE)}</h3>'
             '<p class="mini">Die Grundlage jeder Auskunft. Foliant antwortet <em>nur</em> '
             'aus diesen Büchern — was hier fehlt, sagt es ehrlich, statt es aus '
             'Allgemeinwissen zu ergänzen. Deutsche Ausgaben haben Vorrang, und zu jeder '
@@ -293,7 +273,7 @@ def _bestand_html(quellen: list[dict], glossar: list[dict] | None = None) -> str
                        ("Buch", "Sprache", "Regelstand", "Einträge"), groesste))
     if revision:
         html.append(
-            '<h3>Errata &amp; Regelauslegung</h3>'
+            f'<h3>{_escape(_bestand.REVISION)}</h3>'
             '<p class="mini">Kein eigener Regeltext, sondern die offiziellen Nachträge '
             'dazu: <em>Errata</em> korrigieren eine gedruckte Stelle, eine '
             '<em>Regelauslegung</em> beantwortet eine Streitfrage. Foliant nennt sie '
@@ -303,7 +283,7 @@ def _bestand_html(quellen: list[dict], glossar: list[dict] | None = None) -> str
                        ("Buch", "Sprache", "Regelstand", "Einträge"), groesste))
     if abenteuer:
         html.append(
-            '<h3>Abenteuer &amp; Settings</h3>'
+            f'<h3>{_escape(_bestand.ABENTEUER)}</h3>'
             '<p class="mini">Daraus nennt Foliant <em>Regelwerte</em> — Werte einer '
             'Kreatur, ein Zauber, eine Option. Handlung, Orte, Geheimnisse und Taktiken '
             'gibt es nicht, auch nicht auf Nachfrage.</p>'

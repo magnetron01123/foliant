@@ -23,11 +23,19 @@ import sqlite3
 from app import db as _db
 from app import facetten as _facetten
 from app import glossar as _glossar
+from config import quellfehler as _quellfehler
 
 
+# "Eventuell fehlt ein Buch" stand hier bis zum 04.08.2026 als Angebot - und die Runde
+# markierte prompt eine Antwort, die genau das tat (B2). Der Bot war dabei REGELKONFORM:
+# Kanal 1 und die Prompt-Kanaele gaben die Vermutung woertlich vor. Eine Mutmassung ueber
+# den Bestand ist aber ueberfluessig, seit `/bestand` ihn belegt auflistet - und eine
+# Vermutung an der Stelle einer moeglichen Abfrage ist genau der Fuellstoff, den B2 meint.
 HINWEIS_LEER = ("Nichts im Bestand gefunden. Sag das ehrlich mit ❌ ('Dazu finde ich nichts "
                 "im Foliant-Bestand') und antworte NICHT aus Allgemeinwissen, 2014-Regeln oder "
-                "Homebrew (B1). Eventuell fehlt schlicht ein Buch im Bestand (B2). Falls danach "
+                "Homebrew (B1). Mutmasse NICHT ueber fehlende Buecher - welche im Bestand "
+                "stehen, zeigt '/bestand' (Discord) bzw. die Bestandsliste der Website (B2). "
+                "Falls danach "
                 "eine Websuche gewuenscht ist: Ergebnisse strikt getrennt und gekennzeichnet "
                 "ausgeben ('🌐 Aus dem Web, NICHT aus dem Foliant-Bestand, ungeprueft') - nie "
                 "mit Bestandsinhalten vermischen; Abenteuer-/Kampagnen-Spoiler bleiben auch "
@@ -35,16 +43,55 @@ HINWEIS_LEER = ("Nichts im Bestand gefunden. Sag das ehrlich mit ❌ ('Dazu find
 
 HINWEIS_ALT = ("Keine 2024-Fassung im Bestand, nur ein aelterer Regelstand. Klar kennzeichnen "
                "mit ⚠️: 'Keine 2024-Fassung im Bestand; hier der aeltere Stand - ggf. an die "
-               "aktuellen Regeln anzupassen.' (V4/B5)")
+               "aktuellen Regeln anzupassen.' (V4/B5) Die ⚠️-Zeile steht NACH der Kopfzeile "
+               "(B12 Slot 2), nie an ihrer Stelle - die Antwort beginnt weiterhin mit dem "
+               "Kategorie-Emoji.")
 
 HINWEIS_MEHRDEUTIG = ("Mehrere Eintraege passen. NICHT raten (B4): nenne die Kandidaten mit "
                       "Unterscheidungsmerkmal (Kategorie/Quelle/Version) und frag zurueck - "
-                      "oder lade den richtigen direkt per eintrag_id nach (SYN-P1-002).")
+                      "oder lade den richtigen direkt per eintrag_id nach (SYN-P1-002). "
+                      "Kopfzeile mit ❓, Abschluss woertlich 'Welchen meinst du?' (B12/S14).")
+
+# Rueckmeldung der Runde, 04.08.2026: Auf "Kann man 2 Gelegenheitsangriffe machen?" kam ein
+# klares "Ja" - belegt mit der Hydra, also einem MONSTER-Merkmal. Fuer Spielercharaktere
+# lautet die Antwort "nein", und die eigene Folgeantwort widerrief das zwei Minuten spaeter.
+# Der Treffer war geerdet; falsch war, ihn als allgemeine Regel auszugeben (B4).
+HINWEIS_MONSTER_MERKMAL = (
+    "Dies ist ein MONSTER-Steckbrief. Seine Merkmale gelten fuer diese Kreatur, NICHT "
+    "allgemein und NICHT fuer Spielercharaktere. Zielt die Frage auf Spielerfiguren, sag "
+    "das ausdruecklich dazu, statt das Merkmal als allgemeine Regel auszugeben - und "
+    "beantworte die eigentliche Frage getrennt (B4).")
 
 HINWEIS_DB_FEHLT = ("Der Regelbestand ist noch leer (keine Datenbank/keine Importe). Sag ehrlich, "
                     "dass noch keine Quellen importiert sind - erfinde keine Regeln (B1).")
 
 _HINWEIS_STERN = "* = keine offizielle deutsche Uebersetzung (einmal erlaeutern, S5)"
+
+# B12: die kategoriefesten Slots (Einordnung + Kern) dort, wo die Antwort entsteht - der
+# globale Rahmen (Kopfzeile, Warnung, Abschluss) steht in den Prompt-Kanaelen, die
+# Kategorie-Details truegen dort nur Budget ab.
+GERUEST_JE_KATEGORIE: dict[str, str] = {
+    "zauber": "Einordnung: Grad, Schule, Klassen. Kern: Feldzeilen Wirkzeit/Reichweite/"
+              "Komponenten/Dauer, dann der Wirkungstext wortgetreu.",
+    "monster": "Einordnung: Groesse, Typ, HG - bei einer Ja/Nein-Frage zum Eintrag "
+               "stattdessen 'Ja' oder 'Nein', direkt NACH der Kopfzeile (das Emoji "
+               "bleibt das erste Zeichen). Kern: der Statblock VOLLSTAENDIG.",
+    "gegenstand": "Einordnung: Typ, Seltenheit, Einstimmung ja/nein. Kern: Eigenschaften, "
+                  "dann der Wirkungstext wortgetreu.",
+    "spezies": "Einordnung: Kreaturentyp, Groesse, Bewegungsrate. Kern: die Merkmale als "
+               "fette Feldzeilen.",
+    "klasse": "Einordnung: bei einer Unterklasse 'Unterklasse des <Klasse>', sonst "
+              "Primaerattribut und Trefferwuerfel. Kern: ALLE Merkmale nach Stufen - "
+              "verteilte Eintraege selbst nachladen und als EIN Ergebnis ausgeben (B15).",
+    "hintergrund": "Einordnung: Attributswerte, Ursprungstalent. Kern: Fertigkeiten, "
+                   "Werkzeug, Ausruestung.",
+    "talent": "Einordnung: Talentkategorie, Voraussetzung. Kern: der Nutzen als Liste.",
+    "regel": "Einordnung: Ist die Frage eine JA/NEIN-Frage, steht direkt NACH der "
+             "Kopfzeile 'Ja' oder 'Nein' - nie das Regelgebiet, denn am Tisch wird genau "
+             "dieses eine Wort gebraucht; das Emoji bleibt trotzdem das erste Zeichen "
+             "der Antwort (B12). Sonst nennt die Einordnung das Regelgebiet. Kern: der "
+             "Regeltext wortgetreu, dann Ausnahmen.",
+}
 
 # S12: aus dem EINEN Register (config/abkuerzungen.py) gebaut, nicht abgeschrieben - sonst
 # liefe der Hinweis der Liste davon, sobald eine Abkuerzung dazukommt.
@@ -62,6 +109,79 @@ def _baue_abkuerzungs_hinweis() -> str:
 
 
 HINWEIS_ABKUERZUNGEN = _baue_abkuerzungs_hinweis()
+
+# B12 Slot 1 fuer Antworten, die aus einer TREFFERLISTE entstehen. Der Detailabruf traegt
+# sein Geruest laengst (GERUEST_JE_KATEGORIE), die Suche trug keines - und genau dort
+# fehlte die Kopfzeile: Pi-Lauf 07.08.2026, breite Listenfrage ('Waffeneigenschaften als
+# Tabelle') und Mehrdeutigkeit ('Was macht Schild?') begannen beide mit Fliesstext.
+# Beide Faelle sehen nie einen der situativen Hinweise, weil sie gar keinen Detailabruf
+# machen.
+HINWEIS_KOPFZEILE = (
+    "Antwortgeruest (B12): Das ERSTE Zeichen der Antwort ist das Kopf-Emoji. Kein Satz "
+    "davor - keine Einleitung, keine Zwischenmeldung ueber die Suche, kein 'Hier ist' "
+    "und kein 'Alle Belege liegen vor' (S13). Auch eine ZAEHLUNG ist so ein Satz: "
+    "'Alle neun Eigenschaften ...' gehoert in die Einordnung NACH der Kopfzeile "
+    "(B12 Slot 3), nie davor. Dasselbe gilt fuer einen TEIL-Befund: 'Zu X selbst gibt "
+    "es keinen Eintrag, aber ...' beginnt trotzdem mit der Kopfzeile des Gefundenen - "
+    "die Luecke steht in der Einordnung. Kategorie-Emoji (📜 Regel · 🪄 Zauber · "
+    "🐉 Monster · 🎒 Gegenstand · 🧝 Spezies · ⚔️ Klasse · 🏕️ Hintergrund · ✨ Talent) "
+    "bei einer Auskunft, ❓ bei einer Rueckfrage, ❌ ohne Treffer - ANDERE Emojis gibt es "
+    "nicht, auch kein thematisch passendes. Der NAME kommt woertlich "
+    "aus 'anzeige_name' - das englische Original steht dort schon, ein zweites Klammerpaar "
+    "gehoert nie dahinter. Ein 'namenszusatz' ist das Unterscheidungsmerkmal (B4), nicht "
+    "Teil des Namens. Am ENDE gilt dieselbe Reihenfolge wie im Detailabruf: hoechstens "
+    "EIN Angebot, dann die *-Fussnote, ZULETZT die 📖-Belegzeile - nach ihr steht nichts "
+    "mehr, auch kein 'Sag Bescheid ...'.")
+
+# Das eckige Klammer-Suffix der DDB-Regelglossar-Namen ('Hide \[Action]',
+# 'Blinded \[Condition]') - im Markdown escaped, deshalb der optionale Backslash.
+_ECKIGES_SUFFIX = __import__("re").compile(r"\\?\[[^\]]{1,24}\\?\]\s*$")
+
+
+def markiere_mehrdeutige_treffer(antwort: dict, treffer: list[dict]) -> None:
+    """Tragen mehrere Treffer DENSELBEN Namen in verschiedenen Kategorien, ist die Frage
+    mehrdeutig - und die Antwort ist eine Rueckfrage, keine Auskunft.
+
+    Der Review-Lauf 08.08.2026 zeigte das als einzigen SYSTEMATISCHEN Rest: Auf 'Was macht
+    Schild?' (Zauber ODER Ruestungsteil) begann die Antwort viermal von vier mit einem
+    Fliesstext-Satz statt mit ❓. Inhaltlich waren die Antworten gut - nur die Kopfzeile
+    fehlte. Der Grund liegt auf der Hand: Der Mehrdeutigkeits-Hinweis haengt am
+    DETAILABRUF, und diese Antworten entstehen aus der Trefferliste, die ihn nie sah.
+
+    Deshalb erkennt die Suche den Fall jetzt selbst - an den Daten, nicht per Prompt-Regel:
+    gleicher normalisierter Name, verschiedene Kategorien."""
+    # BEIDE Namensfelder zaehlen: Der Zauber heisst 'Schild', der Ruestungsgegenstand
+    # traegt nur 'Shield'. Wer nur `name_de or name_en` vergleicht, sieht zwei
+    # verschiedene Schluessel und findet die Mehrdeutigkeit nie (erster Anlauf, 08.08.2026).
+    nach_namen: dict[str, set[str]] = {}
+    anzeige: dict[str, str] = {}
+    for t in treffer:
+        for feld in ("name_de", "name_en"):
+            name = _glossar.norm_begriff(t.get(feld) or "")
+            if name:
+                nach_namen.setdefault(name, set()).add(t.get("kategorie") or "")
+                anzeige.setdefault(name, t.get(feld))
+    doppelt = sorted(anzeige[n] for n, kategorien in nach_namen.items()
+                     if len(kategorien) > 1)
+    if doppelt:
+        antwort["hinweis_mehrdeutig"] = (
+            f"MEHRDEUTIG: {', '.join(doppelt)} kommt in mehreren Kategorien vor. Das ist "
+            f"eine Rueckfrage, keine Auskunft (B4): Kopfzeile mit ❓, dann je Kandidat EINE "
+            f"Zeile mit seinem Unterscheidungsmerkmal (Kategorie/Quelle/Version), Abschluss "
+            f"woertlich 'Welchen meinst du?'. Kein Satz vor der Kopfzeile.")
+
+
+def _ohne_eckiges_suffix(name: str | None) -> str | None:
+    """Der Name ohne das eckige DDB-Suffix - fuer Nachschlag UND Anzeige.
+
+    Es ist Buch-Layout, kein Namensbestandteil: 'Hide \\[Action]' stand am 08.08.2026 in
+    einer Discord-Kopfzeile und sah aus wie ein Datenbankfeld. B14 verbietet
+    Layout-Artefakte in der Antwort, und ohne das Suffix findet das Glossar den Begriff
+    ueberhaupt erst ('Hide' -> 'Verstecken')."""
+    if not name:
+        return name
+    gekuerzt = _ECKIGES_SUFFIX.sub("", name).strip()
+    return gekuerzt or name
 
 def _verbinde() -> sqlite3.Connection | None:
     # SYN-P1-005/TECH-020: Serving-Verbindungen sind READ-ONLY - die Tools schreiben nie,
@@ -100,7 +220,9 @@ def _knapp(t: dict, con: sqlite3.Connection | None = None) -> dict:
          "quelle": t["quelle_titel"], "quelle_kuerzel": t["quelle"],
          "zitat": _zitat(t), "auszug": t["auszug"]}
     if con is not None:
-        k["anzeige_name"] = _anzeige_name(con, t)
+        k["anzeige_name"], zusatz = _anzeige_und_zusatz(con, t)
+        if zusatz:
+            k["namenszusatz"] = zusatz
     if t.get("seite"):
         k["seite"] = t["seite"]
     if t.get("weitere_quellen"):
@@ -130,7 +252,8 @@ INHALTSART_HINWEISE: dict[str, tuple[str, str, str]] = {
     "abenteuer_setting": (
         "🚫", "einem ABENTEUER-/SETTING-Band (nur fuer Terminologie/Werte geladen)",
         "Handlung, Geheimnisse und Ortsdetails NIE wiedergeben (Spoiler-Schutz, oberste "
-        "Regel); reine Regel-/Wertangaben sind ok."),
+        "Regel); reine Regel-/Wertangaben sind ok. Sag dazu 'Kampagnen-Band' - der "
+        "Feldname und sein Wert gehoeren NIE in die Antwort (B13)."),
     "errata": (
         "📌", "einer ERRATA-Quelle (offizielle Korrektur zum Grundtext)",
         "KEIN eigenstaendiger Regeltext: Grundtext UND Korrektur zusammen wiedergeben und "
@@ -165,6 +288,35 @@ def _inhaltsart_je_kuerzel(con: sqlite3.Connection) -> dict[str, str]:
             "SELECT kuerzel, inhaltsart FROM quellen WHERE inhaltsart != 'regelwerk'")}
     except sqlite3.OperationalError:
         return {}
+
+def markiere_unuebersetzte(antwort: dict, *listen: list[dict]) -> None:
+    """Sammelhinweis, wenn Treffer OHNE belegten deutschen Namen dabei sind (S3 Stufe 4).
+
+    Rueckmeldung der Runde, 04.08.2026: Eine Uebersichtsantwort gab 'Mist Wanderer*',
+    'Spirit Medium*', 'Touch of Death*' aus - englische Namen mit einem Stern dran. Das
+    Sternchen heisst aber "keine offizielle Uebersetzung", es ERSETZT die Uebersetzung
+    nicht; S3 Stufe 4 verlangt ausdruecklich eine deutsche Wiedergabe und *nicht* Englisch
+    mitten im Satz.
+
+    Warum hier und nicht im Prompt: Die Regel STEHT in beiden Prompt-Kanaelen und im
+    Detail-Hinweis - nur die TREFFERLISTE trug sie nie, und aus ihr beantwortet das Modell
+    genau die Uebersichtsfragen, bei denen viele Namen auf einmal anfallen. `_anzeige_name`
+    gibt bei fehlendem Glossar-Treffer korrekt den englischen Namen zurueck (raten waere
+    schlimmer) - das Modell braucht nur die Ansage, was es damit tun soll."""
+    ohne_deutsch = [k for liste in listen for k in liste
+                    if not k.get("name_de")
+                    and k.get("anzeige_name", k.get("name_en")) == k.get("name_en")]
+    if not ohne_deutsch:
+        return
+    beispiel = ohne_deutsch[0].get("name_en") or "Mist Walker"
+    antwort["hinweis_ohne_deutschen_namen"] = (
+        f"{len(ohne_deutsch)} Treffer tragen KEINEN belegten deutschen Namen. Gib sie "
+        f"trotzdem nicht englisch aus: konsistente deutsche Wiedergabe MIT '*' und dem "
+        f"Original in Klammern - '{beispiel}' wird also zu '<deutsche Fassung>* "
+        f"({beispiel})'. Ein '*' allein am englischen Namen erfuellt S3 NICHT: er markiert "
+        f"die fehlende offizielle Uebersetzung, er ersetzt sie nicht. Die Sprachlage in "
+        f"der Antwort NIE erwaehnen (B13) - still uebersetzen.")
+
 
 def _markiere_inhaltsart(con: sqlite3.Connection, antwort: dict, *listen: list[dict]) -> None:
     """Treffer aus Sonderquellen kennzeichnen und je Art einen Sammelhinweis setzen -
@@ -206,6 +358,150 @@ def _markiere_inhaltsart(con: sqlite3.Connection, antwort: dict, *listen: list[d
     if teile:
         antwort["hinweis_inhaltsart"] = " | ".join(([schon] if schon else []) + teile)
 
+def _revisions_eintraege(con: sqlite3.Connection) -> list[dict]:
+    """Alle Eintraege aus Revisionsquellen (Errata, offizielle Regelauslegung) - eine
+    Abfrage ueber ~46 Zeilen.
+
+    Die Unterabfrage auf `quellen` ist nicht Geschmackssache: `WHERE q.inhaltsart IN (...)`
+    im JOIN erzwingt einen Scan ueber alle 12 500 Eintraege (gemessen 4,5 ms), die
+    Unterabfrage nutzt idx_eintraege_quelle (0,08 ms). Bei einer Verbindung je Tool-Aufruf
+    ist das der Unterschied zwischen unmessbar und spuerbar.
+
+    Ungecacht - dieselbe Begruendung wie bei db._revisions_kuerzel: Der Glossar-Cache faellt
+    an der Zeilenzahl des Glossars, und eine neu importierte Errata-Quelle aendert die
+    nicht. Ein Cache mit dem falschen Ausloeser waere schlimmer als keiner.
+
+    Defensiv gegen Bestands-DBs ohne `inhaltsart`/`kontext`: der Serving-Pfad migriert nie."""
+    try:
+        return [dict(r) for r in con.execute("""
+            SELECT e.id, e.kategorie, e.name_de, e.name_en, e.sprache, e.edition, e.seite,
+                   e.body_md, q.kuerzel AS quelle, q.titel AS quelle_titel, q.inhaltsart
+            FROM eintraege e JOIN quellen q ON q.id = e.quelle_id
+            WHERE e.quelle_id IN (SELECT id FROM quellen
+                                  WHERE inhaltsart IN ('errata','regelauslegung'))
+            ORDER BY e.id""")]
+    except sqlite3.OperationalError:
+        return []
+
+
+def _revisionen_zu(con: sqlite3.Connection, eintraege: list[dict],
+                   ausser_ids: frozenset[int] = frozenset(),
+                   max_treffer: int = 3) -> list[dict]:
+    """Die offiziellen Nachtraege zu den uebergebenen Eintraegen (B11/V9).
+
+    WARUM ES DIESE FUNKTION GIBT: Der Bestand kannte bisher nur die Gegenrichtung - drei
+    Stellen nehmen Revisionsquellen aus etwas HERAUS (db._dedupe_und_sortiere,
+    nachschlagen._quellabweichungen, charakter._eintraege). Dass es zu einem Eintrag eine
+    Korrektur GIBT, erfuhr man allein dadurch, dass die Volltextsuche sie zufaellig
+    danebenspuelte - und das fiel weg, sobald ein Kategorie-Filter griff oder der Eintrag
+    direkt per foliant_hol_eintrag geladen wurde (Datenbank-Audit 03.08.2026).
+
+    Der Abgleich laeuft ueber NAMEN, nicht ueber Kategorie:
+    - Namensvarianten kommen aus glossar._eintrag_namen, der EINEN Definition (A3) - keine
+      zweite Normalisierung; eine eigene Kopie war genau der Fehler, den A3 beseitigt hat.
+    - Dazu die Glossar-Bruecke (db._brueckennamen, gecacht): Errata heissen englisch
+      ('Polymorph'), der kanonische Grundtext deutsch ('Verwandlung'). Ohne Bruecke faende
+      man nur die zufaellig gleichlautenden Faelle.
+    - Die EDITION muss uebereinstimmen: ein 2024-Erratum sagt nichts ueber einen
+      2014-Eintrag.
+    - Die KATEGORIE wird bewusst NICHT verglichen. Alle 43 Errata tragen heute
+      kategorie='regel', weil die PDF-Rubriken nicht durchgaengig auf eine Kategorie
+      abbildbar sind (BACKLOG §4). Ein Kategorie-Vergleich wuerde deshalb jeden Treffer
+      wegwerfen. Faellt diese Entscheidung spaeter anders, entfaellt hier nur dieser Absatz.
+
+    `ausser_ids` laesst Nachtraege weg, die im selben Aufruf schon als eigener Treffer
+    stehen - die ungefilterte Suche zeigt das Erratum ohnehin, und ein Eintrag soll nicht
+    zweimal in derselben Antwort erscheinen."""
+    revisionen = _revisions_eintraege(con)
+    if not revisionen:
+        return []
+    eigene = _db._revisions_kuerzel(con)
+    ziele = [e for e in eintraege if e.get("quelle") not in eigene
+             and e.get("quelle_kuerzel") not in eigene]
+    if not ziele:
+        return []                          # ein Erratum verweist nicht auf sich selbst
+    bruecke = _db._brueckennamen(con)
+
+    def namen_von(zeile: dict) -> set[str]:
+        namen = _glossar._eintrag_namen(zeile)
+        # Eckiges Klammer-Suffix zusaetzlich abziehen ('Hide [Action]' -> 'Hide'), damit
+        # die Glossar-Bruecke greift: das Erratum heisst so, der deutsche Grundeintrag
+        # 'Verstecken (Aktion)'. Bewusst NUR hier und nicht in glossar._eintrag_namen -
+        # das ist die gemeinsame Identitaetsregel von Dedupe und Ranking, und 83 Eintraege
+        # tragen dieses Suffix. Hier kann es hoechstens einen Nachtrag mehr anhaengen.
+        namen |= {_glossar.norm_begriff(_ECKIGES_SUFFIX.sub("", n).strip())
+                  for n in namen if _ECKIGES_SUFFIX.search(n)} - {""}
+        return namen | {b for n in namen for b in bruecke.get(n, set())}
+
+    ziel_namen = [(e, namen_von(e)) for e in ziele]
+    gefunden: dict[int, dict] = {}
+    for rev in revisionen:
+        if rev["id"] in ausser_ids:
+            continue
+        rev_namen = namen_von(rev)
+        for ziel, namen in ziel_namen:
+            if ziel.get("edition") != rev["edition"] or not (namen & rev_namen):
+                continue
+            eintrag = {
+                "eintrag_id": rev["id"],
+                "anzeige_name": _anzeige_name(con, rev),
+                "inhaltsart": rev["inhaltsart"],
+                "kategorie": rev["kategorie"],
+                "edition": rev["edition"],
+                "quelle": rev["quelle_titel"],
+                "quelle_kuerzel": rev["quelle"],
+                "zitat": _zitat(rev),
+                "text_md": _db.KONTEXT_ZEILE.sub("", rev["body_md"] or "",
+                                                 count=1).strip()[:600],
+                "betrifft_eintrag_id": ziel.get("id") or ziel.get("eintrag_id"),
+            }
+            if rev.get("seite"):
+                eintrag["seite"] = rev["seite"]
+            gefunden.setdefault(rev["id"], eintrag)
+            break
+    return [gefunden[i] for i in sorted(gefunden)][:max_treffer]
+
+
+def _hinweis_revision(arten: set[str]) -> str:
+    """Der Begleittext zu `revisionen` - gebaut aus INHALTSART_HINWEISE, nicht neu
+    formuliert. Dritte Satzform neben 'N Treffer stammen aus ...' (Trefferliste) und
+    'Dieser Eintrag stammt aus ...' (Einzelabruf).
+
+    Er geht bewusst NICHT nach `hinweis_inhaltsart`: dort entscheidet _markiere_inhaltsart
+    am SYMBOL, welche Art schon genannt ist. Stuende dort ein 📌 aus diesem Nachschlag,
+    fiele ein ECHTES Erratum in den Nebenlisten aus dem Sammelhinweis - genau der
+    Erosionspfad, den CONCEPT.md §12 beschreibt ('Eine Kennzeichnung, die eine andere
+    unterdrueckt, ist kein Schutz')."""
+    teile = [f"{symbol} Zu diesem Eintrag gibt es einen Nachtrag aus {woraus}: {folge}"
+             for art, (symbol, woraus, folge) in INHALTSART_HINWEISE.items()
+             if art in arten]
+    return " | ".join(teile) + (
+        " Der Nachtrag steht in 'revisionen' (Feld 'text_md'; der volle Eintrag ist per "
+        "eintrag_id ladbar). Grundtext UND Nachtrag zusammen wiedergeben - weder "
+        "verschweigen noch als eigene Regel zitieren (B11/V9).")
+
+
+def _haenge_revisionen_an(con: sqlite3.Connection, antwort: dict,
+                          *listen: list[dict]) -> None:
+    """Die Nachtraege zu den gezeigten Treffern an die SUCHANTWORT haengen.
+
+    Der Anhang ist das Gegenstueck zum harten Kategorie-Filter: `kategorie='zauber'`
+    filtert das Erratum zum Zauber heraus (es traegt kategorie='regel'), und ohne diesen
+    Anhang saehe niemand mehr, dass es existiert - der Filter machte die Antwort also
+    stiller, statt sie zu schaerfen. Den Filter selbst aufzuweichen waere der schlechtere
+    Weg: er ist eine Zusage, und eine Monstersuche soll nicht mit Regelglossar-Errata
+    volllaufen.
+
+    Bewusst NICHT ueber _markiere_inhaltsart: das schriebe einen 📌-Sammelsatz nach
+    `hinweis_inhaltsart` und vermischte 'was der Treffer IST' mit 'was es dazu GIBT'."""
+    gezeigt = frozenset(k.get("eintrag_id") for liste in listen for k in liste)
+    rev = _revisionen_zu(con, [k for liste in listen for k in liste],
+                         ausser_ids=gezeigt, max_treffer=5)
+    if rev:
+        antwort["revisionen"] = rev
+        antwort["hinweis_revision"] = _hinweis_revision({r["inhaltsart"] for r in rev})
+
+
 def _reichere_facetten_an(con: sqlite3.Connection, *treffer_listen: list[dict]) -> None:
     """#2: knappe Zauber-/Monster-Treffer um eine kompakte Facette ('Grad 3' bzw. 'HG 1')
     anreichern - genau das Feld, nach dem ein Spieler triagiert. EINE Batch-Abfrage der
@@ -239,23 +535,60 @@ def _reichere_facetten_an(con: sqlite3.Connection, *treffer_listen: list[dict]) 
             if info:
                 k["kurzinfo"] = info
 
-def _anzeige_name(con: sqlite3.Connection, e: dict) -> str:
-    """Deutsch-first-Anzeige (S3/S4): deutscher Begriff mit Englisch in Klammern; kommt der
+def _anzeige_und_zusatz(con: sqlite3.Connection, e: dict) -> tuple[str, str | None]:
+    """Anzeigename plus abgetrennter Namenszusatz.
+
+    Deutsch-first-Anzeige (S3/S4): deutscher Begriff mit Englisch in Klammern; kommt der
     Eintrag aus einer deutschen Quelle, ist der Begriff offiziell (kein '*'). Englische
-    Eintraege werden ueber das Glossar annotiert; ohne offiziellen Treffer -> '*' (S5)."""
+    Eintraege werden ueber das Glossar annotiert; ohne offiziellen Treffer -> '*' (S5).
+
+    Der ZUSATZ ('Verstecken (Aktion)' -> 'Aktion') wird nur dann abgetrennt, wenn er den
+    Glossar-Treffer verhindert hat. Discord-Befund 08.08.2026: Die Kopfzeile lautete
+    'Verstecken (Aktion) (Hide [Action])'. Der Grundeintrag trug kein `name_en`, und die
+    Suche nach dem VOLLEN Namen fand nichts (die Glossarzeile heisst schlicht
+    Hide/Verstecken) - also blieb die Anzeige ohne Original, und das Modell nahm sich das
+    einzige Englisch im Payload: den Namen der Errata-Revision, samt DDB-Klammer-Artefakt.
+    Zwei Klammerpaare hintereinander, beide vom Modell zusammengesetzt.
+
+    Der Zusatz bleibt erhalten, nur eben als eigenes Feld: In der Trefferliste ist er das
+    Unterscheidungsmerkmal (B4), in der Auskunft gehoert er in die Einordnung (B12)."""
     if e.get("name_de") and e.get("sprache") == "de":
-        name_en = e.get("name_en")
+        name_de, zusatz = e["name_de"], None
+        name_en = _ohne_eckiges_suffix(e.get("name_en"))
         if not name_en:
             # dt. Quellen tragen kein Englisch am Eintrag -> Original via Glossar (S4);
             # NUR exakte Zeilen (SYN-P0-001: eine Fuzzy-Zeile haengte sonst ein FREMDES
             # Original an, 'Aktionen (Reactions)'); ohne exakten Treffer lieber ohne
             # Klammer als 'Feuerball (Feuerball)'.
-            zeilen = _glossar.lookup_exakt(con, e["name_de"], richtung="de_en")
+            zeilen = _glossar.nachschlagen_exakt(con, name_de, richtung="de_en")
+            if not zeilen:
+                basis = _glossar.KLAMMER_SUFFIX.sub("", name_de).strip()
+                # Zweitversuch OHNE Qualifikator - genau dafuer gibt es KLAMMER_SUFFIX
+                # ("der Zusatz ist Qualifikator, nicht Name"), nur der Anzeigepfad nutzte
+                # ihn bisher nicht. GENAU EINE Zeile muss es sein: Bei mehreren waere
+                # nicht entscheidbar, welches Original zum Qualifikator gehoert, und
+                # geraten wird hier nicht (Regel 1).
+                ohne = (_glossar.nachschlagen_exakt(con, basis, richtung="de_en")
+                        if basis and basis != name_de else [])
+                if len(ohne) == 1:
+                    zeilen, name_de = ohne, basis
+                    zusatz = e["name_de"][len(basis):].strip(" ()")
             name_en = zeilen[0]["term_en"] if zeilen else None
-        if name_en and name_en.strip().lower() != e["name_de"].strip().lower():
-            return _glossar.markiere(e["name_de"], name_en, offiziell=True)
-        return e["name_de"]
-    name_en = e.get("name_en") or e.get("name_de") or "?"
+        if name_en and name_en.strip().lower() != name_de.strip().lower():
+            return _glossar.markiere(name_de, name_en, offiziell=True), zusatz
+        return name_de, zusatz
+    roh = e.get("name_en")
+    name_en = _ohne_eckiges_suffix(roh) or e.get("name_de") or "?"
+    if roh and name_en != roh and len(
+            _glossar.nachschlagen_exakt(con, name_en, richtung="en_de")) > 1:
+        # Das Kuerzen hat den Begriff MEHRDEUTIG gemacht: 'Hide [Action]' -> 'Hide', und
+        # dazu fuehrt das Glossar zwei offizielle Zeilen (Fell = das Tierfell,
+        # Verstecken = die Aktion). Am Pi-Vollbestand nahm term_de die erste und machte
+        # aus dem Errata-Verweis 'Fell (Hide)' - eine FALSCHE Uebersetzung, schlimmer als
+        # das Artefakt davor. Genau hier gilt Regel 1: lieber ohne Klammer als geraten.
+        # Der Qualifikator im Original stuende zur Verfuegung, aber ihn auf die
+        # Glossarquelle abzubilden waere wieder eine Heuristik.
+        return name_en, None
     # term_de liefert None, wenn es keinen belegten deutschen Begriff gibt (seit
     # 31.07.2026 statt des mehrdeutigen (term_en, False)). Der `de != name_en`-Test
     # bleibt trotzdem stehen - er unterdrueckt die sinnlose Klammer bei gleichlautenden
@@ -264,8 +597,13 @@ def _anzeige_name(con: sqlite3.Connection, e: dict) -> str:
     if treffer:
         de, offiziell = treffer
         if de != name_en:
-            return _glossar.markiere(de, name_en, offiziell)
-    return name_en
+            return _glossar.markiere(de, name_en, offiziell), None
+    return name_en, None
+
+
+def _anzeige_name(con: sqlite3.Connection, e: dict) -> str:
+    """Nur der Anzeigename - der haeufigere der beiden Faelle."""
+    return _anzeige_und_zusatz(con, e)[0]
 
 def _facetten_von(con: sqlite3.Connection, e: dict) -> dict | None:
     """Strukturierte Facetten aus dem Meta-Seitenwagen: ADDITIV zum verbatim body_md,
@@ -317,12 +655,29 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
     # gerade gelieferten Eintrag nicht erneut referenzieren (etwa gegen die IDs in
     # konflikt_quellen), ohne quelle_kuerzel nicht 'in dieser Quelle weitersuchen' -
     # foliant_suche_bestand verlangt dort das KUERZEL, nicht den Titel.
-    d = {"eintrag_id": e["id"], "anzeige_name": _anzeige_name(con, e),
+    anzeige, namenszusatz = _anzeige_und_zusatz(con, e)
+    d = {"eintrag_id": e["id"], "anzeige_name": anzeige,
          "name_de": e["name_de"], "name_en": e["name_en"], "kategorie": e["kategorie"],
          "edition": e["edition"], "sprache": e["sprache"], "quelle": e["quelle_titel"],
          "quelle_kuerzel": e.get("quelle"),
          "seite": e.get("seite"), "zitat": _zitat(e), "regeltext_md": e["body_md"],
          "hinweis_sprache_begriffe": _HINWEIS_STERN}
+    if namenszusatz:
+        d["namenszusatz"] = namenszusatz
+    geruest = GERUEST_JE_KATEGORIE.get(e["kategorie"])
+    if geruest:
+        # Der Abschluss steht bei JEDER Kategorie gleich - deshalb hier einmal und nicht
+        # zehnmal in der Tabelle. Befund Pi-Lauf 07.08.2026 (D2): Die Antwort endete mit
+        # einem Nachsatz nach der Belegzeile; seit die Pruefung deterministisch ist,
+        # faellt so etwas auf, statt vom Richter uebersehen zu werden.
+        d["hinweis_darstellung"] = (
+            f"B12-Antwortgeruest fuer diese Kategorie: {geruest} Der Name in der Kopfzeile "
+            f"ist 'anzeige_name' WOERTLICH - das englische Original steht dort bereits, "
+            f"haenge kein zweites Klammerpaar an und hole KEINEN Namen aus 'revisionen' "
+            f"oder 'weitere_fundstellen' (das sind Belege, keine Namensquelle). Ein "
+            f"'namenszusatz' gehoert in die Einordnung, nicht in die Kopfzeile. Abschluss "
+            f"immer in dieser Reihenfolge: hoechstens EIN Angebot, dann die *-Fussnote, "
+            f"ZULETZT die 📖-Belegzeile - nach ihr steht nichts mehr.")
     if e.get("lizenz"):
         # A12/Q6: die Quellenlizenz wird im Detailpfad nicht verworfen; CC-BY verlangt
         # die mitgefuehrte Attribution (Wortlaut konsistent mit README.md, Lizenz & Recht).
@@ -350,12 +705,21 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
             d["hinweis_inhaltsart"] = f"{symbol} Dieser Eintrag stammt aus {woraus}: {folge}"
     if e["edition"] != _db.STANDARD_EDITION:
         d["hinweis_alter_stand"] = HINWEIS_ALT
+    if e.get("kategorie") == "monster":
+        d["hinweis_monster_merkmal"] = HINWEIS_MONSTER_MERKMAL
     if e.get("sprache") == "en":
         # S3/S5: dem Modell die AMTLICHEN deutschen Begriffe INLINE mitgeben, statt sie nur
         # anzumahnen - genau die Luecke, an der eine Antwort sonst englisch stehen bleibt
         # (Warlock-Test 13.07.2026: Cloudkill/Bane/Greater Invisibility blieben englisch,
         # obwohl das Glossar Todeswolke/Verderben/Maechtige Unsichtbarkeit kennt).
-        treffer = _glossar.begriffe_im_text(con, e.get("body_md") or "")
+        # Der NAME steht mit im durchsuchten Text (Rueckmeldung der Runde, 04.08.2026):
+        # `begriffe_im_text` las bis dahin nur `body_md`, also alles AUSSER der
+        # Ueberschrift der Antwort. Bei "Archfey Patron" war die Folge, dass das Modell 30
+        # amtliche Begriffe aus dem Fliesstext mitgeliefert bekam - und ausgerechnet den
+        # Namen, den der Spieler zuerst liest, englisch mit '*' ausgab. Genau die
+        # Fehlerklasse, die das Feld verhindern soll (S2/S3/S7/S11).
+        treffer = _glossar.begriffe_im_text(
+            con, f"{e.get('name_en') or ''}\n{e.get('body_md') or ''}")
         # Abkuerzungen getrennt ausweisen: Sie sind etwas anderes als ein Fachbegriff -
         # 'AC' wird nicht "uebersetzt", sondern durch die deutsche Notation ERSETZT, und
         # das Original gehoert dabei NICHT in Klammern dahinter ("RK (AC) 17" waere
@@ -379,7 +743,9 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
                     "nicht steht, konsistent deutsch wiedergeben und mit * markieren "
                     "('* keine offizielle deutsche Uebersetzung', einmal erlaeutern). Das "
                     "*-System NICHT durch Prosa wie 'sinngemaess uebertragen' ersetzen und "
-                    "nichts unuebersetzt englisch stehen lassen (S3/S5).")
+                    "nichts unuebersetzt englisch stehen lassen (S3/S5). Still uebersetzen: "
+                    "die Sprache der Quelle in der Antwort NIE erwaehnen - die Herkunft "
+                    "zeigt allein die *-Fussnote (B13).")
         d["hinweis_uebersetzung"] = hinweis
     # S12: Abkuerzungen sind die leiseste Stelle, an der eine deutsche Antwort englisch
     # bleibt - "AC 15", "DC 14", "8d6" fallen in einem deutschen Satz nicht auf. Der
@@ -395,6 +761,27 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
     fac = _facetten_von(con, e)
     if fac:
         d["facetten"] = fac
+    # B11/V9: Gibt es zu diesem Eintrag einen offiziellen Nachtrag, steht er hier daneben.
+    # Bewusst in _detail und nicht in einem der Wrapper: BEIDE Detailwege muenden hier -
+    # der Namensweg (_hole_detail_impl) und der eintrag_id-Weg (_detail_per_id), der
+    # _markiere_inhaltsart gar nicht ruft.
+    rev = _revisionen_zu(con, [e])
+    if rev:
+        for r in rev:
+            r.pop("betrifft_eintrag_id", None)   # im Einzelabruf redundant
+        d["revisionen"] = rev
+        d["hinweis_revision"] = _hinweis_revision({r["inhaltsart"] for r in rev})
+    # Bekannter Fehler in der QUELLE selbst (config/quellfehler.py): Der Regeltext oben
+    # bleibt unveraendert - hier steht nur daneben, was belegt richtig ist. Dieselbe Zusage
+    # wie bei einem Erratum, nur ohne amtliches Korrekturdokument.
+    fehler = _quellfehler.quellfehler_zu(e.get("quelle"), e.get("name_de"), e.get("name_en"))
+    if fehler and fehler.steht_noch_im_bestand(e.get("body_md")):
+        d["hinweis_quellfehler"] = (
+            f"⚠️ Bekannter Fehler in dieser Quelle"
+            + (f" (S. {fehler.seite})" if fehler.seite else "")
+            + f": Dort steht {' bzw. '.join(repr(w) for w in fehler.wortlaute)}. Belegt "
+            f"richtig ist '{fehler.richtig}' - {fehler.beleg} Den Quelltext wiedergeben "
+            f"WIE ER IST und die Korrektur dazusagen, nicht stillschweigend ersetzen.")
     return d
 
 # Derselbe Satz an jeder Stelle, die einen PARAMETER-Fehler meldet (SYN-P0-006): das

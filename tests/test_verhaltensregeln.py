@@ -76,6 +76,25 @@ _TRAGENDE_REGELN = [
     # daraus 'kann keinen Steckbrief liefern'. Werkzeug-Hinweise sind Regieanweisung
     # an das Modell, nie Antwortinhalt - das muss in beiden Kanaelen stehen.
     ("Werkzeug-Hinweise sind Regieanweisung", "nie zitieren"),
+    # Discord-Befund 06.08.2026 (/regel undead patron): die Antwort war regelkonform und
+    # trotzdem unbrauchbar - Meta-Gerede ueber Sprache und Eintragsstruktur, uebersetzte
+    # Layout-Artefakte, Fragment-Navigation statt Auskunft. Daraus wurden B12-B16 und
+    # S13-S15 (Antwortgeruest + Sprachnormen); ihre Kennzeichen muessen in beiden
+    # Kanaelen stehen.
+    ("Antwortgeruest (B12)", "ANTWORTGERÜST"),
+    ("Meta-Verbot (B13)", "META-VERBOT"),
+    ("keine Layout-Artefakte (B14)", "Illustratoren-Credits"),
+    ("Fragmente als ein Ergebnis (B15)", "als EIN Ergebnis"),
+    ("hoechstens ein Angebot (B16)", "höchstens EIN Angebot"),
+    ("Register ohne Floskeln (S13)", "Floskeln"),
+    ("Phrase Mehrdeutigkeit (S14)", "Welchen meinst du?"),
+    ("Phrase Angebot (S14)", "Sag Bescheid, wenn du"),
+    ("Wiedergabetreue (S15)", "wortgetreu"),
+    # Discord-Befund 08.08.2026: Auf das nackte Wort 'verstecken' kam eine 🚫-Ablehnung
+    # OHNE Werkzeugaufruf (Repro: 1 von 4 Laeufen). Die Ablehnung faellt vor jedem
+    # Nachschlag - Kanal 3 kann hier strukturell nicht helfen, die Regel MUSS in beiden
+    # Prompt-Kanaelen stehen: Ein nackter Begriff ist eine Nachschlage-Anfrage.
+    ("Ein-Wort ist Nachschlage-Anfrage", "NACHSCHLAGE-ANFRAGE"),
 ]
 
 
@@ -152,6 +171,30 @@ _GROUNDING_HINWEISE = [
     ("2024-Baureihenfolge", ch._HINWEIS_REIHENFOLGE, ["Klasse", "Hintergrund", "Spezies",
                                                       "SPRACHEN"]),
     ("nur Optionen aus dem Bestand", ch._HINWEIS_BESTAND, ["B1", "B2"]),
+    # B12/B15 (Befund 06.08.2026): das kategoriefeste Geruest wandert als Hinweis in
+    # jede Detail-Antwort; bei Klassen muss es die Zusammensetz-Pflicht tragen.
+    ("Klassen-Geruest setzt zusammen", aus.GERUEST_JE_KATEGORIE["klasse"],
+     ["EIN Ergebnis", "B15"]),
+    ("Zauber-Geruest ist wortgetreu", aus.GERUEST_JE_KATEGORIE["zauber"],
+     ["wortgetreu", "Feldzeilen"]),
+    # B3-Thema (07.08.2026): Dass ein Statblock VOLLSTAENDIG kommt, ist die Zusage, an
+    # der sich der Eval-Fall B3 misst - und sie war als einzige Kategorie-Zeile
+    # ungeschuetzt.
+    ("Monster-Geruest fordert Vollstaendigkeit", aus.GERUEST_JE_KATEGORIE["monster"],
+     ["VOLLSTAENDIG", "HG"]),
+    # Die zwei Hinweise der Optionslisten. Der Menue-Hinweis war bis zum 07.08.2026 ein
+    # Dict-Literal und damit der einzige tragende Grounding-Hinweis ohne Waechter.
+    ("Klassenliste antwortet als Menue", ch._HINWEIS_KLASSENMENUE,
+     ["MENUE", "kurz", "B1", "⚔️", "inhaltsart"]),
+    ("Kurzzeile wird deutsch wiedergegeben", ch._HINWEIS_KURZ, ["DEUTSCH", "S3", "B1"]),
+    # Antworten aus einer Trefferliste sahen keinen der situativen Hinweise - genau dort
+    # fehlte im Pi-Lauf 07.08.2026 zweimal die Kopfzeile (breite Listenfrage, Rueckfrage).
+    # Discord-Befund 08.08.2026: 'Verstecken (Aktion) (Hide [Action])'. Das Modell setzte
+    # die Kopfzeile selbst zusammen und holte sich das Englisch aus der Errata-Revision.
+    # Seither sagen beide Darstellungs-Hinweise, dass der Name woertlich aus
+    # 'anzeige_name' kommt - diese Zusage darf nicht wieder verschwinden.
+    ("Trefferliste nennt die Kopfzeilen-Regel", aus.HINWEIS_KOPFZEILE,
+     ["B12", "❓", "❌", "woertlich", "namenszusatz"]),
 ]
 
 

@@ -104,7 +104,19 @@ class ZugriffsFilter:
             ip = ipaddress.ip_address(peer)
             privat = ip.is_loopback or ip.is_private
         except ValueError:
-            privat = True                     # Test-Harness ('testclient') o. ae.
+            # Ein unparsbarer Absender gilt als PRIVAT und wird durchgelassen (fail-open).
+            # Das ist nur zulaessig, WEIL der Server ausschliesslich auf 127.0.0.1 bindet
+            # (docker-compose.yml: `127.0.0.1:8000:8000`) und von aussen allein der
+            # AUSGEHENDE cloudflared-Tunnel hereinkommt - der setzt CF-Connecting-IP und
+            # nimmt damit den Zweig darueber. Wer hier landet, sitzt schon im Container
+            # oder ist das Test-Harness ('testclient').
+            #
+            # Faellt diese Annahme (Port oeffentlich gebunden, Reverse-Proxy ohne
+            # CF-Header davor), wird diese Zeile zum offenen Zugang - und
+            # tests/test_zugriff.py bleibt dabei GRUEN, weil er genau dieses Verhalten
+            # festhaelt statt es zu hinterfragen. Die Bindung ist die Sicherung, nicht
+            # der Test.
+            privat = True
         if privat:
             await self.app(scope, receive, send)
             return

@@ -144,3 +144,42 @@ def test_basisdatei_ist_lesbar_und_vollstaendig():
     assert basis.get("erhoben_am"), "ohne Datum ist der Stand nicht einzuordnen"
     # Jeder Zahlenblock trägt seine Erläuterung - sonst weiß niemand, was er akzeptiert.
     assert basis.get("_zweck") and basis.get("_ocr_erlaeuterung")
+
+
+def test_leere_statblock_sektionen_werden_gezaehlt(tmp_path):
+    """Befund 06.08.2026 (Eval-Fall B3): Der Richter warf der ANTWORT vor, beim Solar
+    fehle der Block 'Bonusaktionen'. Er fehlt aber im BESTAND — die Überschrift ist dort
+    die letzte Zeile des Eintrags, der Inhalt ist beim Import in den Nachbarblock
+    gerutscht. Ohne diesen Zähler bleibt so ein Verlust unsichtbar und sieht in jeder
+    Auskunft wie ein Modellfehler aus."""
+    pfad = tmp_path / "sektionen.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (id,kuerzel,titel,sprache,edition,herkunft,"
+                "prioritaet) VALUES (1,'srd-de','SRD','de','2024','pdf',10)")
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,body_md) "
+        "VALUES (1,?,?,'de','2024',?)",
+        [# leer: Ueberschrift als letzte Zeile (der echte Solar-Fall)
+         ("monster", "Solar", "###### Aktionen\n\nBogen.\n\n###### Bonusaktionen"),
+         # leer: Ueberschrift direkt vor der naechsten Ueberschrift
+         ("monster", "Lemure", "###### Merkmale\n\n###### Aktionen\n\nFaust."),
+         # vollstaendig: zaehlt NICHT
+         ("monster", "Vampirbrut", "###### Merkmale\n\nSpinnenklettern.\n\n"
+                                   "###### Aktionen\n\nBiss."),
+         # kein Monster: bleibt aussen vor
+         ("zauber", "Feuerball", "###### Aktionen"),
+         # fehlgeparste Statzeile, die eine generische Header-Suche mitzaehlen wuerde
+         ("monster", "Aboleth", "###### **Resistenzen** Kälte\n\n###### Aktionen\n\nHieb.")])
+    con.commit()
+    con.close()
+
+    verbindung = sqlite3.connect(pfad)
+    try:
+        je_quelle, beispiele = admin.messe_leere_sektionen(verbindung)
+    finally:
+        verbindung.close()
+
+    assert je_quelle == {"srd-de": 2}, je_quelle
+    assert any("Solar (Bonusaktionen)" == b for b in beispiele), beispiele
+    assert any("Lemure (Merkmale)" == b for b in beispiele), beispiele

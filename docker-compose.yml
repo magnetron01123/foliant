@@ -153,13 +153,26 @@ services:
 
   # Optionaler lokaler Admin-Blick (read-only) auf die Daten - NUR localhost (SSH-Tunnel),
   # NICHT ueber den Cloudflare Tunnel. Start: docker compose --profile admin up -d datasette
-  # Falls kein ARM64-Image verfuegbar ist, stattdessen im foliant-Container:
-  #   docker compose exec foliant sh -c "pip install datasette && datasette data/foliant.sqlite -h 127.0.0.1 -p 8001"
+  #
+  # ⚠️ LAEUFT AUF DEM PI NICHT (04.08.2026 geprueft): Das offizielle Image ist amd64-only
+  # und stirbt auf ARM64 sofort mit "exec format error" - der Container restartet dann in
+  # einer Schleife. Der frueher hier genannte Ausweg ("im foliant-Container per pip
+  # nachinstallieren") scheitert an dessen `read_only: true`. Beides bleibt so: die
+  # Container-Haertung ist mehr wert als der Komfort, und `admin suchbericht` beantwortet
+  # dieselbe Frage. Diese Definition bleibt fuer den Tag stehen, an dem es ein
+  # ARM64-Image gibt - und fuer ein amd64-Hostsystem stimmt sie heute schon.
+  #
+  # BEIDE DBs, seit 04.08.2026: Das Abfrage-Protokoll traegt die Tabelle `rueckmeldungen`
+  # - die 👎/👍 der Runde. Die lagen zwar von Anfang an in SQLite, waren aber nur ueber
+  # `admin suchbericht` zu sehen; wer nachschauen wollte, was offen ist, brauchte ein
+  # Terminal. Mit der zweiten Datei ist der Bestand im Browser durchsuchbar und
+  # sortierbar - read-only, nur ueber localhost, ohne neue Angriffsflaeche.
   datasette:
     image: datasetteproject/datasette:latest
     container_name: foliant-admin
     profiles: ["admin"]
-    command: ["datasette", "/data/foliant.sqlite", "-h", "0.0.0.0", "-p", "8001"]
+    command: ["datasette", "/data/foliant.sqlite", "/data/foliant-protokoll.sqlite",
+              "-h", "0.0.0.0", "-p", "8001"]
     ports:
       - "127.0.0.1:8001:8001"     # nur lokal erreichbar
     volumes:

@@ -3,9 +3,9 @@ Mock-Transport und synthetischen Daten; keine echten Secrets, Texte oder API-Ant
 
 Laufen in der Haupt-Suite, mit Ausnahme der DB3-Leser-Tests (brauchen apsw-sqlite3mc
 aus .venv-ddb und werden sonst uebersprungen)."""
-import inspect
 import io
 import json
+import types
 import zipfile
 from pathlib import Path
 
@@ -374,7 +374,7 @@ def test_edition_autoritativ_aus_buch_db(tmp_path):
     assert lies_edition(Path(p4), "k", 99) is None            # mehrdeutig -> nicht raten
 
 
-def test_sync_ueberlebt_netzfehler_eines_einzelnen_buchs():
+def test_sync_ueberlebt_netzfehler_eines_einzelnen_buchs(tmp_path, monkeypatch, capsys):
     """Befund 30.07.2026: Der Kommentar ueber der except-Liste in cmd_sync sagt "Ein
     einzelnes Buch darf den Gesamtlauf NIE abbrechen" - gefangen wurden aber nur
     SystemExit, DdbFehler, ArchivFehler und ValueError. Die Transportfehler von httpx
@@ -382,16 +382,67 @@ def test_sync_ueberlebt_netzfehler_eines_einzelnen_buchs():
 
     Ein einziges haengendes Buch riss damit den ganzen sync-Lauf ab - und zwar genau im
     langlaufenden Fall (viele Buecher, Minuten bis Stunden), fuer den die Schleife
-    gebaut wurde."""
+    gebaut wurde.
+
+    Geprueft wird seit dem 06.08.2026 das VERHALTEN statt des Quelltexts: die fruehere
+    `inspect.getsource`-Assertion auf die Zeichenfolge 'httpx.HTTPError' waere gruen
+    geblieben, wenn der Name nur noch in einem Kommentar staende, und rot bei einer
+    aequivalenten Umformulierung (etwa einem gemeinsamen Fehler-Tupel als Konstante).
+    Hier scheitert Buch 1 am Timeout - Buch 2 muss trotzdem exportiert werden."""
     import httpx
 
     from importer.ddb_exporter import cli
 
-    # httpx.HTTPError ist die gemeinsame Basis aller Transportfehler - genau sie muss in
-    # der except-Liste stehen, nicht die einzelnen Unterklassen.
+    # httpx.HTTPError ist die gemeinsame Basis aller Transportfehler - genau sie muss die
+    # except-Liste abdecken, nicht die einzelnen Unterklassen.
     for fehlerart in (httpx.ReadTimeout, httpx.ConnectError, httpx.RemoteProtocolError):
         assert issubclass(fehlerart, httpx.HTTPError)
 
-    quelle = inspect.getsource(cli.cmd_sync)
-    assert "httpx.HTTPError" in quelle, \
-        "cmd_sync faengt die Transportfehler wieder nicht - ein Timeout reisst den Lauf ab"
+    class _Klient:
+        def __init__(self, *a, **k):
+            pass
+
+        def pruefe_token(self):
+            return "testkonto"
+
+        def eigene_buecher(self):
+            return [{"id": 1}, {"id": 2}]
+
+    class _Leertransport:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    beschluss = {
+        1: {"id": 1, "kuerzel": "ddb-eins", "titel": "Buch Eins", "sprache": "en",
+            "edition": "2024", "edition_sicher": True, "inhaltsart": "regelwerk",
+            "importieren": True, "grund": ""},
+        2: {"id": 2, "kuerzel": "ddb-zwei", "titel": "Buch Zwei", "sprache": "en",
+            "edition": "2024", "edition_sicher": True, "inhaltsart": "regelwerk",
+            "importieren": True, "grund": ""},
+    }
+    verarbeitet: list[str] = []
+
+    def _exportiere(transport, client, buch, *, dry_run):
+        verarbeitet.append(buch["kuerzel"])
+        if buch["kuerzel"] == "ddb-eins":
+            raise httpx.ReadTimeout("Zeitueberschreitung beim Lesen")
+        return tmp_path / buch["kuerzel"]
+
+    monkeypatch.setattr(cli, "_transport", lambda: _Leertransport())
+    monkeypatch.setattr(cli, "DdbClient", _Klient)
+    monkeypatch.setattr(cli, "_lies_cobalt", lambda: _COBALT)
+    monkeypatch.setattr(cli.katalog, "lade_katalog", lambda transport: {"quellen": {}})
+    monkeypatch.setattr(cli.katalog, "klassifiziere", lambda bid, kat: beschluss[bid])
+    monkeypatch.setattr(cli, "_artefakt_basis", lambda: tmp_path / "artefakte")
+    monkeypatch.setattr(cli, "_exportiere_buch", _exportiere)
+
+    args = types.SimpleNamespace(dry_run=False, force=False)
+    cli.cmd_sync(args)                        # darf NICHT durchschlagen
+
+    assert verarbeitet == ["ddb-eins", "ddb-zwei"], \
+        "der Timeout in Buch 1 hat die Schleife abgerissen - Buch 2 lief nie"
+    ausgabe = capsys.readouterr().out
+    assert "1 exportiert" in ausgabe and "ddb-eins" in ausgabe, ausgabe

@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 25.07.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 11.08.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -101,17 +101,17 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
   **kleiner = Vorrang**, Bänder s. u.), `inhaltsart`.
   **`inhaltsart` (vier Werte)** entscheidet, welchen Hinweis eine Antwort daraus trägt:
   `regelwerk` (keiner) · `abenteuer_setting` (🚫 Spoiler-Schutz) · `errata` (📌 offizielle
-  Korrektur zum Grundtext) · `regelauslegung` (⚖️ Sage Advice, kein Regeltext). Der
-  Wertraum steht **allein in `importer/quellen.INHALTSARTEN`**, nicht als CHECK im Schema.
-  Der CHECK ist am 31.07.2026 bewusst gefallen: Er hätte den ersten Errata-Import auf jeder
-  mit v2 angelegten Datenbank mit `IntegrityError` abgebrochen, weil
-  `CREATE TABLE IF NOT EXISTS` eine bestehende Tabelle nicht erneuert und `ALTER TABLE`
-  keine Constraint erzeugt (real reproduziert, bevor es jemanden traf — Pi und Dev-DB
-  tragen den CHECK nicht). Dieselbe Überlegung wie bei `edition`, die aus demselben Grund
-  nur auf `length > 0` prüft. Die Validierung sitzt stattdessen in `registriere_quelle` —
-  dem **einen** Schreibweg, also greift sie auf jeder Datenbank —, und `admin check` meldet
-  zusätzlich unbekannte Werte **im Bestand** sowie eine Datenbank mit veraltetem CHECK.
-  Beides kann ein CHECK nicht: er verhindert nur neue Werte, findet keine vorhandenen.
+  Korrektur zum Grundtext) · `regelauslegung` (⚖️ Sage Advice, kein Regeltext).
+  **Warum Errata eine eigene Quelle sind und nicht in den `body_md` eingerechnet werden
+  (V9):** Ein eingerechneter Text wäre nicht mehr der Buchtext — die Provenienz ginge
+  verloren, `body_md` und damit der korpusweite `inhalts_hash` verschöben sich bei jedem
+  Errata-Update, und niemand könnte mehr sagen, was im Buch steht und was korrigiert wurde.
+  Der Wertraum steht **allein in `importer/quellen.INHALTSARTEN`**, validiert in
+  `registriere_quelle` — dem **einen** Schreibweg, also greift die Prüfung auf jeder
+  Datenbank. Bewusst **kein CHECK im Schema**: eine geschlossene Wertliste, die noch wachsen
+  kann, ist dort eine Migrationsfalle (§12). `admin check` meldet zusätzlich unbekannte
+  Werte **im Bestand** sowie eine Datenbank mit veraltetem CHECK — beides kann ein CHECK
+  nicht, er verhindert nur neue Werte und findet keine vorhandenen.
   **Provenienz (v3, 31.07.2026):** `importiert_am` (ISO-8601 UTC, setzt
   `registriere_quelle` selbst), `versions_stand` (Errata-/Druckstand als Freitext),
   `quell_url`, `quell_hash` (sha256 der Quelldatei beim Import). Alle vier optional —
@@ -120,17 +120,13 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
   *welche Fassung dieses einen Buches steckt im Bestand?* `admin quellen-auffrischen`
   lässt `importiert_am` und `quell_hash` bewusst stehen (`setze_importzeit=False`) — dort
   wurde keine Datei gelesen, und ein fortgeschriebener Hash belegte nichts.
-  **Beschriftungs-Standard (31.07.2026):** `titel` trägt **nur den Werktitel** — kein
-  „(Deutsch)", „(2014)", „(D&D Beyond)", „(Druck)". Sprache, Regelstand und Bezugsweg
-  stehen in `sprache`, `edition` und `herkunft` und werden **daraus** angezeigt. Vorher
-  hängte jeder Importweg einen anderen Zusatz an denselben Werktitel („SRD 5.2.1
-  (Deutsch)", „Basic Rules (2014) (D&D Beyond)", „Spielerhandbuch (Deutsch, 2014er
-  Regeln)"); nebeneinander waren die Quellen dadurch nicht vergleichbar, und die Website
-  musste die Zusätze beim Anzeigen wieder herausrechnen. Durchgesetzt wird der Standard
-  beim **Schreiben** (`importer/quellen.werktitel`, gerufen in `registriere_quelle`) —
-  eine Anzeige-Kosmetik hätte jede Ausgabe einzeln nachbauen müssen. Bestands-DBs zieht
-  `db.stelle_schema_sicher()` einmalig nach (`normalisiere_titel`), damit ein DDB-Buch
-  dafür nicht neu importiert werden muss.
+  **Beschriftungs-Standard:** `titel` trägt **nur den Werktitel** — kein „(Deutsch)",
+  „(2014)", „(D&D Beyond)", „(Druck)". Sprache, Regelstand und Bezugsweg stehen in
+  `sprache`, `edition` und `herkunft` und werden **daraus** angezeigt; sonst hängt jeder
+  Importweg einen anderen Zusatz an denselben Werktitel und die Quellen sind nebeneinander
+  nicht mehr vergleichbar. Durchgesetzt beim **Schreiben**
+  (`importer/quellen.werktitel`, gerufen in `registriere_quelle`); Bestands-DBs zieht
+  `db.stelle_schema_sicher()` einmalig nach (`normalisiere_titel`).
 - **`eintraege`** — Inhalts-Chunks (Rückgrat): `kategorie`, `name_de`/`name_en`, `edition`
   (**NOT NULL** → kein verwaister Inhalt), `seite` (optional), `body_md`, `kontext`
   (Breadcrumb). FK-Cascade von `quellen`.
@@ -139,21 +135,19 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
   gesamte Bestand bräuchte einen Re-Import. Bestands-DBs backfillt
   `db.stelle_schema_sicher()` einmalig aus dem Body; die Lesepfade kommen ohne die Spalte
   aus, weil der Serving-Pfad read-only ist und **nicht** migriert.
-  **Ehrlich zur Wirkung:** Der Laufzeitgewinn ist klein. Die beiden echten Abfragen
-  (`charakter.py`) filtern schon auf `kategorie` + `edition` vor und liefen nie über einen
-  Full Scan — gemessen **0,049 → 0,030 ms (Faktor 1,7)**. Der Ertrag liegt darin, dass der
-  Breadcrumb ein *Feld* ist statt eines in ein LIKE-Muster interpolierten Strings.
+  **Ehrlich zur Wirkung:** Der Laufzeitgewinn ist klein (Faktor 1,7 auf einer Abfrage, die
+  ohnehin auf `kategorie` + `edition` vorfiltert). Der Ertrag ist, dass der Breadcrumb ein
+  *Feld* ist statt eines in ein LIKE-Muster interpolierten Strings.
 - **`zauber_meta`/`monster_meta`/`gegenstand_meta`** — strukturierte Facetten, erscheinen
   additiv als `facetten` in den Detail-Tools (der `body_md` bleibt unangetastet).
   `zauber_meta`: `grad`, `schule`, `klassen`, `reichweite_m`, `komponenten`, `dauer_min`,
   `konzentration`, `ritual` · `monster_meta`: `hg`, `typ`, `rk`, `tp` ·
   `gegenstand_meta`: `seltenheit` (noch ungeschrieben), `preis_cent`.
-  **Einziger Schreiber: `importer/facetten_seeder.py`** (seit 28.07.2026, Befund C1) — er
-  leitet aus `body_md` ab, mit genau den Parsern, die der Serving-Pfad ohnehin ruft
-  (`app/facetten.py`, `srd_zauberbruecken.kopf_felder`, `srd_begriffsbruecken.preis_cent_von`).
-  Vorher schrieb **nur** der Open5e-Import, und zwar aus den nativen API-Feldern in einen
-  zweiten Wertraum (`hg = "10.0"` statt kanonisch `"10"`, `schule = "Evocation"` statt
-  `"hervorrufung"`) — auf dem Pi waren alle drei Tabellen deshalb schlicht leer.
+  **Einziger Schreiber: `importer/facetten_seeder.py`** — er leitet aus `body_md` ab, mit
+  genau den Parsern, die der Serving-Pfad ohnehin ruft (`app/facetten.py`,
+  `srd_zauberbruecken.kopf_felder`, `srd_begriffsbruecken.preis_cent_von`). Ein zweiter
+  Schreiber aus nativen API-Feldern erzeugte einen zweiten Wertraum (`schule = "Evocation"`
+  statt kanonisch `"hervorrufung"`) und damit Facetten, die kein Filter fand.
   Gespeichert wird immer der **kanonische Schlüssel**; die deutsche Anzeigeform macht erst
   die Ausgabe (`_facetten_von`). Was der Text nicht hergibt, bleibt `NULL` — nie geraten.
 
@@ -177,8 +171,8 @@ Quellen vereinheitlichen, Provenienz (Quelle/Edition/Seite) sichtbar behalten.**
   `unicode61 remove_diacritics 2`, plus **drei Trigger** (INSERT/UPDATE/DELETE).
 
 **Getestet:** Trigger feuern, bm25 rankt, `edition NOT NULL` greift, Cascade-Delete lässt die
-FTS sauber. Alt-DBs (v0/v1) heilt `app.db.connect()` beiläufig auf Schema v2 — jeder
-Import-/Admin-Aufruf genügt.
+FTS sauber. Alt-DBs heilt `app.db.connect()` beiläufig auf den aktuellen Stand (v3, inkl. der
+Provenienz-Spalten) — jeder Import-/Admin-Aufruf genügt.
 
 ---
 
@@ -195,9 +189,30 @@ justieren über `SPLIT_REGELN` / `MERGE_REGELN` / `BEREINIGUNG` je Quelle in
 Nach jedem Import: **FTS `rebuild`** (macht der Importer selbst). Re-Import ist **atomar**
 (Kandidat → Prüfung → `os.replace`), idempotent, mit Schrumpf-Schutz.
 
+**Quellbezug: fehlt die Datei, holt der Import sie** (`importer/quellbezug.py`). Führt ein
+`[[quelle]]`-Block eine `quell_url` und liegt unter `dateipfad` nichts, lädt der Import die
+Datei dorthin — der Weg für frei verteilte PDFs (die drei Errata-Bände). Netz ist hier nichts
+Neues: `glossar` und `open5e` rufen an derselben Stelle APIs, die Laufzeit bleibt offline (Q7).
+
+Der Bezug braucht ein **beschreibbares** `quellen/`. Am Mac ist es das; im Pi-Container
+bewusst nicht (`:ro`) — dort ist der Weg zweistufig (§8, „Errata importieren").
+
+**Die tragende Regel: eine VORHANDENE Datei wird nie angefasst.** Nicht überschrieben, nicht
+verglichen, nicht „aktualisiert". Unter `quellen/` liegen kuratierte und reparierte PDFs — ein
+Bezug, der die Originaldatei ersetzt, macht stundenlange Handarbeit lautlos zunichte, und zwar
+genau dann, wenn jemand routiniert einen Re-Import fährt. Wer eine neue Auflage will, löscht
+die Datei bewusst. Dazu drei Prüfungen, bevor eine Antwort als Quelldatei gilt: **https**,
+ein Größen-Deckel und die **magischen Bytes** — nicht der Content-Type, denn ein Portal, das
+eine Anmelde- oder Cloudflare-Seite mit HTTP 200 ausliefert, ist der Normalfall, und ein
+HTML-Dokument namens `PHB-2024_v1.pdf` fiele sonst erst im PDF-Parser auf. Führt die Config
+einen `quell_hash`, ist er ein **Pin** (V10): passt er nicht, liegt an derselben URL ein
+anderer Inhalt — dann bricht der Import ab, statt `versions_stand` zu einer falschen Aussage
+über den Bestand zu machen.
+
 | Quelle | Weg |
 |---|---|
 | **Born-digital-PDF** (dt. SRD) | `[[quelle]]`-Block in `config/foliant.toml` → `admin import --quelle <kuerzel>` |
+| **Frei verteilte PDFs** (Errata) | dasselbe, plus `quell_url` (+ `quell_hash` als Pin) — die Datei holt der Import |
 | **Scans MIT OCR-Textschicht** (dt. 2014-Bücher) | Triage meldet „DIGITAL“ — misst aber nur, OB Text da ist, nicht die Chunk-Struktur: `pymupdf4llm` vergibt Heading-Ebenen relativ zum Gesamtdokument, dort liegt der Inhalt komplett auf H6 → eigene `SPLIT_REGELN` mit Level 6 nötig (sonst 3 Riesen-Chunks je Buch, Befund 27.07.2026). **Folgefalle:** auf H6 landet dann auch der Zauberkopf; `_LABEL_HEADING` fing nur die **fette** Form (`**Reichweite:** 9 m`), die Scans setzen sie blank → `KOPF_HEADING` |
 | **Gescannte PDFs** | `admin pdf-triage` (Befund) → `admin ocr-pdf` (`--redo` bei Alt-OCR, `--voll` = Neuaufbau) → normale Pipeline |
 | **Browser-Druck-PDFs** (DDB-Ausdrucke) | reparierte Original-Schicht **oder** Voll-OCR, je nach Schaden; Konvertierung am Mac |
@@ -316,19 +331,14 @@ niedrig. **Sechs Werkzeuge, sechs verschiedene Handlungen:**
 | `foliant_hol_attributswerte` | Attributsvergabe 2024, am Bestand belegt |
 | `foliant_pruefe_build` | Build gegen den 2024-Bestand prüfen |
 
-**Warum `kategorie` Pflicht ist und nicht optional:** Bis zum 30.07.2026 gab es 16 Werkzeuge,
-davon zwölf Kopien voneinander — acht `foliant_hol_<typ>` mit identischer Signatur und vier
-`foliant_liste_<typ>` ohne jeden Parameter. Ihr unterscheidendes Merkmal war ein fest
-verdrahteter Kategorie-String, also genau der Wert, den `foliant_suche_bestand` seit jeher
-als Parameter führt. Der Werkzeugname **war** damit der Disambiguator: ohne Kategorie liefert
-der Detailpfad bei „Schild" still den Gegenstand statt des Zaubers. Deshalb ist sie das
-einzige Pflichtfeld — die Ersparnis liegt im Schema, nicht in der Genauigkeit.
-Gemessen: 13 910 → 9 239 Byte Schema, rund 1 170 Token weniger je Verbindung.
+**Warum `kategorie` Pflicht ist und nicht optional:** Sie ist der Disambiguator — ohne sie
+liefert der Detailpfad bei „Schild" still den Gegenstand statt des Zaubers. Vorher trugen
+acht `foliant_hol_<typ>`-Werkzeuge dieselbe Unterscheidung im *Namen*; als Parameter kostet
+sie ein Feld statt eines halben Schemas (rund 1 170 Token weniger je Verbindung).
 
 - **Status:** `/health` (offen), `/ready` (prüft DB + FTS, 503 bei kaputtem Bestand)
 
-**Wo der Code liegt** (Stand 30.07.2026 — `app/tools/` war vorher zwei Dateien mit
-1429 und 1124 Zeilen):
+**Wo der Code liegt:**
 
 | Datei | Inhalt |
 |---|---|
@@ -337,9 +347,9 @@ Gemessen: 13 910 → 9 239 Byte Schema, rund 1 170 Token weniger je Verbindung.
 | `nachschlagen.py` | Detailabruf (`foliant_hol_eintrag`) und das Glossar-Werkzeug |
 | `charakter.py` | Optionslisten, Attributsregeln, Build-Prüfung |
 
-Die Richtung ist eine Regel, kein Zufall: **`ausgabe.py` kennt die Werkzeuge nicht.**
-Vorher griff `charakter.py` über sieben Zugriffe in `nachschlagen.py`-Interna hinein
-(`_ns.HINWEIS_LEER`, `_ns._anzeige_name` …); jetzt importieren beide dieselbe Schicht.
+Die Richtung ist eine Regel, kein Zufall: **`ausgabe.py` kennt die Werkzeuge nicht** —
+sonst greift der eine Werkzeug-Pfad in die Interna des anderen, statt dass beide dieselbe
+Schicht importieren.
 Die **Namensrelevanz** (`_name_score`, `_eintrag_namen`) liegt in
 [`app/glossar.py`](app/glossar.py) — dort, wo auch ihre Schwelle `FUZZY_NAME` und die
 Normalisierung wohnen; sie war die einzige Stelle, an der sich Such- und Detailpfad
@@ -352,6 +362,16 @@ tragen eine stabile `eintrag_id`, über die der Detailabruf denselben Eintrag ex
 **Arbeitsteilung:** Der Server liefert Daten, Suche und Validierung; **Claude führt das
 Gespräch.** Die Verhaltensregeln laufen über drei Kanäle — der zuverlässigste sind die
 **Grounding-Hinweise in den Tool-Ausgaben** (siehe [SPEC.md](SPEC.md) §7).
+
+**Wo die Prompt-Texte liegen.** Die drei Kanäle speisen sich aus zwei Dateien, die synchron
+bleiben müssen (`tests/test_verhaltensregeln.py` erzwingt das für die tragenden Regeln):
+`config/stil.py` (Server-Instruktion + Tool-Beschreibungen) und `config/projektanweisung.md`
+(Copy-Paste ins Claude-Projekt). Dazu kommt **`config/discord_zusatz.md`** — **kein vierter
+Kanal**, sondern eine Darstellungs-Ergänzung: Sie hängt an der Projektanweisung und regelt
+nur, was Discord anders kann als der Chat (~1800 Zeichen je Absatz, keine Markdown-Tabellen
+und keine `#`-Überschriften, Statblöcke daher als Codeblock oder fette Feldzeilen). Eine
+*Verhaltens*regel gehört dort nie hinein, sonst kennt der MCP-Weg sie nicht — genau das prüft
+`test_discord_zusatz_ist_nur_darstellung`.
 
 ---
 
@@ -382,7 +402,7 @@ DDB-PDF (EN) ──[1 Extractor]──► neutrales Modell (EN) ──[2 Überse
 
 **Zwei LLM-Stufen statt einer.** (1) Belegte Begriffe kommen deterministisch aus dem Glossar.
 (2) Stufe 1 übersetzt unbelegte Eigennamen („Warrior of Shadow") in einem kurzen eigenen
-Aufruf → §5-Form mit `*` **und** als bindende Vorgabe für Stufe 2. (3) Stufe 2 übersetzt die
+Aufruf → S4/S5-Form mit `*` **und** als bindende Vorgabe für Stufe 2. (3) Stufe 2 übersetzt die
 Fließtexte mit allen Namen als Vorgabe. Ohne diese Trennung hieß derselbe Name im Feld
 „Krieger des Schattens" und im Fließtext „Kämpfer des Schattens". *Gemessen: Stufe 1 ≈ 6 s,
 Stufe 2 ≈ 37 s, gesamt ~44 s (API-bedingt 42–80 s).*
@@ -428,7 +448,7 @@ mehrdeutige Lemmata („Rope": dnddeutsch kennt nur Hanf-/Seidenseil).
   nie Text zerreißen). Merkmalskopf als eigene fette Zeile, darunter die Absätze, zuletzt die
   Aktionsökonomie als `· …`-Zeilen.
 - **Eine Schriftgröße je Kasten**; Fortsetzungsseiten erben die Größe der Ursprungsbox.
-- **Nie stumm überlaufen:** Auto-Fit → §5-Klammer opfern → horizontal stauchen.
+- **Nie stumm überlaufen:** Auto-Fit → S4-Klammer opfern → horizontal stauchen.
 - **Fortsetzungskopf immer**, wenn ein Merkmal über die Box bricht; Vorlagen-Kopien tragen nur
   den **Namen** im Kopf. Seitenzahlen nur, wenn Fortsetzungsseiten eingefügt wurden.
 - **Deterministische Notation:** d→W auf **jedem** Feld (5d8→5W8); Zauber-Notizen `V/S`→`V/G`,
@@ -466,6 +486,9 @@ Golden-Tests laufen gegen sie und sind ebenfalls gitignored.
 python db/init_db.py data/foliant.sqlite
 python -m app.admin import --quelle srd-de              # dt. SRD (Reparaturpaket greift)
 python -m app.admin import --quelle open5e-srd-2024     # Open5e-API
+python -m app.admin import --quelle errata-phb-2024-en  # offizielle Korrekturen, PDF wird geholt
+python -m app.admin import --quelle errata-dmg-2024-en
+python -m app.admin import --quelle errata-mm-2025-en
 python -m app.admin import --quelle glossar             # inkl. Kern-Singulare
 ```
 Reihenfolge: **Bestand → Facetten → Glossar.** Die Facetten laufen automatisch am Ende jedes
@@ -528,10 +551,36 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
   ```
   docker compose exec -T foliant python -m app.admin suchbericht        # --tage 30 --json
   ```
+  **Zwei Signalarten, und die erste ist die stärkere.** Ganz oben stehen die von der Runde
+  **markierten Antworten** (👎 in Discord → Tabelle `rueckmeldungen`, §9): ein Urteil, kein
+  Messwert — genau die Fehlerklasse, die *gefunden* hat und trotzdem falsch war und deshalb
+  in keiner Statistik auftaucht. Danach die gemessenen:
   Nulltreffer/Fuzzy-Landungen/Mehrdeutigkeiten/Übersetzungs-Lücken sind die
   Kuratier-Kandidaten für Glossar-Paare und Chunking-Korrekturen; der Kopf liefert die
   B9-Antwortzeiten (p50/p95). Die Log-DB liegt bewusst außerhalb von Backup-Glob und
-  Manifest und ist im Datasette-Container (read-only auf `data/`) direkt browsbar.
+  Manifest.
+- **Zum bloßen Nachschauen** („was liegt gerade an?") genügt `admin suchbericht` ohne
+  `--json`: Die markierten und die gelobten Antworten stehen als **erste zwei Abschnitte**,
+  mit Datum, Frage und anklickbarem Link. Eine Auswertung braucht es dafür nicht.
+  Der `datasette`-Container wäre der komfortablere Weg und ist auf beide DBs eingestellt —
+  **auf dem Pi läuft er aber nicht** (04.08.2026 geprüft): Das offizielle Image ist
+  amd64-only und stirbt auf ARM64 mit `exec format error`, und der im compose-Kommentar
+  genannte Ausweg („im foliant-Container nachinstallieren") scheitert an dessen
+  `read_only`-Härtung. Beides bleibt so — die Härtung ist mehr wert als der Komfort.
+- **Der Durchgang läuft zeitgesteuert, nicht auf Zuruf** (04.08.2026). Zweimal pro Woche
+  fährt eine geplante Aufgabe auf Davids Mac den Ablauf aus
+  `.claude/ablaeufe/rueckmeldungen.md`: Bericht holen (`make bericht-pi`), Gesprächskontext
+  je Markierung nachladen (`make kontext-pi`), gegen die Regel-IDs prüfen, **Freigabekarten**
+  vorlegen. **Ohne neue Rückmeldung endet sie ohne Ausgabe** — eine Aufgabe, die
+  regelmäßig Erfolg meldet, wird weggeklickt, und mit ihr die Meldung, die zählt.
+  Sichtungsstand: `config/rueckmeldungen_stand.json` (Hochwassermarke, Entscheidung je
+  Befund; bewusst versioniert statt in der Protokoll-DB, damit der Fortschritt im Diff
+  steht und die Produktion keinen Schreibbefehl braucht). Umgesetzt wird **nichts** ohne
+  Davids Freigabe, mit einer benannten Ausnahme (11.08.2026): ein 👍 auf eine
+  Bestandsaussage darf ohne Rückfrage einen Golden-Test bekommen — die einzige Klasse, die
+  kein Verhalten ändert. Format, Schranken und Ablage: `.claude/ablaeufe/rueckmeldungen.md`,
+  bewacht von `tests/test_rueckmeldungs_ablauf.py`; die übrigen Zeitläufe:
+  `.claude/ablaeufe/LIESMICH.md`.
 
 ### Admin-CLI (vollständig)
 ```
@@ -546,7 +595,7 @@ check         Integritaet, FK, FTS-Suchbarkeit, Editionen, Textqualitaet, Facett
 qualitaet-basis  Basiswert bekannter Datenmaengel neu erheben [--schreiben] - nur am Vollbestand sinnvoll
 glossar-audit Glossar-Stand und -Herkunft pruefen
 glossar-paare Kandidaten fuer neue Glossar-Paare zeigen [--nur-neue] [--json]
-suchbericht   Auswertung des Abfrage-Protokolls: Nulltreffer, Fuzzy, Mehrdeutigkeiten
+suchbericht   Kuratier-Signale: MARKIERTE Antworten, Nulltreffer, Fuzzy, Mehrdeutigkeiten
 backup        konsistentes, verifiziertes Online-Backup mit Rotation
 ddb-pruefe | ddb-import | ddb-import-all | ddb-remove
 ```
@@ -561,21 +610,69 @@ ssh -L 8001:localhost:8001 <nutzer>@<pi-ip>     # dann http://localhost:8001
 ### Errata importieren (offizielle Korrekturen)
 
 Die drei Errata-PDFs (PHB 2024, DMG 2024, MM 2025) bietet WotC frei zum Herunterladen an;
-die `[[quelle]]`-Blöcke stehen fertig in `config/foliant.toml` (`errata-*`, `inhaltsart =
-"errata"`, Band 70). Ablauf: PDF nach `quellen/errata/` legen, dann
+die drei `[[quelle]]`-Blöcke liegen **einsatzbereit in
+[`config/foliant.example.toml`](config/foliant.example.toml)** (`errata-*`, `inhaltsart =
+"errata"`, Band 70, `quell_url` + gepinnter `quell_hash`) — dort und nicht in
+`config/foliant.toml`, weil die echte Config gitignored **und** vom Deploy-Rsync
+ausgeschlossen ist: jedes Gerät führt seine eigene. Die Blöcke enthalten nichts Privates
+(freie WotC-URLs plus Prüfsummen), also einmal in die eigene `foliant.toml` übernehmen.
+Danach **ein Befehl je Band, die PDF holt der Import selbst** (§4 „Quellbezug"):
 
 ```
 .venv/bin/python -m app.admin import --quelle errata-phb-2024-en
+.venv/bin/python -m app.admin import --quelle errata-dmg-2024-en
+.venv/bin/python -m app.admin import --quelle errata-mm-2025-en
 ```
 
-**Beim ERSTEN Import die Bilanzzeile lesen.** Errata-PDFs haben keine Heading-Struktur,
-die der Konverter erkennen könnte — jede Korrektur ist ein Absatz mit fettem Kopf
-(`**Jumping (p. 30).** …`). `_errata_headings` in `importer/import_markdown.py` macht
-daraus `### Jumping`; ohne diesen Schritt entstünde **ein Riesen-Chunk je Rubrik**, in dem
-die Suche nichts findet (derselbe Fehler wie bei den 2014-Scans, 27.07.2026). Das Muster
-ist aus dem veröffentlichten Aufbau abgeleitet, aber **nie an den echten Dateien
-justiert** (sie lagen bei der Umsetzung nicht vor). Greift es nicht, meldet die Bilanz das
-als `WIRKUNGSLOS` — dann das Muster nachziehen, statt den Riesen-Chunk zu importieren.
+**Auf dem Pi geht der Bezug NICHT im Container** (Befund beim ersten echten Pi-Import,
+03.08.2026). `quellen/` ist dort absichtlich `:ro` gemountet (`docker-compose.yml`), damit
+die getunnelte Laufzeit keine Quelldateien schreiben kann — und ein `docker compose run -v`
+hebt das **nicht** auf: Compose behält den `:ro`-Mount der Service-Definition. Diese
+Härtung bleibt. Der Weg auf dem Pi ist deshalb zweistufig, wie beim DDB-Import: **Datei auf
+dem Host holen, Import im Container.**
+
+```sh
+# auf dem Pi, im Host-Verzeichnis ~/foliant/quellen/errata/
+curl -fsSL -o PHB-2024_v1.pdf <quell_url aus der config>
+sha256sum PHB-2024_v1.pdf          # MUSS dem quell_hash der config entsprechen
+docker compose exec -T foliant python -m app.admin import --quelle errata-phb-2024-en
+```
+
+Der Hash-Vergleich ist hier **Handarbeit und deshalb Pflicht**: Er ist die einzige Prüfung,
+die auf diesem Weg entfällt — `hole_wenn_fehlt` fasst eine vorhandene Datei nicht an und
+prüft dann auch ihren Hash nicht (§4, tragende Regel). Wer ihn überspringt, importiert im
+Zweifel eine neue Auflage unter `versions_stand = "Errata Version 1.0"`.
+
+*Offen als Verbesserung:* ein eigener Import-Profil-Service mit `quellen` read-write, wie es
+`ddb-exporter` für sein Secret schon macht — dann gilt der Ein-Befehl-Weg auch auf dem Pi
+([BACKLOG.md](BACKLOG.md) §4).
+
+Errata-PDFs haben keine Heading-Struktur, die der Konverter erkennen könnte — jede
+Korrektur ist ein Absatz mit fettem Kopf (`**_Polymorph (p. 306)._**`).
+`_errata_headings` in `importer/import_markdown.py` macht daraus `### Polymorph`; ohne
+diesen Schritt entstünde **ein Riesen-Chunk je Rubrik**, in dem die Suche nichts findet
+(derselbe Fehler wie bei den 2014-Scans, 27.07.2026).
+
+**Am echten Dokument justiert (03.08.2026).** Bis dahin war das Muster nur aus dem
+veröffentlichten Aufbau abgeleitet, und der erste echte Import zeigte, warum das nicht
+reicht — mit zwei Befunden, von denen der zweite der schlimmere war:
+
+1. **Vier der 17 PHB-Korrekturen beginnen mitten in der Zeile,** direkt hinter dem
+   Satzende der vorigen (`… to move”. **_Poisoner (p. 206)._** In the Brew Poison …`).
+   Der Kopf-Regex verlangte den Zeilenanfang — Poisoner, Conjure Fey, Polymorph und
+   Shapechange fehlten stumm im Bestand. `_ERRATA_KOPF_MITTEN` setzt sie jetzt zuerst auf
+   eigene Zeilen.
+2. **Die Bilanz zählte falsch — blind und laut zugleich.** Kandidat war „fetter Lauf am
+   Zeilenanfang": die vier verpassten Köpfe waren damit *nie* Kandidaten, dafür galt der
+   Dokumenttitel (`**Player’s Handbook (2024)**`) als verpasster Kopf. Gemeldet wurde
+   „1 von 14" — ein Fehlalarm, während der echte Ausfall unerwähnt blieb. **Das ist die
+   Lehre für jede Zählung dieser Art:** Sie muss messen, was gesucht wird (Köpfe *mit
+   Seitenangabe*, wo immer sie stehen), nicht, was leicht zu zählen ist.
+
+Endstand: **43 Korrekturen** aus drei PDFs (PHB 17, MM 24, DMG 2 — der DMG-Band ist
+wirklich so klein), Bilanz still. Greift das Muster bei einer künftigen Fassung nicht,
+meldet die Bilanz `WIRKUNGSLOS` — dann das Muster nachziehen, statt den Riesen-Chunk zu
+importieren.
 
 Zwei Dinge, die dabei bewusst so sind: Der **Eintragsname ist die betroffene Regel**
 („Fireball") — nur so findet das Erratum, wer nach der Regel sucht; die Kollision mit dem
@@ -618,19 +715,22 @@ Einmal aus- und wieder einloggen. Test: `docker run --rm hello-world`.
 ```sh
 make deploy-pi
 ```
-Das ist der **eine** Weg: rsync → `docker compose up -d --build foliant` → Golden-Suite am
-Vollbestand → **`admin check` am Vollbestand** (`make check-pi`). Alle vier Schritte hängen
-zusammen, weil das Weglassen jedes einzelnen schon schiefgegangen ist (Rebuild vergessen →
-alter Code meldet „Erfolg"; Golden vergessen → korpusabhängige Regression bleibt
-unentdeckt).
+Das ist der **eine** Weg: rsync → `docker compose up -d --build --no-deps foliant web
+discord` → Golden-Suite am Vollbestand → **`admin check` am Vollbestand** (`make check-pi`).
+Alle vier Schritte hängen zusammen, weil das Weglassen jedes einzelnen schon schiefgegangen
+ist (Rebuild vergessen → alter Code meldet „Erfolg"; Golden vergessen → korpusabhängige
+Regression bleibt unentdeckt).
 
-**Warum der Check seit dem 01.08.2026 dazugehört:** `make test` fährt ihn lokal, aber die
-Dev-DB ist ein **Subset** (4 von 15 Quellen). Alles, was erst am Vollbestand sichtbar wird,
-fällt dort nicht auf — an genau dieser Lücke ist eine falsche Prioritätsband-Tabelle
-durchgegangen, die an einer Config kalibriert war, welche drei der betroffenen Bücher gar
-nicht enthält. `admin check` endet bei Problemen mit Exitcode ≠ 0 und bricht damit den
-Deploy ab: Ein Import, der **neue** Datenmängel einschleppt, geht nicht mehr still live
-(was bekannt ist, steht in `config/qualitaet_basis.json`).
+**Alle drei Code-Dienste, nicht nur `foliant`:** `web` und `discord` backen dasselbe Image
+aus demselben Repo — wird nur `foliant` gebaut, laufen Bot und Website nach einem Deploy
+still mit dem alten Stand weiter. `--no-deps` verhindert dabei, dass `depends_on` den Tunnel
+mit durchstartet (§12).
+
+**Warum der Check dazugehört:** `make test` fährt ihn lokal, aber die Dev-DB ist ein
+**Subset** (7 von 18 Quellen) — alles, was erst am Vollbestand sichtbar wird, fällt dort
+nicht auf. `admin check` endet bei Problemen mit Exitcode ≠ 0 und bricht damit den Deploy
+ab: Ein Import, der **neue** Datenmängel einschleppt, geht nicht mehr still live (was
+bekannt ist, steht in `config/qualitaet_basis.json`).
 
 **Das SSH-Ziel steht einmalig als `PI=` in der `.env`** (gitignored; Vorlage in
 `.env.example`) — nicht in dieser Doku: das Repository ist öffentlich und die
@@ -662,36 +762,63 @@ als es zu löschen, und baut danach neu.
 
 ### Discord-Bot einrichten (einmalig)
 
-1. **Entwicklerportal** (discord.com/developers): Application anlegen → *Bot* →
-   Token erzeugen (→ `.env` `DISCORD_BOT_TOKEN`) → **Message Content Intent aktivieren**
-   (Privileged Intent; Review-Pflicht erst ab 100 Servern — irrelevant bei einer Guild).
-   Profilbild: `deploy/discord_avatar.svg` nach PNG rendern und unter *Bot → Avatar*
-   hochladen (Discord nimmt kein SVG) —
-   `qlmanage -t -s 512 -o /tmp deploy/discord_avatar.svg` legt
-   `/tmp/discord_avatar.svg.png` ab.
-2. **Einladen** mit minimalen Scopes/Rechten: Scopes `bot` + `applications.commands`,
-   Rechte *Send Messages*, *Create Public Threads*, *Send Messages in Threads*,
-   *Read Message History*.
-3. **`.env`**: `DISCORD_GUILD_ID` (Server-ID der Runde — Pflicht, sonst startet der Bot
-   nicht), optional `DISCORD_KANAL_IDS`, `DISCORD_TAGESDECKEL` (Default 100/Tag),
-   `DISCORD_COOLDOWN_S` (Default 10 s zwischen zwei Fragen desselben Nutzers).
-4. **Start:** `docker compose up -d --build --no-deps discord` · Logs:
-   `docker compose logs -f discord` · Nutzung: `/regel <frage>` oder @Foliant erwähnen;
-   Folgefragen im automatisch erzeugten Thread. `/regel-privat <frage>` antwortet nur
-   dem Fragenden (ephemer, deshalb ohne Thread für Nachfragen) — ein **eigener Befehl**
-   statt eines Schalters an `/regel`, weil Discord bei der Eingabe von „/regel" beide
-   Namen mit Beschreibung anzeigt und die Wahl damit vor dem Tippen steht; der Schalter
-   war nur zu finden, wenn man ihn schon kannte. Der Verlauf bleibt
-   bewusst in-memory, ein Neustart löscht ihn — der Bot liest den Thread dann aber aus
-   der Discord-Historie zurück (`app/discord_bot/rebuild.py`, max. 40 Nachrichten); nur
-   wenn dort nichts Verwertbares steht, sagt er im Thread, dass er vergessen hat.
-5. **Kontrolle:** Discord-Anfragen erscheinen im Abfrage-Protokoll
-   (`admin suchbericht`) — derselbe Kurations-Kreislauf wie beim MCP.
-6. **Für die Runde erklärt** ist der Bot auf der Website (Karte „Foliant in Discord",
-   `app/charakterbogen/templates/index.html`): Befehle, Threads, `/regel-privat`, Schranken
-   und der Hinweis, dass Discord Antworten dauerhaft im Kanal stehen lässt. Ändern sich
-   Befehle oder Schranken, gehört die Karte mitgezogen — sie ist das, was die Spieler
-   lesen.
+**Der Weg ist ein Skript, der Bot-Token die einzige Eingabe:**
+
+```sh
+bash deploy/discord_einrichten.sh          # laeuft LOKAL am Mac, Pi-Ziel aus .env
+```
+
+Es fragt Application ID und Server-ID selbst bei Discord ab
+(`deploy/discord_api.py` → `/users/@me` und `/users/@me/guilds`), baut den Einladungslink
+mit **genau** den fünf Rechten, die `app/discord_bot/bot.py` braucht, schreibt
+`DISCORD_BOT_TOKEN` und `DISCORD_GUILD_ID` in die Pi-`.env` und startet den Dienst.
+Kein Abtippen von IDs, kein Entwicklermodus. Der Token wird verdeckt gelesen, **nie** als
+Argument übergeben (in `ps` sichtbar) und auf dem Pi nach dem Setzen geschreddert — dasselbe
+Muster wie beim DDB-Cobalt.
+
+Zwei Dinge bleiben Handarbeit, weil Discord sie nicht über die API zulässt:
+1. Application + Bot im **Entwicklerportal** anlegen (discord.com/developers) und den Token
+   erzeugen (*Bot → Reset Token*).
+2. **Message Content Intent aktivieren** (Privileged Intent; Review-Pflicht erst ab
+   100 Servern — irrelevant bei einer Guild). Ohne das reagiert der Bot nicht auf @Mentions.
+
+Optional das Profilbild: `deploy/discord_avatar.svg` nach PNG rendern und unter *Bot → Avatar*
+hochladen (Discord nimmt kein SVG) —
+`qlmanage -t -s 512 -o /tmp deploy/discord_avatar.svg` legt `/tmp/discord_avatar.svg.png` ab.
+
+**Von Hand** geht es weiter mit Scopes `bot` + `applications.commands`, den Rechten *Send
+Messages*, *Create Public Threads*, *Send Messages in Threads*, *Read Message History*,
+`DISCORD_BOT_TOKEN` + `DISCORD_GUILD_ID` in die Pi-`.env` und
+`docker compose up -d --build --no-deps discord`.
+
+**Weitere `.env`-Schalter** (alle optional): `DISCORD_KANAL_IDS`, `DISCORD_TAGESDECKEL`
+(Default 100/Tag), `DISCORD_COOLDOWN_S` (Default 10 s zwischen zwei Fragen desselben
+Nutzers). `DISCORD_GUILD_ID` ist Pflicht — ohne sie startet der Bot nicht.
+
+**Nutzung und Betrieb:**
+- Logs: `docker compose logs -f discord`.
+- Befehle: `/regel <frage>`, `/regel-privat <frage>` (ephemer, ohne Thread), `/hilfe`
+  (statisch, ohne API-Kosten), `/bestand` (Bücherliste, ephemer, ohne API-Kosten),
+  Kontextmenü „Foliant fragen", @Mention. Beide `/regel`-Formen
+  tragen eine optionale `fassung`-Wahl (2024/2014). Was die Befehle können und **warum sie so
+  geschnitten sind**, steht im Entscheidungsregister (§10).
+- **Rückmeldung der Runde:** Eine **👎-Reaktion** auf eine Bot-Antwort macht sie zum
+  Kurations-Kandidaten, eine **👍-Reaktion** zum Kandidaten für Regressionsschutz; der Bot
+  bestätigt beides mit 📝, das Zurücknehmen löscht den Eintrag. Warum es diesen Meldeweg
+  gibt und warum er im Bericht vor jeder Statistik steht: §8.
+  Logik discord-frei in `app/discord_bot/rueckmeldung.py`, Ablage in
+  `protokoll.rueckmeldungen` (was dort steht und was nicht: §13). Getrennte Abfragen mit
+  eigenem Limit je Art: 👍 kommt reflexhaft und damit häufiger, und ein gemeinsames Limit
+  ließe einen Schwall Lob die Fehlermeldungen verdrängen.
+  Das Recht *Add Reactions* trägt nur die Bestätigung: fehlt es, wird die Markierung
+  dennoch notiert. `deploy/discord_einrichten.sh` fordert es an; wer den Bot vorher
+  eingeladen hat, ruft den Einladungslink erneut auf.
+- **Kontrolle:** Discord-Anfragen erscheinen im Abfrage-Protokoll (`admin suchbericht`) —
+  derselbe Kurations-Kreislauf wie beim MCP.
+- **Für die Runde erklärt** ist der Bot auf der Website (Karte „Foliant in Discord",
+  `app/charakterbogen/templates/index.html`): Befehle, Threads, `/regel-privat`, Schranken
+  und der Hinweis, dass Discord Antworten dauerhaft im Kanal stehen lässt. Ändern sich
+  Befehle oder Schranken, gehört die Karte mitgezogen — sie ist das, was die Spieler lesen.
 
 ### Cloudflare Named Tunnel
 Zero-Trust-Dashboard → Networks → Tunnels → **Create tunnel** → Token in die Pi-`.env` als
@@ -804,7 +931,7 @@ DDB-Verzeichnis aufgelöst; schon Exportiertes wird übersprungen.
   leer ankommt und die Frage ist, ob die Struktur oder der Inhalt fehlt.
 
 **Wohin die Bücher landen,** steuert `config/foliant.toml`: `[ddb] ins_hauptbestand = true` →
-Merge in die bediente DB (**so läuft der Pi**, siehe [SPEC.md](SPEC.md) §12.1). Ohne die Zeile
+Merge in die bediente DB (**so läuft der Pi**, siehe [SPEC.md](SPEC.md) §12 Nr. 1). Ohne die Zeile
 landen sie in `data/private/foliant-private.sqlite`, die der Endpoint nicht serviert. Der
 Merge ist in beiden Fällen atomar, mit Backup und Integritätsprüfung.
 
@@ -848,6 +975,75 @@ läuft ohne Änderung weiter.
 | **Errata/Auslegung als `inhaltsart`-Werte, nicht als neue Spalte** (31.07.2026) | Die Pipeline gibt es schon: Config-Pflichtfeld → Validator in `registriere_quelle` → DB → Web-Export → Tool-Ausgabe (SYN-P0-007). Eine eigene Spalte hätte jede dieser Stationen neu verkabeln müssen, und semantisch ist es dieselbe Achse: *was für eine Art Inhalt ist diese Quelle?* Der Spoiler-Schutz bleibt unberührt, weil alle Auswerter auf `== 'abenteuer_setting'` prüfen — die eine Ausnahme (`web.py`, `!= 'abenteuer_setting'`) wurde auf eine Positivliste umgestellt |
 | **Sage Advice trägt `edition = "2014"`** | Das Compendium legt ausschließlich die 2014er Regeln aus; für 2024 gibt es keinen Nachfolger. Gewollte Folge: bei der Standardsuche erscheinen seine Treffer unter `andere_editionen` statt als vermeintliches 2024-Ruling. Der Auto-Import lehnt den Band weiter ab (seine DDB-Kategorie trägt kein 5e/5.5e-Präfix) — der explizite `[[ddb.buch]]`-Block ist der Weg, weil dort die Edition **gesetzt** und nicht geraten wird |
 | **Errata-Lizenz nicht „CC-BY…"** | Die Errata-PDFs sind frei verteilt, aber nicht frei lizenziert. Der Präfix `CC-BY` löst in `app/tools/ausgabe.py` automatisch die SRD-Attribution aus — sie hier anzuhängen wäre eine falsche Rechtsaussage |
+| **Antwortgerüst wird gemessen, nicht begutachtet** (07./08.08.2026) | Der LLM-Richter lag bei Strukturfragen in 2 von 3 Urteilen falsch, während der echte Verstoß unbemerkt in derselben Antwort stand — Struktur ist messbar (`pruefe_geruest`), der Richter behält nur Weiches. Drei Folge-Lehren aus derselben Woche: (1) Jedes neue Prüfmuster wird erst an den gespeicherten Antworten bezahlter Läufe kalibriert (vier von fünf F2-Fehlschlägen waren Fehlalarme des Musters, nicht des Modells). (2) Ein Kanal-3-Hinweis wirkt nur am Werkzeug, das die Antwort tatsächlich liefert — die „Rest-Streuung" waren Listen-Antworten, und die Optionslisten trugen als einziger Weg die Kopfzeilen-Regel nicht. (3) Wo eine Regel zweimal nicht wirkt, wirkt ein wörtliches Muster-Beispiel (DC4: 2/3 rot → 5/5 grün) |
+| **`max_tokens` 8000 + Runden-Cap-Schlussrunde ohne Werkzeuge** (08.08.2026) | Seit B15 setzt eine Unterklassen-Auskunft fünf Stufen-Merkmale zu EINER Antwort zusammen — die riss bei 4000 und 6000 jeweils kurz vor der Pflicht-Belegzeile ab. Und am Rundendeckel kam vorher eine LEERE Antwort zurück: acht Runden bezahlte Recherche, nichts geliefert. Die Schlussrunde geht ohne `tools` raus und braucht den expliziten Auftrag — ohne ihn produzierte das Modell einen Denkblock und keinen Text |
+
+### Entscheidung: Bekannte Quellfehler kennzeichnen, nie korrigieren (03.08.2026)
+
+Das Datenbank-Audit fand drei Stellen, an denen nicht der Import falsch ist, sondern **die
+Quelle**: Das offizielle deutsche SRD 5.2.1 druckt auf S. 302 „TP 287 (23W12+161)" (die
+Formel ergibt 310,5) und auf S. 381 „TP 65 (10W8+30)" (ergibt 75); der Open5e-Datensatz des
+Oktopus trägt KON 0 und einen Rettungswurf +30.
+
+Der naheliegende Griff — `body_md` reparieren — verbietet sich hier, obwohl er bei OCR-Rissen
+richtig ist. **Das Kriterium ist, wo der Schaden entstand.** Ein OCR-Riss ist ein
+Extraktionsschaden: Die Reparatur stellt wieder her, was gedruckt steht. Hier steht das
+Gegenteil: gedruckt ist es wirklich so. Eine stille Korrektur stünde in keinem Diff, wäre
+beim nächsten Re-Import weg und ließe den Bestand etwas sagen, was seine Quelle nicht sagt.
+
+Also die Bauform von V9, nur ohne amtliches Dokument: **Die Korrektur steht daneben.**
+`config/quellfehler.py` führt je Fall den falschen Wortlaut, den belegten richtigen Wert und
+den Beleg **aus dem Bestand selbst** (englische Fassung, offizielles Erratum, Rechenweg);
+die Auskunft trägt ihn als `hinweis_quellfehler` neben dem unveränderten Regeltext.
+
+Dasselbe Register ist die geprüfte Ausnahmeliste der neuen TP-Formel-Prüfung — Beleg, kein
+Deckel: Eine Abweichung **ohne** Registereintrag bricht den Deploy, und ein Registereintrag,
+dessen Wortlaut nicht mehr im Bestand steht, wird gemeldet statt still ignoriert.
+Ausdrücklich **kein** `inhaltsart = 'errata'`: Für den Vampir-Vertrauten gibt es kein
+WotC-Erratum, und eine selbstgeschriebene Notiz als amtliche Korrektur einzuspielen wäre
+eine Falschaussage über den Rechteinhaber.
+
+### Entscheidung: Errata-Kategorien bleiben `regel` — der Rückweg löst es besser (03.08.2026)
+
+BACKLOG §4 fragte, ob die 43 Errata statt `kategorie = "regel"` die Kategorie ihrer
+PDF-Rubrik tragen sollen, damit `foliant_hol_eintrag(kategorie="zauber")` sie findet. Die
+Antwort ist **nein**, und zwar aus drei am echten Dokument gemessenen Gründen:
+
+1. **Die Rubrik ist nicht zuverlässig.** `pymupdf4llm` liest das zweispaltige PHB-Errata in
+   Druckspalten-Reihenfolge: „Conjure Minor Elementals" und „Conjure Woodland Beings" landen
+   physisch **unter** „Appendix C: Rules Glossary", obwohl sie zu Kapitel 7 gehören. Eine
+   rubrikgetriebene Zuordnung träfe 41 von 43 — und läge bei zwei Zaubern falsch.
+2. **Eine Rubrik ist gar nicht abbildbar.** „Character Origins" führt Spezies *und*
+   Hintergründe *und* Herkunftstalente; jede Zuordnung wäre geraten (Regel 1).
+3. **Es löst das Problem nicht ganz.** Selbst mit perfekten Kategorien bliebe die
+   Auffindbarkeit an die Kategorie gebunden.
+
+Stattdessen der **Rückweg**: Detailabruf und Suche hängen die passenden Nachträge als
+`revisionen` an (siehe unten). Das wirkt für **alle** 43 Korrekturen, unabhängig von Rubrik
+und Kategorie, braucht keinen Re-Import und lässt den Kategorie-Filter die harte Zusage
+bleiben, die er ist. Eine halb korrekte `kategorie`-Spalte wäre schlechter als eine
+durchgehend konservative — sie sieht autoritativ aus.
+
+### Entscheidung: Der Rückweg vom Grundtext zu seinem Nachtrag (03.08.2026)
+
+Der Revisions-Layer kannte bis zum Audit nur **eine** Richtung: Drei Stellen nehmen
+Errata/Auslegungen aus etwas heraus (Dublettengruppe, Fassungsvergleich, Optionslisten).
+Dass es zu einem Eintrag eine Korrektur *gibt*, erfuhr man allein dadurch, dass die
+Volltextsuche sie zufällig danebenspülte — und genau das fiel weg, sobald ein
+Kategorie-Filter griff oder der Eintrag direkt geladen wurde. Also in den beiden Fällen, in
+denen jemand **gezielt** nach der Regel fragt.
+
+Der Abgleich läuft über **Namen plus Glossar-Brücke**, nicht über die Kategorie: Alle 46
+Errata-Zeilen tragen `name_de = NULL`, der kanonische Grundtext kommt meist deutsch aus
+`srd-de` mit `name_en = NULL`. Ohne Brücke fände man nur die zufällig gleichlautenden Fälle
+(Balor, Kraken) — mit ihr 27 der 46 Zeilen. Die Edition muss übereinstimmen; die Kategorie
+wird bewusst ignoriert (siehe Entscheidung darüber).
+
+Zwei Fallen, beide im Code kommentiert: Der Hinweis darf **nicht** nach `hinweis_inhaltsart`
+(dort filtert `_markiere_inhaltsart` am Symbol — ein 📌 aus dem Nachschlag ließe ein echtes
+Erratum aus dem Sammelhinweis fallen, derselbe Erosionspfad wie §12), und die Liste darf
+nicht durch `_markiere_inhaltsart` laufen. Kosten am Vollbestand gemessen: 0,3 ms je
+Detailabruf gegen ein p95-Budget von 191 ms bei vier Spielern.
 
 ### Entscheidung: Prioritätsbänder statt vier unabhängiger Zahlen (31.07.2026)
 
@@ -881,6 +1077,115 @@ relative Ordnung aller vorhandenen Quellen bleibt gleich). Entschärft wird sie 
 dadurch, dass die unterlegene Fassung ihre Fundstelle behält (§5) und Wortlaut-Abweichungen
 als Quellkonflikt ausgewiesen werden (SYN-P1-009).
 
+### Entscheidung: Instruktions-Budget durch Entdoppeln (31.07.2026)
+
+`config/stil.py` stand bei 7486 von 7500 erlaubten Zeichen — 14 Zeichen Luft, und der
+Test-Docstring behauptete dabei „~6000". Gelöst **ohne Regelverlust**: Der Abschnitt
+„QUELLEN & VERSION" wiederholte zwei Regeln von weiter oben und fehlte im zweiten Kanal
+ohnehin ganz. Stand danach 7154. Wenn das Budget wieder eng wird, ist Entdoppeln der erste
+Griff — eine Regel zu streichen der letzte.
+
+### Entscheidung: `ddb_exporter`-Module tragen englische Namen (P1-006)
+
+Die Namenskonvention lautet „Bezeichner deutsch" (CLAUDE.md). `importer/ddb_exporter/`
+bricht sie bewusst: `book_archive`, `ddb_client`, `html_to_markdown`, `cli`. Die Module
+bilden fremdes Vokabular ab — D&D-Beyond-API-Felder, Cobalt, Sourcebook, Artefakt-Manifest
+—, und eine deutsche Hülle um englische Feldnamen macht den Abgleich mit der API schwerer
+statt leichter. Die Grenze läuft am Paket: außerhalb von `ddb_exporter/` gilt Deutsch,
+auch für die Aufrufer.
+
+### Entscheidung: `seed_*` bleibt als Verbfamilie (P1-008)
+
+`seed_glossar`, `seed_flexionsbruecke_aus_bestand`, `seed_*` in den Brücken-Modulen: ein
+englisches Verb in sonst deutschem Code. „Seeden" ist der eingeführte Fachbegriff für
+*abgeleitete Daten aus vorhandenem Bestand erzeugen* und trennt diese Läufe sichtbar vom
+`import_*`, das externe Quellen einliest. Eine deutsche Übersetzung („anlegen", „befüllen")
+verwischt genau diesen Unterschied. Als **Familie** angeglichen, nicht einzeln.
+
+### Konvention: `cmd_<cli-name>` spiegelt den CLI-Namen (P1-003)
+
+Jede Admin-Unterbefehls-Funktion heißt wie ihr CLI-Name mit Präfix `cmd_` — so findet man
+von `admin suchbericht` zu `cmd_suchbericht`, ohne zu suchen. **Die CLI-Namen selbst sind
+stabil** und werden nicht umbenannt: Makefile, Deploy-Ablauf und Doku zitieren sie wörtlich,
+eine Umbenennung bräche dokumentierte Befehlszeilen.
+
+### Gemessen und verworfen (28.–29.07.2026)
+
+Drei Ausbauten wurden am **Pi-Vollbestand** nachgemessen und danach nicht gebaut. Sie stehen
+hier, damit sie nicht als „naheliegende Verbesserung" wiederkommen — die Messung ist der
+Beleg, nicht die Meinung.
+
+| Vorhaben | Warum nicht |
+|---|---|
+| **Relationstabelle `eintrag_bezug`** (SYN-E1) | (a) Der Übersetzungsbezug ergäbe 2151 Paare — genau das, was `_dedupe_und_sortiere` ohnehin je Anfrage rechnet, bei 83 ms Suchzeit und **ohne einen einzigen Leser**. (b) Der Editionsbezug über Namensgleichheit (535 Fälle) funktioniert heute schon als `andere_fassungen`. (c) **Der namensgebende Umbenennungsfall „Rasse" → „Spezies" existiert im Bestand nicht** (0 Glossarzeilen). Die 21 Kandidaten sind Klammer-Suffixe und Singular/Plural — beides deckt `KLAMMER_SUFFIX` bzw. `kanonisiere_schreibvarianten` ab. Dazu ist `eintrag_id` nicht importstabil: die Tabelle bräuchte nach jedem Import einen Neuaufbau, also ein neuer Fehlermodus ohne Nutzen |
+| **`edition_quelle` im Glossar nachziehen** (29 % ohne Edition) | Von den 12 echten Konflikten tragen **8 auf beiden Seiten schon eine Edition** — dort ändert Nachziehen nichts. Die übrigen 4 sind die Randfälle ohne Bestandsbezug (Kobold Press, Sandy Petersen, Ulisses), wo eine WotC-Edition zu behaupten **Raten wäre** (Regel 2). Nutzen null, Preis 773 geratene Zeilen plus ein gestörter Konfliktstand |
+| **Kategorie-Korrektor für die 24 Zauberkapitel-Abschnitte** | Der Detektor stufte 134 statt 24 Einträge herab, hätte also echte Zauber verborgen — schlimmer als der Befund. Der Breadcrumb weist sie ohnehin als Regelabschnitt aus |
+
+### Entscheidung: Facetten-Vorfilter mit dem Textprädikat als Autorität (28.07.2026)
+
+Der Facetten-Filter parste für **jeden** Eintrag der Kategorie den vollen Body — 1627
+`zauber_grad`-Aufrufe je Filteranfrage, 41 % der Profilzeit, der aus der Lastmessung benannte
+B9-Hebel. Gelöst **nicht** als „SQL statt Text": Ausgeschlossen werden nur Zeilen, deren
+gespeicherter Meta-Wert nachweislich ein anderer ist (dieselben Parser, also äquivalent);
+Zeilen **ohne** Meta laufen weiter durch das Textprädikat, damit eine ungeseedete Datenbank
+nicht still nichts liefert. Ertrag: 3,5–6,2× je Anfrage, p95 bei vier Spielern 584 → 191 ms.
+
+Die Äquivalenzprobe **schlug zuerst fehl** — und genau das war der Fund: Datenbanken können
+noch Meta-Zeilen aus dem in Phase 3 entfernten Open5e-Schreiber tragen (`Evocation` statt
+`hervorrufung`), und ein Vorfilter dagegen wirft passende Einträge *still* weg. Deshalb prüft
+`_meta_ist_kanonisch` den Wertraum an den Daten selbst (`ritual`/`rk` gab es beim alten
+Schreiber nicht) und schaltet den Vorfilter sonst **ganz ab**. Wer hier optimiert, muss diese
+Probe erhalten.
+
+### Entscheidung: Das Konflikt-Gate muss 0 erreichen können (27.07.2026)
+
+`admin glossar-audit` meldete dauerhaft „12 echte Konflikte" — eine Zahl, die nie 0 werden
+konnte. **Eine Kennzahl, die immer rot ist, hört man auf zu lesen**, und dann fällt der erste
+*echte* neue Konflikt beim nächsten Import nicht mehr auf. Am dt. SRD 2024 nachgemessen
+(Auszählung im Fließtext) zerfielen die 12 in drei Klassen; nur zwei Fälle waren überhaupt
+Dubletten:
+
+| Klasse | Fälle | Behandlung |
+|---|---|---|
+| **Vom SRD entschieden** | `Tree Stride` (Baumwandeln, Gegenform 0×) · `Sunlight Sensitivity` (Gegenform 0×) | in `KERN_SINGULAR_PAARE` → `kanonisiere_konflikte` demotet die Dublette zur Suchvariante. **Ableitung, keine Setzung** |
+| **Geprüfte Homonyme** | `Hide` (Fell/Verstecken) · `Divination` (Schule/Zauber) · `Lucky` (Talent/Halbling-Merkmal) · `Armor` (Ober-/Unterkategorie) · `Weapon Mastery` (srd-de/gedrucktes PHB) | **beide Formen richtig** — eine Auflösung wäre Datenverlust. Stehen in `GEPRUEFTE_HOMONYME`, das Audit weist sie getrennt aus |
+| **Randfälle ohne Bestandsbezug** | `Drown` · `Immolation` · `Investigator` · `Shoggoth` · `Mask of the Wild` | aus Abenteuer-/Drittanbieterbänden oder 2014-Merkmalen ohne 2024-Entsprechung — keine Wirkung auf Auskünfte, bewusst unangetastet |
+
+`GEPRUEFTE_HOMONYME` ist ein **Beleg, kein Deckel**: Es führt die erwarteten Formen explizit
+mit, und taucht eine **dritte** auf, gilt der Fall wieder als ungeprüft und erscheint als
+echter Konflikt. Ein eigener Test hält das fest. Dieselbe Logik trägt
+`config/qualitaet_basis.json` für die Datenmängel (§12) — ein Basiswert, gegen den eine Zahl
+steigen *oder* fallen kann, statt einer Dauerwarnung.
+
+### Entscheidung: Der Discord-Bot bleibt Nachschlagewerk im Gespräch (30.07.–02.08.2026)
+
+Der Bot wird **kein zweites Avrae**. Die Abgrenzung ist inhaltlich, nicht technisch: Avrae
+automatisiert den Spieltisch (Würfeln, Initiative, Kampf, Charakterbögen aus D&D Beyond,
+Alias-Scripting) und schlägt englische Einträge nach. Foliant *erklärt* Regeln auf Deutsch,
+geerdet im eigenen Bestand, mit Belegzeile und Regelversion — und lehnt Spoiler ab. Beide
+können im selben Server nebeneinander laufen, ohne sich zu überschneiden.
+
+**Nicht-Ziele** (damit künftige Feature-Ideen daran gemessen werden): kein Würfeln, keine
+Initiative-/Kampfverwaltung, kein Charakter-Speichern, kein Alias-Scripting, kein Homebrew,
+keine Direktbefehl-Nachschlager (`/zauber`, `/monster`) — die Antwort ist die *Erklärung*,
+nicht der Datenbank-Auszug —, kein Charakterbogen-Upload (der bleibt auf der Website).
+
+| Entscheidung | Warum |
+|---|---|
+| **`/regel-privat` als eigener Befehl, nicht als Schalter `privat:True` an `/regel`** | Discord zeigt bei der Eingabe von „/regel" beide Namen mit Beschreibung an — die Wahl steht damit **vor** dem Tippen. Der Schalter war nur zu finden, wenn man ihn schon kannte. Ephemere Nachrichten können keinen Thread tragen, deshalb sagt der Bot das dazu. **Keine Vertraulichkeitszusage** (§13) |
+| **Thread-Wiederaufbau aus der Discord-Historie statt persistentem Verlauf** | Der Verlauf ist in-memory, ein Neustart löscht ihn. `app/discord_bot/wiederaufbau.py` liest den Thread dann aus der Historie zurück (max. 40 Nachrichten) — **kein neuer State**, die Historie *ist* die Persistenz. Der Vergessen-Hinweis bleibt für den Fall, dass dort nichts Verwertbares steht |
+| **`fassung` (2024/2014) wandert nur als Klartext in die Frage** | Die Regelversion steuert das Modell über die `edition`-Filter der Tools. Ein zweiter Steuerweg hätte dieselbe Regel ein zweites Mal behauptet |
+| **`/hilfe` ist statisch und ephemer** | Eine Kurzanleitung braucht kein Modell — so kostet der häufigste Erstkontakt keine API-Token |
+| **`/bestand` liest die DB direkt, statt das Modell zu fragen** (03.08.2026) | „Steht das Buch überhaupt drin?" ist keine Regelfrage, sondern eine Abfrage über den Schrank — eine Modellschleife dafür kostet Token und könnte die Liste zusätzlich falsch zusammenfassen. Ephemer und ohne Schranken wie `/hilfe`. Die Gruppierung (Regelwerke / Errata / Abenteuer) und die Beschriftung teilt sich der Befehl mit der Website-Karte über **`app/bestand.py`**: Zwei Oberflächen auf dieselbe Frage sind zwei Stellen, an denen eine Einordnung driften kann — und ein Abenteuerband, der im Bot unter „Regelwerke" stünde, wäre eine falsche Ansage darüber, wozu Foliant aus ihm antwortet (Spoiler-Schutz). Darstellung bleibt getrennt: HTML-Tabelle dort, **Fließtext-Liste** hier. Der erste Wurf war eine Codeblock-Tabelle — Discord bricht Codeblöcke am Handy aber bei ~40 Zeichen hart um, aus vier Spalten wurde Zeilensalat (Rückmeldung der Runde, 03.08.2026). Listenzeilen brechen weich um und tragen ihre Bedeutung im Wort („Regeln 2024") statt in der Spaltenposition |
+| **Kontextmenü „Foliant fragen"** (Rechtsklick → Apps) | Der Spieltisch-Fall „stimmt das überhaupt?" ohne Abtippen; läuft über denselben Weg wie `/regel` |
+| **Schranken fallen fail-soft, nie still aus** | Ein ungültiges `DISCORD_COOLDOWN_S` fällt auf den Standard zurück, statt die Schranke abzuschalten |
+| **Threads entstehen über den KANAL, nicht über die Nachricht** (Live-Befund 03.08.2026) | Die Antwort auf einen Slash-Befehl kommt aus `interaction.followup.send(wait=True)` und ist damit eine `WebhookMessage` — **ohne Guild-Referenz**. `Message.create_thread()` wirft dort `ValueError`, noch **vor** jedem HTTP-Aufruf, und lief damit am `except discord.HTTPException` vorbei: `/regel` im Kanal lieferte Teil 1 der Antwort und brach dann ab — kein Thread, keine Folgeteile, kein Gesprächskontext. Der @Mention-Weg war nicht betroffen (echte Message), **deshalb fiel es nicht auf**. `TextChannel.create_thread(message=…)` nimmt jeden Snowflake, also genügt die ID — ein Weg für beide Einstiege. Lehre: Ein Fallback, der nur `HTTPException` fängt, deckt eine Bibliothek nicht ab, die auch vor dem Netz schon werfen kann |
+| **👍 als zweite Markierung — Polarität ist keine Nuance** (04.08.2026) | Der Meldeweg trug bewusst nur 👎, begründet so: zwei Emoji mit feinen Bedeutungsunterschieden müsste man erklären, und ein Meldeweg, den man erklären muss, wird nicht benutzt. Die Begründung gilt weiter — sie trifft 👍 nur nicht. Ihr Gegenstand ist *Nuance* (👎 gegen 😕 gegen 🤔: „welches nehme ich?"); 👍/👎 ist Polarität, das eine Emoji-Paar, das in jedem Chat dasselbe heißt. Dazu: die Runde reagiert ohnehin schon mit 👍 — das Signal fiel bisher nur stumm auf den Boden, und ein Meldeweg, der bereits benutzt wird, ist der billigste denkbare Ausbau. Umgesetzt **ohne Schema-Migration**, weil `art` beim Bau als Feld statt als Tabelle-je-Art angelegt wurde. Zwei Konstruktionsregeln, die aus der Asymmetrie folgen — 👎 ist eine Beschwerde und selten, 👍 ist Höflichkeit und häufig: Lob fließt **nie** in die Kurationsliste (getrennte Abfrage, getrenntes Limit), und „kein Artefakt" ist ein zulässiges Ergebnis eines 👍, sonst wird jede Nettigkeit zu einem Test und die Suite verrottet |
+| **Erster Kurations-Durchgang aus 👎-Markierungen** (04.08.2026) | Drei markierte Antworten, drei Befunde — und alle drei lagen **nicht** am Modell. (1) Der Eintragsname blieb englisch mit `*`, weil die Begriffsannotation nur `body_md` durchsuchte: Das Modell bekam 30 amtliche Begriffe aus dem Fließtext und ausgerechnet für die Überschrift keinen. (2) Ein Monster-Merkmal wurde als allgemeine Regel ausgegeben — B4 stand längst in beiden Prompt-Kanälen, half aber nicht; der Hinweis musste auf Kanal 1. (3) Die Spekulation über ein fehlendes Buch war **regelkonform**: `HINWEIS_LEER` und beide Prompt-Kanäle gaben sie wörtlich vor. **Die Lehre:** Ein wiederholter Verstoß gegen eine Regel, die bereits in beiden Prompt-Kanälen steht, ist kein Modellfehler — dann sitzt die Regel im falschen Kanal oder die Daten tragen sie nicht. Deshalb führt `config/rueckmeldungen_stand.json` je Befund eine `ursache` (code/verhalten/daten/meldeweg); erst die Struktur macht Wiederholungstäter sichtbar |
+| **Prompt-Caching formt die Anfrage an drei Stellen — der Eval bleibt außen vor** (09.08.2026) | `system_cachen=True` (nur der Bot) setzt einen festen Breakpoint auf den System-Block, einen request-weiten Breakpoint für den wachsenden Teil (Tool-Ergebnisse, Thread-Verlauf), und entzieht dem Modell die Werkzeuge in der Schlussrunde per `tool_choice: none` statt sie wegzulassen. Der dritte Punkt ist der unauffälligste: Werkzeuge stehen **ganz oben** im Präfix (tools → system → messages), wer dort etwas ändert, verwirft alles dahinter — das Weglassen entzog also nicht nur die Werkzeuge, es warf den kompletten Cache weg und schrieb einen nie wieder gelesenen neuen. Der Eval fährt weiter ohne all das: seine Anfrageform ist die Messgrundlage (`SchleifenErgebnis.verbrauch` zählt die Token-Felder mit, weil ein verfehlter Cache sich **nirgends** meldet — er kostet nur still den vollen Preis). Am deployten Stand nachgemessen: eine Folgefrage liest 43.415 Token aus dem Cache, schreibt null und lässt 6 Token ungecacht — **100 % Trefferquote**, gegenüber rund 5,3 ct je Frage vorher jetzt 1,4 ct. Dass `tool_choice: none` die Auskunft beim Runden-Cap nicht verändert, ist an DC3 gegengeprüft (je zwei Läufe beider Formen, gleiche Inhalte, keine leere Antwort) |
+| **Die zwei Breakpoints bekommen verschiedene Lebensdauern: System 1 h, Verlauf 5 min** (09.08.2026) | Gemessen statt geschätzt — `count_tokens` gegen die echte API: das feste Präfix ist **11.638 Token**, eine Werkzeug-Ausgabe 4.283. Das Präfix wird **zwischen** Fragen gelesen, und das Abfrage-Protokoll (1997 Aufrufe, 26.07.–09.08.2026, zu 113 Fragen gebündelt) zeigt dort einen **Median von 14 Minuten**; nur 27–31 % der Lücken liegen unter 5 Minuten. Die Voreinstellung wäre also meist abgelaufen — deshalb dort eine Stunde, die bei der ersten Frage 2× statt 1,25× kostet und sich ab der zweiten zurückzahlt. Der Verlauf hat den umgekehrten Lebenslauf: Er wächst **jede Runde** um rund 4.500 Token und wird Sekunden später gelesen, wofür die Voreinstellung reicht; eine Stunde legte dort nur den doppelten Schreibpreis auf einen Block, der ohnehin gleich veraltet — über einen Spielabend (30 Fragen, 14 Minuten Abstand) gerechnet **43 % teurer**. Nur bei reinen Thread-Nachfragen wäre die Stunde auch dort besser, dem selteneren Fall. Die erste Fassung setzte beide auf eine Stunde; das war mit einer zu groben Byte→Token-Schätzung gerechnet und fiel, sobald die echten Zahlen vorlagen |
+| **Prüfen + Reservieren der Ein-Anfrage-Regel ist atomar** (Review 02.08.2026) | Vorher schlüpften zwei schnelle Nachrichten desselben Nutzers durch. Aus demselben Review: Kanal-Fallback, wenn Discord den Thread verweigert (vorher war die *bezahlte* Antwort weg), und zwei Rebuild-Randfälle (allein stehende `max_tokens`-Meldung galt als Antwort; „vollständig" zählte auf der gefilterten Historie) |
+
 ### ADR: DDB-Buchimport über eigenen Exporter, nicht `ddb-proxy` (10.07.2026)
 
 **Entschieden:** mobile-API-Abruf des ganzen Buchs (user-data → available-user-content →
@@ -907,6 +1212,16 @@ bestehende Pipeline den Inhaltsbedarf; DDB bliebe dann unerschlossen.
 - **Haupt-Suite** (`.venv`) inkl. Abnahme T1–T12 und der **Golden-Suite**
   (`tests/test_golden_bestand.py`), die Regel-**Semantik** am echten Bestand prüft
 - **DDB-Suite** in `.venv-ddb` — sonst bleibt sie **unsichtbar rot**
+- **Doku-Pflege** (`tests/test_doku_pflege.py`): §-Verweise treffen ein Kapitel, die
+  Stand-Angabe ist nicht älter als der jüngste im Text genannte Vorgang, jede
+  SPEC-Anforderung hat einen Status im BACKLOG, genannte Dateien existieren, kein
+  wortgleicher Absatz in zwei Dateien, es bleiben genau vier Doku-Dateien. Warum als Test
+  und nicht als Vorsatz: Am 03.08.2026 waren alle vier Stand-Angaben veraltet, SPEC verwies
+  fünfmal auf ein Kapitel, das es nie gab, und vier Anforderungen hatten keinen Status —
+  jeder Befund in Sekunden prüfbar, keiner aufgefallen, weil kein Test die Doku ansah.
+  Dieselbe Lehre wie bei `config/qualitaet_basis.json` (§12): Was niemand vergleicht,
+  driftet. Der Test prüft **Konsistenz, nicht Wahrheit** — ob eine Aussage noch zum Code
+  passt, sieht nur ein Mensch.
 - `admin check` + `tests/smoke_test.py` (deckt alle 6 Tools ab, prüft aktiv auf Header-Müll);
   der Smoke-Test lenkt das Abfrage-Protokoll bewusst in eine Wegwerf-Datei um — er läuft
   über `python -m` und damit an der `conftest.py`-Isolation vorbei
@@ -935,15 +1250,25 @@ ehrliches „nicht gefunden".
 
 **Dritte Prüfschicht, werkzeuggestützt:** `python -m evals.verhaltens_eval` fährt die
 §2-Fälle gegen die echte Claude-API mit den echten Tools (in-process `fastmcp.Client`,
-System-Prompt = der §8-Block aus SPEC.md, eine Quelle). Deterministische Marker-/
-Format-Grader; weiche Kriterien (C3, D1 …) optional per LLM-Richter, im Report als
-`weich` gekennzeichnet. **Bewusst NICHT in `make test`** — kostet API-Tokens (~15 Fälle
-× 3–5 Runden, niedrige einstellige Dollar). Report nach `evals/ergebnisse/` (gitignored)
-mit den §2-Pflichtfeldern Datum/Modell/`inhalts_hash`; am Subset markiert er
-`korpus: lokal (Subset?)` — beweiskräftig ist der Pi-Lauf:
+System-Prompt aus `config/projektanweisung.md` — dieselbe Leseestelle wie Website und
+Kanal-Sync-Test; die DC-Fälle fahren zusätzlich den Discord-Zusatz). Der deterministische
+Grader ist zweistufig: fallspezifische Marker (`pruefe_deterministisch`, inkl. Opt-in
+`statblock_vollstaendig`) plus das Antwortgerüst für **jede** Antwort (`pruefe_geruest`:
+Kopf-Emoji, Meta-Verbotsliste, Beleg zuletzt, ein Angebot). Der LLM-Richter bewertet nur
+noch, was sich nicht messen lässt (Wiedergabetreue, Spoiler-Feinheiten) — Struktur wird
+gemessen, nicht begutachtet (Register §10). **Bewusst NICHT in `make test`** — kostet
+API-Tokens (24 ausführbare Fälle × 3–5 Runden, niedrige einstellige Dollar). Report nach
+`evals/ergebnisse/` (gitignored) mit den §2-Pflichtfeldern Datum/Modell/`inhalts_hash`;
+am Subset markiert er `korpus: lokal (Subset?)` — beweiskräftig ist der Pi-Lauf:
 ```
 ANTHROPIC_API_KEY=sk-… make eval-verhalten-pi
 ```
+**Vierte Schicht, nur am Pi: Lastmessung als Wächter.** `make lasttest-pi`
+(`evals/lasttest.py`) fährt die Sessionlast mehrerer gleichzeitiger Spieler gegen den
+Vollbestand und **bricht bei p95 > 1000 ms ab**. Die Messung ist damit nicht nur ein
+Befund, sondern eine Grenze — B9 kann nicht mehr lautlos wegbrechen. Zahlen und Vorgeschichte
+(GIL-Sättigung, Facetten-Vorfilter): [BACKLOG.md](BACKLOG.md) §1/M3.
+
 A4 (Websuche) und E1 (Injektions-Fixture) kann das Harness nicht prüfen — sie bleiben
 ehrlich `uebersprungen` und damit Handarbeit im echten Chat.
 
@@ -960,8 +1285,53 @@ Kuratiert. Quellen-spezifische Eigenheiten stehen im Modul-Docstring des jeweili
 Importers (`importer/import_open5e.py` für die Open5e-API, `importer/import_markdown.py`
 für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de).
 
+- **Ein Meldeweg, der ein Eingabezeichen nicht kennt, schweigt — er meckert nicht.**
+  Der Daumen-Vergleich entfernte den Variantenselektor, nicht die fünf Hautton-Zeichen.
+  Wer den Ton einmal eingestellt hat, sendet auf dem Handy fortan die geschmückte Form,
+  und die ergab weder eine Protokollzeile noch die 📝-Quittung (Review 11.08.2026). Bei
+  einem Kanal, dessen ganzer Zweck die Rückmeldung ist, kostet so ein Loch nicht ein
+  Ereignis, sondern die Statistik: Niemand meldet, dass das Melden nicht geht. Wer ein
+  Zeichen vergleicht, vergleicht deshalb die nackte Form — und prüft **den ganzen
+  Zeichenbereich**, nicht die zwei Varianten, die gerade aufgefallen sind.
+- **Eval-Reports leben IM Container und überleben einen Rebuild nicht.** Sie sind aber
+  die einzige Kalibriergrundlage: Neue Prüfmuster laufen erst gegen die `antwort`-Felder
+  bezahlter Läufe, bevor sie Code werden (Fehlalarm-Reihe A3 → B1 → F2). Seit dem
+  08.08.2026 sichert `make deploy-pi` sie deshalb selbst (erster Schritt, fehlertolerant)
+  nach `evals/ergebnisse/pi/` (gitignored) — zweimal in einer Woche wären sie sonst weg
+  gewesen. Nur wer am Pi von Hand neu baut (`docker compose up -d --build` per SSH),
+  muss weiterhin selbst vorher `docker compose cp foliant:/app/evals/ergebnisse …` ziehen.
 - **pymupdf4llm OCRt textlose Seiten STILL, sobald Tesseract installiert ist** →
   `use_ocr=False` in `pdf_nach_markdown` ist Pflicht und gesetzt; OCR nur über die Vorstufe.
+- **Eine Struktur-Reparatur wird über den KAPITELBEREICH begrenzt, nicht über den Inhalt.**
+  Beim Entwirren der Statblock-Verschränkung (03.08.2026) sollte eine Regel „nur dort
+  greifen, wo Statblöcke stehen" — erkannt daran, dass der Folgeeintrag eine
+  Rüstungsklasse führt. Fallen, Gifte und magische Gegenstände führen aber ebenfalls eine,
+  also verschob sie fünfzehn Überschriften der Regelkapitel und der Bestand verlor 5093
+  Zeichen. Erst die harte Grenze am Kapitelkopf („ab `# Monster von A–Z`") trug. **Der
+  Wächter, der es fand, war der Namensdiff gegen den vorherigen Stand** — die reine
+  Eintragszahl fiel nur um zwölf und sah harmlos aus.
+- **Nach JEDEM Re-Import einer PDF-Quelle gehört `admin import --quelle glossar` hinterher.**
+  Die Namensreparatur (`importer/namensreparatur.py`) läuft in der Glossar-Kette, nicht im
+  Import — ein Re-Import spielt also den rohen PDF-Namen wieder ein (`Gar l gy` statt
+  `Gargyl`). Real passiert am 03.08.2026 beim srd-de-Re-Import auf dem Pi: Lokal war alles
+  grün, weil dort zufällig die Glossar-Kette danach lief; auf dem Pi lief sie nicht, und
+  `check-pi` brach den Deploy ab. **Genau so soll es sein** — der Basiswert-Vergleich in
+  `admin check` hat den Regress gefangen, bevor ihn jemand am Spieltisch gemerkt hätte.
+- **`body_md` niemals von Hand korrigieren, auch wenn die Quelle sich nachweislich irrt.**
+  Die Änderung stünde in keinem Diff, wäre beim nächsten Re-Import weg, und der Bestand
+  sagte etwas, was sein Buch nicht sagt. Belegte Quellfehler gehören ins Register
+  (`config/quellfehler.py`), das die Korrektur **daneben** stellt — §10.
+- **Eine Zahl, die zerrissen ist, sieht aus wie eine Zahl.** Die PDF-Tabellenextraktion
+  trennt gelegentlich an einer Zellgrenze (`|**RK**1|3|` meint 13), und die Facetten-Regex
+  liest korrekt bis zum Trenner — vier Tiere trugen dadurch Rüstungsklasse 1. Solche Risse
+  gehören ins Bereinigungsregister des Importers, **nicht** in eine tolerantere Leseregex:
+  die bedient auch Open5e und DDB und ließe den kaputten Text stehen, den das Modell
+  zitiert. Gefunden hat sie erst die rechnerische Plausibilitätsprüfung (§11) — eine
+  falsche Zahl fällt nur über ihren Widerspruch zu einer anderen auf.
+- **Ein Prüfmuster ohne Abdeckungszahl ist wertlos.** Die DDB-Quellen escapen ihr Markdown
+  (`10d8 \+ 20\)`); ein TP-Muster ohne toleriertes Backslash überspringt sie stumm und
+  meldet trotzdem „OK". `admin check` weist deshalb neben den Befunden aus, wie viele
+  Ausdrücke die Prüfung überhaupt gesehen hat.
 - **Das Pi-Image backt den Code ein** (`COPY`). Ein reines `rsync` aktualisiert die Dateien,
   **nicht den laufenden Container** — ein Import lief dann still mit ALTEM Code weiter und
   meldete „erfolgreich" bei unveränderten Daten. Nach jeder Code-Änderung Pflicht:
@@ -1015,9 +1385,19 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   verschiebt Glossar-Paare. Für die Facetten gibt es deshalb `kopf_felder()` mit
   auszeichnungsfreiem Kopf und wortgrenzen-festen Labeln — `tests/test_facetten_seeder.py`
   hält fest, dass der Abdruck sich dabei nicht bewegt.
+- **Der Quellbezug ersetzt NIE eine vorhandene Datei.** Wer `quell_url` als „hol die
+  aktuelle Fassung" liest, liegt falsch: Der Schritt greift nur, wenn unter `dateipfad`
+  nichts liegt. Das ist Absicht — unter `quellen/` stehen kuratierte und reparierte PDFs,
+  und ein Bezug, der sie überschreibt, vernichtet Handarbeit beim routinierten Re-Import.
+  Eine neue Auflage kommt herein, indem man die Datei bewusst löscht (und dann `quell_hash`
+  UND `versions_stand` nachzieht, sonst bricht der Pin den Import ab — richtig so).
 - **Ein Re-Import spielt die rohen OCR-Namen wieder ein** und macht die Namensreparatur der
   betroffenen Quelle zunichte. Facetten deshalb nie über einen Re-Import nachziehen, sondern
-  mit `import --quelle facetten`.
+  mit `import --quelle facetten`. Musste ein Re-Import doch sein (z. B. nach einem
+  Chunking-Fix), ist die **Reparatur danach nachzuziehen**: `import --quelle glossar` bringt
+  `repariere_2014_namen` und die kuratierten Titel (`namensreparatur.KURATIERTE_TITEL`) mit.
+  Die CLI-Hilfe des Kommandos sagt das seit dem 31.07.2026 selbst — vorher stand es nur in
+  einem Backlog-Absatz, den beim Re-Import niemand liest.
 - **Singular und Plural sind im Glossar zwei Inseln.** Die Seeder liefern beide Formen
   (`Opportunity Attack`/`Gelegenheitsangriff` aus dem Kernwortschatz,
   `Opportunity Attacks`/`Gelegenheitsangriffe` aus dem Spielerhandbuch), aber der Zwei-Hop
@@ -1030,6 +1410,22 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Aufruf — auch synthetische. Nach einer Messreihe steht der Testbegriff als häufigster
   Nulltreffer im `admin suchbericht` und verwässert die Kurationsliste. Entweder gegen eine
   Kopie messen oder beim Sichten des Berichts wissen, was von einem selbst stammt.
+- **Ein Test, der beim ersten Lauf grün ist, ist noch kein Test.** Am 04.08.2026 deckten
+  frisch geschriebene Regressionstests zwei Fixes ab — und einer davon ließ sich
+  rückstandslos zurückdrehen, ohne dass etwas fehlschlug: Der Test prüfte die
+  Glossar-Funktion direkt statt den Weg durch `ausgabe._detail`, den die Antwort
+  tatsächlich nimmt. **Gegenprobe: Fix kaputtmachen, Test muss fallen.** Kostet eine
+  Minute und ist der Unterschied zwischen abgesichert und beruhigt.
+  Am selben Abend dieselbe Falle in ihrer zweiten Form: Die Mutation traf den
+  Struktur-Pfad der Suche, der Test den Freitext-Pfad — grün, obwohl kaputt. **Hat eine
+  Funktion mehrere Aufrufstellen, muss die Gegenprobe jede einzeln treffen**; ein
+  Sammelhinweis, der nur an einem Ausgabeweg hängt, fehlt genau dem, der ihn braucht.
+- **Discord-REST ohne `User-Agent` antwortet mit „error code: 1010".** Cloudflare weist
+  jeden eigenen Client ab, der keinen setzt — und die Meldung nennt weder Header noch
+  Cloudflare als Ursache. Sie sieht aus wie ein Rechteproblem am Bot-Token und kostete am
+  04.08.2026 eine Viertelstunde Suche an der falschen Stelle. `deploy/discord_api.py::hole`
+  setzt ihn; **das ist der Grund, warum der Kontext-Abruf dort angebaut wurde** statt in
+  einem eigenen Modul — sonst lernt der zweite Client dieselbe Falle noch einmal.
 - **Die Import-Bilanz ist ein Trend, kein Alarm.** Jeder Import endet mit einer Zeile
   („Bilanz: 12x Abschnitt ohne Regeltext …"). Interessant ist nicht der Absolutwert —
   ein Kapitel-Kopf ohne eigenen Text ist der Normalfall —, sondern die **Veränderung**.
@@ -1040,7 +1436,9 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Buch werden Fragmente). Beide brechen ab, der Bestand bleibt; `--force` hebt beide auf.
 - `bm25()` liefert negative Werte → `ORDER BY bm25(...) ASC`.
 - Nach jedem Import FTS-`rebuild` (macht der Importer/Admin selbst).
-- DB-Journal = **DELETE** (Bind-Mount) — nicht auf WAL umstellen.
+- **Korpus-DB-Journal = DELETE** (Bind-Mount) — nicht auf WAL umstellen. Gilt für
+  `data/foliant.sqlite`; das Abfrage-Protokoll liegt bewusst auf **WAL**
+  (`app/protokoll.py`) — eigene Datei, eigene Schreiblast, kein Widerspruch.
 - SQLite im Threadpool: **pro Tool-Aufruf eigene Connection**.
 - Python-Testfalle: Doku-IPs (`203.0.113.x`) gelten als `is_private`.
 - **DDB: ToS-Grauzone, nur privat;** Cobalt nie in argv, `.env`, Logs oder Git.
@@ -1066,6 +1464,16 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Suchbegriffe, Filter und Zeiten — keine Nutzerkennungen, IPs oder Gesprächsinhalte. Es
   ist die einzige Schreib-Ausnahme des Serving-Pfads und liegt deshalb in einer eigenen
   Datei; die bediente Korpus-DB bleibt strikt `mode=ro`.
+  Dieselbe Zusage gilt für die Tabelle `rueckmeldungen` (§9): Sie hält die **Frage** —
+  dieselbe Datenklasse wie `suchbegriff` — und einen **Nachrichten-Link**. Bewusst *nicht*
+  den Antworttext (das wäre Gesprächsinhalt in einer Log-Datei, und der Link führt in einem
+  Klick dorthin, wo die Antwort ohnehin steht) und **keine Nutzerkennung**: Wer markiert
+  hat, ist für die Kuration ohne Bedeutung, und die Markierung soll kein Sozialprotokoll
+  werden. Deshalb zählt auch nicht, wie oft markiert wurde — `UNIQUE(art, verweis)` ist die
+  Entdopplung, die ohne Nutzer-Identität funktioniert. Der Schnitt gilt für **beide**
+  Vorzeichen: Auch ein 👍 hinterlässt keine Spur, wer gelobt hat. Entdoppelt wird je Art,
+  ein strittiges Paar (👎 *und* 👍 an derselben Antwort) steht deshalb als zwei Zeilen da
+  — das ist der Befund, nicht seine Auflösung.
 - **Laufzeit offline** (MCP), read-only auf legal erworbenen Daten; Admin-Funktionen **nie**
   über den Tunnel, nur lokal/SSH.
 - **Discord-Bot:** keine eingehende HTTP-Fläche (nur ausgehend zu Discord/Anthropic);
@@ -1131,8 +1539,10 @@ P2-008 Agentenrechte eingedampft · P2-009 meta-Tabellen + CHECK-Constraints.
 
 ### P3 — bewusste Ausbaustufen (offen, nicht rundenblockierend)
 P3-001 strukturelle Rollen-/Spoiler-Isolation · P3-002 Regelbeziehungsgraph ·
-**P3-003 Errata-/Revisionstracking — Grundlage seit 31.07.2026 umgesetzt** (eigene
-`inhaltsart`-Werte `errata`/`regelauslegung`, Kennzeichnung 📌/⚖️ in beiden Ausgabewegen,
-Dedupe-Schutz gegen Verdrängung des Grundtexts, Prioritätsband 70, Chunking und
-Config-Blöcke; es fehlen die PDFs selbst — [BACKLOG.md](BACKLOG.md) §4) ·
+**P3-003 Errata-Tracking — seit 03.08.2026 mit Inhalt** (eigene `inhaltsart`-Werte
+`errata`/`regelauslegung`, Kennzeichnung 📌/⚖️ in beiden Ausgabewegen, Dedupe-Schutz gegen
+Verdrängung des Grundtexts, Prioritätsband 70, Chunking am echten Dokument justiert und
+**43 Korrekturen aus den drei WotC-Errata importiert**, deren PDFs der Import selbst holt).
+Offen bleibt die **Regelauslegung**: Sage Advice ist noch nicht eingebunden, und der
+bediente Pi-Bestand trägt die Errata erst nach einem Deploy — [BACKLOG.md](BACKLOG.md) §4 ·
 P3-004 Hausregeln-Overlay. Siehe [BACKLOG.md](BACKLOG.md) §4.

@@ -93,7 +93,7 @@ def _klasse_en(con: sqlite3.Connection, klasse_de: str,
     """Klassenbruecke DE->EN: exakter, OFFIZIELLER Glossar-Treffer, der auch WIRKLICH als
     EN-Klasse im Bestand existiert ('Magier' hat die Glossar-Kandidaten 'Mage' UND
     'Wizard' - nur 'Wizard' fuehrt Level-Eintraege)."""
-    for z in glossar.lookup(con, klasse_de, richtung="de_en"):
+    for z in glossar.nachschlagen(con, klasse_de, richtung="de_en"):
         if z["match"] == "exakt" and z["offiziell"] and z["term_en"] in en_klassen:
             return z["term_en"]
     return None
@@ -101,8 +101,18 @@ def _klasse_en(con: sqlite3.Connection, klasse_de: str,
 
 def _belegte_de(con: sqlite3.Connection, term_en: str) -> set[str]:
     """Bereits belegte deutsche Formen eines EN-Begriffs (exakte Glossar-Zeilen beliebiger
-    Herkunft ausser der eigenen - die wurde vor dem Lauf geloescht)."""
-    return {z["term_de"] for z in glossar.lookup(con, term_en, richtung="en_de")
+    Herkunft ausser der eigenen - die wurde vor dem Lauf geloescht).
+
+    Liefert bewusst die ROHEN Namen, anders als die gleichnamige Schwester in
+    `srd_begriffsbruecken.py`, die `norm_begriff` faltet: Alle drei Aufrufstellen
+    (`_paare_stufe` zweimal, `_sub_paare` einmal) vergleichen rohe Merkmalsnamen gegen
+    dieses Set. Eine EINSEITIGE Faltung hier wuerde jeden Treffer verhindern - die Anfrage
+    waere normalisiert, der Vergleich nicht. Wer faltet, faltet beide Seiten.
+
+    Warum das folgenlos ist (gemessen 06.08.2026 ueber alle 2623 Glossarzeilen): Es gibt
+    12 Schreibvarianten, die sich erst unter `norm_begriff` treffen wuerden - ausnahmslos
+    Drachen- und Zaubernamen, kein einziges Klassenmerkmal. Dieser Seeder sieht sie nie."""
+    return {z["term_de"] for z in glossar.nachschlagen(con, term_en, richtung="en_de")
             if z["match"] == "exakt"}
 
 
@@ -265,7 +275,7 @@ def finde_container_sub_paare(con: sqlite3.Connection,
         subs_de = _DE_SUB.findall(body_de or "")
         if not subs_de:
             continue
-        kandidaten = [z["term_en"] for z in glossar.lookup(con, name_de, richtung="de_en")
+        kandidaten = [z["term_en"] for z in glossar.nachschlagen(con, name_de, richtung="de_en")
                       if z["match"] == "exakt" and z["offiziell"]]
         name_en = next((k for k in kandidaten if k in en_nach_name), None)
         if name_en is None:

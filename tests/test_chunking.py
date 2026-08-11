@@ -403,16 +403,69 @@ def test_errata_erkennt_beide_fettformen():
     assert "S. 30" in aus and "S. 182" in aus, aus
 
 
-def test_errata_meldet_auch_einen_TEILtreffer():
+def test_errata_kopf_mitten_in_der_zeile_wird_eigener_eintrag():
+    """Befund 03.08.2026, erster Import an der ECHTEN Datei: Vier der 17 PHB-Korrekturen
+    beginnen nicht am Zeilenanfang, sondern direkt hinter dem Satzende der vorigen
+    ('… to move”. **_Poisoner (p. 206)._** In the Brew Poison …'). Sie hingen stumm am
+    Vorgaenger - Poisoner, Conjure Fey, Polymorph und Shapechange fehlten im Bestand.
+
+    Der Wortlaut hier ist aus dem echten PDF genommen, nicht erfunden."""
+    from importer.import_markdown import _errata_headings
+
+    echt = ("**_Grappler (p. 204)._** In the Fast Wrestler benefit, "
+            "“extra movement to move” is now “You don’t have to spend extra movement "
+            "to move”. **_Poisoner (p. 206)._** In the Brew Poison benefit, the text "
+            "is corrected.")
+    aus = _errata_headings(echt)
+    assert "### Grappler" in aus and "### Poisoner" in aus, aus
+    assert "S. 204" in aus and "S. 206" in aus, aus
+    # Die zweite Ueberschrift muss am ZEILENANFANG stehen - mitten in der Zeile waere
+    # '### Poisoner' fuer Markdown keine Ueberschrift, sondern Text mit Rauten.
+    assert "\n### Poisoner" in aus, aus
+
+
+def test_errata_kopf_mitten_im_satz_wird_NICHT_abgetrennt():
+    """Ein fetter Name mit Seitenangabe mitten im Satz ist eher ein Querverweis als eine
+    neue Korrektur. Abtrennen wuerde den Satz zerreissen und einen Scheineintrag bauen.
+    Er faellt dafuer in der Bilanz auf (siehe test_errata_bilanz_zaehlt_...)."""
+    from importer.import_markdown import _errata_headings
+
+    aus = _errata_headings("**Cover (p. 30).** Siehe auch **Jumping (p. 12).** dazu.")
+    assert aus.count("###") == 1, aus
+
+
+def test_errata_kursivmarke_landet_nicht_im_body():
+    """Das echte Errata setzt '**_Polymorph (p. 306)._**'. Die schliessende Kursiv-Marke
+    stand als einzelnes '_' am Anfang JEDES Bodys ('… im Grundbuch.** _ In the …') -
+    kosmetisch, aber in fast jedem Eintrag."""
+    from importer.import_markdown import _errata_headings
+
+    aus = _errata_headings("**_Polymorph (p. 306)._** In the spell description ...")
+    assert "Grundbuch.** In the spell" in aus, aus
+
+
+def test_errata_bilanz_zaehlt_kopfFORMEN_nicht_zeilenanfaenge():
     """Der gefaehrlichere Fall als 'gar nichts erkannt': der Import laeuft durch, ein Teil
-    der Korrekturen hat aber keinen eigenen Eintrag. Ohne Zaehlung faellt das niemandem
-    auf - die Bilanz meldete frueher nur, wenn KEIN Kopf passte."""
+    der Korrekturen hat aber keinen eigenen Eintrag.
+
+    Die Zaehlung war bis zum 03.08.2026 gleichzeitig BLIND und LAUT: Kandidat war 'fetter
+    Lauf am Zeilenanfang'. Die vier verpassten Koepfe standen mitten in der Zeile, waren
+    also nie Kandidaten - dafuer galt der Dokumenttitel ('**Player's Handbook (2024)**')
+    als verpasster Kopf. Gemeldet wurde '1 von 14': ein Fehlalarm, waehrend der echte
+    Ausfall unerwaehnt blieb. Gezaehlt wird jetzt, was wie ein Korrektur-Kopf AUSSIEHT."""
     from importer.import_markdown import _errata_headings, letzte_bilanz
 
+    # (a) Ein Titel in Klammern OHNE Seitenangabe ist kein Kandidat - kein Fehlalarm.
     letzte_bilanz().wirkungslos.clear()
-    _errata_headings("**Cover (p. 30).** Erste.\n\n**Kapitel 2**\n\n**Ohne Seite** Text.")
+    _errata_headings("**Player’s Handbook (2024)**\n\n**Cover (p. 30).** Text.")
+    assert not letzte_bilanz().wirkungslos, letzte_bilanz().wirkungslos
+
+    # (b) Ein Kopf, dessen Seitenangabe unlesbar ist, IST ein Kandidat - und faellt auf.
+    letzte_bilanz().wirkungslos.clear()
+    _errata_headings("**Cover (p. 30).** Erste.\n\n"
+                     "**Weapons (p. 12 and see also 40).** Zweite.")
     meldung = " ".join(letzte_bilanz().wirkungslos)
-    assert "_errata_headings" in meldung and "2 von 3" in meldung, meldung
+    assert "_errata_headings" in meldung and "1 von 2" in meldung, meldung
     letzte_bilanz().wirkungslos.clear()
 
 
@@ -427,3 +480,153 @@ def test_errata_muster_meldet_sich_wenn_es_nicht_greift():
     _errata_headings("## Chapter 1\n\nEine Korrektur ganz ohne fetten Kopf.\n")
     assert any("_errata_headings" in w for w in letzte_bilanz().wirkungslos)
     letzte_bilanz().wirkungslos.clear()
+
+
+# ---------------------------------------------------------------------------------------
+# Zellrisse in srd-de-Statblocktabellen (Datenbank-Audit 03.08.2026)
+#
+# Die PDF-Tabellenextraktion zerreisst gelegentlich eine ZAHL an einer Zellgrenze. Das
+# faellt nicht auf, weil der Text weiterhin plausibel aussieht - aber die Facetten-Regex
+# liest bis zum Trenner und schreibt einen unmoeglichen Wert in monster_meta. Vier Tiere
+# trugen so Ruestungsklasse 1, der Huegelriese eine TP-Formel, die 0,5 statt 105 ergibt.
+#
+# Beide Regeln sind bewusst ENG geschnitten und am Vollbestand gegengezaehlt: je genau ein
+# Treffermuster, null Fehlalarme. Die naheliegende weiter gefasste Form ('RK <ganze Zahl>|')
+# kaeme 25-mal vor und wuerde heile Werte zerstoeren - deshalb die Negativfaelle unten.
+# ---------------------------------------------------------------------------------------
+
+def _bereinige_srd_de(markdown: str) -> str:
+    """Nur die Regex-/Tupelschritte von BEREINIGUNG['srd-de'] - ohne die Callables, die
+    ganze Kapitel verschieben und hier nichts zu suchen haetten."""
+    import re as _re
+
+    from importer.import_markdown import BEREINIGUNG
+
+    for eintrag in BEREINIGUNG["srd-de"]:
+        if callable(eintrag):
+            continue
+        muster, ersatz = eintrag if isinstance(eintrag, tuple) else (eintrag, "")
+        markdown = _re.sub(muster, ersatz, markdown, flags=_re.MULTILINE)
+    return markdown
+
+
+def test_zerrissener_label_wert_wird_zusammengefuegt():
+    """'|**RK**1|3|' meint Ruestungsklasse 13 (Falke) - belegt durch die englische Fassung
+    im Bestand (open5e 'Hawk': AC 13)."""
+    assert "**RK**13" in _bereinige_srd_de("|**RK**1|3|||**I**|**nitiat**|")
+    assert "**RK**11" in _bereinige_srd_de("|**RK**1|1||**Initiative**+0 (10)|")
+
+
+def test_heile_label_werte_bleiben_unberuehrt():
+    """Der teure Fehlerfall: Ein Zellwechsel NACH einer vollstaendigen Zahl ist normal und
+    kommt 25-mal vor. Wuerde die Regel ihn mitnehmen, entstuenden aus RK 18 eine RK 18x."""
+    for heil in ("|**RK**18||**I**|**nitiat**|", "|**RK**5||**Initiative**|",
+                 "|**RK**12||||**I**|**nitiative**|"):
+        assert _bereinige_srd_de(heil) == heil, heil
+
+
+def test_zerrissener_wuerfelausdruck_wird_zusammengefuegt():
+    """'(1|0W1|2+40|)' meint (10W12+40) - Huegelriese, belegt durch open5e und DDB
+    (beide 'HP 105 (10d12 + 40)'). Die zerrissene Form ergibt rechnerisch 0,5 TP."""
+    assert "(10W12+40)" in _bereinige_srd_de("|**TP**105 (1|0W1|2+40|)||||||")
+
+
+def test_heiler_wuerfelausdruck_bleibt_unberuehrt():
+    heil = "|**TP** 65 (10W8+30)|"
+    assert _bereinige_srd_de(heil) == heil
+
+
+def test_reparierte_werte_sind_rechnerisch_stimmig():
+    """Die Gegenprobe, die den Test von einer Behauptung zu einem Beleg macht: Nach der
+    Reparatur geht die TP-Formel auf, vorher nicht."""
+    from app import logikpruefung as lp
+
+    roh = "|**TP**105 (1|0W1|2+40|)|"
+    assert lp.pruefe_wuerfel(roh), "die zerrissene Form muss auffallen"
+    assert lp.pruefe_text(_bereinige_srd_de(roh)) == []
+
+
+# ---------------------------------------------------------------------------------------
+# Statblock-Verschraenkung des zweispaltigen srd-de-Drucks (Datenbank-Audit 03.08.2026)
+#
+# Der Konverter liest den Satz in DRUCK-, nicht in Lesereihenfolge. Dabei rutschte eine
+# Ueberschrift regelmaessig vor den Rest ihres Vorgaengers, und ihr eigener Statblock
+# landete am Ende eines spaeteren Eintrags. Im Bestand hiess das: Wer 'Oktopus' nachschlug,
+# bekam den Text des MAULTIERS. Zehn Monsterpaare waren betroffen.
+#
+# Die Reparatur ist EINE Bewegung - die Ueberschrift wandert an ihren Statblock -, und sie
+# ist bewusst nur auf die exakte Form geschnitten (null Koepfe, gefolgt von genau zwei).
+# Der Zauber 'Rieseninsekt' fuehrt legitim VIER Statbloecke und muss unberuehrt bleiben:
+# eine Regel, die zwei Statbloecke zusammenfuehrt, kann zwei Monster zu einem verschmelzen,
+# und ein verschmolzener Statblock sieht vollstaendig aus und ist falsch.
+# ---------------------------------------------------------------------------------------
+
+_VERSCHRAENKT = """#### **<mark>Oktopus</mark>**
+
+**_Lasttier:_** Das Maultier gilt hinsichtlich seiner Traglast als eine Größe größer.
+
+#### **<mark>Nashorn</mark>**
+
+_Großes Tier, gesinnungslos_
+
+**RK** 13 **Initiative** –1 (9) **TP** 45 (6W10+12) **Bewegungsrate** 12 m
+
+**_Zerfleischen:_** _Nahkampfangriffswurf:_ +7, Reichweite 1,5 m.
+
+_Kleines Tier, gesinnungslos_
+
+**RK** 12 **Initiative** +2 (12) **TP** 3 (1W6) **Bewegungsrate** 1,5 m
+
+**_Tentakel:_** _Nahkampfangriffswurf:_ +4, Reichweite 1,5 m.
+"""
+
+
+def _paare(markdown: str) -> str:
+    from importer.import_markdown import _srd_de_statblock_paare
+
+    return _srd_de_statblock_paare(markdown)
+
+
+def test_verschraenkter_statblock_kommt_zu_seiner_ueberschrift():
+    """Der Kernfall: Nach der Reparatur traegt 'Oktopus' RK 12/TP 3 und der Maultier-Text
+    faellt an den Vorgaenger zurueck, statt unter dem falschen Namen zu stehen."""
+    neu = _paare(_VERSCHRAENKT)
+    oktopus = neu[neu.index("<mark>Oktopus</mark>"):]
+    assert "**RK** 12" in oktopus and "**TP** 3 (1W6)" in oktopus
+    assert "Tentakel" in oktopus
+    # Der Fremdtext steht jetzt VOR der Oktopus-Ueberschrift, gehoert also dem Vorgaenger.
+    assert neu.index("Maultier") < neu.index("<mark>Oktopus</mark>")
+    # Und das Nashorn behaelt seinen eigenen Statblock.
+    nashorn = neu[neu.index("<mark>Nashorn</mark>"):neu.index("<mark>Oktopus</mark>")]
+    assert "**RK** 13" in nashorn and "Zerfleischen" in nashorn
+
+
+def test_typzeile_wandert_mit():
+    """Die Typzeile ('_Kleines Tier, gesinnungslos_') gehoert zum Statblock. Bleibt sie
+    zurueck, faengt der Eintrag mitten in der RK-Zeile an und die Kreaturenart fehlt."""
+    neu = _paare(_VERSCHRAENKT)
+    oktopus = neu[neu.index("<mark>Oktopus</mark>"):]
+    assert oktopus.index("_Kleines Tier") < oktopus.index("**RK** 12")
+
+
+def test_vollstaendige_eintraege_bleiben_unberuehrt():
+    """Ein Abschnitt, in dem jeder Eintrag genau einen Statblock hat, darf sich um kein
+    Zeichen aendern - sonst waere die Regel zu weit gefasst."""
+    heil = _VERSCHRAENKT.replace("\n_Kleines Tier, gesinnungslos_\n\n"
+                                 "**RK** 12 **Initiative** +2 (12) **TP** 3 (1W6) "
+                                 "**Bewegungsrate** 1,5 m\n\n"
+                                 "**_Tentakel:_** _Nahkampfangriffswurf:_ +4, Reichweite 1,5 m.\n", "")
+    heil = heil.replace("#### **<mark>Oktopus</mark>**\n\n"
+                        "**_Lasttier:_** Das Maultier gilt hinsichtlich seiner Traglast "
+                        "als eine Größe größer.\n\n", "")
+    assert _paare(heil) == heil
+
+
+def test_mehr_als_zwei_statbloecke_bleiben_unberuehrt():
+    """Der Zauber 'Rieseninsekt' fuehrt vier Kreatur-Statbloecke in EINEM Eintrag. Eine
+    Regel, die dort zuschlaegt, zerlegt einen korrekten Eintrag."""
+    vier = ("#### **<mark>Leerer Eintrag</mark>**\n\nnur Text.\n\n"
+            "#### **<mark>Rieseninsekt</mark>**\n\n"
+            + "".join(f"_Grosses Tier, gesinnungslos_\n\n**RK** 1{i} **TP** {i}0 (2W8)\n\n"
+                      for i in range(4)))
+    assert _paare(vier) == vier
