@@ -322,16 +322,28 @@ def test_genannte_dateien_existieren(datei):
 
     Ein Ablauf ist eine Handlungsanweisung: Zeigt sie auf eine Datei, die es nicht mehr
     gibt, laeuft der naechste zeitgesteuerte Durchgang ins Leere - unbeaufsichtigt, und
-    niemand sieht zu."""
+    niemand sieht zu.
+
+    Die Ausnahmen kommen aus test_doku_pflege.PFADE_OHNE_DATEI, statt hier eine zweite
+    Liste zu fuehren: Es ist dieselbe Frage an dieselben Pfade, und zwei Listen driften.
+    Dass es sie ueberhaupt braucht, hat der erste CI-Lauf gezeigt - hier stand
+    "0 fehlend, keine Ausnahmeliste noetig", gemessen auf einem Rechner, der die
+    gitignorierten Dateien (`config/foliant.toml`, die privaten Reparatur-Module) hat.
+    Im frischen Klon fehlen sie. Dieselbe Fehlerklasse wie die Dev-DB, die ein Subset ist:
+    Wer am eigenen Rechner misst, misst seinen Rechner mit."""
+    from tests.test_doku_pflege import PFADE_OHNE_DATEI
+
     fehlend = sorted({
         pfad for pfad in re.findall(r"`(\.?[A-Za-z_][\w./<>-]*/[\w./<>-]+\.\w{1,7})`",
                                     datei.read_text(encoding="utf-8"))
-        if "<" not in pfad and not (WURZEL / pfad).exists()
+        if "<" not in pfad and pfad not in PFADE_OHNE_DATEI
+        and not (WURZEL / pfad).exists()
     })
     assert not fehlend, (
         f"{datei.name} nennt Dateien, die es nicht gibt: {fehlend}.\n"
         f"Umbenannt oder entfernt? Dann den Ablauf mitziehen - er wird unbeaufsichtigt "
-        f"gefahren und kann nicht nachfragen.")
+        f"gefahren und kann nicht nachfragen. Absichtlich fehlend (gitignored)? Dann mit "
+        f"Grund in tests/test_doku_pflege.PFADE_OHNE_DATEI.")
 
 
 # --------------------------------------------------------------------------------------
