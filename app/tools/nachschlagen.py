@@ -556,10 +556,16 @@ def _verwandte_klassenabschnitte(d: dict) -> dict:
 
 
 # Der Verweis-Zusatz des Regelglossars, englisch wie deutsch. Danach folgen die Ziele in
-# Anfuehrungszeichen - je nach Quelle in typografischen, deutschen oder geraden.
-_SIEHE_AUCH = re.compile(r"(?:See also|Siehe auch)(.{0,240})", re.S)
+# Anfuehrungszeichen - je nach Quelle in typografischen, deutschen oder geraden. Nur bis
+# zum Satzende, sonst zieht der Ausdruck den halben Folgeabsatz mit hinein.
+_SIEHE_AUCH = re.compile(r"(?:See also|Siehe auch)([^.\n]{0,240})")
 _ZITIERTER_NAME = re.compile(r"[“„\"]([^“”„\"]{2,60})"
                              r"[”“\"]")
+# Kapitel-Verweise haben die Form `„Die Spielregeln" („Aktionen")` - das Kapitel zuerst,
+# der Abschnitt darin in Klammern. Geschwister-Eintraege stehen dagegen nebeneinander:
+# `„Unarmed Strike" und „Grappled"`. Die Klammer ist damit das Unterscheidungsmerkmal,
+# und was in ihr steht, ist nie ein abrufbarer Eintrag.
+_KLAMMER = re.compile(r"\([^)]*\)")
 
 
 def _verwandte_regelabschnitte(d: dict) -> dict:
@@ -576,18 +582,34 @@ def _verwandte_regelabschnitte(d: dict) -> dict:
     filtert auf `kategorie='klasse'`. Es gilt hier dieselbe Lehre wie am 06.08.2026: B15
     kann nur zusammensetzen, was die Ausgabe ueberhaupt nennt.
 
-    Aufgeloest wird NUR, was auch existiert. Die meisten der 167 Verweise zeigen auf
-    Kapitel („Playing the Game"), nicht auf Eintraege; und die deutschen 2014-Scans tragen
-    an dieser Stelle OCR-Truemmer aus dem Index. Ein Name, den die Datenbank nicht kennt,
-    faellt still weg - sonst stuenden Kapitelnamen als abrufbare Abschnitte da und das
-    Modell liefe ins Leere."""
+    ZWEI Schranken, beide am Vollbestand gemessen (11.08.2026) - ohne sie bekamen 213 von
+    250 Regeln verwandte Abschnitte, und der Hinweis waere Rauschen statt Signal:
+
+    1. Was in KLAMMERN steht, faellt weg. `Siehe auch „Die Spielregeln" („Aktionen")` ist
+       ein Kapitel-Verweis; Geschwister stehen nebeneinander (`„Unarmed Strike" und
+       „Grappled"`). Ohne diese Schranke landete der Abschnitt eines Kapitels als
+       abrufbarer Eintrag im Hinweis.
+    2. Ein Name, der MEHRDEUTIG ist, faellt ebenfalls weg. „Aktionen" gibt es dreimal - als
+       Regelabschnitt, als Statblock-Sektion eines Monsters und in einem Gegenstand. Das
+       Modell haette danach gegriffen und je nach Zufall den falschen bekommen: ein
+       B4-Fehler, den ausgerechnet die B15-Reparatur eingeschleppt haette.
+
+       Mehrdeutig heisst dabei: mehrere (Kategorie, Kontext) - NICHT mehrere Zeilen. Der
+       Bestand fuehrt „Unarmed Strike" zweimal, beide unter 'Rules Definitions' und
+       zeichengleich: Das ist DIESELBE Regel aus zwei Quellen, und die Auswahl daraus
+       trifft `foliant_hol_eintrag` laengst ueber die Quellen-Prioritaet. Zeilen zu zaehlen
+       haette also ausgerechnet den gemeldeten Fall wieder verworfen.
+
+    Und aufgeloest wird ohnehin nur, was existiert: Die meisten Verweise zeigen auf
+    Kapitel, und die deutschen 2014-Scans tragen hier OCR-Truemmer aus dem Index."""
     if not d.get("gefunden"):
         return d
     abschnitt = _SIEHE_AUCH.search(d.get("regeltext_md") or "")
     if not abschnitt:
         return d
     eigene = {n for n in (d.get("name_de"), d.get("name_en")) if n}
-    kandidaten = [n.strip(" .,;") for n in _ZITIERTER_NAME.findall(abschnitt.group(1))]
+    ohne_klammern = _KLAMMER.sub(" ", abschnitt.group(1))
+    kandidaten = [n.strip(" .,;") for n in _ZITIERTER_NAME.findall(ohne_klammern)]
     kandidaten = [n for n in kandidaten if n and n not in eigene]
     if not kandidaten:
         return d
@@ -598,12 +620,13 @@ def _verwandte_regelabschnitte(d: dict) -> dict:
         verwandte: list[str] = []
         for kandidat in kandidaten:
             treffer = con.execute(
-                "SELECT COALESCE(name_de, name_en) FROM eintraege "
+                "SELECT DISTINCT kategorie, COALESCE(kontext, ''), "
+                "       COALESCE(name_de, name_en) FROM eintraege "
                 "WHERE edition = ? AND id != ? "
-                "AND (name_en = ? COLLATE NOCASE OR name_de = ? COLLATE NOCASE) LIMIT 1",
-                [d["edition"], d.get("eintrag_id") or -1, kandidat, kandidat]).fetchone()
-            if treffer and treffer[0] and treffer[0] not in verwandte:
-                verwandte.append(treffer[0])
+                "AND (name_en = ? COLLATE NOCASE OR name_de = ? COLLATE NOCASE) LIMIT 2",
+                [d["edition"], d.get("eintrag_id") or -1, kandidat, kandidat]).fetchall()
+            if len(treffer) == 1 and treffer[0][2] and treffer[0][2] not in verwandte:
+                verwandte.append(treffer[0][2])
         if verwandte:
             d["verwandte_abschnitte"] = verwandte
             d["hinweis_abschnitte"] = (
