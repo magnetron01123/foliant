@@ -1373,11 +1373,22 @@ def cmd_suchbericht(args) -> None:
             gemeinsames LIMIT liesse einen Schwall Lob die Fehlermeldungen verdraengen, und
             genau die duerfen nie verloren gehen."""
             try:
-                return [dict(r) for r in con.execute(
+                zeilen = [dict(r) for r in con.execute(
                     """SELECT zeitpunkt, art, frage, verweis FROM rueckmeldungen
                         WHERE zeitpunkt >= ? AND art = ?
                         ORDER BY zeitpunkt DESC LIMIT ?""",
                     (seit, art, limit))]
+                # Ein stiller Schnitt ist die teuerste Sorte Unvollstaendigkeit: Der
+                # Durchgang haelt die Liste fuer alles, was es gab, und die aeltesten
+                # Urteile - die mit dem laengsten Leidensweg - fallen als erste raus
+                # (Review-Befund 11.08.2026). Nur zaehlen, wenn der Deckel greift.
+                if len(zeilen) == limit:
+                    gesamt = con.execute(
+                        "SELECT count(*) FROM rueckmeldungen "
+                        "WHERE zeitpunkt >= ? AND art = ?", (seit, art)).fetchone()[0]
+                    if gesamt > limit and zeilen:
+                        zeilen[-1] = {**zeilen[-1], "abgeschnitten": gesamt - limit}
+                return zeilen
             except sqlite3.OperationalError:
                 return []
 
@@ -1450,6 +1461,9 @@ def cmd_suchbericht(args) -> None:
                 print(f"    {z['zeitpunkt'][:10]}  "
                       f"{z['frage'] or '(Frage nicht ermittelt)'}")
                 print(f"                {z['verweis']}")
+                if z.get("abgeschnitten"):
+                    print(f"    ... {z['abgeschnitten']} aeltere nicht gezeigt "
+                          f"(--limit erhoehen)")
             print()
 
         # Bewusst VOR den Statistik-Abschnitten: Ein Urteil der Runde ist der staerkste

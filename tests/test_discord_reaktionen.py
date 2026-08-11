@@ -32,12 +32,17 @@ NACHRICHT = 333
 
 
 class FakeNachricht:
-    def __init__(self, autor_id: int = BOT_ID, inhalt: str = "📖 Antwort"):
+    def __init__(self, autor_id: int = BOT_ID, inhalt: str = "📖 Antwort",
+                 stehende=()):
         self.id = NACHRICHT
         self.author = types.SimpleNamespace(id=autor_id, bot=autor_id == BOT_ID)
         self.content = inhalt
         self.thread = None
         self.reaktionen: list[str] = []
+        # `stehende` sind (Emoji, Anzahl)-Paare, die beim Nachladen AN der Nachricht
+        # stehen - also das, was Discord in `.reactions` liefert. Nicht zu verwechseln
+        # mit `self.reaktionen`, das der Bot selbst gesetzt hat (📝).
+        self.reactions = [types.SimpleNamespace(emoji=e, count=n) for e, n in stehende]
 
     async def add_reaction(self, emoji):
         self.reaktionen.append(emoji)
@@ -130,6 +135,78 @@ def test_zuruecknehmen_trifft_nur_die_eigene_art(bot, monkeypatch, tmp_path):
 
     asyncio.run(bot.on_raw_reaction_remove(_payload("\N{THUMBS UP SIGN}")))
     assert [art for art, _frage in _zeilen(tmp_path)] == [rm.ART_RUNTER]
+
+
+def test_die_gemerkte_frage_gewinnt_gegen_die_kanal_historie(bot, monkeypatch, tmp_path):
+    """Der teuerste Befund des Durchgangs vom 11.08.2026: Bei 4 von 6 Rueckmeldungen war
+    die gespeicherte Frage unbrauchbar. `frage_aus_umgebung` nimmt die letzte menschliche
+    Nachricht ohne Altersgrenze - bei `/regel` steht die Frage als Slash-Parameter aber
+    NIRGENDS im Kanal, und dazwischen liegen im Spiel schnell sechs Wuerfelwuerfe.
+
+    Hier steht im Vorlauf genau so ein Fremdkoerper. Vor der Aenderung landete er als
+    'Frage' im Protokoll."""
+    nachricht = FakeNachricht()
+    kanal = FakeKanal(nachricht, vorlauf=[types.SimpleNamespace(
+        author=types.SimpleNamespace(bot=False),
+        content="https://klipy.com/gifs/irgendwas")])
+    _haeng_kanal_ein(bot, monkeypatch, kanal)
+    bot.fragen.merke(NACHRICHT, "wie funktioniert grapple?")
+
+    asyncio.run(bot.on_raw_reaction_add(_payload("\N{THUMBS DOWN SIGN}")))
+
+    assert _zeilen(tmp_path) == [(rm.ART_RUNTER, "wie funktioniert grapple?")]
+
+
+def test_ohne_gedaechtnis_greift_die_alte_rekonstruktion(bot, monkeypatch, tmp_path):
+    """Der Speicher ist fluechtig, und `on_raw_reaction_add` gibt es gerade deshalb, weil
+    Markierungen einen Neustart ueberleben sollen. Faellt das Gedaechtnis weg, muss der
+    alte Weg weiterlaufen statt die Markierung ohne Frage zu notieren."""
+    nachricht = FakeNachricht()
+    kanal = FakeKanal(nachricht, vorlauf=[types.SimpleNamespace(
+        author=types.SimpleNamespace(bot=False), content="Was macht Feuerball?")])
+    _haeng_kanal_ein(bot, monkeypatch, kanal)
+
+    asyncio.run(bot.on_raw_reaction_add(_payload("\N{THUMBS DOWN SIGN}")))
+
+    assert _zeilen(tmp_path) == [(rm.ART_RUNTER, "Was macht Feuerball?")]
+
+
+@pytest.mark.parametrize("stehend", [
+    "\N{THUMBS DOWN SIGN}",
+    "\N{THUMBS DOWN SIGN}\N{VARIATION SELECTOR-16}",          # anderer Client
+    "\N{THUMBS DOWN SIGN}\N{EMOJI MODIFIER FITZPATRICK TYPE-4}",  # anderer Hautton
+])
+def test_ruecknahme_loescht_nicht_solange_ein_anderer_markiert(bot, monkeypatch,
+                                                               tmp_path, stehend):
+    """Zwei Spieler, derselbe Daumen, EINE Zeile - so entdoppelt UNIQUE(art, verweis)
+    bewusst ohne Nutzerkennung. Nimmt einer zurueck, muss der Befund des anderen bleiben.
+
+    Bis zum Review am 11.08.2026 loeschte die Ruecknahme bedingungslos: Ausgerechnet die
+    wertvollste Zeilensorte verschwand still, weil EIN Spieler es sich anders ueberlegte.
+    Der Zaehler an der Nachricht reicht als Beleg und bleibt PII-frei - er sagt, DASS noch
+    jemand markiert, nie wer. Auch geschmueckt: der Daumen des anderen kann jede
+    Client-Form haben."""
+    nachricht = FakeNachricht(stehende=[(stehend, 1)])
+    _haeng_kanal_ein(bot, monkeypatch, FakeKanal(nachricht))
+
+    asyncio.run(bot.on_raw_reaction_add(_payload("\N{THUMBS DOWN SIGN}")))
+    assert len(_zeilen(tmp_path)) == 1
+
+    asyncio.run(bot.on_raw_reaction_remove(_payload("\N{THUMBS DOWN SIGN}")))
+    assert [art for art, _frage in _zeilen(tmp_path)] == [rm.ART_RUNTER], \
+        "der Befund des anderen Spielers wurde mitgeloescht"
+
+
+def test_ruecknahme_der_letzten_markierung_loescht_doch(bot, monkeypatch, tmp_path):
+    """Die Gegenprobe zum Test darueber - sonst waere die Ruecknahme wirkungslos und ein
+    Fehlgriff bliebe dauerhaft in der Kurationsliste. Steht nach dem Entfernen nichts mehr
+    an der Nachricht, ist die Zeile gegenstandslos."""
+    nachricht = FakeNachricht(stehende=[("\N{THUMBS UP SIGN}", 1)])   # andere Art
+    _haeng_kanal_ein(bot, monkeypatch, FakeKanal(nachricht))
+
+    asyncio.run(bot.on_raw_reaction_add(_payload("\N{THUMBS DOWN SIGN}")))
+    asyncio.run(bot.on_raw_reaction_remove(_payload("\N{THUMBS DOWN SIGN}")))
+    assert _zeilen(tmp_path) == []
 
 
 # --- was NICHT aufgenommen wird -------------------------------------------------------

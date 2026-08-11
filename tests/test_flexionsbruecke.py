@@ -212,6 +212,36 @@ def test_umgangssprache_braucht_die_offizielle_form_im_bestand(tmp_path):
         "Umgangssprache muss offiziell=0 sein, sonst konkurriert sie mit der Buchform"
 
 
+def test_machtwort_tod_bruecket_auf_den_zauber(tmp_path):
+    """Suchbericht 11.08.2026: 30 Nulltreffer auf „machtwort tod" in 30 Tagen - der
+    groesste Einzelposten. Der Zauber liegt im Bestand, das Glossar fuehrt „Wort der
+    Macht: Tod" als offiziell; am Tisch sagt die Runde „Machtwort Tod".
+
+    Geprueft wird beides: dass die Bruecke entsteht UND dass sie offiziell=0 bleibt. Mit
+    offiziell=1 wuerde die Anzeige irgendwann die umgangssprachliche Form waehlen und der
+    Bot einen Namen ausgeben, den kein Buch kennt (S3)."""
+    import sqlite3
+
+    from importer.import_glossar import seed_umgangssprache
+    from tests.hilfen import SCHEMA
+
+    pfad = tmp_path / "machtwort.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,prioritaet) "
+                "VALUES ('srd-de','SRD','de','2024','pdf',20)")
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,sprache,edition,body_md)"
+                " VALUES (1,'zauber','Wort der Macht: Tod','de','2024','Du sprichst.')")
+    con.commit()
+    seed_umgangssprache(con)
+    zeile = con.execute("SELECT term_en, offiziell FROM glossar "
+                        "WHERE term_de = 'Machtwort Tod'").fetchone()
+    con.close()
+    assert zeile, "die Bruecke fehlt - die Runde bekommt weiter einen Nulltreffer"
+    assert zeile[0] == "Power Word Kill"
+    assert zeile[1] == 0, "als offiziell=1 konkurrierte sie mit der Buchform"
+
+
 def test_umgangssprache_ueberschreibt_keine_offizielle_zeile(tmp_path):
     """Ein Upsert auf eine bestehende Zeile wuerde ihre Offizialitaet kippen - dieselbe
     Zusage wie bei der Flexions-Bruecke."""

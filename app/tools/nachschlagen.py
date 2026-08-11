@@ -555,6 +555,68 @@ def _verwandte_klassenabschnitte(d: dict) -> dict:
         con.close()
 
 
+# Der Verweis-Zusatz des Regelglossars, englisch wie deutsch. Danach folgen die Ziele in
+# Anfuehrungszeichen - je nach Quelle in typografischen, deutschen oder geraden.
+_SIEHE_AUCH = re.compile(r"(?:See also|Siehe auch)(.{0,240})", re.S)
+_ZITIERTER_NAME = re.compile(r"[“„\"]([^“”„\"]{2,60})"
+                             r"[”“\"]")
+
+
+def _verwandte_regelabschnitte(d: dict) -> dict:
+    """Bei Regeln die im Text zitierten Geschwister-Eintraege als NAMEN nachreichen.
+
+    Befund 10.08.2026 (zwei 👎 auf „grapple"): Geliefert wurde der Glossar-Eintrag
+    „Gepackt halten" - Zustand und wie er endet. WIE man packt, steht im „Waffenlosen
+    Angriff", und der Bestandstext sagt das selbst: *See also* „Unarmed Strike" und
+    „Grappled". Beide Eintraege liegen im Bestand, auch auf Deutsch. Die Antwort hat den
+    zweiten Teil trotzdem nur ANGEBOTEN - genau das, was B15 verbietet.
+
+    Ursache war kein Prompt-Problem: B15 steht in beiden Prompt-Kanaelen UND als
+    Grounding-Hinweis. Nur sah die Ausgabe den Verweis nie - `_verwandte_klassenabschnitte`
+    filtert auf `kategorie='klasse'`. Es gilt hier dieselbe Lehre wie am 06.08.2026: B15
+    kann nur zusammensetzen, was die Ausgabe ueberhaupt nennt.
+
+    Aufgeloest wird NUR, was auch existiert. Die meisten der 167 Verweise zeigen auf
+    Kapitel („Playing the Game"), nicht auf Eintraege; und die deutschen 2014-Scans tragen
+    an dieser Stelle OCR-Truemmer aus dem Index. Ein Name, den die Datenbank nicht kennt,
+    faellt still weg - sonst stuenden Kapitelnamen als abrufbare Abschnitte da und das
+    Modell liefe ins Leere."""
+    if not d.get("gefunden"):
+        return d
+    abschnitt = _SIEHE_AUCH.search(d.get("regeltext_md") or "")
+    if not abschnitt:
+        return d
+    eigene = {n for n in (d.get("name_de"), d.get("name_en")) if n}
+    kandidaten = [n.strip(" .,;") for n in _ZITIERTER_NAME.findall(abschnitt.group(1))]
+    kandidaten = [n for n in kandidaten if n and n not in eigene]
+    if not kandidaten:
+        return d
+    con = _verbinde()
+    if con is None:
+        return d
+    try:
+        verwandte: list[str] = []
+        for kandidat in kandidaten:
+            treffer = con.execute(
+                "SELECT COALESCE(name_de, name_en) FROM eintraege "
+                "WHERE edition = ? AND id != ? "
+                "AND (name_en = ? COLLATE NOCASE OR name_de = ? COLLATE NOCASE) LIMIT 1",
+                [d["edition"], d.get("eintrag_id") or -1, kandidat, kandidat]).fetchone()
+            if treffer and treffer[0] and treffer[0] not in verwandte:
+                verwandte.append(treffer[0])
+        if verwandte:
+            d["verwandte_abschnitte"] = verwandte
+            d["hinweis_abschnitte"] = (
+                "Der Regeltext verweist selbst auf diese Abschnitte (per "
+                "foliant_hol_eintrag abrufbar). Fuer die Antwort nachladen und als EIN "
+                "Ergebnis ausgeben (B15) - die Aufteilung nie erwaehnen und nichts davon "
+                "nur 'anbieten'. Wer nach einer Regel fragt, meint auch den Teil, der "
+                "sagt, wie man sie ausloest.")
+        return d
+    finally:
+        con.close()
+
+
 def foliant_hol_eintrag(kategorie: Kategorie, name: str | None = None,
                         edition: str = "2024", eintrag_id: int | None = None) -> dict:
     """Vollstaendiger Eintrag aus dem Bestand, mit Zitat (Quelle, ggf. Seite,
@@ -600,7 +662,11 @@ def foliant_hol_eintrag(kategorie: Kategorie, name: str | None = None,
         suchweg=suchweg, mehrdeutig=bool(d.get("mehrdeutig")),
         gefunden=d.get("gefunden"),
         dauer_ms=(time.monotonic() - start) * 1000)
-    return _verwandte_klassenabschnitte(d) if kategorie == "klasse" else d
+    if kategorie == "klasse":
+        return _verwandte_klassenabschnitte(d)
+    if kategorie == "regel":
+        return _verwandte_regelabschnitte(d)
+    return d
 
 
 def foliant_uebersetze_begriff(begriff: str,

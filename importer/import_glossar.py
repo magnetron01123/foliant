@@ -973,6 +973,12 @@ UMGANGSSPRACHE: tuple[tuple[str, str, str], ...] = (
     ("Dash", "Spurt", "Rennen"),
     ("Dash", "Spurt", "Sprinten"),
     ("Grappled", "Gepackt", "Umklammern"),
+    # Suchbericht 11.08.2026, mit 30 Nulltreffern in 30 Tagen der groesste Einzelposten:
+    # Der Zauber liegt im Bestand und das Glossar fuehrt "Wort der Macht: Tod" als
+    # offiziell - die Runde sagt am Tisch aber "Machtwort Tod". Die Geschwister
+    # (Betaeubung, Heilung) sind bewusst NICHT dabei: Sie sind dieselbe Konstruktion,
+    # aber niemand hat nach ihnen gesucht, und gebrueckt wird, was die Daten zeigen.
+    ("Power Word Kill", "Wort der Macht: Tod", "Machtwort Tod"),
 )
 
 
