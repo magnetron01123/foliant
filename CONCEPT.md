@@ -1270,6 +1270,14 @@ Kuratiert. Quellen-spezifische Eigenheiten stehen im Modul-Docstring des jeweili
 Importers (`importer/import_open5e.py` für die Open5e-API, `importer/import_markdown.py`
 für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de).
 
+- **Ein Meldeweg, der ein Eingabezeichen nicht kennt, schweigt — er meckert nicht.**
+  Der Daumen-Vergleich entfernte den Variantenselektor, nicht die fünf Hautton-Zeichen.
+  Wer den Ton einmal eingestellt hat, sendet auf dem Handy fortan die geschmückte Form,
+  und die ergab weder eine Protokollzeile noch die 📝-Quittung (Review 11.08.2026). Bei
+  einem Kanal, dessen ganzer Zweck die Rückmeldung ist, kostet so ein Loch nicht ein
+  Ereignis, sondern die Statistik: Niemand meldet, dass das Melden nicht geht. Wer ein
+  Zeichen vergleicht, vergleicht deshalb die nackte Form — und prüft **den ganzen
+  Zeichenbereich**, nicht die zwei Varianten, die gerade aufgefallen sind.
 - **Eval-Reports leben IM Container und überleben einen Rebuild nicht.** Sie sind aber
   die einzige Kalibriergrundlage: Neue Prüfmuster laufen erst gegen die `antwort`-Felder
   bezahlter Läufe, bevor sie Code werden (Fehlalarm-Reihe A3 → B1 → F2). Seit dem

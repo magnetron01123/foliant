@@ -413,6 +413,134 @@ def test_englische_unterklasse_nennt_ihre_stufen_merkmale(tmp_path, monkeypatch)
 
 # --- Codeblock-Breite (Messung an echten Antworten, 08.08.2026) ------------------------
 
+def _regel_db(tmp_path, eintraege):
+    """Eine Bestands-DB mit (name_de, name_en, body[, kontext])-Regeln.
+
+    `kontext` ist optional und trennt gleichnamige Eintraege - genau das Merkmal, an dem
+    sich Mehrdeutigkeit von Quellen-Dubletten unterscheidet."""
+    eintraege = [(e + (None,))[:4] if len(e) == 3 else e for e in eintraege]
+    import sqlite3
+
+    from tests.hilfen import SCHEMA
+
+    pfad = tmp_path / "regeln.sqlite"
+    con = sqlite3.connect(pfad)
+    con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,"
+                "prioritaet,inhaltsart) VALUES ('srd-de','SRD','de','2024','srd',"
+                "'cc-by-4.0',20,'regelwerk')")
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,"
+        "seite,body_md,kontext) VALUES (1,'regel',?,?,'de','2024',NULL,?,?)", eintraege)
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    return pfad
+
+
+def test_regel_nennt_die_im_text_zitierten_geschwister(tmp_path, monkeypatch):
+    """Gemeldeter Befund (10.08.2026, zwei 👎 auf beide Haelften derselben Antwort):
+    Auf "grapple" kam der Glossar-Eintrag "Gepackt halten" - der Zustand und wie er endet.
+    WIE man packt, steht im "Waffenlosen Angriff", und der Bestandstext sagt das selbst:
+    *Siehe auch* „Waffenloser Angriff". Der Eintrag liegt im Bestand. Die Antwort hat ihn
+    trotzdem nur ANGEBOTEN ("Sag Bescheid, wenn du ... brauchst") - genau das, was B15
+    verbietet.
+
+    Kein Prompt-Fall: B15 stand in beiden Prompt-Kanaelen UND als Grounding-Hinweis.
+    `_verwandte_klassenabschnitte` filterte nur auf kategorie='klasse', also sah die
+    Ausgabe den Verweis nie. Dieselbe Lehre wie am 06.08.2026 - B15 kann nur
+    zusammensetzen, was die Ausgabe ueberhaupt nennt."""
+    from app import db as adb
+    from app.tools import nachschlagen as ns
+
+    pfad = _regel_db(tmp_path, [
+        ("Gepackt halten", "Grappling",
+         "Siehe auch_ „Gepackt“ und „Waffenloser Angriff“.\n\nEine Kreatur kann eine "
+         "andere packen und festhalten."),
+        ("Waffenloser Angriff", "Unarmed Strike",
+         "Statt Schaden kannst du das Ziel packen."),
+        ("Gepackt", "Grappled", "Zustand: die Bewegungsrate ist 0."),
+    ])
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+
+    antwort = ns.foliant_hol_eintrag("regel", name="Gepackt halten")
+
+    assert antwort.get("gefunden"), "Vorbedingung: die Regel muss gefunden werden"
+    verwandte = antwort.get("verwandte_abschnitte") or []
+    assert "Waffenloser Angriff" in verwandte, (
+        f"der ausloesende Teil der Regel fehlt ({verwandte}) - genau der gemeldete Befund")
+    assert "Gepackt" in verwandte
+    assert "Gepackt halten" not in verwandte, "der Eintrag selbst gehoert nicht dazu"
+    assert "B15" in antwort.get("hinweis_abschnitte", ""), \
+        "ohne die Zusammensetz-Ansage bietet das Modell den Teil nur an"
+
+
+def test_verweise_auf_kapitel_werden_nicht_als_abschnitt_ausgegeben(tmp_path, monkeypatch):
+    """Die Gegenprobe, und sie zaehlt: Von 250 Verweisen im Bestand zeigen die meisten auf
+    KAPITEL ("Die Spielregeln"), nicht auf Eintraege - und die deutschen 2014-Scans tragen
+    an dieser Stelle OCR-Truemmer aus dem Index.
+
+    Der Klammerzusatz ist dabei die Falle: `„Die Spielregeln" („Aktionen")` nennt das
+    Kapitel und den Abschnitt darin. „Aktionen" GIBT es als Eintrag - dreimal sogar - und
+    ohne die Klammer-Schranke waere der Abschnitt eines Kapitels als abrufbarer
+    Geschwister-Eintrag im Hinweis gelandet. Am Vollbestand gemessen (11.08.2026) hing an
+    dieser einen Zeile der Unterschied zwischen 213 und einer Handvoll Regeln mit
+    verwandten Abschnitten."""
+    from app import db as adb
+    from app.tools import nachschlagen as ns
+
+    pfad = _regel_db(tmp_path, [
+        ("Aktion", "Action", "Siehe auch_ „Die Spielregeln“ („Aktionen“).\n\nText."),
+        ("Aktionen", None, "Der Abschnitt ueber Aktionen."),
+    ])
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+
+    antwort = ns.foliant_hol_eintrag("regel", name="Aktion")
+
+    assert antwort.get("gefunden")
+    assert not antwort.get("verwandte_abschnitte"), \
+        "der Abschnitt eines Kapitel-Verweises ist kein Geschwister-Eintrag"
+    assert not antwort.get("hinweis_abschnitte")
+
+
+def test_mehrdeutige_ziele_werden_nicht_ausgewiesen(tmp_path, monkeypatch):
+    """Am Vollbestand gibt es „Aktionen" dreimal: als Regelabschnitt, als
+    Statblock-Sektion eines Monsters und in einem Gegenstand. Wuerde so ein Name als
+    verwandter Abschnitt genannt, griffe das Modell danach und bekaeme je nach Zufall den
+    falschen - ein B4-Fehler, den ausgerechnet die B15-Reparatur eingeschleppt haette.
+
+    Lieber gar kein Verweis als ein zweideutiger: Ein fehlender Abschnitt kostet eine
+    Rueckfrage, ein falscher eine falsche Auskunft.
+
+    Mehrdeutig heisst dabei mehrere KONTEXTE, nicht mehrere Zeilen - der zweite Teil dieses
+    Tests. „Unarmed Strike" steht im Bestand zweimal, beide unter 'Rules Definitions' und
+    zeichengleich: dieselbe Regel aus zwei Quellen. Zeilen zu zaehlen haette ausgerechnet
+    den gemeldeten Fall wieder verworfen."""
+    from app import db as adb
+    from app.tools import nachschlagen as ns
+
+    pfad = _regel_db(tmp_path, [
+        ("Gepackt halten", "Grappling",
+         "Siehe auch_ „Ringen“ und „Waffenloser Angriff“.\n\nText.", "Regelglossar"),
+        ("Ringen", None, "Der Sport.", "Die Spielregeln"),
+        ("Ringen", None, "Die Statblock-Sektion.", "Monster > Wertekaesten"),
+        # Dieselbe Regel aus zwei Quellen: gleicher Kontext, gleicher Text.
+        ("Waffenloser Angriff", None, "Statt Schaden packst du.", "Regeldefinitionen"),
+        ("Waffenloser Angriff", None, "Statt Schaden packst du.", "Regeldefinitionen"),
+    ])
+    monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
+
+    antwort = ns.foliant_hol_eintrag("regel", name="Gepackt halten")
+
+    assert antwort.get("gefunden")
+    verwandte = antwort.get("verwandte_abschnitte") or []
+    assert "Ringen" not in verwandte, \
+        "zweideutiger Name als abrufbarer Abschnitt ausgewiesen"
+    assert "Waffenloser Angriff" in verwandte, \
+        "Quellen-Dublette faelschlich als Mehrdeutigkeit verworfen"
+
+
 def test_discord_zusatz_nennt_dasselbe_breitenbudget_wie_der_grader():
     """Prompt und Messung müssen DIESELBE Zahl tragen. Driften sie auseinander, wird der
     Bot an einer Regel gemessen, die ihm nie gesagt wurde — die teuerste Sorte

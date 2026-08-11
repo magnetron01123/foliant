@@ -48,14 +48,32 @@ ARTEN = {"\N{THUMBS DOWN SIGN}": ART_RUNTER, "\N{THUMBS UP SIGN}": ART_HOCH}
 BESTAETIGUNG = "\N{MEMO}"
 
 
+# Zeichen, die den Daumen nur AUSSEHEN lassen, ihn aber nicht zu einem anderen Emoji
+# machen: der Variantenselektor (Textform gegen Bildform) und die fuenf Hauttoene.
+_SCHMUCK = ("\N{VARIATION SELECTOR-16}",
+            *(chr(c) for c in range(0x1F3FB, 0x1F400)))  # U+1F3FB..U+1F3FF
+
+
 def art_der_markierung(emoji: str) -> str | None:
     """Die Art der Rueckmeldung - oder None, wenn die Reaktion Geplauder ist.
 
-    Verglichen wird auf dem nackten Zeichen: Discord liefert dasselbe Emoji je Client mit
-    oder ohne Variantenselektor (U+FE0F), und ein direkter Stringvergleich haette den
-    Daumen von manchen Geraeten stillschweigend nicht erkannt. Bei 👍 wiegt das schwerer
-    als bei 👎 - iOS schickt ihn praktisch immer mit U+FE0F."""
-    return ARTEN.get(emoji.replace("\N{VARIATION SELECTOR-16}", ""))
+    Verglichen wird auf dem NACKTEN Zeichen. Discord liefert denselben Daumen je nach
+    Client und Profil unterschiedlich geschmueckt, und ein direkter Stringvergleich hat
+    beide Formen stillschweigend verworfen:
+
+    - Variantenselektor U+FE0F (Textform/Bildform) - iOS schickt 👍 praktisch immer damit.
+    - Hauttoene U+1F3FB..U+1F3FF (Review-Befund 11.08.2026, am lebenden Bot gemessen):
+      Wer den Ton einmal eingestellt hat, sendet auf iOS und Android IMMER 👍🏽 statt 👍.
+      Fuer den bekam die Runde weder eine Zeile im Protokoll noch die 📝-Quittung - der
+      einzige Eingang der Feedback-Schleife war fuer einen sehr haeufigen Fall zu.
+
+    Der Hautton ist kein Bedeutungsunterschied: 👍🏽 heisst dasselbe wie 👍. Ihn zu
+    speichern hiesse ausserdem, ein personenbezogenes Merkmal zu protokollieren
+    (CONCEPT.md par. 13) - er wird deshalb weggeworfen, nicht ausgewertet."""
+    nackt = emoji
+    for zeichen in _SCHMUCK:
+        nackt = nackt.replace(zeichen, "")
+    return ARTEN.get(nackt)
 
 
 def frage_aus_umgebung(vorlauf: list[tuple[bool, str]],
@@ -82,6 +100,63 @@ def frage_aus_umgebung(vorlauf: list[tuple[bool, str]],
             return text
     titel = (thread_titel or "").strip()
     return titel or None
+
+
+class Fragenspeicher:
+    """Welche Frage eine gesendete Antwort beantwortet hat - nachricht_id -> Frage.
+
+    Warum es das braucht (Durchgang 11.08.2026): `frage_aus_umgebung` rekonstruiert die
+    Frage im Moment der REAKTION aus der Kanal-Historie. Das ging bei 4 von 6
+    Rueckmeldungen schief - einmal landete ein GIF-Link im Protokoll, einmal eine zwei
+    Tage alte Frage zu einem anderen Thema, zweimal blieb es leer. Kein Wunder: Bei
+    `/regel` steht die Frage als Slash-Parameter NIRGENDS im Kanal, und zwischen Frage und
+    Antwort liegen im Spiel schnell sechs Wuerfelwuerfe eines anderen Bots.
+
+    Der Bot kennt die Frage aber, waehrend er antwortet. Hier gemerkt, ist die Zuordnung
+    exakt statt geraten.
+
+    FLUECHTIG und BEGRENZT, mit Absicht:
+    - Im Speicher, nicht auf der Platte: Es ist ein Komfortfeld, keine Buchfuehrung. Nach
+      einem Neustart greift `frage_aus_umgebung` weiter - deshalb bleibt der alte Weg als
+      Rueckfallebene bestehen und wird nicht ersetzt.
+    - Deckel gegen unbegrenztes Wachstum; die aeltesten fallen zuerst. Markiert wird
+      erfahrungsgemaess binnen Minuten, nicht nach tausend Antworten.
+    - Gespeichert wird NUR die Frage, die ohnehin ins Protokoll darf (CONCEPT.md par. 13),
+      nie der Antworttext. Das ist strenger als vorher: Bisher konnte jede beliebige
+      Kanal-Nachricht als 'Frage' im Log landen."""
+
+    def __init__(self, deckel: int = 500) -> None:
+        self._deckel = deckel
+        self._fragen: dict[int, str] = {}
+
+    def merke(self, nachricht_id: int, frage: str) -> None:
+        if not (frage or "").strip():
+            return
+        self._fragen.pop(nachricht_id, None)     # ans Ende, damit der Deckel FIFO bleibt
+        self._fragen[nachricht_id] = frage
+        while len(self._fragen) > self._deckel:
+            self._fragen.pop(next(iter(self._fragen)))
+
+    def frage(self, nachricht_id: int) -> str | None:
+        return self._fragen.get(nachricht_id)
+
+
+def noch_markiert(reaktionen: list[tuple[str, int]], art: str) -> bool:
+    """Haelt nach einer Ruecknahme noch jemand dieselbe Art an dieser Antwort?
+
+    `reaktionen` sind (Emoji, Anzahl)-Paare der Nachricht, frisch geladen - also OHNE den,
+    der eben zurueckgenommen hat.
+
+    Review-Befund 11.08.2026: `loesche_rueckmeldung` loeschte bedingungslos. Weil
+    UNIQUE(art, verweis) bewusst ohne Nutzerkennung entdoppelt, ergeben zwei Spieler mit 👎
+    an derselben Antwort EINE Zeile - und nahm einer zurueck, verschwand der Befund, obwohl
+    der andere ihn weiter markierte. Ausgerechnet die wertvollste Zeilensorte, still.
+
+    Die Anzahl reicht dafuer und bleibt PII-frei: Sie sagt, DASS noch jemand markiert, nie
+    wer. Genau die Grenze, an der die 📝-Quittung stehen bleibt - die wegzunehmen hiesse
+    zu wissen, ob niemand mehr markiert, und das weiss nur diese Zahl, nicht der Bot."""
+    return any(anzahl > 0 and art_der_markierung(emoji) == art
+               for emoji, anzahl in reaktionen)
 
 
 def verweis(guild_id: int, kanal_id: int, nachricht_id: int) -> str:

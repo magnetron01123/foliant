@@ -6,7 +6,7 @@
   "_befund_format": "`regeln` sind die verletzten SPEC-IDs (S*, B*, V*, Q*, T*), `ursache` ist eine von: 'code' (ein Fehler im Programm — keine Prompt-Regel hätte ihn behoben), 'verhalten' (das Modell hielt eine Regel nicht ein), 'daten' (Bestand oder Glossar), 'meldeweg' (die Rückmeldungs-Mechanik selbst). Strukturiert statt als Fließtext, weil erst darüber sichtbar wird, welche Regel WIEDERHOLT bricht — und eine Regel, die dreimal bricht, ist kein Modellfehler mehr, sondern eine Regel, die an der falschen Stelle steht.",
   "_entscheidung_format": "`entscheidung` hält Davids Freigabe fest und ist eine von: 'ja' (umgesetzt), 'nein' (verworfen), 'spaeter' (Befund gilt, Umsetzung vertagt). Bei 'nein' und 'spaeter' steht in `grund` sein Satz, gekürzt — bei 'ja' wäre er Rauschen, denn was daraus wurde, sagt `behoben_durch`. Zwei Gründe für das Feld: Ein 'spaeter' überlebt so das Vorrücken der Hochwassermarke und kommt im nächsten Durchgang als erste Karte zurück. Und ein 'nein' wird beim nächsten gleichartigen Vorschlag als `Achtung`-Zeile mitzitiert, statt David dieselbe Entscheidung zweimal zu kosten — vorgelegt wird er trotzdem, denn ein 'nein' kann situativ gewesen sein, und dauerhaftes Stummschalten wäre schlimmer als eine offen deklarierte Wiedervorlage.",
   "_automatisch": "Was der Durchgang OHNE Rückfrage erledigt hat — je Eintrag eine Zeile. Erlaubt ist genau eine Klasse: ein Golden-Test aus einem 👍 auf eine Bestandsaussage (ändert kein Verhalten, kostet nichts, friert nur ein, was schon richtig ist). Die Schranken stehen in .claude/ablaeufe/rueckmeldungen.md. Leer bei allen Durchgängen vor dem 11.08.2026 — bis dahin galt die Ausnahme nicht.",
-  "zuletzt_gesichtet_bis": "2026-08-04T20:00:00+00:00",
+  "zuletzt_gesichtet_bis": "2026-08-11T00:00:00+00:00",
   "durchgaenge": [
     {
       "datum": "2026-08-04",
@@ -85,6 +85,49 @@
       ],
       "automatisch": [],
       "bemerkung": "Zweiter Mutationslauf desselben Tages deckte erneut einen Scheintest auf — diesmal traf die Mutation den Struktur-Pfad und der Test den Freitext-Pfad. Beide Ausgabewege sind jetzt einzeln abgesichert."
+    },
+    {
+      "datum": "2026-08-11",
+      "fenster_tage": 30,
+      "daumen_runter": 4,
+      "daumen_hoch": 2,
+      "ohne_befund": 2,
+      "befunde": [
+        {
+          "regeln": [
+            "O4"
+          ],
+          "ursache": "meldeweg",
+          "was": "Bei 4 von 6 Rueckmeldungen war die gespeicherte Frage unbrauchbar: ein GIF-Link, eine zwei Tage alte Frage zu einem anderen Thema, zweimal leer. Die Frage wurde im Moment der Reaktion aus der Kanal-Historie erraten, statt beim Antworten gemerkt zu werden - bei einem Slash-Befehl steht sie nirgends im Kanal.",
+          "entscheidung": "ja"
+        },
+        {
+          "regeln": [
+            "B15"
+          ],
+          "ursache": "code",
+          "was": "Auf eine Regelfrage kam nur der halbe Regeltext; der ausloesende Teil wurde bloss angeboten, obwohl der Bestandstext selbst darauf verweist und der Eintrag da ist. Die Ausgabe wies verwandte Abschnitte nur bei Klassen aus, nie bei Regeln.",
+          "entscheidung": "ja"
+        },
+        {
+          "regeln": [
+            "B3"
+          ],
+          "ursache": "daten",
+          "was": "Groesster Nulltreffer-Posten des Fensters: Die Runde sucht einen Zauber unter seiner umgangssprachlichen deutschen Form, das Glossar fuehrt nur die offizielle. Als Suchvariante mit offiziell=0 gebrueckt; die gleichgebauten Geschwister bewusst nicht, da nach ihnen niemand gesucht hat.",
+          "entscheidung": "ja"
+        },
+        {
+          "regeln": [
+            "O4"
+          ],
+          "ursache": "meldeweg",
+          "was": "Review der Schleife, vier eigene Befunde: Daumen mit Hautton wurden still verworfen (der haeufigste Fall auf Mobilgeraeten); eine Ruecknahme loeschte die Markierung aller, weil bewusst ohne Nutzerkennung entdoppelt wird; Statistik- und Meldeweg teilten sich einen Fehlerzaehler, sodass Maschinenverkehr die Urteile abschalten konnte; und der Bericht schnitt bei seinem Limit still ab.",
+          "entscheidung": "ja"
+        }
+      ],
+      "automatisch": [],
+      "bemerkung": "Erster Durchgang im neuen Kartenformat und zugleich dessen Abnahme - er hat vier Formatluecken gezeigt, die alle im 👎-Fall entworfen waren: kein Ort fuer den Kartenblock (er landete in einer Werkzeug-Ausgabe und war fuer David unsichtbar), keine Art fuer Statistik-Kandidaten ohne Markierung, kein Kopf fuer Lob ohne verletzte Regel, kein Grund 'bereits behoben'. Die Automatik-Schranke hat korrekt gehalten: Der Golden-Test kam als Karte, weil der Lauf nicht auf main stattfand."
     }
   ]
 }

@@ -167,6 +167,17 @@ unbequemste Lehre — eine Regel forderte den Fehler selbst — im Entscheidungs
 [CONCEPT.md](CONCEPT.md) §10). Und: ein Test, der beim ersten Lauf grün ist, ist noch
 kein Test (§12).
 
+**Erster Durchgang im Kartenformat (11.08.2026, 4 👎 / 2 👍):** vier Befunde, keiner am
+Modell. Der teuerste war der Meldeweg selbst — bei **vier von sechs** Rückmeldungen war die
+gespeicherte Frage unbrauchbar, weil sie im Moment der Reaktion aus der Kanal-Historie
+erraten statt beim Antworten gemerkt wurde. Dazu B15 (die Ausgabe wies verwandte Abschnitte
+nur bei Klassen aus, nie bei Regeln — der Bestandstext verweist selbst) und eine
+Glossar-Lücke. Der vierte kam aus einem Review der Schleife: Daumen mit Hautton wurden
+still verworfen, eine Rücknahme löschte die Markierung aller, Maschinenverkehr konnte die
+Urteile abschalten, und der Bericht schnitt bei seinem Limit stumm ab. Alle behoben und mit
+Regressionstests belegt; die Lehre zum Zeichenvergleich steht in
+[CONCEPT.md](CONCEPT.md) §12.
+
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking und
 Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 
