@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 09.08.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 11.08.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -555,13 +555,17 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
 - **Der Durchgang läuft zeitgesteuert, nicht auf Zuruf** (04.08.2026). Zweimal pro Woche
   fährt eine geplante Aufgabe auf Davids Mac den Ablauf aus
   `.claude/ablaeufe/rueckmeldungen.md`: Bericht holen (`make bericht-pi`), Gesprächskontext
-  je Markierung nachladen (`make kontext-pi`), gegen die Regel-IDs prüfen, Vorschlagstabelle
+  je Markierung nachladen (`make kontext-pi`), gegen die Regel-IDs prüfen, **Freigabekarten**
   vorlegen. **Ohne neue Rückmeldung endet sie ohne Ausgabe** — eine Aufgabe, die
   regelmäßig Erfolg meldet, wird weggeklickt, und mit ihr die Meldung, die zählt.
-  Sichtungsstand: `config/rueckmeldungen_stand.json` (Hochwassermarke; bewusst versioniert
-  statt in der Protokoll-DB, damit der Fortschritt im Diff steht und die Produktion keinen
-  Schreibbefehl braucht). Umgesetzt wird **nichts** ohne Davids Freigabe — Begründung und
-  die übrigen Zeitläufe: `.claude/ablaeufe/LIESMICH.md`.
+  Sichtungsstand: `config/rueckmeldungen_stand.json` (Hochwassermarke, Entscheidung je
+  Befund; bewusst versioniert statt in der Protokoll-DB, damit der Fortschritt im Diff
+  steht und die Produktion keinen Schreibbefehl braucht). Umgesetzt wird **nichts** ohne
+  Davids Freigabe, mit einer benannten Ausnahme (11.08.2026): ein 👍 auf eine
+  Bestandsaussage darf ohne Rückfrage einen Golden-Test bekommen — die einzige Klasse, die
+  kein Verhalten ändert. Format, Schranken und Ablage: `.claude/ablaeufe/rueckmeldungen.md`,
+  bewacht von `tests/test_rueckmeldungs_ablauf.py`; die übrigen Zeitläufe:
+  `.claude/ablaeufe/LIESMICH.md`.
 
 ### Admin-CLI (vollständig)
 ```
