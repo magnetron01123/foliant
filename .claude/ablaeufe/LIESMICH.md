@@ -10,7 +10,7 @@ nächsten Lauf — ohne die Aufgabe anzufassen.
 
 | Datei | Läuft | Was sie tut |
 |---|---|---|
-| `rueckmeldungen.md` | 2×/Woche | 👎/👍 der Runde auswerten, gegen die Doku prüfen, Vorschlagstabelle vorlegen |
+| `rueckmeldungen.md` | 2×/Woche | 👎/👍 der Runde auswerten, gegen die Doku prüfen, Freigabekarten vorlegen |
 | `ddb-abgleich.md` | monatlich | Fehlen gekaufte DDB-Bücher im Bestand? Cobalt-Cookie noch gültig? |
 | `egress-abgleich.md` | monatlich | Passen die IP-Bereiche in `app/zugriff.py` noch zu Anthropics Liste? |
 | `import.md` | auf Zuruf | Geführter Quellen-Import (neue PDFs / DDB) — kein Zeitplan, David stößt ihn an |

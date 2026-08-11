@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 09.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 11.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -128,9 +128,10 @@ die Entscheidung noch einmal zu prüfen ist.*
 **Der Durchgang läuft seit dem 04.08.2026 zeitgesteuert** — zweimal pro Woche fährt ihn
 eine geplante Aufgabe auf Davids Mac und meldet sich nur, wenn es neue Rückmeldungen gibt.
 Der verbindliche Ablauf steht in `.claude/ablaeufe/rueckmeldungen.md` (Prüfreihenfolge,
-Vorschlagsformat, Ablage je Befundtyp), der Sichtungsstand in
+Freigabeformat, Ablage je Befundtyp), der Sichtungsstand in
 `config/rueckmeldungen_stand.json`, die Einordnung in [CONCEPT.md](CONCEPT.md) §8.
-Umgesetzt wird nichts ohne Davids Freigabe. Aus einem Kandidaten wird ein
+Umgesetzt wird nichts ohne Davids Freigabe — außer einem Golden-Test aus einem 👍
+(seit 11.08.2026, Schranken im Ablauf). Aus einem Kandidaten wird ein
 Glossar-Paar über `admin glossar-paare --nur-neue` (Struktur-Abgleich mit Beweisstufe, Review
 **vor** `import --quelle glossar`); danach dürfen die **echten** Konflikte in
 `admin glossar-audit` nicht zunehmen — editionsgetrennte Formen regelt S8 selbst, und die

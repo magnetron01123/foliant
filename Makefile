@@ -103,13 +103,23 @@ check-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin check'
 
 # Der Suchbericht vom VOLLBESTAND, maschinenlesbar - Einstieg in den
-# Rueckmeldungs-Durchgang (O4/M5, .claude/commands/rueckmeldungen.md). Rein lesend.
+# Rueckmeldungs-Durchgang (O4/M5, .claude/ablaeufe/rueckmeldungen.md). Rein lesend.
 # Bis 04.08.2026 stand dieser Aufruf nur als Copy-Paste-Zeile in der Doku, und eine Zeile,
 # die man abtippt, wird seltener gefahren als eine, die man aufruft.
 TAGE ?= 30
 .PHONY: bericht-pi
 bericht-pi: _pi-ziel
 	@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin suchbericht --tage $(TAGE) --json'
+
+# Die zweite Haelfte desselben Durchgangs: was der Bericht NICHT weiss, weil es im Repo
+# steht und nicht auf dem Pi - Wiederholungszaehler je Regel-ID, offene `spaeter`-Posten,
+# frueher abgelehnte Vorschlaege. Lokal, rein lesend, kein SSH.
+# Als Ziel und nicht als Handarbeit, weil am Zaehler eine Entscheidung haengt: Ab dem
+# dritten Bruch sitzt die Regel im falschen Kanal, und diese Grenze loest die
+# `Achtung`-Zeile der Freigabekarte aus.
+.PHONY: gedaechtnis
+gedaechtnis:
+	@.venv/bin/python deploy/rueckmeldungs_gedaechtnis.py
 
 # Der Gespraechskontext um EINE markierte Antwort, live aus Discord. Der Bot-Token liegt
 # nur in der Umgebung des discord-Containers und verlaesst den Pi nicht.
