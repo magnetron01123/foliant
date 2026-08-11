@@ -1198,9 +1198,10 @@ bestehende Pipeline den Inhaltsbedarf; DDB bliebe dann unerschlossen.
   (`tests/test_golden_bestand.py`), die Regel-**Semantik** am echten Bestand prüft
 - **DDB-Suite** in `.venv-ddb` — sonst bleibt sie **unsichtbar rot**
 - **Doku-Pflege** (`tests/test_doku_pflege.py`): §-Verweise treffen ein Kapitel, die
-  Stand-Angabe ist nicht älter als der jüngste im Text genannte Vorgang, jede
-  SPEC-Anforderung hat einen Status im BACKLOG, genannte Dateien existieren, kein
-  wortgleicher Absatz in zwei Dateien, es bleiben genau vier Doku-Dateien. Warum als Test
+  Stand-Angabe ist nicht älter als der jüngste im Text genannte Vorgang, die vier
+  Stand-Angaben liegen höchstens einen Tag auseinander, jede SPEC-Anforderung hat einen
+  Status im BACKLOG, genannte Dateien existieren, kein wortgleicher Absatz in zwei
+  Dateien, es bleiben genau vier Doku-Dateien. Warum als Test
   und nicht als Vorsatz: Am 03.08.2026 waren alle vier Stand-Angaben veraltet, SPEC verwies
   fünfmal auf ein Kapitel, das es nie gab, und vier Anforderungen hatten keinen Status —
   jeder Befund in Sekunden prüfbar, keiner aufgefallen, weil kein Test die Doku ansah.
@@ -1405,6 +1406,12 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Struktur-Pfad der Suche, der Test den Freitext-Pfad — grün, obwohl kaputt. **Hat eine
   Funktion mehrere Aufrufstellen, muss die Gegenprobe jede einzeln treffen**; ein
   Sammelhinweis, der nur an einem Ausgabeweg hängt, fehlt genau dem, der ihn braucht.
+  Dritte Form (06.08.2026): **Die Gegenprobe kann auch an den TESTDATEN scheitern.** Der
+  Schutz von `term_de` gegen fuzzy-fremde Übersetzungen war nur mit `"Actions"` geprüft —
+  dessen `fuzz.ratio` zu `"Reactions"` ist 87.5 und liegt damit *unter* dem Cutoff 88, es
+  entstand also gar keine Fuzzy-Zeile. Der Schutz ließ sich rückstandslos ausbauen, ohne
+  dass etwas fiel. **Wer eine Schwelle absichert, braucht einen Fall auf der scharfen
+  Seite** (jetzt `Retrained`/`Restrained` mit 94.7).
 - **Discord-REST ohne `User-Agent` antwortet mit „error code: 1010".** Cloudflare weist
   jeden eigenen Client ab, der keinen setzt — und die Meldung nennt weder Header noch
   Cloudflare als Ursache. Sie sieht aus wie ein Rechteproblem am Bot-Token und kostete am
