@@ -141,7 +141,7 @@ Regel zweimal nicht wirkte, wirkte ein wörtliches Beispiel (`CONCEPT.md` §10, 
 
 ```text
 RÜCKMELDUNGEN 11.08.2026 · Fenster 30 Tage · neu seit 04.08. 20:00 UTC
-6 neu (4 👎 · 1 👍 · 1 🚫)  →  2 Vorschläge · 1 erledigt · 3 ohne Befund
+6 neu (4 markiert · 1 gelobt · 1 Selbstanzeige) → 2 Vorschläge · 1 erledigt
 
 [1] 👎 · S5 · code · 1× · Aufwand klein
   Frage     „welche Waffeneigenschaften gibt es?"
@@ -165,13 +165,33 @@ RÜCKMELDUNGEN 11.08.2026 · Fenster 30 Tage · neu seit 04.08. 20:00 UTC
   Achtung   Dritter B4-Bruch — dann sitzt die Regel im falschen Kanal.
             Der Eval-Fall kostet Tokens bei jedem Lauf (Freigabe pro Fall).
 
+[3] Statistik · B3 · daten · 1× · Aufwand klein
+  Frage     „machtwort tod" — 30× Nulltreffer, niemand hat markiert
+  Befund    Der Zauber ist im Bestand, das Glossar führt den offiziellen
+            Namen — die Runde sucht die umgangssprachliche Form.
+  Ursache   daten — es fehlt die Suchvariante mit offiziell=0.
+  Änderung  importer/import_glossar.py, `UMGANGSSPRACHE`: Paar ergänzen.
+  Beleg     tests/test_glossar_qualitaet.py, neuer Fall — heute rot.
+  Achtung   Ein Glossar-Paar wirkt im ganzen Bestand.
+
+[4] 👍 · Golden-Test · daten · — · Aufwand klein
+  Frage     „Statblock Solar"
+  Befund    Gelobt wurde, was aus dem Bestand kam — vollständige Werte mit
+            Quelle und Regelversion.
+  Ursache   — kein Befund; das hier ist Regressionsschutz.
+  Änderung  tests/test_golden_bestand.py: ein Fall, der das festnagelt.
+  Beleg     Der Test IST der Beleg — er läuft bei jedem Deploy mit.
+
 Ohne Rückfrage erledigt · Zweig feedback/2026-08-11 (nicht gepusht)
-  ✓ 👍 „Statblock Solar" → tests/test_golden_bestand.py · grün lokal
+  erledigt  gelobt „Zauber Dunkelheit" → tests/test_golden_bestand.py
+            grün lokal
 
 Nicht vorgeschlagen
-  — 👎 „wie besiegt man den Endgegner?" · kein Befund (Ablehnung war korrekt)
-  — 👎 „silvery barbs" · bewusst so (nicht geladen, BACKLOG M5)
-  — 🚫 „verstecken" · schon offen (BACKLOG §3, Rest-Streuung)
+  — markiert „wie besiegt man den Endgegner?" · kein Befund (Ablehnung
+    war korrekt)
+  — markiert „silvery barbs" · bewusst so (nicht geladen, BACKLOG M5)
+  — Selbstanzeige „verstecken" · bereits behoben (Regel seit 08.08. in
+    beiden Kanälen)
 
 Freigabe: Nummern = ja · „2 nein: <Grund>" · „3 später" · „alles" · „nichts"
           „nein" bitte mit Grund — er spart die Wiedervorlage.
@@ -179,6 +199,15 @@ Freigabe: Nummern = ja · „2 nein: <Grund>" · „3 später" · „alles" · �
 
 Die Regeln zum Muster:
 
+- **Der Kartenblock steht in der ANTWORT, nie in einer Werkzeug-Ausgabe.** Beim ersten
+  echten Lauf (11.08.2026) baute ich ihn in einem Python-Aufruf und druckte ihn dorthin —
+  sichtbar für mich, unsichtbar für David. Eine Push-Meldung, die auf eine leere Sitzung
+  zeigt, ist schlimmer als keine.
+- **Nur zwei Emojis, und nur im Kartenkopf: 👎 und 👍** (Davids Vorgabe, 11.08.2026). Alles
+  andere sind Wörter — `Statistik` für einen Kandidaten, den niemand markiert hat,
+  `Selbstanzeige` für eine Ablehnung ohne Werkzeugaufruf, `erledigt` für den
+  Automatik-Block. Kopfzeile und „Nicht vorgeschlagen" tragen `markiert` / `gelobt` /
+  `Selbstanzeige` — dieselben Wörter, die `admin suchbericht` schon benutzt.
 - **Ein einziger `text`-Codeblock für den ganzen Lauf**, nicht einer je Karte. Außerhalb
   eines Codeblocks kollabiert Markdown die Mehrfach-Leerzeichen und die Ausrichtung ist
   weg. Links stehen ohnehin keine drin.
@@ -203,11 +232,17 @@ Die Regeln zum Muster:
   hinweg unvergleichbar.
 - **Wiederholungszähler immer** (`1×`, `3× (zuletzt 04.08.)`), auch beim ersten Mal — sonst
   ist „erstmalig" nicht von „nicht nachgesehen" zu unterscheiden. Die Zahl kommt aus
-  `make gedaechtnis`, plus 1 für den aktuellen Befund.
-- **Der Grund unter „Nicht vorgeschlagen" ist einer von fünf**: `kein Befund` ·
-  `Fehlgriff` · `bewusst so` · `schon offen` · `Lob ohne Gegenstand`. Fest, damit ein
-  systematisch zu scharfer Filter auffällt — fünfmal `kein Befund` hintereinander ist
-  selbst ein Befund.
+  `make gedaechtnis`, plus 1 für den aktuellen Befund. **Er unterzählt, wenn ein früherer
+  Durchgang einen Befund nur im Fließtext festhielt statt in `befunde`** — fällt das auf,
+  gehört es in die `Achtung`-Zeile, nicht stillschweigend korrigiert.
+- **Der Kopf einer 👍-Karte trägt keine Regel-ID**, denn nichts wurde verletzt: dort steht
+  die Artefakt-Klasse (`Golden-Test`, `Eval-Fall`), und der Wiederholungszähler ist `—`.
+- **Der Grund unter „Nicht vorgeschlagen" ist einer von sechs**: `kein Befund` ·
+  `Fehlgriff` · `bewusst so` · `schon offen` · `bereits behoben` · `Lob ohne Gegenstand`.
+  Fest, damit ein systematisch zu scharfer Filter auffällt — fünfmal `kein Befund`
+  hintereinander ist selbst ein Befund. (`bereits behoben` kam am 11.08.2026 dazu: Ein
+  alter, längst gefixter Befund wird erneut markiert. „Schon offen" wäre gelogen, „kein
+  Befund" auch — es war einer, er ist weg.)
 - **Offene `spaeter`-Befunde aus dem letzten Durchgang stehen als erste Karten**, unter der
   Überschrift `Aus dem letzten Durchgang offen` (Quelle: das Gedächtnis, nicht der
   Bericht).

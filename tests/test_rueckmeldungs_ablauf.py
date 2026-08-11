@@ -115,6 +115,35 @@ def test_muster_nennt_das_vollstaendige_freigabe_vokabular():
             f"Die Freigabezeile nennt `{wort}` nicht")
 
 
+def test_muster_traegt_nur_die_beiden_daumen():
+    """Davids Vorgabe (11.08.2026): keine Emojis in den Karten ausser 👎/👍, und die nur im
+    Kartenkopf. Der erste Entwurf hatte vier - dazu 🚫 fuer die Selbstanzeige, 📊 fuer einen
+    Statistik-Kandidaten und ✓ fuer Automatik. Drei davon musste man sich merken; als Wort
+    liest sie jeder sofort.
+
+    Geprueft wird gegen Zeichenbereiche, nicht gegen eine Liste bekannter Emojis - sonst
+    faengt der Test nur die drei, die schon einmal drinstanden.
+
+    Gemeint sind PIKTOGRAMME, nicht Typografie: `·`, `—`, `→` und `×` bleiben erlaubt und
+    tragen das Layout. Der erste Zuschnitt nahm den Pfeilblock mit und faerbte das Muster
+    rot, obwohl niemand ein Bild lesen musste."""
+    erlaubt = {"\N{THUMBS DOWN SIGN}", "\N{THUMBS UP SIGN}"}
+    piktogramme = ((0x2300, 0x23FF),   # Misc Technical (⏸ ⏹)
+                   (0x2600, 0x27BF),   # Misc Symbols + Dingbats (✓ ✗ ⚠ ⚔)
+                   (0x2B00, 0x2BFF),   # Misc Symbols and Arrows (✦ ⬜)
+                   (0x1F000, 0x1FAFF))  # Emoji-Ebenen (👎 👍 🚫 📊 📜)
+    fremd = sorted({z for z in _muster() if z not in erlaubt
+                    and any(a <= ord(z) <= b for a, b in piktogramme)})
+    assert not fremd, (
+        f"Fremde Symbole im Muster: {fremd}. Erlaubt sind nur 👎 und 👍 im Kartenkopf - "
+        f"alles andere als Wort (`Statistik`, `Selbstanzeige`, `erledigt`).")
+
+    for zeile in _muster().splitlines():
+        if any(d in zeile for d in erlaubt):
+            assert zeile.startswith("["), (
+                f"Daumen ausserhalb eines Kartenkopfs: {zeile!r}")
+
+
 def test_muster_traegt_keine_echten_discord_spuren():
     """Das Muster ist erfunden und muss es bleiben. Echte Fragetexte gehoeren in die
     Sitzung, Links und IDs nirgendwohin (CONCEPT.md §13)."""
