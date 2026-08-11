@@ -42,6 +42,7 @@ from __future__ import annotations
 import sqlite3
 
 from app import facetten as _f
+from importer import fassungsabgleich as _abgleich
 from importer import srd_begriffsbruecken as _gb
 from importer import srd_zauberbruecken as _zb
 
@@ -122,7 +123,26 @@ def seed_facetten(con: sqlite3.Connection, quelle_id: int | None = None) -> dict
                 f"INSERT OR REPLACE INTO {tabelle} (eintrag_id, {', '.join(felder)}) "
                 f"VALUES ({', '.join('?' * (len(felder) + 1))})", zeilen)
         bilanz[kategorie] = len(zeilen)
+    # NACH dem Schreiben: Widersprueche gegen die Geschwisterfassungen aufloesen. Erst
+    # hier moeglich, weil der Abgleich die Werte der ANDEREN Quellen braucht - die
+    # stehen bis zum Ende dieses Laufs nicht vollstaendig in den Meta-Tabellen. Der
+    # Abgleich haengt am Seeder und nicht an einem eigenen Befehl, damit eine Korrektur
+    # keinen Re-Seed ueberleben MUSS: sie wird jedes Mal neu hergeleitet.
+    protokoll = _abgleich.gleiche_facetten_ab(con)
+    if protokoll:
+        bilanz["korrigiert"] = len(protokoll)
+        _LETZTES_PROTOKOLL[:] = protokoll
     return bilanz
+
+
+# Das Protokoll des letzten Abgleichs - `admin import --quelle facetten` gibt es aus.
+# Eine stille Korrektur an Regeldaten waere genau das, was dieses Projekt jedem
+# Sprachmodell verbietet.
+_LETZTES_PROTOKOLL: list[dict] = []
+
+
+def letztes_abgleich_protokoll() -> list[dict]:
+    return list(_LETZTES_PROTOKOLL)
 
 
 def deckung(con: sqlite3.Connection) -> list[tuple[str, int, int]]:

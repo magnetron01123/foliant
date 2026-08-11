@@ -104,10 +104,31 @@ def cmd_import(args) -> None:
         # Nachruest-Weg fuer Bestands-DBs: Facetten OHNE Re-Import nachziehen. Wichtig,
         # weil ein Re-Import die Namensreparatur der 2014-Scans zunichte machen wuerde
         # (BACKLOG §1/M1) - der Bestand darf dafuer nicht angefasst werden muessen.
+        from importer.facetten_seeder import letztes_abgleich_protokoll
+        from importer.fassungsabgleich import widersprueche as _widersprueche
+
         c = _con(getattr(args, "db", None))
         with c:
             bilanz = seed_facetten(c)
         print("Facetten: " + ", ".join(f"{n} {k}" for k, n in bilanz.items()))
+        # Jede Korrektur einzeln ausweisen: sie aendert einen Regelwert (HG, Zaubergrad)
+        # gegenueber dem, was im Text dieser Quelle steht - das gehoert vor Augen, nicht
+        # in eine Zahl.
+        for eintrag in letztes_abgleich_protokoll():
+            print(f"  korrigiert: {eintrag['name']} ({eintrag['kategorie']}) "
+                  f"{eintrag['feld']} {eintrag['vorher']} -> {eintrag['nachher']} "
+                  f"[{eintrag['grund']}, Fassungen: {', '.join(eintrag['zeugen']) or '—'}]")
+        # Und die Halde daneben: Faelle, die der Abgleich bewusst NICHT anfasst, weil
+        # eine Korrektur dort einen fremden Wert einbraechte. Sie verschwinden nicht
+        # still - jemand muss sie am Einzelfall ansehen.
+        offen = _widersprueche(c2 := _con(getattr(args, "db", None)))
+        c2.close()
+        if offen:
+            print(f"  {len(offen)} Facette(n) widersprechen ihrer anderen Fassung "
+                  f"(NICHT geaendert - bitte einzeln pruefen):")
+            for w in offen:
+                print(f"    {w['name']} ({w['quelle']}) {w['feld']}={w['eigener']} "
+                      f"gegen {', '.join(w['fassungen'])}")
         c.close()
         _web_db_auffrischen(getattr(args, "db", None))
         return
