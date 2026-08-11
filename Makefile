@@ -103,7 +103,7 @@ check-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin check'
 
 # Der Suchbericht vom VOLLBESTAND, maschinenlesbar - Einstieg in den
-# Rueckmeldungs-Durchgang (O4/M5, .claude/commands/rueckmeldungen.md). Rein lesend.
+# Rueckmeldungs-Durchgang (O4/M5, .claude/ablaeufe/rueckmeldungen.md). Rein lesend.
 # Bis 04.08.2026 stand dieser Aufruf nur als Copy-Paste-Zeile in der Doku, und eine Zeile,
 # die man abtippt, wird seltener gefahren als eine, die man aufruft.
 TAGE ?= 30
