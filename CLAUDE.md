@@ -16,11 +16,12 @@ live** auf dem Pi (SSH-Ziel: `PI=` in der `.env`; Verzeichnis `~/foliant`).
 Historisches (erledigte Aufträge, Review-Volltexte, abgelöste Statusberichte) steht **nur in
 der Git-Historie**. Die SYN-IDs aus Code-Kommentaren löst `CONCEPT.md` §14 auf.
 
-**Die Doku wird mitgetestet** — `tests/test_doku_pflege.py`, Teil von `make test`. Sechs
+**Die Doku wird mitgetestet** — `tests/test_doku_pflege.py`, Teil von `make test`. Sieben
 Prüfungen: §-Verweise treffen ein Kapitel · die Stand-Angabe ist nicht älter als der jüngste
-im Text genannte Vorgang · jede SPEC-Anforderung hat einen Status im BACKLOG · genannte
-Dateien existieren · kein wortgleicher Absatz in zwei Dateien · es bleiben genau vier
-Doku-Dateien. Vier Regeln beim Schreiben, an denen die Trennung schon zweimal erodiert ist:
+im Text genannte Vorgang · die vier Stand-Angaben liegen höchstens einen Tag auseinander ·
+jede SPEC-Anforderung hat einen Status im BACKLOG · genannte Dateien existieren · kein
+wortgleicher Absatz in zwei Dateien · es bleiben genau vier Doku-Dateien.
+Vier Regeln beim Schreiben, an denen die Trennung schon zweimal erodiert ist:
 
 1. **SPEC nennt keine Modul-, Spalten- oder Funktionsnamen.** Was etwas *können muss*, steht
    dort; *wie* es gebaut ist, in `CONCEPT.md` — mit Verweis statt Wiederholung.
