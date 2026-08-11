@@ -111,6 +111,16 @@ TAGE ?= 30
 bericht-pi: _pi-ziel
 	@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin suchbericht --tage $(TAGE) --json'
 
+# Die zweite Haelfte desselben Durchgangs: was der Bericht NICHT weiss, weil es im Repo
+# steht und nicht auf dem Pi - Wiederholungszaehler je Regel-ID, offene `spaeter`-Posten,
+# frueher abgelehnte Vorschlaege. Lokal, rein lesend, kein SSH.
+# Als Ziel und nicht als Handarbeit, weil am Zaehler eine Entscheidung haengt: Ab dem
+# dritten Bruch sitzt die Regel im falschen Kanal, und diese Grenze loest die
+# `Achtung`-Zeile der Freigabekarte aus.
+.PHONY: gedaechtnis
+gedaechtnis:
+	@.venv/bin/python deploy/rueckmeldungs_gedaechtnis.py
+
 # Der Gespraechskontext um EINE markierte Antwort, live aus Discord. Der Bot-Token liegt
 # nur in der Umgebung des discord-Containers und verlaesst den Pi nicht.
 # Die Ausgabe gehoert in die Auswertungs-Sitzung und in KEINE Datei: Der Antworttext steht

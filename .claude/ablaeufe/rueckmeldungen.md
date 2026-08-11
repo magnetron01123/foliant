@@ -74,6 +74,17 @@ make kontext-pi KANAL=<kanal-id> NACHRICHT=<nachricht-id>
 Protokoll (CONCEPT.md §13); ihn beim Auswerten wegzuschreiben wäre derselbe Schritt durch
 die Hintertür. In Doku und Commits höchstens **der eine Satz**, der den Befund trägt.
 
+Und die zweite Hälfte der Daten — was der Bericht nicht weiß, weil es im Repo steht:
+
+```
+make gedaechtnis
+```
+
+Liefert tab-getrennt den Wiederholungszähler je Regel-ID, die offenen `spaeter`-Posten und
+die früher abgelehnten Vorschläge. **Diese Zahlen nicht selbst auszählen.** An ihnen hängt
+eine Entscheidung — ab dem dritten Bruch sitzt die Regel im falschen Kanal —, und eine
+Kopfrechnung über verschachtelte Listen fällt unbeaufsichtigt um 18:07 still aus.
+
 ## 2. Je 👎 prüfen — in dieser Reihenfolge
 
 1. **Ist es überhaupt ein Befund?** Gegen BACKLOG M5 „Was im Bericht KEIN Befund ist"
@@ -92,8 +103,11 @@ die Hintertür. In Doku und Commits höchstens **der eine Satz**, der den Befund
 5. **Steht die verletzte Regel in beiden Kanälen?** `tests/test_verhaltensregeln.py`
    (`_TRAGENDE_REGELN`), dann `config/stil.py` und `config/projektanweisung.md`. Fehlt sie
    in einem Kanal, **ist das die Ursache**. Steht sie in beiden und wurde trotzdem
-   verletzt, hilft keine weitere Prompt-Regel — dann weiter bei Kanal 1 (Grounding-Hinweise
-   in den Tool-Ausgaben, laut SPEC §7 der zuverlässigste) oder bei den Daten.
+   verletzt, hilft keine weitere Prompt-Regel — dann weiter bei den **Grounding-Hinweisen
+   in den Tool-Ausgaben** (`app/tools/ausgabe.py`, laut SPEC der zuverlässigste Kanal)
+   oder bei den Daten. **Kanäle hier nie nummerieren:** SPEC zählt sie nach
+   Zuverlässigkeit, Code und Tests nach Reichweite — die Nummern widersprechen sich seit
+   je, die Namen nie.
 6. **Datenursache prüfen**, mit lesenden Kommandos auf dem Pi. Beispiel aus dem ersten
    Durchgang: `glossar.begriffe_im_text()` durchsucht nur `body_md`, nie den Eintragsnamen
    — deshalb blieb „Archfey Patron" englisch, obwohl das Glossar „Erzfee" führt. Ein
@@ -180,14 +194,16 @@ Die Regeln zum Muster:
   keinen Beleg, steht dort wörtlich `keiner — <warum>`: ein fehlender Beleg wird laut statt
   abwesend.
 - **`Achtung` nur bei einem dieser sechs Auslöser**, sonst weglassen — damit „keine
-  Achtung-Zeile" verlässlich heißt, dass keiner davon zutrifft: (1) Kanal-1-Budget
-  gemessen zu knapp, (2) Wiederholung ≥ 3, (3) laufende Kosten (Eval-Fall), (4)
-  Breitenwirkung (ein Glossar-Paar wandert durch den ganzen Bestand), (5) kein Beleg
-  möglich, (6) dieselbe Klasse wurde schon einmal abgelehnt.
+  Achtung-Zeile" verlässlich heißt, dass keiner davon zutrifft: (1) das gemessene Budget
+  der Server-Instruktion (`config/stil.py`) reicht nicht, (2) Wiederholung ≥ 3, (3)
+  laufende Kosten (Eval-Fall), (4) Breitenwirkung (ein Glossar-Paar wandert durch den
+  ganzen Bestand), (5) kein Beleg möglich, (6) dieselbe Klasse wurde schon einmal
+  abgelehnt.
 - **`Aufwand` dreiwertig**: `klein` / `mittel` / `groß`. Freie Angaben sind über Läufe
   hinweg unvergleichbar.
 - **Wiederholungszähler immer** (`1×`, `3× (zuletzt 04.08.)`), auch beim ersten Mal — sonst
-  ist „erstmalig" nicht von „nicht nachgesehen" zu unterscheiden.
+  ist „erstmalig" nicht von „nicht nachgesehen" zu unterscheiden. Die Zahl kommt aus
+  `make gedaechtnis`, plus 1 für den aktuellen Befund.
 - **Der Grund unter „Nicht vorgeschlagen" ist einer von fünf**: `kein Befund` ·
   `Fehlgriff` · `bewusst so` · `schon offen` · `Lob ohne Gegenstand`. Fest, damit ein
   systematisch zu scharfer Filter auffällt — fünfmal `kein Befund` hintereinander ist
@@ -228,7 +244,8 @@ und nie die Karten selbst; die stehen in der Sitzung, die er dann öffnet.
 | Erledigtes | Git-Historie — **kein ✅ im Backlog stehen lassen** |
 
 Zwei Fallen beim Schreiben. Erstens: `config/stil.py` hat ein hartes Budget von 7500
-Zeichen — wird es eng, **entdoppeln oder in Kanal 1 verlegen**, nicht die Grenze anheben.
+Zeichen — wird es eng, **entdoppeln oder in die Grounding-Hinweise der Tool-Ausgaben
+verlegen**, nicht die Grenze anheben.
 Den Stand **messen, nie abschreiben**; hier stand bis zum 11.08.2026 eine Zahl, die um 300
 Zeichen daneben lag, und `tests/test_verhaltensregeln.py` hat aus genau diesem Grund
 entschieden, ihn nirgends mehr in die Doku zu schreiben:

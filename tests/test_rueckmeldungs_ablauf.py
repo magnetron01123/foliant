@@ -194,8 +194,92 @@ def test_der_sichtungsstand_verraet_die_guild_nicht():
     assert not ids, f"Discord-IDs im Sichtungsstand: {ids}"
 
 
+def test_automatisch_traegt_saetze_und_keine_platzhalter():
+    """Der Block, den kein Durchgang bisher gefuellt hat - der erste Golden-Test aus einem
+    👍 schreibt hier hinein, unbeaufsichtigt. Eine leere Zeichenkette waere dann eine
+    Aenderung am Repo, die in der Buchfuehrung wie nichts aussieht."""
+    for durchgang in _stand()["durchgaenge"]:
+        eintraege = durchgang.get("automatisch")
+        assert eintraege is not None, (
+            f"Durchgang {durchgang['datum']}: `automatisch` fehlt - dann ist unklar, ob "
+            f"nichts passiert ist oder nur niemand nachgetragen hat")
+        for eintrag in eintraege:
+            assert isinstance(eintrag, str) and eintrag.strip(), (
+                f"Durchgang {durchgang['datum']}: leerer `automatisch`-Eintrag")
+
+
 # --------------------------------------------------------------------------------------
-# 3. Die Ablaufdateien nennen nur Dateien, die es gibt
+# 3. Der Wiederholungszaehler: die Zahl, an der eine Entscheidung haengt
+# --------------------------------------------------------------------------------------
+
+def test_zaehler_zaehlt_jede_regel_eines_befunds_einzeln():
+    """Ein Befund kann vier Regeln verletzen (04.08.2026: S2, S3, S7, S11) - dann hat er
+    auch jede verletzt. Zaehlte er nur einmal, blieben drei Regeln unsichtbar, und die
+    Doktrin 'ab dem dritten Bruch sitzt sie im falschen Kanal' liefe leer."""
+    from deploy.rueckmeldungs_gedaechtnis import wiederholungen
+
+    erfunden = {"durchgaenge": [
+        {"datum": "2026-01-01", "befunde": [
+            {"regeln": ["S2", "S3", "S7", "S11"], "ursache": "code", "was": "x",
+             "entscheidung": "ja"},
+            # Zweiter Befund am SELBEN Tag gegen dieselbe Regel: zwei Brueche, nicht einer.
+            {"regeln": ["S3"], "ursache": "verhalten", "was": "y", "entscheidung": "ja"},
+        ]},
+        {"datum": "2026-02-02", "befunde": [
+            {"regeln": ["S3"], "ursache": "daten", "was": "z", "entscheidung": "ja"},
+        ]},
+    ]}
+    gezaehlt = wiederholungen(erfunden)
+    assert gezaehlt["S3"] == (3, "2026-02-02"), "S3 brach dreimal, zuletzt im Februar"
+    assert gezaehlt["S2"] == (1, "2026-01-01")
+    assert set(gezaehlt) == {"S2", "S3", "S7", "S11"}
+
+
+def test_zaehler_verliert_am_echten_bestand_keinen_bruch():
+    """Invariante statt fester Zahl: Die Summe aller Zaehler ist die Summe aller
+    Regel-Nennungen. Ein neuer Durchgang darf den Test nicht rot faerben - eine verlorene
+    Nennung schon."""
+    from deploy.rueckmeldungs_gedaechtnis import wiederholungen
+
+    stand = _stand()
+    genannt = sum(len(b["regeln"]) for d in stand["durchgaenge"] for b in d["befunde"])
+    gezaehlt = sum(n for n, _ in wiederholungen(stand).values())
+    assert gezaehlt == genannt, f"{genannt} Nennungen, aber {gezaehlt} gezaehlt"
+
+
+def test_offene_und_abgelehnte_kommen_zurueck():
+    """Ohne diese beiden Listen geht ein 'spaeter' verloren, sobald die Hochwassermarke
+    daran vorbeigezogen ist - und ein 'nein' kostet David dieselbe Entscheidung zweimal."""
+    from deploy.rueckmeldungs_gedaechtnis import mit_entscheidung
+
+    erfunden = {"durchgaenge": [
+        {"datum": "2026-01-01", "befunde": [
+            {"regeln": ["B4"], "ursache": "verhalten", "was": "alt",
+             "entscheidung": "nein", "grund": "zu speziell"}]},
+        {"datum": "2026-03-03", "befunde": [
+            {"regeln": ["B2"], "ursache": "daten", "was": "neu",
+             "entscheidung": "spaeter", "grund": "erst nach dem Import"},
+            {"regeln": ["S1"], "ursache": "code", "was": "erledigt", "entscheidung": "ja"}]},
+    ]}
+    offen = mit_entscheidung(erfunden, "spaeter")
+    assert [t["was"] for t in offen] == ["neu"]
+    assert offen[0]["grund"] == "erst nach dem Import"
+    assert [t["was"] for t in mit_entscheidung(erfunden, "nein")] == ["alt"]
+    assert mit_entscheidung(erfunden, "ja")[0]["was"] == "erledigt"
+
+
+def test_ausgabe_bleibt_zeilen_und_tabgetrennt():
+    """Ein Tabulator oder Umbruch im Befundsatz machte aus einem Satz zwei Felder oder
+    zwei Zeilen - still, und der Leser saehe eine Struktur, die es nicht gibt."""
+    from deploy.rueckmeldungs_gedaechtnis import _zeile
+
+    gebaut = _zeile("offen", "2026-01-01", "B4", "Grund\tmit Tab", "Satz\nmit Umbruch")
+    assert gebaut.count("\t") == 4, "Feldzahl durch eingebetteten Tab verschoben"
+    assert "\n" not in gebaut
+
+
+# --------------------------------------------------------------------------------------
+# 4. Die Ablaufdateien nennen nur Dateien, die es gibt
 # --------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("datei", sorted((WURZEL / ".claude/ablaeufe").glob("*.md")),
@@ -219,3 +303,34 @@ def test_genannte_dateien_existieren(datei):
         f"{datei.name} nennt Dateien, die es nicht gibt: {fehlend}.\n"
         f"Umbenannt oder entfernt? Dann den Ablauf mitziehen - er wird unbeaufsichtigt "
         f"gefahren und kann nicht nachfragen.")
+
+
+# --------------------------------------------------------------------------------------
+# 5. Der Wrapper der geplanten Aufgabe bleibt duenn
+# --------------------------------------------------------------------------------------
+
+# Die Aufgabendefinition liegt AUSSERHALB des Repos (~/.claude/scheduled-tasks/) und geht
+# damit durch keinen PR. Auf einem Klon oder in der CI ist sie schlicht nicht da.
+_WRAPPER = pathlib.Path.home() / ".claude/scheduled-tasks/foliant-rueckmeldungen/SKILL.md"
+
+
+@pytest.mark.skipif(not _WRAPPER.exists(),
+                    reason="Aufgabendefinition liegt ausserhalb des Repos (nur auf "
+                           "Davids Mac vorhanden)")
+def test_geplante_aufgabe_verweist_statt_zu_kopieren():
+    """Der Wrapper soll auf die Ablaufdatei ZEIGEN, nicht ihren Inhalt tragen - so liegt
+    der Ablauf versioniert im Repo und wirkt beim naechsten Lauf, ohne dass jemand die
+    Aufgabe anfasst (.claude/ablaeufe/LIESMICH.md).
+
+    Die Erosion laeuft immer gleich: Jemand kopiert das Format 'zur Sicherheit' in den
+    Wrapper, das Repo aendert sich, der Wrapper nicht - und der zeitgesteuerte Lauf folgt
+    der Kopie. Deshalb hier eine Maschine statt Disziplin."""
+    text = _WRAPPER.read_text(encoding="utf-8")
+    assert ".claude/ablaeufe/rueckmeldungen.md" in text, (
+        "Der Wrapper nennt die Ablaufdatei nicht mehr - dann laeuft der Durchgang aus "
+        "der Erinnerung")
+    assert "```text" not in text, "Der Wrapper traegt ein eigenes Format-Muster"
+    kopierte_felder = [f for f in LABELS if f"  {f}   " in text]
+    assert not kopierte_felder, (
+        f"Der Wrapper kopiert Feldzeilen der Karte ({kopierte_felder}) - er darf auf das "
+        f"Muster verweisen, nicht es zweitpflegen")
