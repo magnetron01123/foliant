@@ -27,7 +27,7 @@ David**, nicht an Code:
 |---|---|
 | **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — **kein Artefakt hat heute ein echtes Backup**: Jede Kopie ist entweder ein rsync-Spiegel (gibt Schaden weiter) oder ein Einzelexemplar, und Historie gibt es nur für das, was auf GitHub liegt. Zwei Verlustpfade, nicht einer — siehe M3 |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
-| **M7** Discord-Ausbau | Echttest nach einem Neustart, Lebenszeichen für den Meldeweg |
+| **M7** Discord-Ausbau | zwei Echttests in der Guild (nach einem Neustart, und der Meldeweg mit 👎/👍) |
 | **M9** Nacharbeiten aus dem Grundsatz-Review | Off-Site-Spiegel (zurückgestellt), Restore-Probe, `constraints.txt` aus einem ARM-Build |
 | **M2** Abnahme: A4 (Websuche), E1 (Injektion) | beides nur im echten Chat prüfbar — die Server-Hälfte von E1 ist seit 03.08.2026 automatisiert |
 | **M1** dt. PHB 2024 | die PDFs |
@@ -257,10 +257,6 @@ braucht eine Entscheidung oder eine Handlung an einem Gerät:
   ist auch Import-Worker und Backup-Schreiber. Die Härtung ist nachgezogen (14.08.2026),
   aber `read_only` bleibt unmöglich, solange Importe in demselben Container laufen. Muster
   dafür steht bereit: der `ddb-exporter` als kurzlebiger Lauf mit eigenem Mount.
-- ⬜ **Korpus-Sollstand.** `admin check` vergleicht die Eintragszahl nur mit der eigenen
-  FTS-Zeilenzahl und wertet Rückgänge als „Basiswert nachziehen"; eine fehlende Quelle
-  fällt nicht auf. `admin manifest` liefert die Zahlen je Quelle bereits.
-
 **Gate:** Ein Ausfall der SD-Karte kostet Zeit, aber keinen Bestand, der sich nicht
 wiederherstellen lässt.
 
