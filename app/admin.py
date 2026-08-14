@@ -921,7 +921,68 @@ def _pruefe_prioritaetsbaender(c: sqlite3.Connection) -> None:
                   f"prioritaet={q['prioritaet']}, erwartet {band}-{band + 9}  WARNUNG")
 
 
-def cmd_check(_args) -> None:
+def pruefe_korpus_soll(c: sqlite3.Connection, streng: bool,
+                       soll_pfad: Path | None = None) -> tuple[int, list[str]]:
+    """Vergleicht den Bestand mit `config/korpus_soll.json` - der Frage, die `admin check`
+    bis zum 14.08.2026 gar nicht stellen konnte: **ist noch alles da?**
+
+    Vorher verglich der Check die Eintragszahl nur mit der eigenen FTS-Zeilenzahl. Beide
+    fallen bei einem verlorenen Buch gemeinsam, also blieb es unauffaellig; ein Rueckgang
+    galt als 'Basiswert nachziehen'. Der Schrumpf-Schutz in `importer/schwellen.py` deckt
+    den wahrscheinlichsten Weg ab (ein Re-Import unter 50 % bricht ab), aber nicht den
+    Fall, dass eine Quelle gar nicht erst mitkommt.
+
+    `streng` trennt die beiden Welten: Am Vollbestand ist eine fehlende Quelle ein FEHLER,
+    auf der Dev-Maschine ist sie der Normalfall (7 von 18 Quellen). Ohne diese Trennung
+    waere die Pruefung lokal dauerhaft rot - und eine Kennzahl, die immer rot ist, liest
+    irgendwann niemand mehr (CONCEPT.md par. 10, Konflikt-Gate).
+
+    `soll_pfad` ist nur fuer Tests da - im Betrieb steht die Datei immer an derselben
+    Stelle. Rueckgabe: (Fehlerzahl, Ausgabezeilen).
+    """
+    import json
+
+    pfad = soll_pfad or Path(__file__).resolve().parents[1] / "config" / "korpus_soll.json"
+    if not pfad.exists():
+        return 0, [f"Korpus-Sollstand: {pfad.name} fehlt - Vergleich uebersprungen"]
+
+    soll = json.loads(pfad.read_text("utf-8"))
+    erwartet = {q["kuerzel"]: q for q in soll.get("quellen", [])}
+    ist = {r[0]: r[1] for r in c.execute(
+        "SELECT q.kuerzel, count(e.id) FROM quellen q "
+        "LEFT JOIN eintraege e ON e.quelle_id = q.id GROUP BY q.kuerzel")}
+
+    fehlt = sorted(set(erwartet) - set(ist))
+    neu = sorted(set(ist) - set(erwartet))
+    # 5 % Toleranz: Ein Re-Import derselben Quelle schwankt um einzelne Chunks, ein
+    # verlorenes Kapitel nicht. Die Schwelle ist bewusst grob - sie soll den Einbruch
+    # finden, nicht die Kommastelle.
+    geschrumpft = [(k, erwartet[k]["eintraege"], ist[k]) for k in sorted(set(erwartet) & set(ist))
+                   if ist[k] < erwartet[k]["eintraege"] * 0.95]
+
+    zeilen = [f"Korpus-Sollstand ({soll.get('erhoben_an', '?')}): "
+              f"{len(ist)}/{len(erwartet)} Quellen, {sum(ist.values())}/"
+              f"{soll.get('eintraege_gesamt', '?')} Eintraege"]
+    fehler = 0
+    if fehlt:
+        if streng:
+            zeilen.append(f"   FEHLENDE Quellen: {fehlt}  FEHLER"); fehler += len(fehlt)
+        else:
+            zeilen.append(f"   {len(fehlt)} Quellen nicht vorhanden - Dev-Subset, kein Befund "
+                          f"(am Vollbestand: `admin check --vollbestand`)")
+    for k, soll_n, ist_n in geschrumpft:
+        zeilen.append(f"   '{k}': {ist_n} statt {soll_n} Eintraege (-{soll_n - ist_n})  "
+                      f"{'FEHLER' if streng else 'WARNUNG'}")
+        fehler += 1 if streng else 0
+    if neu:
+        zeilen.append(f"   Neue Quellen (nicht im Soll): {neu}  HINWEIS - beabsichtigt? "
+                      f"Dann `make soll-vom-pi`")
+    if not (fehlt or geschrumpft or neu):
+        zeilen[0] += "  OK"
+    return fehler, zeilen
+
+
+def cmd_check(args=None) -> None:
     """Konsistenz- und Mini-Qualitaetschecks (O3-Unterstuetzung); ausfuehrlicher:
     tests/smoke_test.py gegen echte Daten."""
     c = _con()
@@ -932,6 +993,10 @@ def cmd_check(_args) -> None:
     n_f = c.execute("SELECT count(*) FROM eintraege_fts").fetchone()[0]
     print(f"Eintraege: {n_e} / FTS-Zeilen: {n_f}" + ("  OK" if n_e == n_f else "  INKONSISTENT -> reindex-fts!"))
     fehler += 0 if n_e == n_f else 1
+    soll_fehler, soll_zeilen = pruefe_korpus_soll(c, streng=bool(getattr(args, "vollbestand", False)))
+    for zeile in soll_zeilen:
+        print(zeile)
+    fehler += soll_fehler
     verwaist = c.execute(
         "SELECT count(*) FROM eintraege WHERE edition IS NULL OR edition = '' "
         "OR quelle_id IS NULL").fetchone()[0]
@@ -1612,7 +1677,12 @@ def baue_parser() -> argparse.ArgumentParser:
     pq.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad)")
     pq.set_defaults(func=cmd_quellen_auffrischen)
     sub.add_parser("reindex-fts", help="FTS-Index neu aufbauen").set_defaults(func=cmd_reindex_fts)
-    sub.add_parser("check", help="Smoke-/Qualitaetschecks").set_defaults(func=cmd_check)
+    pch = sub.add_parser("check", help="Smoke-/Qualitaetschecks")
+    pch.add_argument("--vollbestand", action="store_true",
+                     help="Der Bestand IST der Produktionsbestand: fehlende oder "
+                          "geschrumpfte Quellen aus config/korpus_soll.json sind dann "
+                          "Fehler, nicht Dev-Subset (make check-pi setzt das)")
+    pch.set_defaults(func=cmd_check)
     pqb = sub.add_parser("qualitaet-basis",
                          help="Basiswert bekannter Datenmaengel neu erheben (nur am Vollbestand)")
     pqb.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad)")

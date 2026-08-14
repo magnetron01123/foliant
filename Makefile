@@ -150,7 +150,19 @@ test-golden-pi: _pi-ziel
 # Das ist der Punkt: Ein Import, der neue Datenmaengel einschleppt, soll nicht still
 # live gehen (die Basiswerte in config/qualitaet_basis.json sagen, was bekannt ist).
 check-pi: _pi-ziel
-	ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin check'
+	ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin check --vollbestand'
+
+# Den Korpus-Sollstand nach einem BEABSICHTIGTEN Import neu erheben. Rein lesend auf dem
+# Pi, schreibt lokal `config/korpus_soll.json` - die Datei gehoert in den Commit, sonst
+# meldet der naechste `check-pi` die neue Quelle als Abweichung.
+#
+# Buchtitel bleiben bewusst draussen, solange offen ist, ob DDB-Titel oeffentlich stehen
+# duerfen (BACKLOG M9). Die Kuerzel stehen ohnehin schon im Repo.
+.PHONY: soll-vom-pi
+soll-vom-pi: _pi-ziel
+	@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin manifest' \
+		| .venv/bin/python deploy/korpus_soll.py
+	@git diff --stat config/korpus_soll.json || true
 
 # Der Suchbericht vom VOLLBESTAND, maschinenlesbar - Einstieg in den
 # Rueckmeldungs-Durchgang (O4/M5, .claude/ablaeufe/rueckmeldungen.md). Rein lesend.

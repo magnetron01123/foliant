@@ -1157,6 +1157,32 @@ echter Konflikt. Ein eigener Test hält das fest. Dieselbe Logik trägt
 `config/qualitaet_basis.json` für die Datenmängel (§12) — ein Basiswert, gegen den eine Zahl
 steigen *oder* fallen kann, statt einer Dauerwarnung.
 
+### Entscheidung: Der Korpus bekommt einen Sollstand (14.08.2026)
+
+`admin check` verglich die Eintragszahl bis dahin nur mit der eigenen FTS-Zeilenzahl. Das
+findet einen kaputten Index, aber keinen fehlenden Bestand: Geht ein Buch verloren, fallen
+**beide** Zahlen gemeinsam, der Vergleich bleibt grün, und ein Rückgang galt als „Basiswert
+nachziehen". Die Frage „ist noch alles da?" konnte das Gate nicht stellen.
+
+`config/korpus_soll.json` beantwortet sie — Kürzel, Edition, Sprache, `inhaltsart` und
+Eintragszahl je Quelle, erhoben aus `berechne_manifest`. Eine fehlende Quelle und ein
+Einbruch über 5 % sind am Vollbestand Fehler, eine neue Quelle ist ein Hinweis.
+
+Zwei Entwurfsentscheidungen tragen das:
+
+- **`--vollbestand` trennt die Welten.** Auf der Dev-Maschine fehlen 11 der 18 Quellen —
+  das ist der Normalfall, kein Befund. Ohne diese Trennung stünde die Prüfung lokal
+  dauerhaft rot, und eine Kennzahl, die immer rot ist, hört man auf zu lesen (dieselbe
+  Lehre wie beim Konflikt-Gate weiter oben). `make check-pi` setzt das Flag, `make test`
+  nicht.
+- **Kein Inhalts-Hash als Gate.** Der Hash aus dem Manifest ändert sich bei jedem
+  legitimen Import; als Schranke wäre er eine Dauerwarnung. Er bleibt, wo er hingehört —
+  im Eval-Report als Stempel des gemessenen Stands.
+
+Nachgezogen wird der Sollstand nach einem *beabsichtigten* Import mit `make soll-vom-pi`
+(liest den Pi, schreibt lokal, gehört in den Commit). Buchtitel stehen bewusst nicht in
+der Datei, solange offen ist, ob DDB-Titel öffentlich stehen dürfen (BACKLOG M9).
+
 ### Entscheidung: Der Discord-Bot bleibt Nachschlagewerk im Gespräch (30.07.–02.08.2026)
 
 Der Bot wird **kein zweites Avrae**. Die Abgrenzung ist inhaltlich, nicht technisch: Avrae
