@@ -142,6 +142,23 @@
         "Dazu zwei Golden-Tests aus den zwei 👍 - als Karte freigegeben, nicht automatisch: der Lauf fand nicht auf main statt.",
         "Alles in PR #123; Regressionstests in tests/test_discord_reaktionen.py, tests/test_discord_rueckmeldung.py, tests/test_rueckmeldungs_befunde.py und tests/test_flexionsbruecke.py."
       ]
+    },
+    {
+      "datum": "2026-08-14",
+      "anlass": "Nachfrage zu den zwei 👎 auf 'grapple' vom 10.08. — ausserhalb eines Durchgangs, keine neuen Rueckmeldungen im Fenster",
+      "befunde": [
+        {
+          "regeln": [
+            "B3"
+          ],
+          "ursache": "daten",
+          "was": "Die Suche nach 'grapple' liefert 'Grappler' (ein Monster) auf Platz 1; die gesuchte Aktion 'Gepackt halten' steht gar nicht in den ersten fuenf. Der Bestand fuehrt keinen Eintrag 'Grapple', und das Glossar bruecket den Begriff nicht — anders als 'umklammern' und 'ringen', die den Weg schon finden. Eine Bruecke Grapple → Gepackt halten waere der gleiche Handgriff.",
+          "entscheidung": "spaeter",
+          "grund": "Erstmal nichts."
+        }
+      ],
+      "automatisch": [],
+      "bemerkung": "Der zweite Begriff des Falls, der Tippfehler 'greppel' (2 Nulltreffer), ist bewusst KEIN Befund: Er liegt gegen alle 8421 Eintragsnamen selbst bei Editierdistanz 2 ausser Reichweite, denn 'greppel' weicht dreifach von 'grapple' ab. Die Fuzzy-Schranken dafuer zu senken (86/88, gemessen 71,4) wuerde den Fall nicht loesen und Falschtreffer erzeugen — ein falscher Treffer ist teurer als keiner, weil er wie eine Antwort aussieht. Der ehrliche Leerbefund war hier das richtige Verhalten; der Mangel lag bei der KORREKT geschriebenen Anfrage."
     }
   ]
 }
