@@ -158,6 +158,28 @@ check-pi: _pi-ziel
 #
 # Buchtitel bleiben bewusst draussen, solange offen ist, ob DDB-Titel oeffentlich stehen
 # duerfen (BACKLOG M9). Die Kuerzel stehen ohnehin schon im Repo.
+# Platz auf der SD-Karte zurueckholen. Gemessen am 14.08.2026: 396 Build-Cache-Eintraege,
+# 13,48 GB, davon 11,66 GB freigebbar - auf derselben Karte, die Bestand UND alle
+# Sicherungen traegt.
+#
+# BEWUSST NICHT im Deploy: Das Ziel loescht etwas. Ein Aufraeumschritt, der bei jedem
+# Deploy ungefragt mitlaeuft, ist genau die Sorte Automatik, die irgendwann das Falsche
+# erwischt - und der naechste Build wird ohne Cache spuerbar langsamer. Erst zeigen, was
+# ginge; loeschen nur mit `LOESCHEN=ja`.
+.PHONY: pflege-pi
+pflege-pi: _pi-ziel
+	@echo "--- Belegung jetzt ---"
+	@ssh $(PI) 'docker system df; echo; df -h / | tail -1'
+ifeq ($(LOESCHEN),ja)
+	@echo "--- Build-Cache aelter als 7 Tage wird freigegeben ---"
+	ssh $(PI) 'docker builder prune --force --filter until=168h'
+	@ssh $(PI) 'docker system df'
+else
+	@echo ""
+	@echo "Nichts geloescht. Zum Freigeben des Build-Caches aelter als 7 Tage:"
+	@echo "    make pflege-pi LOESCHEN=ja"
+endif
+
 .PHONY: soll-vom-pi
 soll-vom-pi: _pi-ziel
 	@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin manifest' \

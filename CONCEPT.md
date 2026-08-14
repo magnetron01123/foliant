@@ -715,11 +715,24 @@ Einmal aus- und wieder einloggen. Test: `docker run --rm hello-world`.
 ```sh
 make deploy-pi
 ```
-Das ist der **eine** Weg: rsync → `docker compose up -d --build --no-deps foliant web
-discord` → Golden-Suite am Vollbestand → **`admin check` am Vollbestand** (`make check-pi`).
-Alle vier Schritte hängen zusammen, weil das Weglassen jedes einzelnen schon schiefgegangen
-ist (Rebuild vergessen → alter Code meldet „Erfolg"; Golden vergessen → korpusabhängige
+Das ist der **eine** Weg: `make test` → Eval-Reports retten → laufende Images als
+`:vorher` taggen → rsync → `docker compose up -d --build --no-deps foliant web discord` →
+Golden-Suite am Vollbestand → **`admin check --vollbestand`** (`make check-pi`). Die
+Schritte hängen zusammen, weil das Weglassen jedes einzelnen schon schiefgegangen ist
+(Rebuild vergessen → alter Code meldet „Erfolg"; Golden vergessen → korpusabhängige
 Regression bleibt unentdeckt).
+
+**Warum die Gates trotzdem hinten stehen — und was daraus folgt:** Die Golden-Suite
+braucht den Vollbestand, und der liegt nur auf dem Pi; sie kann also nicht vor dem
+Live-Schalten laufen. Genau deshalb gibt es seit dem 14.08.2026 zwei Ergänzungen: `test`
+als *Vorbedingung* (was schon der Mac durchfallen lässt, hat auf dem Pi nichts verloren)
+und `make rollback-pi` als Rückweg — die vorherigen Images liegen als `:vorher` bereit,
+werden zurückgetauscht und durchlaufen dieselben Gates. Vorher gab es auf dem Pi
+ausschließlich `:latest`, der alte Stand war nach dem Build überschrieben.
+
+**Wartung:** `make pflege-pi` zeigt die Belegung; erst `make pflege-pi LOESCHEN=ja` gibt
+Build-Cache älter als sieben Tage frei. Bewusst nicht Teil des Deploys — ein Löschschritt,
+der ungefragt mitläuft, erwischt irgendwann das Falsche.
 
 **Alle drei Code-Dienste, nicht nur `foliant`:** `web` und `discord` backen dasselbe Image
 aus demselben Repo — wird nur `foliant` gebaut, laufen Bot und Website nach einem Deploy

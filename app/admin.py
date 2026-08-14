@@ -1487,10 +1487,46 @@ def cmd_suchbericht(args) -> None:
                 return None
             return int(dauern[min(len(dauern) - 1, int(p * len(dauern)))])
 
+        def _juengste(tabelle: str) -> str | None:
+            """Zeitpunkt der neuesten Zeile - ueber die GESAMTE Tabelle, nicht nur im
+            Berichtsfenster. Genau darum geht es: Ein Weg, der seit sechs Wochen nichts
+            mehr liefert, hat im 30-Tage-Fenster einfach gar keine Zeile, und ein
+            leerer Abschnitt sieht aus wie ein ruhiger."""
+            try:
+                return con.execute(f"SELECT max(zeitpunkt) FROM {tabelle}").fetchone()[0]
+            except sqlite3.OperationalError:      # Tabelle entsteht erst mit der 1. Zeile
+                return None
+
+        def _alter_tage(zeitpunkt: str | None) -> float | None:
+            if not zeitpunkt:
+                return None
+            try:
+                dann = datetime.fromisoformat(zeitpunkt)
+            except ValueError:
+                return None
+            if dann.tzinfo is None:
+                dann = dann.replace(tzinfo=timezone.utc)
+            return round((datetime.now(timezone.utc) - dann).total_seconds() / 86400, 1)
+
+        letzte_abfrage, letzte_rueckmeldung = _juengste("abfragen"), _juengste("rueckmeldungen")
+
         bericht = {
             "zeitraum_tage": tage,
             "anfragen_gesamt": con.execute(
                 "SELECT count(*) FROM abfragen WHERE zeitpunkt >= ?", (seit,)).fetchone()[0],
+            # Lebenszeichen der beiden Wege (Review 14.08.2026, B-09). Der Bericht sagte
+            # bis dahin, WAS ankam, aber nie, OB noch etwas ankommt - und am 11.08.2026
+            # verschluckte ein Hautton-Emoji die Rueckmeldungen still. Niemand meldet,
+            # dass das Melden nicht geht; der Bericht kann es.
+            "letzte_abfrage": letzte_abfrage,
+            "letzte_abfrage_vor_tagen": _alter_tage(letzte_abfrage),
+            "letzte_rueckmeldung": letzte_rueckmeldung,
+            "letzte_rueckmeldung_vor_tagen": _alter_tage(letzte_rueckmeldung),
+            # NICHT hier: die beiden Selbstabschalt-Zaehler aus app/protokoll.py. Sie sind
+            # Zustand DES SCHREIBENDEN PROZESSES (Server bzw. Bot); diese CLI laeuft in
+            # einem eigenen und laese immer 0 - eine Beruhigung, die nichts gesehen hat.
+            # Sichtbar werden sie erst, wenn sie in der DB stehen; bis dahin ist das Alter
+            # der juengsten Zeile das ehrlichere Signal.
             "dauer_ms_p50": _perzentil(0.50),
             "dauer_ms_p95": _perzentil(0.95),
             # Nulltreffer ueber alle Nachschlage-Werkzeuge; Parameterfehler sind bewusst
@@ -1524,7 +1560,23 @@ def cmd_suchbericht(args) -> None:
 
         print(f"Suchbericht (letzte {tage} Tage) - {bericht['anfragen_gesamt']} Anfragen, "
               f"Antwortzeit p50 {bericht['dauer_ms_p50']} ms / p95 "
-              f"{bericht['dauer_ms_p95']} ms\n")
+              f"{bericht['dauer_ms_p95']} ms")
+
+        # Lebenszeichen VOR den Zahlen: Ein stiller Weg entwertet alles, was darunter
+        # steht - ein leerer Abschnitt sieht dann aus wie ein ruhiger Zeitraum.
+        for name, alter, wann in (("Anfragen", bericht["letzte_abfrage_vor_tagen"],
+                                   bericht["letzte_abfrage"]),
+                                  ("Rueckmeldungen", bericht["letzte_rueckmeldung_vor_tagen"],
+                                   bericht["letzte_rueckmeldung"])):
+            if wann is None:
+                print(f"  Lebenszeichen {name}: noch nie eine Zeile  HINWEIS")
+            elif alter is not None and alter > tage:
+                print(f"  Lebenszeichen {name}: zuletzt vor {alter} Tagen ({wann[:10]}) - "
+                      f"aelter als der Berichtszeitraum  WARNUNG: Weg pruefen, nicht nur "
+                      f"die Zahlen darunter lesen")
+            else:
+                print(f"  Lebenszeichen {name}: zuletzt vor {alter} Tagen ({wann[:10]})  OK")
+        print()
 
         def _abschnitt(titel: str, zeilen: list[dict], leer_ok: str) -> None:
             print(f"  {titel}:")
