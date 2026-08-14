@@ -24,7 +24,7 @@ import py_compile
 import pytest
 
 _WURZEL = pathlib.Path(__file__).resolve().parents[1]
-_PAKETE = ("app", "importer", "config", "evals", "db")
+_PAKETE = ("app", "importer", "config", "evals", "db", "deploy")
 
 # Module, deren Abhaengigkeiten bewusst NICHT in der Laufzeit-Umgebung liegen
 # (requirements-ddb.txt, s. CONCEPT.md par. 10 ADR: SQLite3MC gehoert nie in die
@@ -65,6 +65,15 @@ def test_modul_laesst_sich_importieren(modul):
     try:
         importlib.import_module(modul)
     except ImportError as fehler:
-        # Optionale Fremdabhaengigkeit (z. B. discord.py, docling) - das ist kein
-        # Projektfehler, sondern eine bewusst nicht installierte Umgebung.
+        # Uebersprungen wird NUR eine fehlende Fremdabhaengigkeit (z. B. discord.py,
+        # docling) - eine bewusst nicht installierte Umgebung ist kein Projektfehler.
+        #
+        # Ein Projektmodul, das sich nicht aufloesen laesst, ist dagegen genau der Fall,
+        # fuer den dieser Waechter existiert: `from app.tools import weg` wirft ebenfalls
+        # ImportError, und ein pauschales skip haette den halb gelandeten Umbau
+        # durchgewunken statt ihn zu melden. `fehler.name` ohne Wert heisst: die Ursache
+        # ist unbekannt - dann faellt der Test lieber zu Unrecht auf als zu Unrecht aus.
+        fehlend = getattr(fehler, "name", None)
+        if fehlend is None or fehlend.split(".")[0] in _PAKETE:
+            raise
         pytest.skip(f"optionale Abhaengigkeit fehlt: {fehler}")

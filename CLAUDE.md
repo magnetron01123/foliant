@@ -74,9 +74,19 @@ für Davids Claude-Projekt steht in `config/projektanweisung.md` (Wegweiser: `SP
   Ein Kommentar begründet eine Einschränkung, die der Code nicht selbst zeigt. Zu den
   begründeten Ausnahmen (ddb_exporter-Module, `seed_*`, `cmd_<cli-name>`): `CONCEPT.md` §10.
 - Der Branch `archiv-privat-vor-veroeffentlichung` hält den Repo-Stand vor der
-  Veröffentlichung und wurde nie gepusht — **nicht löschen**.
-- ⚠️ **Die privaten Druck-Reparatur-Module haben NIRGENDS einen Git-Stand.**
-  `importer/frhof_reparatur.py` und `importer/reparatur_ddb_privat.py` sind gitignored, und
-  der Archiv-Branch enthält sie **nicht** (am 28.07.2026 mit `git ls-tree` geprüft — bis
-  dahin behauptete diese Datei das Gegenteil). Jede Änderung daran ist unwiderruflich:
-  **vorher sichern.** Eine Sicherung liegt in `data/private/module-sicherung-2026-07-28/`.
+  Veröffentlichung und wurde nie gepusht — **nicht löschen**. Er trägt kaufbuch-abgeleitete
+  Inhalte in seiner Historie: **nie `git push --all` oder `--mirror`** in diesem Repo.
+  Dagegen steht ein Hook (`.githooks/pre-push`), der auch die beiden Sammel-Formen abfängt.
+  Er wirkt nur mit `git config core.hooksPath .githooks` — **ein frischer Clone hat das
+  nicht** (siehe README, Mitwirken).
+- ⚠️ **Zwei der drei privaten Module haben nirgends einen Git-Stand:**
+  `importer/reparatur_ddb_privat.py` und `tests/test_ddb_druck_privat.py` (`git log --all`
+  liefert null Commits). Jede Änderung daran ist unwiderruflich: **vorher sichern.** Die
+  Sicherung in `data/private/module-sicherung-2026-07-28/` hält einen *Vorher*-Stand,
+  nicht den laufenden.
+  `importer/frhof_reparatur.py` ist der Sonderfall: Sie ist gitignored, hat aber in der
+  Historie des Archiv-Branchs drei Commits (`e574de3`, `4d105b8`, `2a73a80`; gelöscht erst
+  im Veröffentlichungs-Commit). Bis zum 14.08.2026 stand hier, sie habe „NIRGENDS einen
+  Git-Stand" — geprüft worden war das mit `git ls-tree`, und das liest den **Baum eines
+  Commits**, nicht die Historie. Wer eine Aussage über die Historie braucht, fragt
+  `git log --all -- <pfad>`.

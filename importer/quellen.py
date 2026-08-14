@@ -281,3 +281,65 @@ def registriere_quelle(con: sqlite3.Connection, *, kuerzel: str, titel: str, spr
         (kuerzel, titel, sprache, edition, herkunft, lizenz, prioritaet, dateipfad,
          inhaltsart, importiert_am, versions_stand, quell_url, quell_hash))
     return con.execute("SELECT id FROM quellen WHERE kuerzel = ?", (kuerzel,)).fetchone()[0]
+
+
+# --- Register-Export (Review 14.08.2026, K-01) ---------------------------------------
+#
+# `config/foliant.toml` ist gitignored, aus dem Deploy-rsync ausgeschlossen und in keinem
+# Backup. Pi und Mac trugen deshalb zwei VERSCHIEDENE Register (12 gegen 8 Quellenbloecke,
+# sieben Kuerzel disjunkt), und keines beschrieb den Produktionsbestand vollstaendig - die
+# sieben DDB-Quellen standen in gar keiner der beiden Dateien.
+#
+# Die Datenbank weiss es besser: `quellen` fuehrt alle 18 Quellen mit Edition, Lizenz,
+# Prioritaet, `inhaltsart` und Herkunft. Genau die Angaben macht Kernregel 2 ("Editionen
+# werden NIE geraten") nach einem Kartenausfall unersetzlich - raten ist verboten, also
+# muss es aufgeschrieben sein.
+#
+# Der Export ist ein WIEDERHERSTELLUNGS-Artefakt, kein Laufzeit-Eingang: Er wird gelesen,
+# wenn jemand den Bestand neu aufbauen muss, nicht bei jedem Start. Deshalb aendert er
+# nichts an `lade_konfig` - eine zweite Konfigurationsquelle waere ein Risiko fuer einen
+# Nutzen, den niemand taeglich braucht.
+
+# `titel` steht bewusst NICHT hier (Davids Entscheidung, 14.08.2026): Die Buchtitel der
+# Kaufbuecher sollen nicht ins oeffentliche Repo. Die Kuerzel tun es ohnehin schon, und
+# die Dateipfade sind durchgehend kuerzel-basiert - geprueft, es leckt keiner.
+REGISTER_FELDER = ("kuerzel", "sprache", "edition", "herkunft", "lizenz", "prioritaet",
+                   "dateipfad", "inhaltsart", "versions_stand", "quell_url", "quell_hash")
+
+
+def _toml_wert(wert) -> str:
+    if isinstance(wert, bool):
+        return "true" if wert else "false"
+    if isinstance(wert, int):
+        return str(wert)
+    return '"' + str(wert).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def exportiere_register(con: sqlite3.Connection, stand: str) -> str:
+    """Das Quellen-Register als TOML-Text, erzeugt aus der Datenbank.
+
+    Format wie die `[[quelle]]`-Bloecke in `config/foliant.toml`, damit der Text im
+    Ernstfall direkt dorthin zurueckwandern kann. Felder ohne Wert bleiben weg statt als
+    leerer String dazustehen - ein `lizenz = ""` sieht aus wie eine Angabe und ist keine.
+    """
+    zeilen = [
+        "# Quellen-Register des Produktionsbestands - ERZEUGT, nicht von Hand gepflegt.",
+        "#",
+        "# Zweck: Wiederherstellung. Faellt die SD-Karte aus, ist dies die einzige Stelle,",
+        "# an der Edition, Lizenz, Prioritaet und inhaltsart jeder Quelle noch stehen -",
+        "# und geraten werden duerfen sie laut Kernregel 2 nicht.",
+        "#",
+        "# Erneuern nach einem beabsichtigten Import:  make register-vom-pi",
+        "# Buchtitel fehlen bewusst; beim Wiederherstellen von Hand nachtragen.",
+        "#",
+        f"# Stand: {stand}",
+        "",
+    ]
+    for zeile in con.execute(
+            f"SELECT {', '.join(REGISTER_FELDER)} FROM quellen ORDER BY prioritaet, kuerzel"):
+        zeilen.append("[[quelle]]")
+        for feld, wert in zip(REGISTER_FELDER, zeile):
+            if wert is not None and wert != "":
+                zeilen.append(f"{feld} = {_toml_wert(wert)}")
+        zeilen.append("")
+    return "\n".join(zeilen)

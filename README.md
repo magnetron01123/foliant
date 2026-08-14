@@ -21,13 +21,14 @@ ausgefüllten offiziellen deutschen WotC-Bogen 2024, druckbar.
    keine offizielle Übersetzung existiert.
 3. **Version immer:** aktuelle Regeln (2024) als Standard; ältere Stände klar gekennzeichnet.
 
-## Stand (11.08.2026)
+## Stand (14.08.2026)
 
-**Technisch fertig, noch nicht am Tisch erprobt.** Der Server läuft auf einem Raspberry Pi 4:
-~12 500 Einträge aus 18 Quellen (dt. SRD 5.2.1, drei deutsche 2014-Bücher, Open5e,
-D&D-Beyond-Bücher, drei Errata-Bände), 6 Tools, Zugang über geheimen Pfad + IP-Allowlist.
-Charakterbogen-Übersetzer und Discord-Bot laufen als eigene Container daneben. Maßgeblich für
-den Bestand ist immer `admin status`.
+**Läuft, wird benutzt — der Tisch-Test steht noch aus.** Der Server läuft auf einem
+Raspberry Pi 4: 12 545 Einträge aus 18 Quellen (dt. SRD 5.2.1, drei deutsche 2014-Bücher,
+Open5e, D&D-Beyond-Bücher, drei Errata-Bände), 6 Tools, Zugang über geheimen Pfad +
+IP-Allowlist. Charakterbogen-Übersetzer und Discord-Bot laufen als eigene Container
+daneben; der Bot beantwortet seit Ende Juli Fragen der Runde und hat zwei
+Rückmeldungsdurchgänge geliefert. Maßgeblich für den Bestand ist immer `admin status`.
 
 Was das *nicht* heißt: Eine Spielrunde hat damit noch nicht gearbeitet, und bis ein Off-Site-Ziel
 steht, liegen Bestand und Backup auf derselben SD-Karte. Details und der Rest der offenen
@@ -150,6 +151,14 @@ kommentiert; halte dich an den vorhandenen Stil. Details: [CONCEPT.md](CONCEPT.m
 (`data/`), Quell-PDFs (`quellen/`) — alle bereits gitignored — und kommerzielle Regelinhalte.
 Bitte auch keine urheberrechtlich geschützten Regeltexte in Issues zitieren.
 
+Nach dem Klonen einmalig die Hooks scharfschalten — ein `pre-push`-Wächter hält den
+privaten Archiv-Branch und die gitignorierten Reparaturmodule aus dem öffentlichen Repo,
+auch bei `git push --all`:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 **Sicherheitslücken** bitte **nicht** über öffentliche Issues melden, sondern über die private
 „Report a vulnerability"-Funktion (GitHub → *Security* → *Advisories*). Das Sicherheitsmodell
 steht in [CONCEPT.md](CONCEPT.md) §13.
@@ -173,6 +182,11 @@ Umgangston: freundlich, respektvoll, sachlich — im Zweifel gilt der
   `CC-BY` wird bewusst vermieden: er löst in der Ausgabe automatisch die SRD-Attribution
   aus, und die wäre hier eine falsche Rechtsaussage.
 - **Deutsche Begriffe** u. a. über dnddeutsch.de (Ulisses-Terminologie).
+- **Offizieller deutscher Charakterbogen (2024):** urheberrechtlich geschützte
+  WotC-Vorlage. Sie ist **nicht** Teil des Repositorys (gitignored); der
+  Charakterbogen-Übersetzer druckt die übersetzten Werte auf eine lokal vorgehaltene Kopie
+  und gibt das Ergebnis an den Spieler zurück, dem die Daten ohnehin gehören. Weitergabe
+  über die eigene Runde hinaus findet nicht statt.
 - **Kommerzielle D&D-Bücher** (z. B. via D&D Beyond) sind urheberrechtlich geschützt, werden
   nicht mitgeliefert und nur privat, rechtmäßig erworben und zum Eigenbedarf verarbeitet
   (`lizenz = "privat"`, `herkunft = "ddb"` an jedem Eintrag). Sie werden der eigenen Spielrunde

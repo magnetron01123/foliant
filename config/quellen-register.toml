@@ -1,0 +1,199 @@
+# Quellen-Register des Produktionsbestands - ERZEUGT, nicht von Hand gepflegt.
+#
+# Zweck: Wiederherstellung. Faellt die SD-Karte aus, ist dies die einzige Stelle,
+# an der Edition, Lizenz, Prioritaet und inhaltsart jeder Quelle noch stehen -
+# und geraten werden duerfen sie laut Kernregel 2 nicht.
+#
+# Erneuern nach einem beabsichtigten Import:  make register-vom-pi
+# Buchtitel fehlen bewusst; beim Wiederherstellen von Hand nachtragen.
+#
+# Stand: 2026-08-14
+
+[[quelle]]
+kuerzel = "srd-de"
+sprache = "de"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "CC-BY-4.0"
+prioritaet = 20
+dateipfad = "quellen/SRD_5.2.1_DE.pdf"
+inhaltsart = "regelwerk"
+quell_hash = "f06989dcdf98c8e93b52ba5ea9db52d5e1b054d6d87a148ff295138bafe8a65b"
+
+[[quelle]]
+kuerzel = "ddb-basic-rules-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "ddb"
+lizenz = "privat"
+prioritaet = 40
+dateipfad = "/app/data/private/ddb-artifacts/ddb-basic-rules-2014-en/20260711T082017Z"
+inhaltsart = "regelwerk"
+
+[[quelle]]
+kuerzel = "ddb-br-2024-en"
+sprache = "en"
+edition = "2024"
+herkunft = "ddb"
+lizenz = "privat"
+prioritaet = 40
+dateipfad = "/app/data/private/ddb-artifacts/ddb-br-2024-en/20260711T082117Z"
+inhaltsart = "regelwerk"
+
+[[quelle]]
+kuerzel = "ddb-cosco-en"
+sprache = "en"
+edition = "2014"
+herkunft = "ddb"
+lizenz = "privat"
+prioritaet = 40
+dateipfad = "/app/data/private/ddb-artifacts/ddb-cosco-en/20260711T084210Z"
+inhaltsart = "abenteuer_setting"
+
+[[quelle]]
+kuerzel = "ddb-ee-en"
+sprache = "en"
+edition = "2014"
+herkunft = "ddb"
+lizenz = "privat"
+prioritaet = 40
+dateipfad = "/app/data/private/ddb-artifacts/ddb-ee-en/20260711T084209Z"
+inhaltsart = "regelwerk"
+
+[[quelle]]
+kuerzel = "ddb-mcv1-en"
+sprache = "en"
+edition = "2014"
+herkunft = "ddb"
+lizenz = "privat"
+prioritaet = 40
+dateipfad = "/app/data/private/ddb-artifacts/ddb-mcv1-en/20260711T084213Z"
+inhaltsart = "regelwerk"
+
+[[quelle]]
+kuerzel = "ddb-phb-2024-en"
+sprache = "en"
+edition = "2024"
+herkunft = "ddb"
+lizenz = "privat"
+prioritaet = 40
+dateipfad = "/app/data/private/ddb-artifacts/ddb-phb-2024-en/20260711T082138Z"
+inhaltsart = "regelwerk"
+
+[[quelle]]
+kuerzel = "ddb-rthw-en"
+sprache = "en"
+edition = "2024"
+herkunft = "ddb"
+lizenz = "privat"
+prioritaet = 40
+dateipfad = "/app/data/private/ddb-artifacts/ddb-rthw-en/20260711T082151Z"
+inhaltsart = "abenteuer_setting"
+
+[[quelle]]
+kuerzel = "ddb-wa-en"
+sprache = "en"
+edition = "2014"
+herkunft = "ddb"
+lizenz = "privat"
+prioritaet = 40
+dateipfad = "/app/data/private/ddb-artifacts/ddb-wa-en/20260711T085712Z"
+inhaltsart = "abenteuer_setting"
+
+[[quelle]]
+kuerzel = "efota-en"
+sprache = "en"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 45
+dateipfad = "quellen/md/efota-en.md"
+inhaltsart = "abenteuer_setting"
+
+[[quelle]]
+kuerzel = "frhof-en"
+sprache = "en"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 45
+dateipfad = "quellen/md/frhof-en.md"
+inhaltsart = "abenteuer_setting"
+
+[[quelle]]
+kuerzel = "open5e-srd-2024"
+sprache = "en"
+edition = "2024"
+herkunft = "open5e"
+lizenz = "CC-BY-4.0"
+prioritaet = 60
+inhaltsart = "regelwerk"
+
+[[quelle]]
+kuerzel = "errata-dmg-2024-en"
+sprache = "en"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/DMG-24_v1.pdf"
+inhaltsart = "errata"
+versions_stand = "Errata Version 1.0"
+quell_url = "https://media.dndbeyond.com/compendium-images/errata/DMG-24/DMG-24_v1.pdf"
+quell_hash = "53b6d32fa6ca3a0eb8105a95c0b02a1d46853fffaf31ab1c5ebf41a4167ac073"
+
+[[quelle]]
+kuerzel = "errata-mm-2025-en"
+sprache = "en"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/MM-2025_v1.pdf"
+inhaltsart = "errata"
+versions_stand = "Errata Version 1.0"
+quell_url = "https://media.dndbeyond.com/compendium-images/errata/MM-25/MM-2025_v1.pdf"
+quell_hash = "3d8951d4c7a596d73a6b4579e7dec7634b1cab84e82d1f76e13f75f42ce27a18"
+
+[[quelle]]
+kuerzel = "errata-phb-2024-en"
+sprache = "en"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/PHB-2024_v1.pdf"
+inhaltsart = "errata"
+versions_stand = "Errata Version 1.0"
+quell_url = "https://media.dndbeyond.com/compendium-images/errata/PHB-24/PHB-2024_v1.pdf"
+quell_hash = "82805de932a57cecdfa81e81ea77a2b9e479913cae47df79aae00bb62a992d30"
+
+[[quelle]]
+kuerzel = "phb-2014-de"
+sprache = "de"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 80
+dateipfad = "quellen/phb-2014-de.pdf"
+inhaltsart = "regelwerk"
+
+[[quelle]]
+kuerzel = "xgte-2014-de"
+sprache = "de"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 85
+dateipfad = "quellen/xgte-2014-de.pdf"
+inhaltsart = "regelwerk"
+
+[[quelle]]
+kuerzel = "scag-2014-de"
+sprache = "de"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 90
+dateipfad = "quellen/scag-2014-de.pdf"
+inhaltsart = "abenteuer_setting"

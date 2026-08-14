@@ -35,6 +35,29 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    # Haertung, nachgezogen am 14.08.2026: Bis dahin trugen `web` und `discord` die volle
+    # Haertung, und ausgerechnet der EINZIGE per Tunnel von aussen erreichbare Dienst
+    # keine einzige Direktive.
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    # Der Deckel schuetzt den Rest des Geraets, er ist keine Feinabstimmung: Ohne ihn
+    # entscheidet der OOM-Killer nach eigenem Ermessen, welcher Prozess auf einem Pi
+    # stirbt, der auch Davids Smarthome-Tunnel traegt. Grosszuegig gewaehlt, weil in
+    # DIESEM Container auch Importe und OCR laufen (der Serve-Pfad allein braucht einen
+    # Bruchteil). Wenn ein Import hier ausfaellt: Wert anheben, nicht Deckel entfernen.
+    mem_limit: 2g
+    pids_limit: 256
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # BEWUSST KEIN `read_only: true` (anders als web/discord): `admin import`, `ocr-pdf`
+    # und die PDF-Vorstufe schreiben Zwischenstaende ausserhalb der Volumes, und
+    # Tesseract/Ghostscript brauchen mehr als ein knappes tmpfs. Den Serve-Pfad davon zu
+    # trennen ist der offene Posten - er braucht einen kurzlebigen Import-Lauf mit
+    # eigenem Mount, so wie der ddb-exporter es vormacht.
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -95,6 +118,22 @@ services:
     mem_limit: 512m
     cpus: 1.0
     pids_limit: 128
+    # Bis 14.08.2026 ohne Healthcheck: Ein Dienst, der laeuft, aber nichts mehr bedient,
+    # stand in `docker ps` als "Up" - genau die Auskunft, die eine Stoerung verdeckt.
+    # `/` genuegt als Sonde (die Kennwortseite antwortet auch ohne Anmeldung).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/').status==200 else 1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    logging: &logdeckel
+      driver: "json-file"
+      options:
+        # Ohne Deckel wachsen die Container-Logs unbegrenzt auf DERSELBEN SD-Karte, auf
+        # der Bestand und alle Sicherungen liegen (Review 14.08.2026, S-12). 10 MB x 3
+        # reichen fuer die Fehlersuche und koennen die Karte nicht volllaufen lassen.
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       - foliant
 
@@ -135,6 +174,10 @@ services:
     mem_limit: 256m
     cpus: 0.5
     pids_limit: 64
+    # Kein Healthcheck: Der Bot spricht kein HTTP, und "Prozess laeuft" weiss Docker
+    # ohnehin. Ob er noch ANTWORTET, sagt das Lebenszeichen im Suchbericht
+    # (`make bericht-pi`) - dort steht das Alter der juengsten Protokollzeile.
+    logging: *logdeckel
 
   # Gateway (Caddy) VOR foliant+web. Der Cloudflare-Tunnel-Origin wird spaeter (Dashboard)
   # von foliant:8000 auf gateway:8080 umgestellt. Routet /mcp -> foliant, sonst -> web.
@@ -157,9 +200,12 @@ services:
   # ⚠️ LAEUFT AUF DEM PI NICHT (04.08.2026 geprueft): Das offizielle Image ist amd64-only
   # und stirbt auf ARM64 sofort mit "exec format error" - der Container restartet dann in
   # einer Schleife. Der frueher hier genannte Ausweg ("im foliant-Container per pip
-  # nachinstallieren") scheitert an dessen `read_only: true`. Beides bleibt so: die
-  # Container-Haertung ist mehr wert als der Komfort, und `admin suchbericht` beantwortet
-  # dieselbe Frage. Diese Definition bleibt fuer den Tag stehen, an dem es ein
+  # nachinstallieren") bleibt trotzdem verbaut: Der Container laeuft als Nutzer `foliant`
+  # ohne Schreibrecht auf die site-packages, und `no-new-privileges` verwehrt den Weg
+  # darum herum. (Bis zum 14.08.2026 stand hier "scheitert an dessen `read_only: true`" -
+  # das hatte der foliant-Dienst nie; eine zugesagte Haertung, die es nicht gibt, ist
+  # schlimmer als eine offen fehlende.) Beides bleibt so: die Container-Haertung ist mehr
+  # wert als der Komfort, und `admin suchbericht` beantwortet dieselbe Frage. Diese Definition bleibt fuer den Tag stehen, an dem es ein
   # ARM64-Image gibt - und fuer ein amd64-Hostsystem stimmt sie heute schon.
   #
   # BEIDE DBs, seit 04.08.2026: Das Abfrage-Protokoll traegt die Tabelle `rueckmeldungen`
