@@ -65,15 +65,33 @@ _pi-ziel:
 # Eval-Reports VOR dem Rebuild aus dem Container ziehen (CONCEPT.md par. 12): Sie leben
 # in /app und sterben mit dem alten Image - dabei sind sie die Kalibriergrundlage fuer
 # jedes neue Pruefmuster. Zweimal in einer Woche (07./08.08.2026) waeren sie ohne den
-# Handgriff verloren gewesen; jetzt macht ihn der Deploy selbst. Fehlertolerant (-):
-# ein frischer Container ohne Reports oder ein gestoppter Dienst bricht keinen Deploy.
+# Handgriff verloren gewesen; jetzt macht ihn der Deploy selbst.
+#
+# Nicht blockierend, aber LAUT: Bis zum 14.08.2026 waren beide Schritte `-`-praefigiert
+# und die Schlusszeile zaehlte nur, was ohnehin schon lokal lag - ein gescheiterter
+# Rettungslauf meldete denselben Erfolg wie ein geglueckter. Ein Rettungsschritt, dessen
+# Scheitern man nicht sieht, ist keiner. Ein frischer Container ohne Reports bricht
+# weiterhin keinen Deploy ab, sagt es jetzt aber.
 .PHONY: sichere-eval-reports-pi
 sichere-eval-reports-pi: _pi-ziel
-	-ssh $(PI) 'cd ~/foliant && rm -rf /tmp/eval-reports && docker compose cp foliant:/app/evals/ergebnisse /tmp/eval-reports' 2>/dev/null
-	-mkdir -p evals/ergebnisse/pi && scp -q '$(PI):/tmp/eval-reports/*.json' evals/ergebnisse/pi/ 2>/dev/null
-	@ls evals/ergebnisse/pi/*.json 2>/dev/null | wc -l | xargs -I{} echo "Eval-Reports gesichert (lokal gesamt: {})"
+	@mkdir -p evals/ergebnisse/pi
+	@vorher=$$(ls evals/ergebnisse/pi/*.json 2>/dev/null | wc -l | tr -d ' '); \
+	if ssh $(PI) 'cd ~/foliant && rm -rf /tmp/eval-reports && docker compose cp foliant:/app/evals/ergebnisse /tmp/eval-reports' >/dev/null 2>&1 \
+	   && scp -q '$(PI):/tmp/eval-reports/*.json' evals/ergebnisse/pi/ 2>/dev/null; then \
+		nachher=$$(ls evals/ergebnisse/pi/*.json 2>/dev/null | wc -l | tr -d ' '); \
+		echo "Eval-Reports gesichert: $$((nachher - vorher)) neu, lokal gesamt $$nachher."; \
+	else \
+		echo "WARNUNG: Eval-Reports NICHT gesichert (lokal unveraendert: $$vorher)."; \
+		echo "         Der folgende Rebuild verwirft alles, was seit dem letzten"; \
+		echo "         Rettungslauf im Container entstanden ist. Abbrechen mit Strg-C."; \
+		sleep 5; \
+	fi
 
-deploy-pi: _pi-ziel sichere-eval-reports-pi
+# `test` als Vorbedingung (seit 14.08.2026): Bis dahin pruefte der Deploy erst NACH dem
+# Live-Schalten - die Golden-Suite braucht den Vollbestand und kann nicht vorher laufen,
+# aber die 1.220 lokalen Tests koennen es sehr wohl. Ein Umbau, den schon der Mac
+# durchfallen laesst, hat auf dem Pi nichts verloren.
+deploy-pi: _pi-ziel test sichere-eval-reports-pi tag-vorher-pi
 	rsync -a --exclude '.git' --exclude '.venv*' --exclude 'data' --exclude 'quellen' \
 	      --exclude 'config/foliant.toml' --exclude '.env' --exclude '.claude' \
 	      ./ $(PI):~/foliant/
@@ -81,6 +99,38 @@ deploy-pi: _pi-ziel sichere-eval-reports-pi
 	@echo "--- Rebuild durch, jetzt die Pflicht-Pruefung am Vollbestand ---"
 	$(MAKE) test-golden-pi PI=$(PI)
 	@echo "--- Regel-Semantik ok, jetzt die DATENQUALITAET am Vollbestand ---"
+	$(MAKE) check-pi PI=$(PI)
+
+# Der Rueckweg. Bis zum 14.08.2026 gab es keinen: Auf dem Pi lagen ausschliesslich
+# `:latest`-Tags, der alte Stand war nach dem Build ueberschrieben. Die Gates laufen nach
+# dem Live-Schalten (die Golden-Suite braucht den Vollbestand) - genau deshalb muss es
+# einen Weg zurueck geben, wenn eines von ihnen rot wird.
+#
+# `-` bei den Tags: Beim allerersten Deploy existiert noch kein Image, das man sichern
+# koennte. Das ist kein Fehler, sondern der Normalfall genau einmal.
+.PHONY: tag-vorher-pi
+tag-vorher-pi: _pi-ziel
+	@for d in foliant web discord; do \
+		ssh $(PI) "docker image tag foliant-$$d:latest foliant-$$d:vorher" 2>/dev/null \
+			&& echo "gesichert: foliant-$$d:vorher" \
+			|| echo "Hinweis: foliant-$$d:latest gibt es noch nicht - nichts zu sichern."; \
+	done
+
+# Zurueck auf den Stand VOR dem letzten `make deploy-pi`. Kein Build, kein rsync: Es
+# werden nur die gesicherten Images zurueckgetauscht und die Container neu erzeugt.
+# Der Arbeitsbaum auf dem Pi bleibt, wie der letzte rsync ihn hinterlassen hat - fuer
+# das laufende Image ist das egal, weil der Code ins Image gebacken ist (CONCEPT.md
+# par. 12). Nach einem Rollback gehoert der Repo-Stand von Hand nachgezogen.
+.PHONY: rollback-pi
+rollback-pi: _pi-ziel
+	@ssh $(PI) 'for d in foliant web discord; do \
+		docker image inspect "foliant-$$d:vorher" >/dev/null 2>&1 \
+			|| { echo "ABBRUCH: foliant-$$d:vorher fehlt - es gibt keinen gesicherten Stand."; exit 1; }; \
+	done'
+	ssh $(PI) 'for d in foliant web discord; do docker image tag "foliant-$$d:vorher" "foliant-$$d:latest"; done'
+	ssh $(PI) 'cd ~/foliant && docker compose up -d --no-deps --force-recreate foliant web discord'
+	@echo "--- Rollback durch, jetzt dieselben Gates wie nach einem Deploy ---"
+	$(MAKE) test-golden-pi PI=$(PI)
 	$(MAKE) check-pi PI=$(PI)
 
 # Golden-Suite gegen den VOLLEN Bestand im Pi-Container (Regel-Semantik am echten Korpus,
