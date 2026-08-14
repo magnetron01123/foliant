@@ -186,6 +186,33 @@ soll-vom-pi: _pi-ziel
 		| .venv/bin/python deploy/korpus_soll.py
 	@git diff --stat config/korpus_soll.json || true
 
+# Das Quellen-Register neu erzeugen (K-01). Wie `soll-vom-pi` ein Wiederherstellungs-
+# Artefakt: `config/foliant.toml` ist gitignored und in keinem Backup, die DATENBANK weiss
+# es aber besser - sie fuehrt alle 18 Quellen mit Edition, Lizenz, Prioritaet und
+# inhaltsart. Buchtitel bleiben draussen (Entscheidung 14.08.2026).
+#
+# Braucht `admin quellen-register` IM Image, also einen Deploy nach dem 14.08.2026.
+# Die eingecheckte Fassung ist bis dahin aus denselben DB-Zeilen erzeugt.
+#
+# Erst in eine Nebendatei, dann pruefen, dann verschieben. Ein direktes
+# `> config/quellen-register.toml` leert die Datei, BEVOR das Kommando laeuft - ein
+# Fehlschlag haette also genau das Artefakt vernichtet, das gegen Verlust schuetzen soll
+# (beim Bauen am 14.08.2026 einmal passiert und behoben).
+.PHONY: register-vom-pi
+register-vom-pi: _pi-ziel
+	@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin quellen-register' \
+		> config/quellen-register.toml.neu || true
+	@if grep -q '^\[\[quelle\]\]' config/quellen-register.toml.neu 2>/dev/null; then \
+		mv config/quellen-register.toml.neu config/quellen-register.toml; \
+		echo "Register erneuert: $$(grep -c '^\[\[quelle\]\]' config/quellen-register.toml) Quellen."; \
+		git diff --stat config/quellen-register.toml || true; \
+	else \
+		rm -f config/quellen-register.toml.neu; \
+		echo "ABBRUCH: kein Register erhalten - das bestehende bleibt unangetastet."; \
+		echo "  Kennt das Pi-Image 'admin quellen-register' schon? Sonst erst deployen."; \
+		exit 1; \
+	fi
+
 # Der Suchbericht vom VOLLBESTAND, maschinenlesbar - Einstieg in den
 # Rueckmeldungs-Durchgang (O4/M5, .claude/ablaeufe/rueckmeldungen.md). Rein lesend.
 # Bis 04.08.2026 stand dieser Aufruf nur als Copy-Paste-Zeile in der Doku, und eine Zeile,

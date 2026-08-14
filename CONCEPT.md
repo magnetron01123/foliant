@@ -586,6 +586,7 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
 ```
 status        Bestand je Quelle/Edition/Kategorie + Glossar
 manifest      Korpus-Fingerabdruck (inhalts_hash) - nach jedem Import festhalten
+quellen-register  Quellen-Register als TOML aus der DB - Wiederherstellungs-Artefakt (ohne Buchtitel); erneuern mit `make register-vom-pi`
 import        --quelle <kuerzel> | glossar | facetten (Facetten ohne Re-Import nachziehen)
 quellen-auffrischen  Quellen-METADATEN (Titel, Prioritaet, Lizenz, inhaltsart, versions_stand, quell_url) aus der config nachziehen - ohne Re-Import, Eintraege bleiben unberuehrt
 pdf-triage    welche PDFs haben keine Textschicht?
@@ -1169,6 +1170,34 @@ mit, und taucht eine **dritte** auf, gilt der Fall wieder als ungeprüft und ers
 echter Konflikt. Ein eigener Test hält das fest. Dieselbe Logik trägt
 `config/qualitaet_basis.json` für die Datenmängel (§12) — ein Basiswert, gegen den eine Zahl
 steigen *oder* fallen kann, statt einer Dauerwarnung.
+
+### Entscheidung: Das Quellen-Register wird erzeugt, nicht gepflegt (14.08.2026)
+
+`config/foliant.toml` ist gitignored, aus dem Deploy-`rsync` ausgeschlossen und von
+`admin backup` nicht erfasst. Die Folge war kein Datenverlust, sondern etwas Leiseres: Pi
+und Mac trugen **zwei verschiedene Register** — 12 gegen 8 Quellenblöcke, sieben Kürzel
+disjunkt —, und keines beschrieb den Produktionsbestand vollständig. Die sieben
+DDB-Quellen standen in gar keiner der beiden Dateien.
+
+Die Datenbank weiß es besser. `quellen` führt alle 18 Quellen mit Edition, Lizenz,
+Priorität, `inhaltsart`, Herkunft und Pfad — und genau diese Angaben macht Kernregel 2
+(„Editionen werden NIE geraten") nach einem Kartenausfall unersetzlich: Raten ist
+verboten, also muss es aufgeschrieben sein. `config/quellen-register.toml` ist deshalb ein
+**Erzeugnis** aus der DB (`admin quellen-register`, Logik in `importer/quellen.py` neben
+dem Schreibweg), kein von Hand gepflegtes zweites Register — das wäre wieder eine Datei,
+die auseinanderlaufen kann.
+
+Drei bewusste Festlegungen:
+
+- **Wiederherstellungs-Artefakt, kein Laufzeit-Eingang.** `lade_konfig` bleibt unberührt.
+  Eine zweite Konfigurationsquelle wäre ein tägliches Risiko für einen Nutzen, den man
+  hoffentlich nie braucht.
+- **Ohne Buchtitel** (Davids Entscheidung): Das Repo ist öffentlich. Die Kürzel stehen
+  ohnehin darin, die Dateipfade sind durchgehend kürzelbasiert — geprüft, es leckt keiner.
+  Beim Wiederherstellen sind 18 Titel nachzutragen; alles, was man nicht raten darf,
+  steht da.
+- **Solange kein Off-Site-Spiegel existiert** (M3, am 14.08.2026 zurückgestellt), ist
+  diese Datei im Git das Einzige, was einen Kartenausfall überlebt.
 
 ### Entscheidung: Der Korpus bekommt einen Sollstand (14.08.2026)
 

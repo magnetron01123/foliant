@@ -1190,6 +1190,20 @@ def cmd_manifest(_args) -> None:
         c.close()
 
 
+def cmd_quellen_register(_args) -> None:
+    """Das Quellen-Register aus der DB auf stdout - Wiederherstellungs-Artefakt (K-01).
+
+    Duenn mit Absicht: Die Logik steht in `importer.quellen`, wo auch der Schreibweg der
+    Quellen wohnt. `admin.py` behaelt Parser und Weiterleitung."""
+    from datetime import date
+
+    c = _con()
+    try:
+        print(_quellen.exportiere_register(c, date.today().isoformat()), end="")
+    finally:
+        c.close()
+
+
 def _teile_konflikte(c: sqlite3.Connection) -> tuple[list[dict], list[dict], list[dict]]:
     """Mehrere OFFIZIELLE deutsche Formen zu einem englischen Begriff in drei Klassen
     trennen: (echte Konflikte, durch S8 geregelte, gepruefte Homonyme).
@@ -1692,6 +1706,10 @@ def baue_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="Bestand zusammenfassen (Import-Kontrolle)").set_defaults(func=cmd_status)
     sub.add_parser("manifest", help="Korpus-Fingerabdruck (Quellen + Inhalts-Hash) als JSON"
                    ).set_defaults(func=cmd_manifest)
+    sub.add_parser("quellen-register",
+                   help="Quellen-Register als TOML auf stdout (Wiederherstellung; "
+                        "erneuern mit `make register-vom-pi`)"
+                   ).set_defaults(func=cmd_quellen_register)
     pi = sub.add_parser("import", help="Quelle importieren")
     pi.add_argument("--quelle", required=True,
                     help="kuerzel aus config, z. B. srd-de; 'glossar' = dnddeutsch-Seeding "

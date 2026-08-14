@@ -28,7 +28,7 @@ David**, nicht an Code:
 | **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — **kein Artefakt hat heute ein echtes Backup**: Jede Kopie ist entweder ein rsync-Spiegel (gibt Schaden weiter) oder ein Einzelexemplar, und Historie gibt es nur für das, was auf GitHub liegt. Zwei Verlustpfade, nicht einer — siehe M3 |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
 | **M7** Discord-Ausbau | Echttest nach einem Neustart, Lebenszeichen für den Meldeweg |
-| **M9** Register und Sicherungen (Review 14.08.2026) | eine Entscheidung, was öffentlich stehen darf — der Rest ist Handarbeit |
+| **M9** Nacharbeiten aus dem Grundsatz-Review | Off-Site-Spiegel (zurückgestellt), Restore-Probe, `constraints.txt` aus einem ARM-Build |
 | **M2** Abnahme: A4 (Websuche), E1 (Injektion) | beides nur im echten Chat prüfbar — die Server-Hälfte von E1 ist seit 03.08.2026 automatisiert |
 | **M1** dt. PHB 2024 | die PDFs |
 | **M5** Kurationsschleife | läuft — braucht aber echte Anfragen, um Signal zu liefern |
@@ -237,20 +237,15 @@ Das Review hat 32 Befunde bestätigt. Der Code-Teil ist umgesetzt (Import-Wächt
 Rettungsschritt, Rollback-Weg, Container-Härtung, Lizenz-Attribution). Was hier steht,
 braucht eine Entscheidung oder eine Handlung an einem Gerät:
 
-- ⬜ **Das Quellen-Register versionieren.** `config/foliant.toml` ist gitignored, aus dem
-  Deploy-rsync ausgeschlossen und in keinem Backup. Pi und Mac tragen deshalb zwei
-  **verschiedene** Register (12 gegen 8 Quellenblöcke, sieben Kürzel disjunkt, geprüft am
-  14.08.2026), und keines rekonstruiert das andere. Die Datei trägt Edition, Priorität,
-  Lizenz und Hash-Pin jeder Produktionsquelle — also genau das, was Kernregel 2
-  („Editionen werden NIE geraten") nach einem Kartenausfall unerfüllbar macht.
-  **Wartet auf David:** ob die DDB-Buchtitel öffentlich stehen dürfen. Wenn nein, wird das
-  Register geteilt — der versionierbare Teil (Edition, Priorität, Lizenz, `inhaltsart`,
-  Hash-Pin) in eine eigene, eingecheckte Datei, und `config/foliant.toml` behält nur
-  Maschinen- und Pfadangaben.
-- ⬜ **Sicherungen vom Gerät wegbekommen** (deckt sich mit M3). Bis der Off-Site-Spiegel
-  steht, wäre ein wöchentliches `scp` von `data/backups/` **plus** `config/foliant.toml`
-  auf den Mac schon die halbe Miete. Die Protokoll-DB mit den Rückmeldungen der Runde
-  gehört in den Backup-Umfang — sie ist heute in keinem.
+- ⬜ **Sicherungen vom Gerät wegbekommen** (deckt sich mit M3). *Am 14.08.2026 bewusst
+  zurückgestellt.* Damit trägt `config/quellen-register.toml` im Git allein die Last: Es
+  ist derzeit das Einzige, was einen Kartenausfall überlebt. Wenn der Spiegel kommt,
+  gehören `data/backups/`, `config/foliant.toml`, `quellen/`,
+  `data/private/ddb-artifacts/` und die Protokoll-DB hinein — letztere ist heute in
+  keinem Backup-Pfad.
+- ⬜ **Buchtitel im Register.** Die 18 Titel fehlen bewusst (Entscheidung 14.08.2026,
+  öffentliches Repo). Beim Wiederherstellen sind sie von Hand nachzutragen — alles
+  andere, was Kernregel 2 zu raten verbietet, steht da.
 - ⬜ **Restore-Probe einmal wirklich fahren.** CONCEPT §8 schreibt sie vor; es gibt keinen
   Beleg, dass sie je lief. Eine Sicherung, aus der noch nie jemand zurückgespielt hat,
   ist eine Vermutung.
