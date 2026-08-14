@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 11.08.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 14.08.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -1286,6 +1286,13 @@ Kuratiert. Quellen-spezifische Eigenheiten stehen im Modul-Docstring des jeweili
 Importers (`importer/import_open5e.py` für die Open5e-API, `importer/import_markdown.py`
 für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de).
 
+- **Ein einseitiges PDF hat keine falsche Seitenzahl.** Die drei Errata-Quellen tragen
+  durchgehend `seite = '1'`, und das sieht nach einem nicht gefüllten Feld aus. Es ist
+  aber die richtige Angabe: Die Errata-PDFs sind einseitig. Beim DB-Audit vom 03.08.2026
+  war das einer von zwei geprüften Nicht-Befunden — der zweite sind treu reproduzierte
+  WotC-Klammer-Typos, die in `config/quellfehler.py` als Quellfehler stehen und deshalb
+  ebenfalls nicht „repariert" gehören. Ein Wert, der wie ein Platzhalter aussieht, ist
+  erst dann einer, wenn die Quelle es hergibt.
 - **Ein Meldeweg, der ein Eingabezeichen nicht kennt, schweigt — er meckert nicht.**
   Der Daumen-Vergleich entfernte den Variantenselektor, nicht die fünf Hautton-Zeichen.
   Wer den Ton einmal eingestellt hat, sendet auf dem Handy fortan die geschmückte Form,

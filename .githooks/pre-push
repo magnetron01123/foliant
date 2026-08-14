@@ -1,0 +1,66 @@
+#!/bin/sh
+# Verhindert, dass der Archiv-Branch oder kaufbuch-abgeleitete Privatmodule ins
+# OEFFENTLICHE Repo wandern.
+#
+# Anlass (Review 14.08.2026, B-11): `importer/frhof_reparatur.py` ist gitignored, steht
+# aber in der Historie von `archiv-privat-vor-veroeffentlichung` (drei Commits, geloescht
+# erst im Veroeffentlichungs-Commit). Der Branch wurde nie gepusht - ein `git push --all`
+# oder `--mirror` schoebe ihn samt Historie zu GitHub.
+#
+# Warum ein Hook und nicht `remote.origin.push`: Diese Konfiguration wird von `--all` und
+# `--mirror` UEBERSCHRIEBEN, haette also genau den Fall nicht abgedeckt, gegen den sie
+# gedacht war - und haette nebenbei den normalen Branch-Push kaputtgemacht. Ein pre-push
+# laeuft dagegen bei JEDER Push-Form.
+#
+# Aktiviert ueber `git config core.hooksPath .githooks` (steht in README, Mitwirken).
+# Umgehung im Notfall: `git push --no-verify`.
+
+set -eu
+
+ARCHIV="refs/heads/archiv-privat-vor-veroeffentlichung"
+
+# Dateien, die im oeffentlichen Repo nichts zu suchen haben. Sie sind gitignored - taucht
+# eine davon in einem zu schiebenden Commit auf, ist der Ignore irgendwann umgangen worden.
+PRIVAT="importer/frhof_reparatur.py importer/reparatur_ddb_privat.py tests/test_ddb_druck_privat.py"
+
+LEER="0000000000000000000000000000000000000000"
+fehler=0
+
+while read -r lokale_ref lokale_sha ferne_ref ferne_sha; do
+	[ "$lokale_sha" = "$LEER" ] && continue          # Loeschung eines fernen Branches
+
+	if [ "$lokale_ref" = "$ARCHIV" ]; then
+		echo "ABBRUCH: '$ARCHIV' soll nicht ins oeffentliche Repo." >&2
+		echo "  Er haelt den Stand vor der Veroeffentlichung und traegt kaufbuch-" >&2
+		echo "  abgeleitete Inhalte in seiner Historie (CLAUDE.md, Arbeitsweise)." >&2
+		fehler=1
+		continue
+	fi
+
+	# Welche Commits waeren neu am fernen Ende? Bei einem neuen Branch ist die ferne
+	# Seite leer - dann alles, was main noch nicht kennt (nicht die ganze Historie).
+	if [ "$ferne_sha" = "$LEER" ]; then
+		bereich="$lokale_sha --not --remotes=origin"
+	else
+		bereich="$ferne_sha..$lokale_sha"
+	fi
+
+	# shellcheck disable=SC2086
+	getroffen=$(git log --pretty=format: --name-only $bereich -- $PRIVAT 2>/dev/null \
+		| sort -u | sed '/^$/d')
+
+	if [ -n "$getroffen" ]; then
+		echo "ABBRUCH: private Module in den zu schiebenden Commits ($lokale_ref):" >&2
+		echo "$getroffen" | sed 's/^/  /' >&2
+		echo "  Diese Dateien sind gitignored und gehoeren nicht ins oeffentliche Repo." >&2
+		fehler=1
+	fi
+done
+
+if [ "$fehler" -ne 0 ]; then
+	echo "" >&2
+	echo "Nichts gepusht. Wenn das wirklich gewollt ist: git push --no-verify" >&2
+	exit 1
+fi
+
+exit 0

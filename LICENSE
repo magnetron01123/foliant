@@ -24,14 +24,19 @@ SOFTWARE.
 
 Dieser MIT-Lizenztext deckt ausschliesslich den QUELLCODE dieses Projekts.
 
-Regelinhalte, die der Server verarbeitet, sind NICHT Teil dieses Repositorys und
-unterliegen ihren eigenen Lizenzen:
+Regelinhalte und Vorlagen, die der Server verarbeitet, sind NICHT Teil dieses
+Repositorys und unterliegen ihren eigenen Lizenzen und Rechten. Dazu gehören unter
+anderem das SRD 5.2.1 (CC-BY-4.0), Open5e-Daten (CC-BY-4.0 bzw. OGL 1.0a je Eintrag),
+offizielle Errata, die deutsche Terminologie und der offizielle deutsche
+WotC-Charakterbogen.
 
-- System Reference Document 5.2.1 (SRD 5.2.1), deutsch und englisch: Wizards of the
-  Coast, lizenziert unter Creative Commons Attribution 4.0 (CC-BY-4.0). Siehe
-  README.md, Abschnitt "Lizenz & Recht".
-- Open5e-Daten: CC-BY-4.0 / OGL, je Eintrag. Siehe README.md, Abschnitt "Lizenz & Recht".
-- Kommerzielle D&D-Bücher (z. B. via D&D Beyond) sind urheberrechtlich geschützt und
-  werden weder mitgeliefert noch redistribuiert. Wer den Server mit solchen Inhalten
-  betreibt, tut dies aus eigenen, rechtmässig erworbenen Quellen und ausschliesslich
-  für den privaten Eigenbedarf.
+Kommerzielle D&D-Bücher (z. B. via D&D Beyond) sind urheberrechtlich geschützt und
+werden weder mitgeliefert noch redistribuiert. Wer den Server mit solchen Inhalten
+betreibt, tut dies aus eigenen, rechtmässig erworbenen Quellen und ausschliesslich für
+den privaten Eigenbedarf.
+
+Die vollständige, verbindliche Aufstellung je Quelle steht in README.md, Abschnitt
+"Lizenz & Recht" - und zwar nur dort. Bis zum 14.08.2026 führten beide Dateien eigene
+Listen, und sie waren bereits auseinandergelaufen (die Errata, die deutsche Terminologie
+und die Bogenvorlage fehlten hier). Eine Rechteliste an zwei Orten ist eine Rechteliste
+zu viel.

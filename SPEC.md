@@ -1,9 +1,11 @@
 # Foliant — Spezifikation (das verbindliche „Was")
 
 **D&D-5e-Regelassistent (Fassung 2024), Deutsch-first · self-hosted MCP-Server**
-**Rev. 10 · Stand: 11.08.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
+**Rev. 11 · Stand: 14.08.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
 Widersprüche aufgelöst, Charakterbogen-Übersetzer aufgenommen; Rev. 10: Datenqualitäts-Schicht
-— S12, V9, V10, B11 — und die Nummerierung aus Rev. 8 geheilt)*
+— S12, V9, V10, B11 — und die Nummerierung aus Rev. 8 geheilt; Rev. 11: der Discord-Bot wird
+Anforderung — §15, D1–D5 —, NF5 nennt beide Modelldienste, NF4 trennt eigene Nutzung von
+Veröffentlichung)*
 
 Dieses Dokument definiert, **was** Foliant können muss und **wie es sich verhalten muss** —
 nicht, wie es gebaut ist (das steht in [CONCEPT.md](CONCEPT.md)). Bei fachlichen Fragen gilt
@@ -182,10 +184,14 @@ Buch-Datenbank, bei PDFs pro Buch explizit gesetzt. Unklar = **nicht importieren
 - **NF2 — Zugang über Claude:** Custom Connector; der Free-Plan (genau ein Connector) genügt.
 - **NF3 — Privat:** ausschließlich für die eigene Runde; keine öffentliche Bereitstellung.
 - **NF4 — Legale Quellen:** frei lizenziertes SRD (CC-BY-4.0) und eigene, legal erworbene
-  Inhalte. DDB-Extraktion nur privat (ToS-Grauzone, bewusst akzeptiert).
-- **NF5 — Kosten:** keine laufenden Kosten außer Strom. *(Ausnahme seit §14: der
-  Charakterbogen-Übersetzer verbraucht pro Konvertierung Anthropic-API-Guthaben; harter
-  Kostendeckel per Spend-Limit im eigenen Workspace.)*
+  Inhalte. DDB-Extraktion nur privat (ToS-Grauzone, bewusst akzeptiert). Diese Abwägung
+  deckt die **eigene Nutzung** ab, nicht die Frage, ob das Verfahren im öffentlichen Repo
+  stehen soll — die ist offen (BACKLOG §4, „Ideen mit Klärungsbedarf").
+- **NF5 — Kosten:** keine laufenden Kosten außer Strom, **außer für die beiden Dienste mit
+  Modellaufrufen**: Der Charakterbogen-Übersetzer verbraucht pro Konvertierung
+  Anthropic-API-Guthaben (§14), der Discord-Bot pro beantworteter Frage (§15). Beide
+  laufen gegen dasselbe Spend-Limit im eigenen Workspace; der Bot trägt zusätzlich einen
+  Tagesdeckel. Der MCP-Server selbst bleibt kostenfrei — er ruft kein Modell auf.
 - **NF6 — Nur so komplex wie nötig.**
 - **NF7 — Erweiterbar:** spätere Ausbaustufen müssen ohne Neuaufbau andocken.
 - **NF8 — Einfache Ersteinrichtung:** URL als Connector eintragen, im Chat aktivieren.
@@ -287,7 +293,7 @@ Buch-Datenbank, bei PDFs pro Buch explizit gesetzt. Unklar = **nicht importieren
 ### Die vier nicht verhandelbaren Kernregeln
 1. **Geerdet, keine Halluzination** (B1/B2)
 2. **Version immer** (V1–V5, `edition` ist NOT NULL)
-3. **Deutsch-first** (S1–S11)
+3. **Deutsch-first** (S1–S12 — S12 ist die deutsche Abkürzung, also ebenfalls Deutsch-first)
 4. **Keine Spoiler, kein Scope-Creep** (B6, §1) — **Spoiler-Schutz ist die oberste
    Verhaltensregel.**
 
@@ -471,7 +477,7 @@ ausgelesen, übersetzt und auf den **offiziellen deutschen WotC-Charakterbogen (
 übertragen — als druckbares PDF.
 
 **Verbindliche Regeln:**
-- **C1 — S1–S12 gelten unverändert.** Ausgabe immer `Deutscher Begriff (English Original)`, `*` nur
+- **C1 — S1–S15 gelten unverändert.** Ausgabe immer `Deutscher Begriff (English Original)`, `*` nur
   bei fehlendem exaktem, belegtem Glossartreffer. Nie nur Englisch.
 - **C2 — Zahlen laufen nie durch das Sprachmodell.** Würfel, Modifikatoren, Rettungswürfe,
   Preise und Gewichte werden deterministisch übertragen.
@@ -488,3 +494,34 @@ ausgelesen, übersetzt und auf den **offiziellen deutschen WotC-Charakterbogen (
   gesetztes Kennwort ist die Seite zu, nicht offen.
 
 Umsetzung: [CONCEPT.md](CONCEPT.md) §7.
+
+---
+
+## 15. Discord-Bot (Zusatz-Feature)
+
+Der dritte Dienst: dasselbe Nachschlagewerk im Gespräch der Runde. Der Bot beantwortet
+Regelfragen in einem Discord-Kanal, indem er dieselben Werkzeuge aufruft wie der
+MCP-Server — nur ruft er das Modell selbst auf, statt von einem Client gerufen zu werden.
+
+Bis zum 14.08.2026 hatte der Bot **keine einzige Anforderung**, obwohl er seit Ende Juli
+2026 in der echten Runde lief. Er war damit auch für die Doku-Prüfung unsichtbar: Was nie
+Anforderung wurde, kann keinen Status bekommen.
+
+**Verbindliche Regeln:**
+- **D1 — Der Bot ist Nachschlagewerk, kein Spielleiter.** Kein Würfeln, keine
+  Charakterverwaltung, keine Initiative. Was §1 als außerhalb des Umfangs führt, bleibt es
+  auch im Gespräch.
+- **D2 — Die vier Kernregeln (§7) gelten unverändert.** Grounding, Regelversion,
+  Deutsch-first und Spoiler-Schutz hängen nicht am Kanal. Der Bot bekommt dieselben
+  Verhaltensregeln wie der MCP-Server, ergänzt nur um Darstellungsunterschiede.
+- **D3 — Kostendeckel ist Pflicht (fail-closed).** Jede Frage kostet Guthaben (NF5).
+  Ohne wirksamen Tagesdeckel läuft der Bot nicht; der Deckel greift vor dem Modellaufruf,
+  nicht danach.
+- **D4 — Nur die eigene Guild.** Der Bot bedient ausschließlich den konfigurierten Server
+  und verlässt jeden anderen selbsttätig (NF3). Ohne gesetzte Guild-ID wartet er, statt
+  offen zu bedienen.
+- **D5 — Rückmeldungen sind Teil des Dienstes.** 👍/👎 an einer Antwort landen
+  PII-frei im Abfrage-Protokoll und speisen den Rückmeldungs-Durchgang (O4). Ein
+  Meldeweg, dessen Ausfall niemand bemerkt, erfüllt D5 nicht.
+
+Umsetzung: [CONCEPT.md](CONCEPT.md) §10 (Entscheidung und Nicht-Ziele) und §9 (Einrichtung).

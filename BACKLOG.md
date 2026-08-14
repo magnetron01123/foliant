@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 11.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 14.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -11,17 +11,24 @@ Kurationsschleife lief gegen echte Nutzungsdaten. Am 31.07./01.08.2026 kam die
 Datenqualitäts-Schicht dazu — Revisions-Layer, Quellen-Provenienz, Prioritätsbänder und
 das Register der deutschen Abkürzungen (PR #80, Schema v3, auf dem Pi deployed). Das
 DB-Vollaudit vom 03.08.2026 (technisch + fachlich, Schwerpunkt Errata) bestätigte den
-Bestand als solide; seine Nacharbeiten (M8) sind abgeschlossen und deployt.
+Bestand als solide; seine Nacharbeiten sind abgeschlossen und deployt. Der Discord-Bot
+läuft seit Ende Juli in der Runde und hat seither zwei Rückmeldungsdurchgänge geliefert.
+
+Am 14.08.2026 lief ein Grundsatz-Review über das ganze Projekt. Sein Ergebnis in einem
+Satz: Die Software trägt, aber das Projekt deckt seine eigenen Zusagen an drei Stellen
+nicht mehr — Wiederherstellbarkeit, Auslieferungsweg und Buchführung über den eigenen
+Zustand. Was daraus ohne Entscheidung umsetzbar war, ist umgesetzt; der Rest steht als
+**M9**.
 
 Von den verbliebenen Punkten hängen **fast alle an einer Entscheidung oder Handlung von
 David**, nicht an Code:
 
 | offen | wartet auf |
 |---|---|
-| **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — derzeit liegen Bestand *und* alle Sicherungen auf derselben SD-Karte. **Das einzige Risiko mit unwiederbringlichem Schaden** |
+| **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — **kein Artefakt hat heute ein echtes Backup**: Jede Kopie ist entweder ein rsync-Spiegel (gibt Schaden weiter) oder ein Einzelexemplar, und Historie gibt es nur für das, was auf GitHub liegt. Zwei Verlustpfade, nicht einer — siehe M3 |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
-| **M6** Discord-Bot | Token im Entwicklerportal, Erst-Test in der Guild |
-| **M7** Discord-Ausbau | Eval-Lauf mit den DC-Fällen, Echttest nach einem Neustart |
+| **M7** Discord-Ausbau | Echttest nach einem Neustart, Lebenszeichen für den Meldeweg |
+| **M9** Register und Sicherungen (Review 14.08.2026) | eine Entscheidung, was öffentlich stehen darf — der Rest ist Handarbeit |
 | **M2** Abnahme: A4 (Websuche), E1 (Injektion) | beides nur im echten Chat prüfbar — die Server-Hälfte von E1 ist seit 03.08.2026 automatisiert |
 | **M1** dt. PHB 2024 | die PDFs |
 | **M5** Kurationsschleife | läuft — braucht aber echte Anfragen, um Signal zu liefern |
@@ -181,20 +188,6 @@ Regressionstests belegt; die Lehre zum Zeichenvergleich steht in
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking und
 Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 
-### M6 — Discord-Bot · *neu 26.07.2026*
-Foliant in Discord (`app/discord_bot/`): `/regel` + @Mention, Antworten öffnen Threads mit
-Gesprächskontext (in-memory), voller Bestand mit Guild-Sperre (SPEC §12 Nr. 6), Modell
-`claude-sonnet-5` (der gemessene Stand — gleiche Schleife wie der Eval, `app/llm.py`).
-- ✅ Code, Tests, Compose-Service, Doku
-- ⬜ **Discord-Seite (David):** Application + Bot im Entwicklerportal anlegen, Token
-  erzeugen, **Message Content Intent aktivieren** — das ist alles, was Discord nicht über
-  die API zulässt. Den Rest macht `bash deploy/discord_einrichten.sh`: Einladungslink,
-  Server-ID, Pi-`.env`, Dienststart (CONCEPT §9 „Discord-Bot einrichten")
-- ⬜ Erst-Test in der echten Guild (`/regel`, Mention, Thread-Folgefrage, Limits)
-
-**Gate:** ein Mitspieler stellt eine Regelfrage in Discord und bekommt eine belegte
-Antwort; `admin suchbericht` zeigt die Anfrage.
-
 ### M7 — Discord-Ausbau · *neu 30.07.2026 · Code ✅, zwei Nachweise offen*
 Der Bot bleibt ein **Nachschlagewerk im Gespräch** und wird kein zweites Avrae. Der
 Funktionsumfang steht (Thread-Rebuild, `/regel-privat`, `/hilfe`, Kontextmenü,
@@ -238,39 +231,61 @@ die Tokens bzw. eine echte Guild brauchen:
 **Gate:** eine Folgefrage nach einem Neustart wird mit Kontext beantwortet, und der
 DC-Lauf steht im Eval-Report.
 
-### M8 — Nacharbeiten aus dem DB-Audit · *03.08.2026 · abgeschlossen*
+### M9 — Nacharbeiten aus dem Grundsatz-Review · *14.08.2026*
 
-Vollaudit der Datenbank gegen den Pi-Vollbestand (technisch + fachlich, Schwerpunkt
-Errata): Die Errata-Integration ist **vollständig und wortgetreu** (43/43 gegen die drei
-Original-PDFs, Seitenreferenzen und Zahlenkorrekturen fachlich gegengerechnet), das
-kanonische Serving liefert überall die korrekte Fassung. Geprüfte NICHT-Befunde — die
-einseitigen Errata-PDFs (⇒ `seite = '1'` ist richtig) und treu reproduzierte
-WotC-Klammer-Typos — bitte nicht „reparieren".
+Das Review hat 32 Befunde bestätigt. Der Code-Teil ist umgesetzt (Import-Wächter,
+Rettungsschritt, Rollback-Weg, Container-Härtung, Lizenz-Attribution). Was hier steht,
+braucht eine Entscheidung oder eine Handlung an einem Gerät:
 
-Was aus dem Audit folgte, ist umgesetzt und **am 03.08.2026 auf dem Pi deployt**
-(Golden-Suite 23 passed, `check-pi` OK, Korpus-`inhalts_hash` jetzt `7bbda621…`); die
-tragenden Begründungen stehen als drei Entscheidungen in [CONCEPT.md](CONCEPT.md) §10
-(Rückweg zum Nachtrag · Quellfehler kennzeichnen statt korrigieren · Errata-Kategorien
-bleiben `regel`). Offen bleibt ein Posten, den das Audit **größer gemacht hat, als er im
-Befund stand**:
+- ⬜ **Das Quellen-Register versionieren.** `config/foliant.toml` ist gitignored, aus dem
+  Deploy-rsync ausgeschlossen und in keinem Backup. Pi und Mac tragen deshalb zwei
+  **verschiedene** Register (12 gegen 8 Quellenblöcke, sieben Kürzel disjunkt, geprüft am
+  14.08.2026), und keines rekonstruiert das andere. Die Datei trägt Edition, Priorität,
+  Lizenz und Hash-Pin jeder Produktionsquelle — also genau das, was Kernregel 2
+  („Editionen werden NIE geraten") nach einem Kartenausfall unerfüllbar macht.
+  **Wartet auf David:** ob die DDB-Buchtitel öffentlich stehen dürfen. Wenn nein, wird das
+  Register geteilt — der versionierbare Teil (Edition, Priorität, Lizenz, `inhaltsart`,
+  Hash-Pin) in eine eigene, eingecheckte Datei, und `config/foliant.toml` behält nur
+  Maschinen- und Pfadangaben.
+- ⬜ **Sicherungen vom Gerät wegbekommen** (deckt sich mit M3). Bis der Off-Site-Spiegel
+  steht, wäre ein wöchentliches `scp` von `data/backups/` **plus** `config/foliant.toml`
+  auf den Mac schon die halbe Miete. Die Protokoll-DB mit den Rückmeldungen der Runde
+  gehört in den Backup-Umfang — sie ist heute in keinem.
+- ⬜ **Restore-Probe einmal wirklich fahren.** CONCEPT §8 schreibt sie vor; es gibt keinen
+  Beleg, dass sie je lief. Eine Sicherung, aus der noch nie jemand zurückgespielt hat,
+  ist eine Vermutung.
+- ⬜ **`constraints.txt` aus einem geprüften Build.** Die Pins decken 12 von rund 100
+  installierten Paketen; das Basis-Image trägt keinen Digest. Muss auf dem Pi entstehen,
+  nicht auf dem Mac — ein Mac-Pin für einen ARM64/py3.12-Build ist geraten, und geraten
+  ist hier genau das Falsche.
+- ⬜ **Serve-Pfad vom Import-Pfad trennen.** Der einzige von außen erreichbare Container
+  ist auch Import-Worker und Backup-Schreiber. Die Härtung ist nachgezogen (14.08.2026),
+  aber `read_only` bleibt unmöglich, solange Importe in demselben Container laufen. Muster
+  dafür steht bereit: der `ddb-exporter` als kurzlebiger Lauf mit eigenem Mount.
+- ⬜ **Korpus-Sollstand.** `admin check` vergleicht die Eintragszahl nur mit der eigenen
+  FTS-Zeilenzahl und wertet Rückgänge als „Basiswert nachziehen"; eine fehlende Quelle
+  fällt nicht auf. `admin manifest` liefert die Zahlen je Quelle bereits.
 
-**Gate erfüllt:** srd-de führt kein Monster mehr ohne eigenen Statblock (waren 13), keine
-Namensdubletten, Facetten-Deckung Monster 100 %, der korrupte Open5e-Datensatz wird beim
-Import verworfen statt gekennzeichnet — `make check-pi` und die Golden-Suite grün.
+**Gate:** Ein Ausfall der SD-Karte kostet Zeit, aber keinen Bestand, der sich nicht
+wiederherstellen lässt.
 
 ### Offene Anforderungen im Überblick
-Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11–S15, V1–V6/V8, NF1–NF3/NF5–NF7,
-B1–B8/B11–B16, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
+Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11–S15, V1–V6/V8, NF1–NF3/NF6–NF7,
+B1–B8/B11/B13–B16, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7, D1–D2/D4).
 
 | Anf. | Inhalt | Status | Zu |
 |---|---|---|---|
 | **S10** | Deutscher Regeltext primär (dt. 2024-Grundregelwerke) | ⬜ | M1 |
 | V7 | Erweiterbares Versionsschema | 🟡 | `edition` ist ein Textfeld — reicht heute, feinere Granularität ohne Migration nachrüstbar |
-| NF4 | Legale Quellen; DDB nur privat | 🟡 | bewusste Entscheidung, siehe [SPEC.md](SPEC.md) §12 Nr. 1 |
+| NF4 | Legale Quellen; DDB nur privat | 🟡 | Für die eigene Nutzung entschieden ([SPEC.md](SPEC.md) §12 Nr. 1). Offen ist die zweite Handlung: ob das Verfahren im öffentlichen Repo stehen soll — §4 |
+| NF5 | Keine laufenden Kosten außer Strom | 🟡 | Zwei Dienste rufen Modelle auf und kosten Guthaben: Charakterbogen (§14) und Discord-Bot (§15). Bis 14.08.2026 stand NF5 fälschlich in der Sammelklammer — die Ausnahme war nur für den Charakterbogen notiert |
+| **D3** | Kostendeckel des Bots (fail-closed) | 🟡 | Deckel greift vor dem Modellaufruf und ist getestet; er zählt aber prozesslokal und startet bei jedem Neustart neu (`restart: unless-stopped`) — M7 |
+| **D5** | Rückmeldungen 👍/👎 als Teil des Dienstes | 🟡 | Weg steht und liefert (Runden 04.08. und 11.08.), aber sein Ausfall bliebe unbemerkt — genau das ist am 11.08. passiert (Hautton-Emoji). Lebenszeichen offen, M7 |
 | NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | 🟡 | Anleitung inkl. Beta-Fallback steht (M4); offen ist nur der Nachweis am echten Mitspieler |
 | B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln **und unter Sessionlast** belegt — Zahlen in §1/M3; `make lasttest-pi` hält sie als Wächter fest (bricht bei p95 > 1000 ms ab) |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
-| O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
+| **B12** | Antwortgerüst (fünf feste Slots) | 🟡 | Gerüst steht und wird deterministisch gemessen; die **Rest-Streuung ist nicht geschlossen** (§3). Bis 14.08.2026 stand B12 in der Sammelklammer als erfüllt und in §3 als offen — beides gleichzeitig |
+| O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe). **Achtung: O4 steht bei zwei Brüchen** (beide Meldeweg, 11.08.2026) — beim dritten sitzt die Regel laut eigener Doktrin im falschen Kanal und gehört verlegt, nicht nachgebessert |
 | V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Errata erfüllt und auf dem Pi live (43 Korrekturen, wortgetreu; seit 03.08.2026 auch der Rückweg: Detailabruf und gefilterte Suche nennen den Nachtrag). Offen nur noch: Sage Advice — §4 |
 | V10 | Quellen-Provenienz (`versions_stand`, `quell_url`, `quell_hash`, `importiert_am`) | ✅ | Schema v3; alle vier optional, nichts wird geraten |
 
@@ -374,6 +389,18 @@ Was von einem Lauf dauerhaft gilt, gehört als Aussage in §1 (offene Arbeit), �
 
 ## 3. Bekannte Rest-Posten (bewusst niedrig priorisiert)
 
+- ⬜ **Unbebrückte deutsche Eintragsnamen** (B3, geparkt am 14.08.2026, Buchführung in
+  `config/rueckmeldungen_stand.json`). Die Suche nach `grapple` liefert das Monster
+  `Grappler` auf Platz 1, die gesuchte Aktion `Gepackt halten` erst auf Platz 5 und nur
+  als Textfund — ihr fehlt die Glossarbrücke. Sie ist kein Einzelfall: 514 von 1.616
+  deutschen Eintragsnamen in `srd-de` haben keine Glossarzeile, dasselbe Muster zeigen
+  `shove` und `Ability Check`. Verschärfend greift der eingebaute Wächter genau hier
+  daneben — `fuzz.ratio('grapple','grappler')` ergibt 93,3, damit gilt der Monstertreffer
+  als Namenstreffer und der Relevanz-Hinweis bleibt aus: Das System meldet Zuversicht an
+  der Stelle, an der es sich irrt. Eine Zeile je Beschwerde nachzutragen behandelt das
+  Symptom; die Kurationsliste der 514 Namen wäre die Sache selbst.
+  *(Stand bis 14.08.2026 nur in der JSON-Buchführung — ein akzeptierter offener Befund
+  gehört in die Liste, die laut eigenem Kopf „nur Offenes" führt.)*
 - ⬜ **8 gemeldete Facetten-Widersprüche einzeln prüfen** (am Vollbestand gemessen
   11.08.2026, Liste über `admin import --quelle facetten`). Der Fassungsabgleich
   korrigiert sie bewusst nicht — jeder Fall braucht eine eigene Entscheidung:
@@ -442,6 +469,26 @@ Alle docken laut Datenmodell **ohne Neuaufbau** an (NF7).
 ### Ideen mit Klärungsbedarf
 
 Vorgemerkt, aber noch nicht als Arbeit beschlossen — hier steht die Frage, nicht die Antwort.
+
+#### Gehört die DDB-Extraktionskette in ein öffentliches Repo? · *14.08.2026*
+
+NF4 wägt ab, ob **David** die eigenen Bücher extrahieren darf: ToS-Grauzone, bewusst
+akzeptiert. Das Repo ist öffentlich, und was dort steht, ist eine **zweite Handlung** —
+`importer/ddb_exporter/` dokumentiert die Endpunktkette, den Schlüsselbezug und die
+SQLCipher-Parameter. Die drei Stellen, die über Öffentlichkeit sprechen (README, LICENSE,
+CONCEPT „Inhalte-Recht"), argumentieren durchweg über **Inhalte** („enthält keine
+kommerziellen Regelinhalte") und behandeln die **Methode** nirgends als eigenen
+Gegenstand. Der heutige Zustand ist damit nicht „bewusst getragen", sondern nie
+entschieden.
+
+Entlastend: null Forks, null Stars; der Spike-Test arbeitet nur mit synthetischen Daten,
+weist also keine funktionierende Kette nach; der Code filtert strikt auf `isOwned`.
+
+Vier Wege, keiner davon hier vorweggenommen: privat schalten · den DDB-Teil in ein
+privates Repo auslagern (erhält das erklärte Ziel „SRD-Pipeline als Referenzbeispiel") ·
+History-Rewrite · das Risiko bewusst tragen und die Entscheidung erstmals aufschreiben.
+Solange nichts geforkt ist, ist der Preis jeder Option niedrig. **Eine belastbare
+rechtliche Bewertung ist anwaltlich, nicht hier.**
 
 #### Prioritätsbänder: Band 10 vor Band 20?
 
