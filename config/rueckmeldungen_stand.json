@@ -84,7 +84,12 @@
         }
       ],
       "automatisch": [],
-      "bemerkung": "Zweiter Mutationslauf desselben Tages deckte erneut einen Scheintest auf — diesmal traf die Mutation den Struktur-Pfad und der Test den Freitext-Pfad. Beide Ausgabewege sind jetzt einzeln abgesichert."
+      "bemerkung": "Zweiter Mutationslauf desselben Tages deckte erneut einen Scheintest auf — diesmal traf die Mutation den Struktur-Pfad und der Test den Freitext-Pfad. Beide Ausgabewege sind jetzt einzeln abgesichert.",
+      "erledigt_am": "2026-08-04",
+      "behoben_durch": [
+        "Alle drei Befunde in einem Zug (PR #106): Die Trefferliste annotiert jetzt wie die Detailausgabe, das Antwort-Limit stieg von 3000 auf 4000 Tokens, und der Discord-Zusatz trägt die Formregel für breite Fragen — Kategorien mit Anzahl nennen, EIN Eintrag vollständig.",
+        "Regressionstests: tests/test_rueckmeldungs_befunde.py um den Struktur-Pfad erweitert; bis dahin deckte ihn nur der Freitext-Pfad mit ab."
+      ]
     },
     {
       "datum": "2026-08-11",
@@ -127,7 +132,33 @@
         }
       ],
       "automatisch": [],
-      "bemerkung": "Erster Durchgang im neuen Kartenformat und zugleich dessen Abnahme - er hat vier Formatluecken gezeigt, die alle im 👎-Fall entworfen waren: kein Ort fuer den Kartenblock (er landete in einer Werkzeug-Ausgabe und war fuer David unsichtbar), keine Art fuer Statistik-Kandidaten ohne Markierung, kein Kopf fuer Lob ohne verletzte Regel, kein Grund 'bereits behoben'. Die Automatik-Schranke hat korrekt gehalten: Der Golden-Test kam als Karte, weil der Lauf nicht auf main stattfand."
+      "bemerkung": "Erster Durchgang im neuen Kartenformat und zugleich dessen Abnahme - er hat vier Formatluecken gezeigt, die alle im 👎-Fall entworfen waren: kein Ort fuer den Kartenblock (er landete in einer Werkzeug-Ausgabe und war fuer David unsichtbar), keine Art fuer Statistik-Kandidaten ohne Markierung, kein Kopf fuer Lob ohne verletzte Regel, kein Grund 'bereits behoben'. Die Automatik-Schranke hat korrekt gehalten: Der Golden-Test kam als Karte, weil der Lauf nicht auf main stattfand.",
+      "erledigt_am": "2026-08-11",
+      "behoben_durch": [
+        "Befund 1: Der Bot merkt sich die Frage jetzt beim Antworten, fuer jeden Teil einer geteilten Antwort. Der Weg ueber die Kanal-Historie bleibt als Rueckfall - rohe Reaktionsereignisse gibt es gerade dafuer, dass eine Markierung einen Neustart ueberlebt, das Gedaechtnis aber nicht.",
+        "Befund 2: Die Ausgabe loest verwandte Abschnitte jetzt auch bei Regeln auf, nicht nur bei Klassen - und listet nur Namen, die auf einen echten Eintrag zeigen. Die meisten der 167 Verweise zeigen auf Kapitel, und die deutschen Scans tragen OCR-Reste aus dem Register.",
+        "Befund 3: der Nulltreffer-Posten als Suchvariante mit offiziell=0 gebrueckt (importer/import_glossar.py).",
+        "Befund 4: Hautton-Modifikatoren werden beim Vergleich abgestreift und nicht gespeichert (persoenliches Merkmal, keine Bedeutung); die Reaktionszahl trennt 'markiert das noch jemand' von 'wer'; Statistik und Markierungen haben getrennte Fehlerzaehler; der Bericht meldet seine Kuerzung, statt sie zu verschweigen.",
+        "Dazu zwei Golden-Tests aus den zwei 👍 - als Karte freigegeben, nicht automatisch: der Lauf fand nicht auf main statt.",
+        "Alles in PR #123; Regressionstests in tests/test_discord_reaktionen.py, tests/test_discord_rueckmeldung.py, tests/test_rueckmeldungs_befunde.py und tests/test_flexionsbruecke.py."
+      ]
+    },
+    {
+      "datum": "2026-08-14",
+      "anlass": "Nachfrage zu den zwei 👎 auf 'grapple' vom 10.08. — ausserhalb eines Durchgangs, keine neuen Rueckmeldungen im Fenster",
+      "befunde": [
+        {
+          "regeln": [
+            "B3"
+          ],
+          "ursache": "daten",
+          "was": "Die Suche nach 'grapple' liefert 'Grappler' (ein Monster) auf Platz 1; die gesuchte Aktion 'Gepackt halten' steht gar nicht in den ersten fuenf. Der Bestand fuehrt keinen Eintrag 'Grapple', und das Glossar bruecket den Begriff nicht — anders als 'umklammern' und 'ringen', die den Weg schon finden. Eine Bruecke Grapple → Gepackt halten waere der gleiche Handgriff.",
+          "entscheidung": "spaeter",
+          "grund": "Erstmal nichts."
+        }
+      ],
+      "automatisch": [],
+      "bemerkung": "Der zweite Begriff des Falls, der Tippfehler 'greppel' (2 Nulltreffer), ist bewusst KEIN Befund: Er liegt gegen alle 8421 Eintragsnamen selbst bei Editierdistanz 2 ausser Reichweite, denn 'greppel' weicht dreifach von 'grapple' ab. Die Fuzzy-Schranken dafuer zu senken (86/88, gemessen 71,4) wuerde den Fall nicht loesen und Falschtreffer erzeugen — ein falscher Treffer ist teurer als keiner, weil er wie eine Antwort aussieht. Der ehrliche Leerbefund war hier das richtige Verhalten; der Mangel lag bei der KORREKT geschriebenen Anfrage."
     }
   ]
 }
