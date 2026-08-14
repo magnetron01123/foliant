@@ -1171,6 +1171,28 @@ echter Konflikt. Ein eigener Test hält das fest. Dieselbe Logik trägt
 `config/qualitaet_basis.json` für die Datenmängel (§12) — ein Basiswert, gegen den eine Zahl
 steigen *oder* fallen kann, statt einer Dauerwarnung.
 
+### Entscheidung: Bei zwei englischen Partnern entscheidet der Grad (14.08.2026)
+
+Drei der acht gemeldeten „Facetten-Widersprüche" waren keine. `Celestisches Wesen
+beschwören` trug gleichzeitig `Conjure Celestial` **und** `Summon Celestial` als
+offizielle Brücke — zwei verschiedene Zauber. Der deutsche SRD-Eintrag ist 7. Grades wie
+Conjure Celestial; Summon Celestial ist 5. Der Fassungsabgleich verglich daraufhin den
+deutschen Conjure- gegen den englischen Summon-Zauber und meldete pflichtgemäß einen
+Widerspruch: **Die Daten stimmten, die Brücke war falsch.** Dasselbe bei Elementar (5
+gegen 4) und Feenwesen (6 gegen 3); die Summon-Zeilen stammen aus *Tashas Kessel mit
+Allem* (2014) und kollidieren mit den SRD-5.2.1-Namen.
+
+`kanonisiere_zauberkonflikte` demotet deshalb den Partner, dessen Grad dem des deutschen
+Eintrags **widerspricht**. Das ist keine Vermutung: Beide Grade stehen im Bestand, und ein
+Zauber anderen Grades kann nicht derselbe sein. Bewusst eng gebaut — nur wo auf beiden
+Seiten ein Grad steht und **mindestens ein Partner passt**; passt keiner, ist unklar, wer
+recht hat, und dann wird nicht entschieden. Am Vollbestand vom 14.08.2026 trifft die Regel
+bei 3.166 offiziellen Glossarzeilen genau diese drei Fälle — gemessen, nicht geschätzt.
+
+Die Zeilen werden **demotet, nicht gelöscht**: Als Suchvariante bleibt „Summon Celestial →
+Celestisches Wesen beschwören" nützlich, sie darf nur nicht als zweite *offizielle*
+Fassung auftreten (dieselbe Trennung wie bei `kanonisiere_konflikte`).
+
 ### Entscheidung: Das Quellen-Register wird erzeugt, nicht gepflegt (14.08.2026)
 
 `config/foliant.toml` ist gitignored, aus dem Deploy-`rsync` ausgeschlossen und von

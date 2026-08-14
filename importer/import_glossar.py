@@ -742,6 +742,63 @@ def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
     return n
 
 
+def kanonisiere_zauberkonflikte(con: sqlite3.Connection) -> int:
+    """Ein deutscher Zaubername mit ZWEI offiziellen englischen Partnern - der Grad
+    entscheidet, welcher gemeint ist.
+
+    Befund vom 14.08.2026 (die drei gemeldeten „Facetten-Widersprueche" bei den
+    Beschwoerungszaubern): `Celestisches Wesen beschwoeren` trug gleichzeitig
+    `Conjure Celestial` UND `Summon Celestial` als offiziell. Das sind zwei verschiedene
+    Zauber - der deutsche SRD-Eintrag ist 7. Grades, `Conjure Celestial` ebenfalls,
+    `Summon Celestial` dagegen 5. Der Fassungsabgleich verglich daraufhin den deutschen
+    Conjure- gegen den englischen Summon-Zauber und meldete einen Widerspruch, der keiner
+    war: Die DATEN stimmten, die BRUECKE war falsch. Dasselbe bei Elementar (5 gegen 4)
+    und Feenwesen (6 gegen 3).
+
+    Die Entscheidung wird nicht geraten, sondern abgeleitet: Beide Grade stehen im
+    Bestand. Ein Partner, dessen Grad dem des deutschen Eintrags WIDERSPRICHT, kann nicht
+    derselbe Zauber sein - er wird auf offiziell=0 demotet und bleibt Suchvariante.
+
+    Bewusst eng: Nur Namen, zu denen auf BEIDEN Seiten ein Grad im Bestand steht, und nur
+    dann, wenn mindestens ein Partner passt (sonst waere unklar, wer recht hat, und Raten
+    ist hier verboten). Am Vollbestand vom 14.08.2026 trifft die Regel genau diese drei
+    Faelle - gemessen, nicht geschaetzt. Ohne geseedete `zauber_meta` (Facetten laufen als
+    eigener Import) tut sie schlicht nichts.
+    """
+    grad: dict[str, set[int]] = {}
+    try:
+        for name, g in con.execute(
+                "SELECT coalesce(e.name_de, e.name_en), z.grad FROM eintraege e "
+                "JOIN zauber_meta z ON z.eintrag_id = e.id WHERE z.grad IS NOT NULL"):
+            if name:
+                grad.setdefault(name, set()).add(g)
+    except sqlite3.OperationalError:
+        return 0                              # Bestands-DB ohne Facetten-Tabelle
+
+    partner: dict[str, set[str]] = {}
+    for term_de, term_en in con.execute(
+            "SELECT term_de, term_en FROM glossar WHERE offiziell=1"):
+        partner.setdefault(term_de, set()).add(term_en)
+
+    demotet = 0
+    for term_de, terms_en in partner.items():
+        if len(terms_en) < 2 or term_de not in grad:
+            continue
+        mit_grad = [(en, grad[en]) for en in terms_en if en in grad]
+        passend = [en for en, g in mit_grad if g & grad[term_de]]
+        if not passend:
+            continue                          # niemand passt -> nicht entscheidbar, Finger weg
+        for en, g in mit_grad:
+            if g & grad[term_de]:
+                continue
+            cur = con.execute(
+                "UPDATE glossar SET offiziell=0, "
+                "quelle=coalesce(quelle,'')||' (demotet: Grad widerspricht dem deutschen "
+                "Eintrag)' WHERE term_de=? AND term_en=? AND offiziell=1", (term_de, en))
+            demotet += cur.rowcount
+    return demotet
+
+
 def kanonisiere_schreibvarianten(con: sqlite3.Connection) -> int:
     """Regelbasiert & QUELLENGETRIEBEN (keine Einzelentscheidung des Admins, keine kuratierte
     Wortliste): hat EIN englischer Begriff mehrere OFFIZIELLE deutsche Formen, die dieselbe
@@ -1215,6 +1272,8 @@ _KETTE = [
     (seed_gegenstands_bruecke_aus_bestand, "Gegenstands-Bruecken"),  # VOR den Kanonisierern
     (seed_zauber_bruecke_aus_bestand, "Zauber-Bruecken"),
     (kanonisiere_konflikte, "Konflikte kanonisiert"),  # kuratierte Fassung schlaegt konkurrierende
+    # NACH den Bruecken-Seedern: erst dann stehen beide Partner ueberhaupt im Glossar.
+    (kanonisiere_zauberkonflikte, "Zauberkonflikte nach Grad"),
     (kanonisiere_schreibvarianten, "Schreibvarianten demotet"),
     (seed_flexionsbruecke_aus_bestand, "Flexions-Bruecken"),     # ZULETZT, auf dem fertigen Stand
     (seed_umgangssprache, "Umgangssprache-Bruecken"),            # kuratiert, nach allem Abgeleiteten

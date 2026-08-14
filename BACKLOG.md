@@ -380,36 +380,60 @@ Was von einem Lauf dauerhaft gilt, gehört als Aussage in §1 (offene Arbeit), �
 
 ## 3. Bekannte Rest-Posten (bewusst niedrig priorisiert)
 
-- ⬜ **Unbebrückte deutsche Eintragsnamen** (B3, geparkt am 14.08.2026, Buchführung in
+- ⬜ **Unbebrückte deutsche Regelbegriffe** (B3, geparkt am 14.08.2026, Buchführung in
   `config/rueckmeldungen_stand.json`). Die Suche nach `grapple` liefert das Monster
-  `Grappler` auf Platz 1, die gesuchte Aktion `Gepackt halten` erst auf Platz 5 und nur
-  als Textfund — ihr fehlt die Glossarbrücke. Sie ist kein Einzelfall: 514 von 1.616
-  deutschen Eintragsnamen in `srd-de` haben keine Glossarzeile, dasselbe Muster zeigen
-  `shove` und `Ability Check`. Verschärfend greift der eingebaute Wächter genau hier
-  daneben — `fuzz.ratio('grapple','grappler')` ergibt 93,3, damit gilt der Monstertreffer
-  als Namenstreffer und der Relevanz-Hinweis bleibt aus: Das System meldet Zuversicht an
-  der Stelle, an der es sich irrt. Eine Zeile je Beschwerde nachzutragen behandelt das
-  Symptom; die Kurationsliste der 514 Namen wäre die Sache selbst.
-  *(Stand bis 14.08.2026 nur in der JSON-Buchführung — ein akzeptierter offener Befund
-  gehört in die Liste, die laut eigenem Kopf „nur Offenes" führt.)*
-- ⬜ **8 gemeldete Facetten-Widersprüche einzeln prüfen** (am Vollbestand gemessen
-  11.08.2026, Liste über `admin import --quelle facetten`). Der Fassungsabgleich
-  korrigiert sie bewusst nicht — jeder Fall braucht eine eigene Entscheidung:
-  - `Tasha's Hideous Laughter` / `Mind Spike` in `ddb-br-2024-en`: Kopfzeile sagt
-    „Evocation Cantrip", die PHB-Fassung Grad 1 bzw. 2 → sehr wahrscheinlich
-    Import-/Chunking-Schaden in dieser Quelle.
-  - `Summon Celestial/Elemental/Fey` (PHB, Grad 5/4/3) gegen die deutschen SRD-Einträge
-    „Celestisches Wesen beschwören" & Co. (Grad 7/6/5): erst klären, ob die Glossarzeile
-    (Quelle: *Tashas Kessel mit Allem*, 2014) hier überhaupt dieselben Zauber verbindet.
-  - `Krabbe`/`Crab`: deutsche und englische Fassung nennen verschiedene HG (2 gegen 0) —
-    eine der beiden hat den Wert des Nachbar-Statblocks erwischt.
-- ⬜ **9 verschmolzene Statblöcke im `srd-de`-Import** (Ghul, Dschinni, Worg, Lemure,
-  Priester, Schreckhahn, Gruftschrecken, Hobgoblin-Hauptmann, Junger Bronzedrache): Der
-  Text enthält jeweils Teile des Nachbareintrags. Die **Facetten** sind seit dem
-  Fassungsabgleich richtig (er hat am 11.08.2026 den Ghul von HG 8 auf 1 gezogen — der
-  Wert stammte vom Geister-Naga-Kopf im selben Chunk), der **Text** bleibt beschädigt — das Modell muss ihn beim
-  Vorlesen auseinanderhalten (im Simulationslauf hat es das getan und dazugesagt).
-  Saubere Lösung ist eine Chunking-Korrektur im Importer, nicht im Serving-Pfad.
+  `Grappler` auf Platz 1, die gesuchte Regel `Gepackt halten` erst auf Platz 5 und nur als
+  Textfund — ihr fehlt die Glossarbrücke. Verschärfend greift der eingebaute Wächter genau
+  hier daneben: `fuzz.ratio('grapple','grappler')` ergibt 93,3, damit gilt der
+  Monstertreffer als Namenstreffer und der Relevanz-Hinweis bleibt aus — das System meldet
+  Zuversicht an der Stelle, an der es sich irrt.
+
+  *Am 14.08.2026 nachgemessen:* Die früher genannten „514 von 1.616 Namen ohne
+  Glossarzeile" sind zu hoch gegriffen. Der Bestand führt Regelbegriffe mit Qualifikator
+  (`Bezaubert (Zustand)`), das Glossar ohne (`Bezaubert`) — ein naiver Abgleich zählt
+  jeden davon als Lücke. Was wirklich fehlt, sind einzelne Regelbegriffe wie
+  `Gepackt halten`; für die gibt es beidseitig **keinen** Eintragsbeleg, weil die
+  Fassung 2024 Grapple als Option des unbewaffneten Schlags führt und nicht als eigene
+  Aktion. Ein kuratiertes Paar bräuchte deshalb einen Beleg aus dem Fließtext beider
+  Fassungen — machbar, aber Handarbeit, und Raten ist hier verboten.
+- ⬜ **2 verbleibende Facetten-Widersprüche** (ursprünglich 8; am 14.08.2026 einzeln
+  geprüft, drei aufgelöst, drei waren gar keine — siehe unten):
+  - `Tasha's Hideous Laughter` / `Mind Spike` in `ddb-br-2024-en`: dort Grad 0 und Schule
+    „Hervorrufung", während `ddb-phb-2024-en` **und** `open5e-srd-2024` übereinstimmend
+    Grad 1/Verzauberung bzw. 2/Erkenntnis nennen. Zwei unabhängige Quellen gegen eine →
+    Extraktionsschaden in `ddb-br-2024-en` (die Kopfzeile eines Zaubertricks aus dem
+    Nachbarblock). Offen ist nur noch die Form der Behebung: Re-Import dieser Quelle oder
+    Eintrag ins Quellfehler-Register.
+  - `Krabbe`: srd-de nennt HG 2, `open5e-srd-2024` für `Crab` HG 0. Am PDF nachgesehen —
+    die deutsche Textschicht liefert `**Sprachen HG** 2 (EP 450; ÜB +2)` mit verschmolzenen
+    Labels, und direkt daneben steht „Der **Hai** kann nur unter Wasser atmen". Der HG 2
+    gehört dem Hai; Krabbes eigener Wert fehlt in der deutschen Fassung ganz. Ihn aus der
+    englischen zu übernehmen wäre quellenübergreifendes Raten — die ehrliche Behebung ist
+    NULL statt 2 (dieselbe Doktrin wie bei `seltenheit`).
+  - *Aufgelöst:* `Summon Celestial/Elemental/Fey` waren **kein** Datenfehler. Die drei
+    deutschen Namen trugen je zwei offizielle englische Partner; die Grade des deutschen
+    SRD (7/5/6) gehören zu *Conjure* Celestial/Elemental/Fey, nicht zu *Summon* (5/4/3).
+    Der Fassungsabgleich verglich zwei verschiedene Zauber. Die Brücke ist seit dem
+    14.08.2026 nach Grad kanonisiert ([CONCEPT.md](CONCEPT.md) §10).
+- ⬜ **8 verschmolzene Statblöcke im `srd-de`-Import** (Ausgewachsener Bronzedrache,
+  Dryade, Ghul, Lemure, Priester, Schreckhahn, Seevettel, Worg): Der Text enthält jeweils
+  Felder des Nachbareintrags. Die **Facetten** sind seit dem Fassungsabgleich richtig (er
+  hat am 11.08.2026 den Ghul von HG 8 auf 1 gezogen — der Wert stammte vom Geisternaga-Kopf
+  im selben Chunk), der **Text** bleibt beschädigt; das Modell hält ihn beim Vorlesen
+  auseinander (im Simulationslauf hat es das getan und dazugesagt).
+
+  *Am 14.08.2026 nachgemessen und korrigiert:* Es sind acht, nicht neun. Dschinni,
+  Gruftschrecken und Hobgoblin-Hauptmann sind nicht betroffen, dafür fehlten drei andere —
+  eine Zahl, die als Prosa dasteht, rechnet niemand nach. Seither zählt sie
+  `admin check` gegen einen Basiswert (`config/qualitaet_basis.json`).
+
+  Die Ursache ist **nicht** das Chunking, sondern die **Zweispalten-Textschicht des PDF**:
+  Schon im Roh-Markdown steht der Schwanz der Geisternaga zwischen Ghuls Typzeile und
+  Ghuls eigener `**RK**`-Zeile. Dieselbe Ursache wie die fünf leeren Sektionen — dort geht
+  Text verloren, hier landet er beim Falschen. Eine nachträgliche Textchirurgie ist bewusst
+  **verworfen**: Sie müsste entscheiden, wohin das Fremdstück gehört, und der Nachbar in
+  Eintragsreihenfolge ist nicht die Antwort (zwischen Geisternaga und Ghul steht
+  „Gemeiner"). Die Behebung sitzt in einer spaltenbewussten Extraktion.
 
 Aus der abgeschlossenen Datenbank-QS und dem Tiefen-Audit der DDB-Druck-Bücher. Alles
 dokumentiert, nichts blockiert die Runde.

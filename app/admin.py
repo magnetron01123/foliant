@@ -706,9 +706,50 @@ def messe_leere_sektionen(c: sqlite3.Connection) -> tuple[dict, list[str]]:
     return dict(je_quelle), beispiele
 
 
+def messe_verschmolzene_statbloecke(c: sqlite3.Connection) -> tuple[dict, list[str]]:
+    """Statbloecke, die Felder eines NACHBARN mittragen - das Spiegelsymptom zu
+    `messe_leere_sektionen`.
+
+    Dieselbe Ursache, andere Seite: Im Zweispalten-Satz der PDF-Textschicht geraet der
+    Wertekasten der einen Kreatur zwischen die Zeilen der naechsten. Wo dabei Text
+    VERLOREN geht, zaehlt `messe_leere_sektionen`; wo er beim FALSCHEN Eintrag landet,
+    zaehlt diese Funktion. Gemessen am 14.08.2026: acht Faelle, alle in srd-de.
+
+    Erkennungsmerkmal ist die STRUKTUR, nicht der Inhalt: Ein Statblock hat genau EINE
+    Herausforderungsgrad-Angabe und genau EINE Attributstabelle. Zwei davon heissen, dass
+    ein zweiter Kasten mit hineingeraten ist. Der Ghul trug so das `**HG** 8` und das
+    Regenerations-Merkmal der Geisternaga - und die Naga trug es nicht mehr.
+
+    BEWUSST NUR GEZAEHLT, NICHT REPARIERT: Eine Textchirurgie muesste entscheiden, WOHIN
+    das Fremdstueck gehoert, und der Nachbar in Eintragsreihenfolge ist nicht die Antwort
+    (zwischen Geisternaga und Ghul steht 'Gemeiner'). Eine inhaltsgebundene Regel dafuer
+    ist genau die Bauform, die am 30.07.2026 fuenfzehn Ueberschriften verschoben und 5093
+    Zeichen gekostet hat (CONCEPT.md par. 12). Die Facetten sind seit dem Fassungsabgleich
+    korrekt; beschaedigt ist nur der Fliesstext, und den haelt das Modell beim Vorlesen
+    auseinander. Die saubere Loesung sitzt in der PDF-Textschicht, nicht hier.
+
+    Rueckgabe: (Anzahl je Quellenkuerzel, bis zu drei Beispielnamen)."""
+    from collections import Counter
+
+    hg = re.compile(r"\*\*HG\*\*")
+    tabelle = re.compile(r"MOD RW MOD RW MOD RW")
+    je_quelle: Counter = Counter()
+    beispiele: list[str] = []
+    for name, kuerzel, body in c.execute(
+            "SELECT coalesce(e.name_de, e.name_en, ''), q.kuerzel, e.body_md "
+            "FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "WHERE e.kategorie = 'monster' AND e.body_md IS NOT NULL"):
+        if len(hg.findall(body)) > 1 or len(tabelle.findall(body)) > 1:
+            je_quelle[kuerzel] += 1
+            if len(beispiele) < 3:
+                beispiele.append(name)
+    return dict(je_quelle), beispiele
+
+
 def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list,
                              logik: dict | None = None,
-                             leere_sektionen: dict | None = None) -> int:
+                             leere_sektionen: dict | None = None,
+                             verschmolzen: dict | None = None) -> int:
     """Vergleicht die gemessenen Maengel mit dem dokumentierten Stand und liefert die Zahl
     der FEHLER (Anstiege).
 
@@ -752,6 +793,10 @@ def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list,
                                   leere_sektionen or {}, "leere Statblock-Sektionen")
     fehler += n
     gesunken += gs
+    n, gs = _vergleiche_je_quelle(vorhanden, basis.get("verschmolzene_statbloecke_je_quelle", {}),
+                                  verschmolzen or {}, "verschmolzene Statbloecke")
+    fehler += n
+    gesunken += gs
     soll_meta = basis.get("metadaten_namen_gesamt", 0)
     if len(meta) > soll_meta:
         print(f"NEUE Metadaten-Namen: {len(meta)} statt {soll_meta} dokumentierten  FEHLER")
@@ -788,6 +833,7 @@ def cmd_qualitaet_basis(args) -> None:
         # Dopplung, gegen die META_TABELLEN angetreten ist.
         logik, _geprueft, _bsp, _belegt = _messe_logik(c)
         leere_sektionen, _leer_bsp = messe_leere_sektionen(c)
+        verschmolzen, _versch_bsp = messe_verschmolzene_statbloecke(c)
     finally:
         c.close()
     from collections import Counter
@@ -809,6 +855,7 @@ def cmd_qualitaet_basis(args) -> None:
     neu["tp_formel_abweichungen_je_quelle"] = _sortiert(logik["tp_formel"])
     neu["attributs_abweichungen_je_quelle"] = _sortiert(logik["attribut"])
     neu["leere_sektionen_je_quelle"] = _sortiert(Counter(leere_sektionen))
+    neu["verschmolzene_statbloecke_je_quelle"] = _sortiert(Counter(verschmolzen))
     if not getattr(args, "schreiben", False):
         print("Vorschau (nichts geschrieben - mit --schreiben uebernehmen):")
         print(json.dumps({k: v for k, v in neu.items() if not k.startswith("_")},
@@ -1117,7 +1164,16 @@ def cmd_check(args=None) -> None:
           + ("  OK" if not leere_sektionen else "  WARNUNG"))
     if leere_sektionen:
         print(f"   {leer_beispiele} ... aus {sorted(leere_sektionen)}")
-    fehler += _pruefe_gegen_basiswerte(c, meta, risse, logik, leere_sektionen)
+    # Das Spiegelsymptom desselben Zweispalten-Risses: Wo Text nicht verloren geht,
+    # sondern beim NACHBARN landet. Bis 14.08.2026 unbeobachtet - die Zahl stand als
+    # Prosa im BACKLOG (dort mit neun statt acht Namen, teils falschen) und niemand
+    # verglich sie je nach.
+    verschmolzen, versch_beispiele = messe_verschmolzene_statbloecke(c)
+    print(f"Statbloecke mit Fremdfeldern: {sum(verschmolzen.values())}"
+          + ("  OK" if not verschmolzen else "  WARNUNG"))
+    if verschmolzen:
+        print(f"   {versch_beispiele} ... aus {sorted(verschmolzen)}")
+    fehler += _pruefe_gegen_basiswerte(c, meta, risse, logik, leere_sektionen, verschmolzen)
     # Facetten-Deckung (Befund C1, 28.07.2026): Die Meta-Tabellen waren auf dem Pi LEER,
     # lokal gefuellt - und niemand merkte es, weil kein Check hinsah. WARNUNG statt Fehler:
     # eine vollstaendige Deckung ist gar nicht erreichbar (Ausruestung ohne Preisangabe
