@@ -523,8 +523,11 @@ python -m app.admin manifest > korpus-manifest.json
   existieren, sonst verweigert compose den Start.
 
 ### 4. Connector eintragen
-Volle URL inkl. Geheimpfad: `https://mcp.magnetron.me/<MCP_PFAD_TOKEN>/foliant/mcp` — kein
-OAuth; `make url SERVICE=foliant` im Projekt „MCP Gateway“ druckt sie. Dieselbe URL gehört
+Volle URL inkl. Geheimpfad: `https://mcp.magnetron.me/<MCP_PFAD_TOKEN>/foliant` — kein
+OAuth; `make url SERVICE=foliant` im Projekt „MCP Gateway“ druckt sie. Das abschließende
+`/mcp` trägt der Router selbst nach (seit 26.08.2026): der Upstream-Pfad steht im Vertrag
+fest, in der öffentlichen URL wiederholte er nur, was schon im Hostnamen steht. Die längere
+Form bleibt gültig. Dieselbe URL gehört
 in die Pi-`.env` als `FOLIANT_MCP_URL`, sonst zeigt die Website keinen Connector-Link.
 Verhaltensschicht: Claude-Projekt mit `config/projektanweisung.md` einrichten —
 die Spieler finden sie kopierbereit auf der Charakterbogen-Website („Foliant im Claude-Chat“).
@@ -856,7 +859,7 @@ dokumentiert — jedes bringt sein eigenes README mit:
 | Stack | Pi-Verzeichnis | Was es trägt | Foliants Berührpunkt |
 |---|---|---|---|
 | Tunnel `mcp` | `~/mcp-tunnel` | `mcp.magnetron.me` → `mcp-router` | keiner (nur über den Router) |
-| MCP-Router | `~/mcp-router` | Caddy, `/<token>/<name>/mcp` → `http://<name>-mcp:8000/mcp` | Container `foliant-mcp` im Netz `mcp-net` |
+| MCP-Router | `~/mcp-router` | Caddy, `/<token>/<name>` → `http://<name>-mcp:8000/mcp` | Container `foliant-mcp` im Netz `mcp-net` |
 | Tunnel `web` | `~/web-tunnel` | `dnd.magnetron.me` → `gateway:8080` | `gateway` im Netz `web-edge` |
 
 Der Router-Vertrag ist **reine Namenskonvention**, keine Konfigurationsdatei: Container heißt

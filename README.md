@@ -101,7 +101,7 @@ Betrieb, Deployment und die Import-Wege im Detail: [CONCEPT.md](CONCEPT.md) §8�
 
 ### Foliant im Claude-Chat
 Custom Connector mit der **vollen URL inkl. Geheimpfad** hinzufügen —
-`https://<host>/<token>/foliant/mcp`, kein OAuth. Einrichten am Desktop; benutzen geht danach auch aus
+`https://<host>/<token>/foliant`, kein OAuth. Einrichten am Desktop; benutzen geht danach auch aus
 der Mobile-App. Für konsistentes Verhalten die **Projektanweisung** in ein Claude-Projekt
 einfügen — sie steht kopierbereit auf der Charakterbogen-Website im Abschnitt „Foliant im
 Claude-Chat“ (der gemeinsame Ort für alle Mitspieler; Quelle ist
