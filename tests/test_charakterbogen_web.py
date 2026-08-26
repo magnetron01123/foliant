@@ -290,6 +290,21 @@ def test_mcp_url_aus_env_zusammengesetzt(monkeypatch):
     assert _mcp_url_aus_env() is None                              # ohne Token -> Hinweis
 
 
+def test_mcp_url_im_router_modus_nur_explizit(monkeypatch):
+    """Hinter dem geteilten mcp-router liegt der Endpoint auf einer FREMDEN Domain hinter
+    einem FREMDEN Token - der alte Zusammenbau aus Basis-URL + FOLIANT_PFAD_TOKEN ergaebe
+    eine URL, die es nicht mehr gibt. Ein toter Connector-Link ist schlimmer als gar
+    keiner: er sieht richtig aus, und wer ihn eintraegt, sucht den Fehler bei sich."""
+    from app.charakterbogen.web import _mcp_url_aus_env
+    monkeypatch.setenv("FOLIANT_ZUGANG", "router")
+    monkeypatch.delenv("FOLIANT_MCP_URL", raising=False)
+    monkeypatch.setenv("FOLIANT_PFAD_TOKEN", "abc123")
+    monkeypatch.setenv("FOLIANT_BASIS_URL", "https://beispiel.invalid/")
+    assert _mcp_url_aus_env() is None                    # kein geratener dnd-Link mehr
+    monkeypatch.setenv("FOLIANT_MCP_URL", "https://mcp.beispiel.invalid/t/foliant/mcp")
+    assert _mcp_url_aus_env() == "https://mcp.beispiel.invalid/t/foliant/mcp"
+
+
 def test_credit_zeile_auf_der_seite(client):
     r = client.get("/")
     assert r.status_code == 200

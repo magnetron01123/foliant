@@ -261,6 +261,9 @@ PFADE_OHNE_DATEI = {
     "tests/test_ddb_druck_privat.py",
     # Gitignored: entsteht erst beim Einrichten bzw. Import.
     "config/foliant.toml",
+    # Entsteht erst auf dem Pi, beim ersten naechtlichen Sicherungslauf
+    # (`make sicherung-cron-pi`). Auf dem Entwicklerrechner gibt es sie nie.
+    "data/sicherung.log",
     "data/foliant.sqlite",
     "data/foliant-protokoll.sqlite",
     "data/glossar_web.sqlite",

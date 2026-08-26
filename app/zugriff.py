@@ -1,16 +1,24 @@
-"""Zugriffsschutz fuer den oeffentlichen Tunnel-Endpoint (NF3/NF4, Roadmap M3).
+"""Zugriffsschutz fuer den oeffentlich erreichbaren MCP-Endpoint (NF3/NF4, Roadmap M3).
 
 Zwei Schichten, beide OHNE Nutzer-Management (Runde <5 Personen; Claude Custom Connectors
 koennen weder eigene Header noch Browser-Logins liefern - nur URL eintragen oder OAuth):
- 1. GEHEIMPFAD (app/server.py): der MCP-Endpoint liegt unter /<FOLIANT_PFAD_TOKEN>/mcp -
-    die URL selbst ist der Schluessel. Rotation = Token in .env aendern, neu deployen,
-    neue URL an die Runde schicken.
+ 1. GEHEIMPFAD - die URL selbst ist der Schluessel. WER ihn haelt, entscheidet der
+    ZUGANGSMODUS (FOLIANT_ZUGANG, s. u. `zugangsmodus`):
+      * `geheimpfad`: Foliant selbst. app/server.py haengt den Endpoint unter
+        /<FOLIANT_PFAD_TOKEN>/mcp. Rotation = Token in .env aendern, neu deployen, neue
+        URL an die Runde schicken.
+      * `router`: der vorgelagerte, vertrauenswuerdige mcp-router. Der prueft SEIN Token,
+        entfernt es und reicht /mcp weiter - ein zweiter Geheimpfad im Dienst wuerde
+        dieselbe Anfrage dann mit 404 beantworten. Foliant serviert hier das nackte /mcp
+        und hat KEIN eigenes Token mehr. Der Endpoint ist in diesem Modus nur so gut
+        erreichbar wie das Netz `mcp-net`: kein Host-Port, kein Weg von aussen daran vorbei.
  2. IP-ALLOWLIST (dieses Modul): nur Anfragen aus Anthropics veroeffentlichten
     Egress-Ranges erreichen den MCP-Pfad. Eine geleakte URL ist damit nur noch UEBER
-    Claude nutzbar - nie direkt per curl/Scanner/Browser. Die Original-IP liefert die
-    Cloudflare-Edge als CF-Connecting-IP; der Client kann sie nicht faelschen, weil der
-    einzige Weg zum Server der ausgehende cloudflared-Tunnel ist (Port 8000 ist an
-    127.0.0.1 gebunden).
+    Claude nutzbar - nie direkt per curl/Scanner/Browser. Sie gilt in BEIDEN Modi: die
+    Original-IP liefert die Cloudflare-Edge als CF-Connecting-IP, und dieser Header
+    ueberlebt die Kette Cloudflare -> mcp-router -> Dienst unveraendert (geprueft
+    26.08.2026). Im Router-Modus ist sie die einzige verbleibende Pruefung IM Dienst -
+    darum verweigert app/server.py dort den Produktionsstart, wenn sie abgeschaltet ist.
 
 BEWUSST im Server statt als Cloudflare-Dashboard-Regel: versioniert, getestet und ohne
 Dashboard-Zugriff deploybar. Die gleichwertige Edge-Regel (blockt schon an der Cloudflare-
@@ -21,6 +29,7 @@ externes Uptime-Monitoring. Ohne CF-Header (lokale Tests, compose-Healthcheck, L
 gilt: private/Loopback-Absender duerfen, oeffentliche nicht.
 
 Schalter (Umgebung):
+  FOLIANT_ZUGANG        = "geheimpfad" (Standard) oder "router"
   FOLIANT_IP_FILTER     = "aus" deaktiviert den Filter (Debug; Standard: an)
   FOLIANT_ERLAUBTE_IPS  = zusaetzliche CIDRs, kommagetrennt (z. B. Heim-IP fuer
                           Direkt-Tests oder einen externen Uptime-Monitor)
@@ -39,6 +48,35 @@ from starlette.responses import JSONResponse
 # nicht ploetzlich blockt. Bei Verbindungsproblemen zuerst hier gegen die aktuelle
 # Doku-Seite pruefen.
 ANTHROPIC_RANGES = ("160.79.104.0/21", "2607:6bc0::/48")
+
+# Die beiden Zugangsmodi. Standard ist der STRENGERE: wer nichts setzt, bekommt den
+# eigenen Geheimpfad - der Router-Betrieb ist eine bewusste Ansage, kein Rueckfallwert.
+MODUS_GEHEIMPFAD = "geheimpfad"
+MODUS_ROUTER = "router"
+
+
+def zugangsmodus() -> str:
+    """Liest FOLIANT_ZUGANG. Unbekannter Wert -> Abbruch statt stiller Rueckfall.
+
+    Ein Tippfehler wuerde sonst lautlos den anderen Modus einschalten, und beide sehen
+    im Log gleich gesund aus - der eine antwortet nur auf /mcp mit 404, der andere haengt
+    den Endpoint hinter ein Token, das niemand kennt."""
+    roh = (os.environ.get("FOLIANT_ZUGANG") or "").strip().lower()
+    if not roh:
+        return MODUS_GEHEIMPFAD
+    if roh not in (MODUS_GEHEIMPFAD, MODUS_ROUTER):
+        raise RuntimeError(
+            f"FOLIANT_ZUGANG={roh!r} ist kein gueltiger Zugangsmodus - erlaubt sind "
+            f"{MODUS_GEHEIMPFAD!r} (eigener Geheimpfad) und {MODUS_ROUTER!r} (hinter dem "
+            f"geteilten mcp-router). Start abgebrochen statt still den falschen Modus zu "
+            f"fahren.")
+    return roh
+
+
+def ip_filter_aktiv() -> bool:
+    """Ob die IP-Allowlist greift. EINE Lesestelle, weil app/server.py dieselbe Frage
+    stellt (Produktionspruefung im Router-Modus) und zwei Kopien auseinanderlaufen."""
+    return (os.environ.get("FOLIANT_IP_FILTER", "an") or "").strip().lower() != "aus"
 
 
 def _parse_netze(cidrs) -> list:
@@ -60,8 +98,7 @@ class ZugriffsFilter:
 
     def __init__(self, app, aktiv: bool | None = None, extra_ranges: list | None = None):
         self.app = app
-        self.aktiv = (os.environ.get("FOLIANT_IP_FILTER", "an").strip().lower() != "aus") \
-            if aktiv is None else aktiv
+        self.aktiv = ip_filter_aktiv() if aktiv is None else aktiv
         self.netze = _parse_netze(ANTHROPIC_RANGES) + (
             _extra_netze_aus_env() if extra_ranges is None else _parse_netze(extra_ranges))
 
@@ -105,17 +142,20 @@ class ZugriffsFilter:
             privat = ip.is_loopback or ip.is_private
         except ValueError:
             # Ein unparsbarer Absender gilt als PRIVAT und wird durchgelassen (fail-open).
-            # Das ist nur zulaessig, WEIL der Server ausschliesslich auf 127.0.0.1 bindet
-            # (docker-compose.yml: `127.0.0.1:8000:8000`) und von aussen allein der
-            # AUSGEHENDE cloudflared-Tunnel hereinkommt - der setzt CF-Connecting-IP und
-            # nimmt damit den Zweig darueber. Wer hier landet, sitzt schon im Container
-            # oder ist das Test-Harness ('testclient').
+            # Das ist nur zulaessig, WEIL der Dienst UEBERHAUPT KEINEN Host-Port mehr
+            # veroeffentlicht (docker-compose.yml, seit 26.08.2026) und ausschliesslich im
+            # Netz `mcp-net` haengt: von aussen kommt allein die Kette Cloudflare ->
+            # web-/mcp-tunnel -> mcp-router herein, und die setzt CF-Connecting-IP, nimmt
+            # also den Zweig darueber. Wer hier landet, sitzt schon im Container, ist ein
+            # Nachbar auf mcp-net (der Router selbst, `make smoke-pi`) oder das
+            # Test-Harness ('testclient').
             #
-            # Faellt diese Annahme (Port oeffentlich gebunden, Reverse-Proxy ohne
+            # Faellt diese Annahme (Host-Port wieder veroeffentlicht, Reverse-Proxy ohne
             # CF-Header davor), wird diese Zeile zum offenen Zugang - und
             # tests/test_zugriff.py bleibt dabei GRUEN, weil er genau dieses Verhalten
-            # festhaelt statt es zu hinterfragen. Die Bindung ist die Sicherung, nicht
-            # der Test.
+            # festhaelt statt es zu hinterfragen. Die fehlende Portbindung ist die
+            # Sicherung, nicht der Test. Im Router-Modus wiegt das schwerer als frueher:
+            # dort gibt es kein Token mehr, das einen Direktaufruf zusaetzlich abfinge.
             privat = True
         if privat:
             await self.app(scope, receive, send)

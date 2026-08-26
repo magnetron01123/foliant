@@ -192,3 +192,106 @@ def test_ready_endpoint_spiegelt_db_zustand(tmp_path, monkeypatch):
     monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
     r2 = asyncio.run(server.ready(None))
     assert r2.status_code == 200 and _json.loads(bytes(r2.body))["eintraege"] == 1
+
+
+# --------------------------------------------------------------------------------------
+# Zugangsmodus: hinter dem geteilten mcp-router haelt der ROUTER den Geheimpfad
+# --------------------------------------------------------------------------------------
+
+def _routen(app_) -> set[str]:
+    innen = app_.app if isinstance(app_, ZugriffsFilter) else app_
+    return {r.path for r in innen.routes}
+
+
+def test_router_modus_serviert_das_nackte_mcp(monkeypatch):
+    """Der mcp-router entfernt SEIN Token und reicht /mcp weiter. Ein eigener Geheimpfad
+    wuerde genau diese Anfrage mit 404 beantworten - der Dienst saehe gesund aus und
+    waere trotzdem nicht bedienbar. Im Router-Modus liegt der Endpoint deshalb unter
+    /mcp, und ein noch in der .env stehendes FOLIANT_PFAD_TOKEN aendert daran NICHTS
+    (sonst haengt der Dienst nach einer vergessenen Aufraeumzeile still ins Leere)."""
+    import app.server as server
+
+    monkeypatch.setenv("FOLIANT_ZUGANG", "router")
+    monkeypatch.setenv("FOLIANT_PFAD_TOKEN", "altes-token-das-bleiben-durfte")
+    neu = importlib.reload(server)
+    assert any(p.startswith("/mcp") for p in _routen(neu.app)), _routen(neu.app)
+    assert not any("altes-token" in p for p in _routen(neu.app))
+    assert "/health" in _routen(neu.app)
+
+    monkeypatch.delenv("FOLIANT_ZUGANG")
+    monkeypatch.delenv("FOLIANT_PFAD_TOKEN")
+    importlib.reload(server)
+
+
+def test_router_modus_bleibt_in_produktion_fail_closed(monkeypatch):
+    """Der Router-Modus lockert die Fail-closed-Zusage nicht, er verschiebt nur, WORAUF
+    sie sich richtet: ohne eigenen Geheimpfad ist die IP-Allowlist die einzige Pruefung
+    IM Dienst. `FOLIANT_IP_FILTER=aus` waere damit ein voellig offener MCP - und bricht
+    den Start ab, genau wie ein fehlendes Token es im Geheimpfad-Modus tut."""
+    import pytest
+
+    import app.server as server
+
+    monkeypatch.setenv("FOLIANT_PRODUKTION", "an")
+    monkeypatch.setenv("FOLIANT_ZUGANG", "router")
+    monkeypatch.delenv("FOLIANT_PFAD_TOKEN", raising=False)
+
+    monkeypatch.setenv("FOLIANT_IP_FILTER", "aus")
+    with pytest.raises(RuntimeError, match="IP-Allowlist"):
+        importlib.reload(server)
+
+    # Mit aktiver Allowlist startet er - OHNE eigenes Token, das ist der Punkt.
+    monkeypatch.setenv("FOLIANT_IP_FILTER", "an")
+    neu = importlib.reload(server)
+    assert any(p.startswith("/mcp") for p in _routen(neu.app))
+
+    monkeypatch.delenv("FOLIANT_PRODUKTION")
+    monkeypatch.delenv("FOLIANT_ZUGANG")
+    monkeypatch.delenv("FOLIANT_IP_FILTER")
+    importlib.reload(server)
+
+
+def test_unbekannter_zugangsmodus_bricht_ab(monkeypatch):
+    """Ein Tippfehler darf nicht still den anderen Modus einschalten: beide sehen im Log
+    gleich gesund aus, und der Unterschied faellt erst auf, wenn ein Aufruf 404 bekommt."""
+    import pytest
+
+    from app import zugriff
+
+    monkeypatch.setenv("FOLIANT_ZUGANG", "rooter")
+    with pytest.raises(RuntimeError, match="kein gueltiger Zugangsmodus"):
+        zugriff.zugangsmodus()
+    monkeypatch.setenv("FOLIANT_ZUGANG", "  RouTer ")          # Rand: Leerraum + Grossschrift
+    assert zugriff.zugangsmodus() == zugriff.MODUS_ROUTER
+    monkeypatch.delenv("FOLIANT_ZUGANG")
+    assert zugriff.zugangsmodus() == zugriff.MODUS_GEHEIMPFAD  # Standard = der strengere
+
+
+def test_compose_erfuellt_den_router_vertrag():
+    """Der Vertrag des geteilten Routers ist reine Namenskonvention (~/mcp-router,
+    README "The contract"): Container `<name>-mcp`, Port 8000, MCP unter /mcp, Netz
+    `mcp-net`. Nichts davon steht in einer Konfigurationsdatei des Routers - eine
+    Umbenennung nimmt den Dienst STILL vom Netz, kein Log sagt etwas. Genau deshalb
+    haelt ein Test die drei Zeilen fest, an denen es haengt.
+
+    Der fehlende Host-Port gehoert dazu: im Router-Modus liegt der Endpoint unter dem
+    nackten /mcp, ein veroeffentlichter Port waere der direkte Weg am Router vorbei."""
+    import pathlib
+
+    import yaml
+
+    compose = yaml.safe_load(
+        (pathlib.Path(__file__).resolve().parents[1] / "docker-compose.yml")
+        .read_text(encoding="utf-8"))
+    dienst = compose["services"]["foliant"]
+    assert dienst["container_name"] == "foliant-mcp", (
+        "Der Containername IST die Route (/<token>/foliant/mcp) - ein anderer Name "
+        "nimmt den Dienst still vom Netz.")
+    assert "mcp-net" in dienst["networks"]
+    assert compose["networks"]["mcp-net"]["external"] is True, (
+        "mcp-net gehoert keinem Stack; `external: true` laesst compose lieber den Start "
+        "verweigern, als ein leeres Ersatznetz zu bauen.")
+    assert not dienst.get("ports"), (
+        "Kein Host-Port im Router-Modus: der Endpoint liegt unter dem nackten /mcp.")
+    assert "cloudflared" not in compose["services"], (
+        "Foliant betreibt keinen eigenen Tunnel-Connector mehr (26.08.2026).")

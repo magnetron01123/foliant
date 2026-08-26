@@ -1,13 +1,21 @@
 services:
+  # MCP-Server. Haengt seit dem 26.08.2026 am GETEILTEN Router (~/mcp-router, Projekt
+  # "MCP Gateway"), der alle MCP-Server des Geraets unter mcp.magnetron.me bedient. Dessen
+  # Vertrag ist reine Namenskonvention und steht in dessen README ("The contract"): der
+  # Container heisst `<name>-mcp`, lauscht auf 8000, serviert MCP unter `/mcp` und haengt
+  # im Netz `mcp-net`. Alle vier Punkte sind unten verdrahtet - der CONTAINERNAME IST die
+  # Route (/<router-token>/foliant/mcp), ein Umbenennen nimmt den Dienst still vom Netz.
   foliant:
     build: .
-    container_name: foliant
+    container_name: foliant-mcp
     restart: unless-stopped
-    ports:
-      # NUR localhost (B2): nach aussen geht es ausschliesslich ueber cloudflared
-      # (erreicht foliant im Compose-Netz als http://foliant:8000); der Host-Port ist
-      # nur fuer lokale Tests und darf die Cloudflare-Regeln nicht umgehbar machen.
-      - "127.0.0.1:8000:8000"
+    # KEIN Host-Port (bis 26.08.2026: 127.0.0.1:8000). Im Router-Betrieb liegt der
+    # Endpoint unter dem nackten /mcp - ein veroeffentlichter Port waere damit genau der
+    # direkte Weg am Router vorbei, den der Geheimpfad frueher zugehalten hat. Lokal
+    # nachsehen geht ueber `docker compose exec` (CONCEPT.md §9), von aussen ueber den
+    # Router (`make smoke-pi SERVICE=foliant` im Projekt "MCP Gateway").
+    networks:
+      - mcp-net
     volumes:
       - ./data:/app/data            # SQLite-DB (persistent, beschreibbar; Importe laufen hier)
       # SYN-P1-005: der oeffentlich getunnelte Serve-Container sah data/private (private
@@ -21,13 +29,20 @@ services:
     # KEIN FOLIANT_COBALT mehr: der dauerhafte Service traegt nie ein DDB-Secret -
     # der Export laeuft im kurzlebigen ddb-exporter-Profil mit verdeckter TTY-Eingabe.
     environment:
-      # Zugang (M3, app/zugriff.py): Geheimpfad-Token aus .env (leer = /mcp, nur Dev)
-      # + IP-Allowlist (Anthropic-Egress; 'aus' nur zum Debuggen) + optionale Zusatz-CIDRs.
+      # Zugang (M3, app/zugriff.py). Der Modus entscheidet, WER den Geheimpfad haelt:
+      #   geheimpfad = Foliant selbst (eigener Tunnel/Gateway davor, Endpoint /<token>/mcp)
+      #   router     = der geteilte mcp-router (Endpoint /mcp, ohne eigenes Token)
+      # Vorbelegung hier `router`, weil genau das der Pi-Betrieb seit dem 26.08.2026 ist;
+      # der Code-Standard bleibt `geheimpfad` (wer nichts setzt, bekommt die strengere
+      # Variante). Die IP-Allowlist gilt in BEIDEN Modi - sie prueft CF-Connecting-IP,
+      # und der Header ueberlebt Cloudflare -> mcp-router -> Dienst unveraendert.
+      - FOLIANT_ZUGANG=${FOLIANT_ZUGANG:-router}
       - FOLIANT_PFAD_TOKEN=${FOLIANT_PFAD_TOKEN:-}
       - FOLIANT_IP_FILTER=${FOLIANT_IP_FILTER:-an}
       - FOLIANT_ERLAUBTE_IPS=${FOLIANT_ERLAUBTE_IPS:-}
-      # SYN-P1-004: Der Container IST Produktion - ohne starkes Token (>=16 Zeichen)
-      # bricht der Start ab statt fail-open unter /mcp zu servieren.
+      # SYN-P1-004: Der Container IST Produktion - ohne vollstaendig konfigurierten Zugang
+      # bricht der Start ab statt fail-open zu servieren. Was "vollstaendig" heisst, haengt
+      # am Modus: Geheimpfad -> Token >= 16 Zeichen; Router -> IP-Allowlist AN.
       - FOLIANT_PRODUKTION=${FOLIANT_PRODUKTION:-an}
     healthcheck:
       # /ready statt /health (SYN-P1-011): prueft DB+FTS, nicht nur den Prozess.
@@ -59,22 +74,14 @@ services:
     # trennen ist der offene Posten - er braucht einen kurzlebigen Import-Lauf mit
     # eigenem Mount, so wie der ddb-exporter es vormacht.
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: foliant-tunnel
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      - foliant
-
   # Charakterbogen-Uebersetzer-Website (app/charakterbogen/web.py). Eigener Container NEBEN
   # dem MCP: KEIN Mount der privaten Foliant-DB (nur die glossar-nur-DB + die offizielle
   # Vorlage, beides read-only). Kein Host-Port - erreichbar ausschliesslich ueber den
-  # gateway. Den MCP-Pfad-Token bekommt er allerdings SEHR WOHL (s. u. bei
-  # FOLIANT_PFAD_TOKEN) - er baut daraus den Connector-Link hinter der Anmeldung. Bis zum
-  # 31.07.2026 behauptete diese Zeile das Gegenteil, 19 Zeilen ueber der Uebergabe.
+  # gateway. Er zeigt hinter der Anmeldung den Connector-Link; im Router-Betrieb kommt der
+  # fertig aus FOLIANT_MCP_URL, weil er auf einer FREMDEN Domain mit fremdem Token liegt
+  # und aus Foliants eigenen Variablen nicht ableitbar ist (app/charakterbogen/web.py,
+  # _mcp_url_aus_env). Bis zum 31.07.2026 behauptete diese Zeile, er bekomme den Token
+  # nicht - 19 Zeilen ueber der Uebergabe.
   web:
     build: .
     container_name: foliant-web
@@ -88,8 +95,11 @@ services:
       - CHARAKTERBOGEN_GLOSSAR=/glossar/glossar_web.sqlite
       - CHARAKTERBOGEN_VORLAGE=/vorlagen/Charakterbogen_2024_DE.pdf
       # MCP-Link fuer den "Foliant im Claude-Chat"-Abschnitt (erscheint NUR hinter dem Login).
-      # FOLIANT_MCP_URL gewinnt; sonst setzt web.py ihn aus Basis-URL + Geheimpfad-Token zusammen
-      # (der Token liegt ohnehin in der .env). Die Domain ist oeffentlich, der Token nicht.
+      # FOLIANT_MCP_URL gewinnt immer. Der Zusammenbau aus Basis-URL + Geheimpfad-Token
+      # greift nur noch im Modus `geheimpfad`; im Router-Betrieb gaebe er eine URL, die es
+      # nicht mehr gibt - ein toter Link ist schlechter als gar keiner. Deshalb bekommt
+      # auch die Website den Modus zu sehen.
+      - FOLIANT_ZUGANG=${FOLIANT_ZUGANG:-router}
       - FOLIANT_MCP_URL=${FOLIANT_MCP_URL:-}
       - FOLIANT_PFAD_TOKEN=${FOLIANT_PFAD_TOKEN:-}
       - FOLIANT_BASIS_URL=${FOLIANT_BASIS_URL:-https://dnd.magnetron.me}
@@ -120,9 +130,14 @@ services:
     pids_limit: 128
     # Bis 14.08.2026 ohne Healthcheck: Ein Dienst, der laeuft, aber nichts mehr bedient,
     # stand in `docker ps` als "Up" - genau die Auskunft, die eine Stoerung verdeckt.
-    # `/` genuegt als Sonde (die Kennwortseite antwortet auch ohne Anmeldung).
+    #
+    # Sonde ist `/health`, NICHT `/` (Korrektur 26.08.2026): Die Kennwortseite antwortet
+    # zwar ohne Anmeldung, aber mit 401 - und `urlopen` wirft darauf. Der Container stand
+    # damit dauerhaft auf `unhealthy`, obwohl die Seite tadellos bediente. Das ist der
+    # gleiche Schaden wie vorher, nur mit umgekehrtem Vorzeichen: ein Waechter, der
+    # grundlos schreit, wird genauso ignoriert wie einer, der schweigt.
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/').status==200 else 1)"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health').status==200 else 1)"]
       interval: 60s
       timeout: 5s
       retries: 3
@@ -179,8 +194,11 @@ services:
     # (`make bericht-pi`) - dort steht das Alter der juengsten Protokollzeile.
     logging: *logdeckel
 
-  # Gateway (Caddy) VOR foliant+web. Der Cloudflare-Tunnel-Origin wird spaeter (Dashboard)
-  # von foliant:8000 auf gateway:8080 umgestellt. Routet /mcp -> foliant, sonst -> web.
+  # Gateway (Caddy) vor der WEBSITE. Origin von dnd.magnetron.me, erreicht ueber den
+  # geteilten web-tunnel-Connector (Projekt "Web Tunnel", ~/web-tunnel) im Netz web-edge.
+  # Seit dem 26.08.2026 routet er NUR noch die Website: der MCP liegt am geteilten Router
+  # unter mcp.magnetron.me und ist auf dieser Domain bewusst nicht mehr erreichbar - ein
+  # Eingang, ein Geheimnis. Die Pfad-Regeln stehen in deploy/Caddyfile.
   gateway:
     image: caddy:2-alpine
     container_name: foliant-gateway
@@ -189,9 +207,23 @@ services:
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
     ports:
-      - "127.0.0.1:8080:8080"     # nur lokal fuer die Abnahme; Tunnel erreicht gateway im Netz
+      - "127.0.0.1:8080:8080"     # nur lokal fuer die Abnahme; der Connector kommt ueber web-edge
+    networks:
+      # default: hier liegt `web`, das einzige Ziel des Gateways.
+      default:
+      # web-edge: hier haengt der web-tunnel-Connector. Ohne diese Zeile muesste ER an
+      # foliant_default angebunden bleiben - genau die Uebergangs-Kopplung, die mit
+      # diesem Stand entfaellt.
+      #
+      # Der Alias steht ausdruecklich da, obwohl compose den Dienstnamen ohnehin auf jedem
+      # Netz vergibt: Die Cloudflare-Route des Tunnels "web" zeigt woertlich auf
+      # `http://gateway:8080`. Dass dieser Name auf DIESEM Netz aufloest, ist damit eine
+      # Zusage nach aussen und keine Nebenwirkung - wer den Dienst umbenennt, sieht hier,
+      # was daran haengt.
+      web-edge:
+        aliases:
+          - gateway
     depends_on:
-      - foliant
       - web
 
   # Optionaler lokaler Admin-Blick (read-only) auf die Daten - NUR localhost (SSH-Tunnel),
@@ -246,3 +278,17 @@ services:
     cap_drop: ["ALL"]
     security_opt:
       - no-new-privileges:true
+
+# Beide Netze gehoeren KEINEM Stack: sie werden ausserhalb jedes Compose-Projekts
+# angelegt (`make net` in den Projekten "MCP Gateway" bzw. "Web Tunnel"), damit ein
+# `docker compose down` hier niemandem sonst das Netz wegnimmt. `external: true` heisst
+# ausserdem: fehlt eines, verweigert compose den Start, statt ein leeres Ersatznetz zu
+# bauen, in dem der Dienst still unerreichbar waere.
+networks:
+  default:
+  mcp-net:
+    name: mcp-net
+    external: true
+  web-edge:
+    name: web-edge
+    external: true

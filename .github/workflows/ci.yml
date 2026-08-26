@@ -7,8 +7,13 @@ name: CI
 on:
   push:
     branches: [main]
+  # OHNE branches-Filter, seit 26.08.2026: Vorher stand hier `branches: [main]`, und ein
+  # PR auf einen anderen Zielbranch bekam damit GAR KEINE Pruefung - GitHub meldete
+  # schlicht "no checks reported". Aufgefallen an einem gestapelten PR (#127 auf #126),
+  # dessen Gate nach dem Umhaengen der Basis still verschwand. Gestapelte PRs sind
+  # legitim; ein Gate, das bei ihnen wortlos aussetzt, ist es nicht. Der push-Trigger
+  # bleibt auf main beschraenkt, sonst laeuft jede Branch-Pruefung doppelt.
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read

@@ -56,6 +56,10 @@ für Davids Claude-Projekt steht in `config/projektanweisung.md` (Wegweiser: `SP
 - **Nach jeder Code-Änderung auf dem Pi: `docker compose up -d --build foliant`.** Der Code
   ist ins Image gebacken; ohne Rebuild läuft still der alte Stand weiter und meldet „Erfolg".
 - **Einzelne Dienste nur mit `--no-deps` bauen** — sonst startet `depends_on` den Live-MCP durch.
+- **Der Containername `foliant-mcp` IST die Route.** Der geteilte MCP-Router des Geräts
+  leitet allein nach Namenskonvention weiter; ein umbenannter Container ist **still
+  offline** (`docker ps` sagt „Up", der Connector bekommt 404). Ebenso müssen die externen
+  Netze `mcp-net` und `web-edge` vor dem Stack existieren.
 - **`make test` ist das EINE Gate**, aber die lokale Dev-DB ist oft nur ein SUBSET → bei
   korpusabhängigen Fällen trügerisch grün. Nach jedem Deploy / srd-de-Re-Import zusätzlich
   **`make test-golden-pi`**.
