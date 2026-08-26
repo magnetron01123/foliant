@@ -524,7 +524,7 @@ python -m app.admin manifest > korpus-manifest.json
 
 ### 4. Connector eintragen
 Volle URL inkl. Geheimpfad: `https://mcp.magnetron.me/<MCP_PFAD_TOKEN>/foliant` — kein
-OAuth; `make url SERVICE=foliant` im Projekt „Edge“ druckt sie. Das abschließende
+OAuth; `make url SERVICE=foliant` im Projekt „Interneteingang“ druckt sie. Das abschließende
 `/mcp` trägt der Router selbst nach (seit 26.08.2026): der Upstream-Pfad steht im Vertrag
 fest, in der öffentlichen URL wiederholte er nur, was schon im Hostnamen steht. Die längere
 Form bleibt gültig. Dieselbe URL gehört
@@ -852,7 +852,7 @@ Nutzers). `DISCORD_GUILD_ID` ist Pflicht — ohne sie startet der Bot nicht.
 
 ### Erreichbarkeit: zwei geteilte Tunnel, ein geteilter MCP-Router
 Seit dem 26.08.2026 betreibt Foliant **keinen eigenen Tunnel-Connector** mehr. Der Weg von
-außen gehört einem fremden Stack (`~/edge`, Projekt „Edge"), den sich mehrere Projekte
+außen gehört einem fremden Stack (`~/interneteingang`), den sich mehrere Projekte
 teilen; Foliant hängt sich nur in dessen Docker-Netze ein. Er liegt **nicht** in diesem
 Repository und wird hier auch nicht dokumentiert — er bringt sein eigenes README mit:
 
@@ -892,7 +892,7 @@ Seit dem DDB-Import serviert der MCP **private Buchinhalte** → der Endpoint is
 
    Geheimer **Pfad**, nicht geheime Subdomain — Subdomains leaken über
    Zertifikats-Transparenz-Logs. Rotation im Router-Modus: `MCP_PFAD_TOKEN` im Projekt
-   „Edge“ — das betrifft dann **alle** MCP-Server des Geräts.
+   „Interneteingang“ — das betrifft dann **alle** MCP-Server des Geräts.
 
 2. **IP-Allowlist** — nur Anthropics veröffentlichte Egress-Ranges (`160.79.104.0/21`,
    `2607:6bc0::/48`) erreichen den MCP-Pfad; geprüft an der von der Cloudflare-Edge gesetzten
@@ -1011,7 +1011,7 @@ dann `.venv-ddb/bin/python -m importer.ddb_exporter sync` und
 
 ### Umzug auf Mac mini
 Gleiches Repo, gleiches `compose`. Docker via Docker Desktop oder colima, dann identisch
-`docker compose up -d --build`. Mit umziehen müssen der fremde Edge-Stack (`~/edge`: beide Tunnel plus Router) und seine Netze; Tunnel-Token und Connector-URL bleiben, der
+`docker compose up -d --build`. Mit umziehen müssen der fremde Stack `~/interneteingang` (beide Tunnel plus Router) und seine Netze; Tunnel-Token und Connector-URL bleiben, der
 Connector läuft ohne Änderung weiter.
 
 ---
@@ -1022,7 +1022,7 @@ Connector läuft ohne Änderung weiter.
 |---|---|
 | **Geheimpfad + IP-Allowlist statt OAuth** | Claude-Connectors können keine Custom-Header senden; ein server-seitiger Filter ist versioniert und testbar; OAuth wäre für < 5 Nutzer überdimensioniert |
 | **Der Geheimpfad gehört dem Router, nicht dem Dienst** (26.08.2026) | Auf dem Pi stehen inzwischen mehrere MCP-Server. Jeder mit eigenem Hostname, eigenem DNS-Eintrag, eigenem Token wäre dieselbe Arbeit mal *n* — der geteilte Router macht daraus einen Eingang. Ein Dienst, der zusätzlich auf seinem eigenen Token besteht, antwortet auf das weitergereichte `/mcp` mit 404 und sieht dabei gesund aus. Foliant kann deshalb **beides** (`FOLIANT_ZUGANG`), und der Router-Modus ersetzt die Token-Prüfung durch eine Pflicht-IP-Allowlist — die Fail-closed-Zusage wandert mit, statt zu verschwinden. Der Preis steht im README des Routers: **ein** Token öffnet alle Dienste dahinter |
-| **Kein eigener Tunnel-Connector mehr** (26.08.2026) | Foliants `cloudflared` war ein *zweiter* Connector desselben Tunnels „mcp" — dieselbe Verbindung, zweimal betrieben, aus zwei Repositorys gepflegt. Die Tunnel liegen jetzt im fremden Edge-Stack (`~/edge`), getrennt nach MCP und Website: ein Connector erreicht nur Container in seinen eigenen Netzen, ein Website-Deploy kann also keinen MCP-Server mitreißen. Foliants Repository trägt dafür kein Tunnel-Token mehr |
+| **Kein eigener Tunnel-Connector mehr** (26.08.2026) | Foliants `cloudflared` war ein *zweiter* Connector desselben Tunnels „mcp" — dieselbe Verbindung, zweimal betrieben, aus zwei Repositorys gepflegt. Die Tunnel liegen jetzt im fremden Stack `~/interneteingang`, getrennt nach MCP und Website: ein Connector erreicht nur Container in seinen eigenen Netzen, ein Website-Deploy kann also keinen MCP-Server mitreißen. Foliants Repository trägt dafür kein Tunnel-Token mehr |
 | **Ein internes Schema für alle Quellen** | einheitlicher Tool-Output; Provenienz bleibt sichtbar |
 | **Edition sichtbar, nicht wegnormalisiert** | Referenz-MCP-Server normalisieren so, „dass die LLM den Unterschied nicht sieht" — für uns ein Anti-Pattern: **Datenshape** vereinheitlichen, **Provenienz** behalten |
 | **Suche und Detailabruf trennen** | Die eine Suche liefert knappe Treffer, die `hol_*` die volle Ausgabe — hält die Kontextlast niedrig. Die Aufteilung der Detailabrufe *je Entitätstyp* ist damit **nicht** begründet (Review 30.07.2026) |
@@ -1488,11 +1488,11 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   `/<token>/<name>/mcp` allein nach Namenskonvention an `http://<name>-mcp:8000/mcp` weiter —
   es gibt keinen Konfigurationseintrag, der beim Umbenennen mit auffiele. Ein umbenannter
   Container ist **still offline**: `docker ps` zeigt „Up", der Connector bekommt 404. Was der
-  Router tatsächlich erreicht, zeigt `make services` im Projekt „Edge".
+  Router tatsächlich erreicht, zeigt `make services` im Projekt „Interneteingang".
 - **Die externen Netze müssen VOR dem Stack existieren.** `mcp-net` und `web-edge` sind
   `external: true` — fehlt eines, verweigert compose den Start. Das ist gewollt: die
   Alternative wäre ein leeres Ersatznetz, in dem der Dienst läuft und niemand ihn erreicht.
-  Angelegt werden sie mit `make net` im Projekt „Edge".
+  Angelegt werden sie mit `make net` im Projekt „Interneteingang".
 - **Solange der Router an einem Foliant-Netz hängt, scheitert `docker compose down`** an der
   Netzentfernung und sagt das auch. Foliants Container stoppen trotzdem normal.
 - **Die glossar-nur-DB muss existieren, BEVOR `web` startet** — sonst legt Docker ein
