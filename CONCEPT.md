@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 14.08.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 26.08.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -30,16 +30,20 @@ IMPORT (einmalig/gelegentlich)                    LAUFZEIT (dauerhaft)
 Dt. SRD 5.2.1 (PDF) ─┐                             Claude (Client)   Browser
 Engl. SRD (Markdown) ─┤  PyMuPDF4LLM/Docling             │              │
 Eigene dt. PDFs ──────┤────────────► Markdown            ▼              ▼
-Open5e (API) ─────────┤  Transform  ─► Chunks     Cloudflare Named Tunnel
-DDB-Bücher (Exporter) ┘                  │                    │
-dnddeutsch-API ──────────► Glossar       ▼         gateway (Caddy :8080)
-                                         │           │                  │
-                                         ▼           ▼                  ▼
-                                   SQLite + FTS5 ◄─ foliant        web (Charakterbogen)
-                                         ▲          IP-Filter +
-                       Admin-CLI ────────┤          Geheimpfad
+Open5e (API) ─────────┤  Transform  ─► Chunks   Tunnel "mcp"      Tunnel "web"
+DDB-Bücher (Exporter) ┘                  │      mcp.magnetron.me   dnd.magnetron.me
+dnddeutsch-API ──────────► Glossar       │             │                  │
+                                         │             ▼                  ▼
+                                         │        mcp-router       gateway (Caddy :8080)
+                                         ▼        (fremder Stack)         │
+                                   SQLite + FTS5 ◄─ foliant-mcp      web (Charakterbogen)
+                                         ▲          IP-Filter
+                       Admin-CLI ────────┤
                        Datasette (127.0.0.1, read-only, SSH-Tunnel)
 ```
+
+Beide Tunnel und der Router sind **eigene Stacks auf demselben Gerät**, nicht Teil dieses
+Repositorys — Foliant hängt sich nur in ihre Netze ein (Details unten in §9).
 
 Zwei klar getrennte Ebenen:
 - **Import:** Quellen → Markdown/JSON → Chunks → SQLite. **Netz nur hier.**
@@ -50,17 +54,18 @@ Zwei klar getrennte Ebenen:
 
 | Dienst | Rolle |
 |---|---|
-| `foliant` | MCP-Server (uvicorn), 6 Tools, **read-only** auf `data/foliant.sqlite` |
+| `foliant` | MCP-Server (uvicorn), 6 Tools, **read-only** auf `data/foliant.sqlite`. Container **`foliant-mcp`**, Netz `mcp-net`, kein Host-Port |
 | `web` | Charakterbogen-Website (eigene Kennwort-Seite; `read_only`, `cap_drop: ALL`, 512 MB / 1 CPU) |
-| `gateway` | Caddy davor; routet nach Pfad. **Keine Access-Logs** — der MCP-Pfad enthält das Geheim-Token |
-| `cloudflared` | Named Tunnel → `dnd.magnetron.me`, Origin `http://gateway:8080` |
+| `gateway` | Caddy vor der Website; Origin von `dnd.magnetron.me`, Netz `web-edge`. **Keine Access-Logs** |
 | `discord` | Discord-Bot der Runde (Threads, `/regel`); kein Port, nur ausgehend; Guild-Sperre |
 | `datasette` | optional (`--profile admin`), read-only Datenblick, nur `127.0.0.1` |
 | `ddb-exporter` | optional (`--profile ddb`), kurzlebiger DDB-Export, **ohne DB-Mount** |
 
-**Gateway-Routing:** `/mcp`, `/<token>/mcp`, `/health` und `/ready` → `foliant`; alles andere
-→ `web`. Ein falscher Token-Pfad landet bei `foliant` und bekommt dort 403/404, **nie**
-Website-HTML. Caddy prüft den Token nicht — das bleibt in `app/zugriff.py`.
+**Gateway-Routing:** alles → `web`. Seit dem 26.08.2026 trägt `dnd.magnetron.me` **nur noch
+die Website**; der MCP hängt am geteilten Router unter `mcp.magnetron.me` und ist von dieser
+Domain aus nicht mehr erreichbar — `foliant-mcp` liegt allein im Netz `mcp-net`, das Gateway
+könnte ihn gar nicht mehr ansprechen. Ein Eingang, ein Geheimnis, eine Stelle, die stimmen
+muss.
 
 **Warum Container:** Isolation gegenüber anderen Projekten auf demselben Gerät,
 ARM64-Portabilität (Pi 4 → Apple-Silicon-Mac mini, gleiches `Dockerfile`/`compose`),
@@ -81,8 +86,8 @@ einzelnes Projekt, aber ohne Mehrprojekt-Isolation und nicht auf den Mac portier
 | Deutsch-Glossar | **dnddeutsch.de-API** | offizielle Begriffe (Ulisses) |
 | Weitere Quelle | **Open5e-API** (v2) | engl. Sofort-Basis |
 | Container | **Docker + docker compose** | Isolation + ARM64-Portabilität |
-| Erreichbarkeit | **cloudflared** (Named Tunnel) | Geheimpfad + IP-Allowlist |
-| Gateway | **Caddy** | Pfad-Routing vor `foliant`/`web` |
+| Erreichbarkeit | **geteilte Cloudflare-Tunnel** (fremde Stacks) | `mcp` → MCP-Router, `web` → Website |
+| Gateway | **Caddy** | Origin der Website (`dnd.magnetron.me`) |
 | Übersetzung (Bogen) | **Anthropic-API** (httpx) | Modell-ID über `.env`, nicht hart kodiert |
 | Daten-Inspektion | **Datasette** (optional, lokal) | read-only Admin-Blick |
 
@@ -512,11 +517,15 @@ python -m app.admin manifest > korpus-manifest.json
 ### 3. Server starten
 - **Lokal (Dev):** `.venv/bin/uvicorn app.server:app --port 8000` → `GET /ready` == 200,
   MCP unter `http://localhost:8000/mcp` (kein Geheimpfad).
-- **Pi:** `.env` mit `FOLIANT_PFAD_TOKEN` (≥16 Zeichen, sonst bricht der Start ab),
-  `FOLIANT_PRODUKTION=an`, `CLOUDFLARE_TUNNEL_TOKEN` → `docker compose up -d --build foliant`.
+- **Pi:** `.env` mit `FOLIANT_PRODUKTION=an` und `FOLIANT_ZUGANG=router` (der Geheimpfad
+  liegt beim Router; im Modus `geheimpfad` stattdessen ein `FOLIANT_PFAD_TOKEN` ≥ 16 Zeichen)
+  → `docker compose up -d --build foliant`. Die Netze `mcp-net` und `web-edge` müssen
+  existieren, sonst verweigert compose den Start.
 
 ### 4. Connector eintragen
-Volle URL inkl. Geheimpfad: `https://<host>/<FOLIANT_PFAD_TOKEN>/mcp` — kein OAuth.
+Volle URL inkl. Geheimpfad: `https://mcp.magnetron.me/<MCP_PFAD_TOKEN>/foliant/mcp` — kein
+OAuth; `make url SERVICE=foliant` im Projekt „MCP Gateway“ druckt sie. Dieselbe URL gehört
+in die Pi-`.env` als `FOLIANT_MCP_URL`, sonst zeigt die Website keinen Connector-Link.
 Verhaltensschicht: Claude-Projekt mit `config/projektanweisung.md` einrichten —
 die Spieler finden sie kopierbereit auf der Charakterbogen-Website („Foliant im Claude-Chat“).
 Die Seite liest sie zur Laufzeit aus `config/projektanweisung.md` (über
@@ -528,8 +537,12 @@ und verteilt so nie eine veraltete Fassung; nach Prompt-Änderungen genügt
 Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12 + P0-Prüfung).
 
 ### 6. Laufender Betrieb
-- **Readiness:** `curl http://localhost:8000/ready` (503 bei kaputtem/leerem Bestand).
-- **Uptime:** externer Monitor auf `https://<host>/health` (immer offen, nur Status).
+- **Readiness:** `docker compose exec -T foliant python -c "import urllib.request;
+  print(urllib.request.urlopen('http://localhost:8000/ready').read())"` (503 bei
+  kaputtem/leerem Bestand). Von außen geht das nicht mehr: der Dienst veröffentlicht keinen
+  Host-Port, und `/ready` liegt hinter dem Router-Token.
+- **Uptime:** externer Monitor auf `https://dnd.magnetron.me/health` (Website) und
+  `https://mcp.magnetron.me/health` (Router; beide immer offen, nur Status).
 - **Off-Site-Backup (nächtlich):** `admin backup` erstellt ein **konsistentes** Online-Backup
   über die SQLite-Backup-API (verträgt einen laufenden Import — anders als `cp`/`rsync` auf
   die offene Datei), **verifiziert** es (integrity_check + FTS-Zeilengleichheit; scheitert die
@@ -737,8 +750,8 @@ der ungefragt mitläuft, erwischt irgendwann das Falsche.
 
 **Alle drei Code-Dienste, nicht nur `foliant`:** `web` und `discord` backen dasselbe Image
 aus demselben Repo — wird nur `foliant` gebaut, laufen Bot und Website nach einem Deploy
-still mit dem alten Stand weiter. `--no-deps` verhindert dabei, dass `depends_on` den Tunnel
-mit durchstartet (§12).
+still mit dem alten Stand weiter. `--no-deps` verhindert dabei, dass `depends_on` das
+Gateway mit durchstartet (§12).
 
 **Warum der Check dazugehört:** `make test` fährt ihn lokal, aber die Dev-DB ist ein
 **Subset** (7 von 18 Quellen) — alles, was erst am Vollbestand sichtbar wird, fällt dort
@@ -834,50 +847,80 @@ Nutzers). `DISCORD_GUILD_ID` ist Pflicht — ohne sie startet der Bot nicht.
   und der Hinweis, dass Discord Antworten dauerhaft im Kanal stehen lässt. Ändern sich
   Befehle oder Schranken, gehört die Karte mitgezogen — sie ist das, was die Spieler lesen.
 
-### Cloudflare Named Tunnel
-Zero-Trust-Dashboard → Networks → Tunnels → **Create tunnel** → Token in die Pi-`.env` als
-`CLOUDFLARE_TUNNEL_TOKEN`. Public-Hostname-Route: `dnd.magnetron.me` → Service
-**`http://gateway:8080`**. Unter *Additional application settings* **nichts** ändern —
-insbesondere **„Disable Chunked Encoding" aus lassen** (zerstört SSE/MCP).
+### Erreichbarkeit: zwei geteilte Tunnel, ein geteilter MCP-Router
+Seit dem 26.08.2026 betreibt Foliant **keinen eigenen Tunnel-Connector** mehr. Auf dem Pi
+stehen drei fremde Stacks, die sich mehrere Projekte teilen; Foliant hängt sich nur in ihre
+Docker-Netze ein. Sie liegen **nicht** in diesem Repository und werden dort auch nicht
+dokumentiert — jedes bringt sein eigenes README mit:
+
+| Stack | Pi-Verzeichnis | Was es trägt | Foliants Berührpunkt |
+|---|---|---|---|
+| Tunnel `mcp` | `~/mcp-tunnel` | `mcp.magnetron.me` → `mcp-router` | keiner (nur über den Router) |
+| MCP-Router | `~/mcp-router` | Caddy, `/<token>/<name>/mcp` → `http://<name>-mcp:8000/mcp` | Container `foliant-mcp` im Netz `mcp-net` |
+| Tunnel `web` | `~/web-tunnel` | `dnd.magnetron.me` → `gateway:8080` | `gateway` im Netz `web-edge` |
+
+Der Router-Vertrag ist **reine Namenskonvention**, keine Konfigurationsdatei: Container heißt
+`<name>-mcp`, lauscht auf 8000, serviert MCP unter `/mcp`, hängt in `mcp-net`. Alle vier
+Punkte stehen in `docker-compose.yml` und werden von
+[`tests/test_zugriff.py`](tests/test_zugriff.py) festgehalten — **eine Umbenennung nimmt den
+Dienst still vom Netz**, und kein Log sagt etwas.
+
+Beide Tunnel liegen in **getrennten Netzen** (`mcp-edge`, `web-edge`). Ein Connector kann nur
+erreichen, was in seinen eigenen Netzen liegt: der Website-Tunnel kommt an keinen MCP-Server,
+und der MCP-Tunnel an keine Website. Die Grenze ist echt, keine Namenskonvention.
 
 ### Zugang absichern (zwei Schichten, ohne Nutzer-Management)
-Seit dem DDB-Import serviert der Tunnel **private Buchinhalte** → der Endpoint ist nicht offen.
+Seit dem DDB-Import serviert der MCP **private Buchinhalte** → der Endpoint ist nicht offen.
 
-1. **Geheimpfad** — die URL ist der Schlüssel:
-   ```
-   python3 -c "import secrets; print(secrets.token_urlsafe(18))"
-   # Pi-.env:  FOLIANT_PFAD_TOKEN=<wert>
-   docker compose up -d --build foliant
-   ```
-   Connector-URL = `https://dnd.magnetron.me/<wert>/mcp`; der alte `/mcp` liefert 404.
+1. **Geheimpfad** — die URL ist der Schlüssel. **Wer ihn hält, entscheidet `FOLIANT_ZUGANG`:**
+
+   | Modus | Endpoint | Geheimpfad hält | Produktion verlangt |
+   |---|---|---|---|
+   | `geheimpfad` (Standard) | `/<FOLIANT_PFAD_TOKEN>/mcp` | Foliant selbst | Token ≥ 16 Zeichen |
+   | `router` (Pi seit 26.08.2026) | `/mcp` | der `mcp-router` | `FOLIANT_IP_FILTER=an` |
+
+   Die Architekturregel lautet: **der Geheimpfad gehört dem Router, nicht dem Dienst.** Der
+   Router prüft sein Token, entfernt es und reicht `/mcp` weiter — ein zweites Token im
+   Dienst beantwortete genau diese Anfrage mit 404, und der Container sähe dabei gesund aus.
+   Der Router-Modus gibt die Fail-closed-Zusage **nicht** auf, er verschiebt nur, worauf sie
+   sich richtet: ohne eigenes Token ist die IP-Allowlist die einzige Prüfung *im Dienst*, und
+   `FOLIANT_IP_FILTER=aus` bricht den Produktionsstart deshalb genauso hart ab, wie es früher
+   ein fehlendes Token tat.
+
    Geheimer **Pfad**, nicht geheime Subdomain — Subdomains leaken über
-   Zertifikats-Transparenz-Logs.
+   Zertifikats-Transparenz-Logs. Rotation im Router-Modus: `MCP_PFAD_TOKEN` im Projekt
+   „MCP Gateway“ — das betrifft dann **alle** MCP-Server des Geräts.
+
 2. **IP-Allowlist** — nur Anthropics veröffentlichte Egress-Ranges (`160.79.104.0/21`,
    `2607:6bc0::/48`) erreichen den MCP-Pfad; geprüft an der von der Cloudflare-Edge gesetzten
-   `CF-Connecting-IP`. Eine geleakte URL ist damit **nur über Claude** nutzbar, nie per
-   curl/Scanner/Browser. Lokale Aufrufe ohne Edge-Header bleiben möglich; `/health` bleibt
-   immer offen. Schalter: `FOLIANT_IP_FILTER=aus`, `FOLIANT_ERLAUBTE_IPS=<cidr,cidr>`.
+   `CF-Connecting-IP`. Der Header überlebt die Kette Cloudflare → `mcp-router` → Dienst
+   unverändert (geprüft 26.08.2026), die Schicht wirkt also hinter dem Router genauso.
+   Eine geleakte URL ist damit **nur über Claude** nutzbar, nie per curl/Scanner/Browser.
+   Lokale Aufrufe ohne Edge-Header bleiben möglich; `/health` bleibt immer offen. Schalter:
+   `FOLIANT_IP_FILTER=aus`, `FOLIANT_ERLAUBTE_IPS=<cidr,cidr>`.
 
-**Der 403-Test ist Pflicht nach jeder Caddyfile-Änderung:**
+**Der 403-Test ist Pflicht nach jeder Änderung am Weg nach außen** (Router-Caddyfile,
+Netze, Modus) — er läuft im `mcp-net`, weil nichts mehr einen Host-Port veröffentlicht:
 ```sh
-curl -s -o /dev/null -w '%{http_code}\n' -H 'CF-Connecting-IP: 8.8.8.8' \
-     http://127.0.0.1:8080/<TOKEN>/mcp     # muss 403 sein
+docker run --rm --network mcp-net curlimages/curl:latest -s -o /dev/null -w '%{http_code}\n' \
+     -H 'CF-Connecting-IP: 8.8.8.8' http://foliant-mcp:8000/mcp     # muss 403 sein
 ```
-Ginge `CF-Connecting-IP` hinter Caddy verloren, wäre die IP-Allowlist *lautlos* aus (der Peer
-wäre dann Caddy = private IP = durchgelassen).
+Ginge `CF-Connecting-IP` unterwegs verloren, wäre die IP-Allowlist *lautlos* aus (der Peer
+wäre dann der Router = private IP = durchgelassen).
 
 **Optionales Edge-Upgrade** (Cloudflare → Security rules, Aktion Block):
 ```
-(http.host eq "dnd.magnetron.me" and http.request.uri.path contains "/mcp" and not ip.src in {160.79.104.0/21 2607:6bc0::/48})
+(http.host eq "mcp.magnetron.me" and http.request.uri.path contains "/mcp" and not ip.src in {160.79.104.0/21 2607:6bc0::/48})
 ```
 `http.host` **niemals** weglassen (sonst trifft die Regel Davids Smarthome-Tunnel).
 `uri.path` statt `uri` (sonst umgeht `?x=/mcp` die Regel). `contains "/mcp"` hält den Token
 aus der Cloudflare-Konfiguration. Regel **nie löschen und neu anlegen** — im Löschfenster
 fehlt die Edge-Schicht.
 
-**Rollback:** Tunnel-Route zurück auf `http://foliant:8000`, Save. Sekunden, keine
-Datenänderung. Warum etwas blockiert wurde: Cloudflare → Security → Events (Caddy loggt
-bewusst nichts).
+**Rollback auf den eigenen Weg:** `FOLIANT_ZUGANG=geheimpfad` plus Token in die Pi-`.env`,
+`gateway` wieder mit einer MCP-Route versehen, `docker compose up -d --build foliant gateway`.
+Der Dienst kann beides — deshalb ist der Umzug umkehrbar, ohne Code anzufassen. Warum etwas
+blockiert wurde: Cloudflare → Security → Events (Caddy loggt bewusst nichts).
 
 ### Website (Charakterbogen)
 Authlos gebaut, und **jede Konvertierung kostet API-Geld** — der Hostname steht über
@@ -965,8 +1008,9 @@ dann `.venv-ddb/bin/python -m importer.ddb_exporter sync` und
 
 ### Umzug auf Mac mini
 Gleiches Repo, gleiches `compose`. Docker via Docker Desktop oder colima, dann identisch
-`docker compose up -d --build`. Tunnel-Token bleibt, URL ändert sich nicht — der Connector
-läuft ohne Änderung weiter.
+`docker compose up -d --build`. Mit umziehen müssen die drei fremden Stacks (`~/mcp-tunnel`,
+`~/mcp-router`, `~/web-tunnel`) und ihre Netze; Tunnel-Token und Connector-URL bleiben, der
+Connector läuft ohne Änderung weiter.
 
 ---
 
@@ -975,6 +1019,8 @@ läuft ohne Änderung weiter.
 | Entscheidung | Warum |
 |---|---|
 | **Geheimpfad + IP-Allowlist statt OAuth** | Claude-Connectors können keine Custom-Header senden; ein server-seitiger Filter ist versioniert und testbar; OAuth wäre für < 5 Nutzer überdimensioniert |
+| **Der Geheimpfad gehört dem Router, nicht dem Dienst** (26.08.2026) | Auf dem Pi stehen inzwischen mehrere MCP-Server. Jeder mit eigenem Hostname, eigenem DNS-Eintrag, eigenem Token wäre dieselbe Arbeit mal *n* — der geteilte Router macht daraus einen Eingang. Ein Dienst, der zusätzlich auf seinem eigenen Token besteht, antwortet auf das weitergereichte `/mcp` mit 404 und sieht dabei gesund aus. Foliant kann deshalb **beides** (`FOLIANT_ZUGANG`), und der Router-Modus ersetzt die Token-Prüfung durch eine Pflicht-IP-Allowlist — die Fail-closed-Zusage wandert mit, statt zu verschwinden. Der Preis steht im README des Routers: **ein** Token öffnet alle Dienste dahinter |
+| **Kein eigener Tunnel-Connector mehr** (26.08.2026) | Foliants `cloudflared` war ein *zweiter* Connector desselben Tunnels „mcp" — dieselbe Verbindung, zweimal betrieben, aus zwei Repositorys gepflegt. Die Tunnel sind jetzt eigene Stacks (`~/mcp-tunnel`, `~/web-tunnel`), getrennt nach MCP und Website: ein Connector erreicht nur Container in seinen eigenen Netzen, ein Website-Deploy kann also keinen MCP-Server mitreißen. Foliants Repository trägt dafür kein Tunnel-Token mehr |
 | **Ein internes Schema für alle Quellen** | einheitlicher Tool-Output; Provenienz bleibt sichtbar |
 | **Edition sichtbar, nicht wegnormalisiert** | Referenz-MCP-Server normalisieren so, „dass die LLM den Unterschied nicht sieht" — für uns ein Anti-Pattern: **Datenshape** vereinheitlichen, **Provenienz** behalten |
 | **Suche und Detailabruf trennen** | Die eine Suche liefert knappe Treffer, die `hol_*` die volle Ausgabe — hält die Kontextlast niedrig. Die Aufteilung der Detailabrufe *je Entitätstyp* ist damit **nicht** begründet (Review 30.07.2026) |
@@ -1436,6 +1482,17 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   `docker compose up -d --build foliant`.
 - **`docker compose up --build web gateway` baut über `depends_on` AUCH `foliant` neu** und
   startet den Live-MCP durch → immer **`--no-deps`**.
+- **Der Containername `foliant-mcp` IST die Route.** Der geteilte Router leitet
+  `/<token>/<name>/mcp` allein nach Namenskonvention an `http://<name>-mcp:8000/mcp` weiter —
+  es gibt keinen Konfigurationseintrag, der beim Umbenennen mit auffiele. Ein umbenannter
+  Container ist **still offline**: `docker ps` zeigt „Up", der Connector bekommt 404. Was der
+  Router tatsächlich erreicht, zeigt `make services` im Projekt „MCP Gateway".
+- **Die externen Netze müssen VOR dem Stack existieren.** `mcp-net` und `web-edge` sind
+  `external: true` — fehlt eines, verweigert compose den Start. Das ist gewollt: die
+  Alternative wäre ein leeres Ersatznetz, in dem der Dienst läuft und niemand ihn erreicht.
+  Angelegt werden sie mit `make net` in den Projekten „MCP Gateway" bzw. „Web Tunnel".
+- **Solange der Router an einem Foliant-Netz hängt, scheitert `docker compose down`** an der
+  Netzentfernung und sagt das auch. Foliants Container stoppen trotzdem normal.
 - **Die glossar-nur-DB muss existieren, BEVOR `web` startet** — sonst legt Docker ein
   Verzeichnis statt der Datei an.
 - **Eine neue Spalte in `quellen` braucht DREI Stellen, nicht eine.** `db/schema.sql` legt
@@ -1552,17 +1609,21 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
 
 ## 13. Sicherheitsmodell
 
-- **Kein Geheimnis im Repository.** Zugangs-Token, Cloudflare-Tunnel-Token und Datenbank
-  liegen ausschließlich in `.env` bzw. `data/` — beide gitignored. `.env.example` zeigt die
-  Variablen ohne Werte.
+- **Kein Geheimnis im Repository.** Zugangs-Token und Datenbank liegen ausschließlich in
+  `.env` bzw. `data/` — beide gitignored. `.env.example` zeigt die Variablen ohne Werte. Die
+  Tunnel-Token gehören seit dem 26.08.2026 gar nicht mehr hierher: sie liegen in den `.env`
+  der eigenständigen Tunnel-Stacks.
 - **Zugang** (`app/zugriff.py`): geheimer Pfad-Token + IP-Allowlist auf `CF-Connecting-IP`.
-  `/health` bleibt offen (nur Status, keine Inhalte — trägt das Monitoring).
+  Im Modus `router` hält den Pfad der vorgelagerte `mcp-router`, die Allowlist bleibt im
+  Dienst. `/health` bleibt offen (nur Status, keine Inhalte — trägt das Monitoring).
 - **Read-only-Betrieb:** Der Server öffnet die SQLite-DB schreibgeschützt (`mode=ro`,
   `query_only=ON`); alle 6 Tools sind `readOnlyHint`. **Jeder** Lesepfad geht über
   `db.connect_readonly` — auch `/ready`, das bis zum 31.07.2026 ein rohes `sqlite3.connect`
   ohne `query_only` benutzte und damit als einziger Pfad ohne die zweite Leitplanke lief.
-- **Fail-fast:** Mit `FOLIANT_PRODUKTION=an` verweigert der Server den Start, wenn das
-  Pfad-Token kürzer als 16 Zeichen ist.
+- **Fail-fast:** Mit `FOLIANT_PRODUKTION=an` verweigert der Server den Start, wenn der
+  gewählte Zugang nicht vollständig ist — im Modus `geheimpfad` bei einem Pfad-Token unter
+  16 Zeichen, im Modus `router` bei abgeschalteter IP-Allowlist. Ein unbekannter Wert in
+  `FOLIANT_ZUGANG` bricht ebenfalls ab, statt still den anderen Modus zu fahren.
 - **Eingabegrenzen:** Suchanfragen sind längenbegrenzt, `limit` wird gedeckelt (DoS-Schutz).
 - **Abfrage-Protokoll ohne PII:** Das Log (`data/foliant-protokoll.sqlite`) enthält nur
   Suchbegriffe, Filter und Zeiten — keine Nutzerkennungen, IPs oder Gesprächsinhalte. Es

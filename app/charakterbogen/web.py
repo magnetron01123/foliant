@@ -34,6 +34,7 @@ from starlette.staticfiles import StaticFiles
 from app import bestand as _bestand
 from app.charakterbogen.ddb_pdf import DDBFormatFehler, extrahiere
 from app.glossar import ist_eigene_ableitung
+from app.zugriff import MODUS_GEHEIMPFAD, zugangsmodus
 from app.charakterbogen.de_bogen import rendere
 from app.charakterbogen.uebersetzer import (
     DnddeutschNachschlager, ProviderNichtKonfiguriert, UebersetzungsFehler,
@@ -544,11 +545,21 @@ def erstelle_app(provider=None, glossar_pfad: str | None = None,
 
 
 def _mcp_url_aus_env() -> str | None:
-    """FOLIANT_MCP_URL gewinnt; sonst aus Basis-URL + Geheimpfad-Token zusammengesetzt
-    (beides liegt auf dem Pi ohnehin in der .env). Fehlt beides -> None (Hinweis-Text)."""
+    """FOLIANT_MCP_URL gewinnt; sonst aus Basis-URL + Geheimpfad-Token zusammengesetzt.
+    Fehlt beides -> None (die Seite zeigt dann einen Hinweis statt eines Links).
+
+    Der Zusammenbau greift NUR im Modus `geheimpfad`. Hinter dem geteilten mcp-router
+    (FOLIANT_ZUGANG=router) liegt der Endpoint auf einer fremden Domain hinter einem
+    fremden Token - aus Foliants eigenen Variablen ist er nicht ableitbar, und der alte
+    Zusammenbau ergaebe eine URL, die es nicht mehr gibt. Ein toter Connector-Link ist
+    schlechter als gar keiner: er sieht richtig aus, und wer ihn eintraegt, sucht den
+    Fehler bei sich. Also: FOLIANT_MCP_URL setzen (`make url SERVICE=foliant` im Projekt
+    "MCP Gateway" druckt sie) oder es bleibt beim Hinweis."""
     url = (os.environ.get("FOLIANT_MCP_URL") or "").strip()
     if url:
         return url
+    if zugangsmodus() != MODUS_GEHEIMPFAD:
+        return None
     token = (os.environ.get("FOLIANT_PFAD_TOKEN") or "").strip().strip("/")
     basis = (os.environ.get("FOLIANT_BASIS_URL") or "").strip().rstrip("/")
     if token and basis:

@@ -21,13 +21,14 @@ ausgefüllten offiziellen deutschen WotC-Bogen 2024, druckbar.
    keine offizielle Übersetzung existiert.
 3. **Version immer:** aktuelle Regeln (2024) als Standard; ältere Stände klar gekennzeichnet.
 
-## Stand (14.08.2026)
+## Stand (26.08.2026)
 
 **Läuft, wird benutzt — der Tisch-Test steht noch aus.** Der Server läuft auf einem
 Raspberry Pi 4: 12 545 Einträge aus 18 Quellen (dt. SRD 5.2.1, drei deutsche 2014-Bücher,
 Open5e, D&D-Beyond-Bücher, drei Errata-Bände), 6 Tools, Zugang über geheimen Pfad +
-IP-Allowlist. Charakterbogen-Übersetzer und Discord-Bot laufen als eigene Container
-daneben; der Bot beantwortet seit Ende Juli Fragen der Runde und hat zwei
+IP-Allowlist. Seit dem 26.08.2026 hängt der MCP am geteilten Router des Geräts
+(`mcp.magnetron.me`), `dnd.magnetron.me` trägt nur noch die Website.
+Charakterbogen-Übersetzer und Discord-Bot laufen als eigene Container daneben; der Bot beantwortet seit Ende Juli Fragen der Runde und hat zwei
 Rückmeldungsdurchgänge geliefert. Maßgeblich für den Bestand ist immer `admin status`.
 
 Was das *nicht* heißt: Eine Spielrunde hat damit noch nicht gearbeitet, und bis ein Off-Site-Ziel
@@ -73,7 +74,9 @@ make test                                             # das EINE Gate
 .venv/bin/uvicorn app.server:app --port 8000          # GET /ready == 200
 ```
 
-Der MCP-Endpoint liegt lokal unter `http://localhost:8000/mcp` (Dev ohne Geheimpfad).
+Der MCP-Endpoint liegt lokal unter `http://localhost:8000/mcp` (Dev ohne Geheimpfad). Im
+Container-Betrieb gibt es keinen Host-Port: dort führt der Weg über den vorgelagerten
+MCP-Router (CONCEPT.md §9).
 ### Foliant in Discord
 
 Auf dem Server der Runde: **`/regel <frage>`** eingeben oder **@Foliant** erwähnen — die
@@ -98,7 +101,7 @@ Betrieb, Deployment und die Import-Wege im Detail: [CONCEPT.md](CONCEPT.md) §8�
 
 ### Foliant im Claude-Chat
 Custom Connector mit der **vollen URL inkl. Geheimpfad** hinzufügen —
-`https://<host>/<token>/mcp`, kein OAuth. Einrichten am Desktop; benutzen geht danach auch aus
+`https://<host>/<token>/foliant/mcp`, kein OAuth. Einrichten am Desktop; benutzen geht danach auch aus
 der Mobile-App. Für konsistentes Verhalten die **Projektanweisung** in ein Claude-Projekt
 einfügen — sie steht kopierbereit auf der Charakterbogen-Website im Abschnitt „Foliant im
 Claude-Chat“ (der gemeinsame Ort für alle Mitspieler; Quelle ist

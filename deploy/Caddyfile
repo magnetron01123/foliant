@@ -1,10 +1,14 @@
-# Gateway vor foliant (MCP) + web (Charakterbogen). Der Cloudflare-Tunnel zeigt nach dem
-# Umschalten auf http://gateway:8080. AUFTRAG §5.2:
-#  - Admin-API aus, KEINE Access-Logs (der MCP-Pfad enthaelt das Geheim-Token).
-#  - /mcp + /<ein-Segment>/mcp[/...] -> foliant (unveraendert, Streaming, kein Buffering).
-#  - /health, /ready -> foliant (Tunnel-/Container-Healthcheck bleibt echt).
-#  - alles andere -> web (Website).
-#  - Falscher Token-Pfad landet bei foliant und bekommt dort 403/404, NIE Website-HTML.
+# Gateway vor der Website (Charakterbogen-Uebersetzer). Origin von dnd.magnetron.me; der
+# web-tunnel-Connector erreicht ihn im Netz web-edge.
+#
+# Seit dem 26.08.2026 steht hier KEINE MCP-Route mehr. Der MCP haengt am geteilten Router
+# (mcp.magnetron.me/<token>/foliant/mcp) und ist auf dieser Domain absichtlich nicht mehr
+# erreichbar: ein Eingang, ein Geheimnis, eine Stelle, die stimmen muss. `foliant-mcp`
+# liegt ausserdem nur noch im Netz `mcp-net` - dieser Container koennte ihn gar nicht
+# mehr erreichen, selbst wenn hier eine Regel stuende.
+#
+# Access-Logs bleiben trotzdem aus: Es gibt keinen Grund, die Aufrufe der Runde
+# mitzuschreiben, und die Kennwort-Seite traegt Formularfelder.
 
 {
 	admin off
@@ -19,24 +23,11 @@
 		output discard
 	}
 
-	# MCP: /mcp, /mcp/*, /<token>/mcp, /<token>/mcp/* -> foliant (Token bleibt geheim,
-	# Caddy prueft ihn NICHT; foliant/ZugriffsFilter entscheidet 403/404 wie bisher).
-	@mcp path /mcp /mcp/* /*/mcp /*/mcp/*
-	handle @mcp {
-		reverse_proxy foliant:8000 {
-			flush_interval -1
-		}
-	}
-
-	# Health/Readiness unveraendert an foliant.
-	@foliant_health path /health /ready
-	handle @foliant_health {
-		reverse_proxy foliant:8000
-	}
-
-	# Alles Uebrige -> Website. Den Zugangsschutz macht die Website SELBST (eine Kennwort-Seite,
-	# EIN Kennwort ohne Benutzernamen - Eigentuemer-Wunsch; HTTP-Basic-Auth erzwingt im Browser
-	# immer ein Benutzerfeld). Ohne WEB_PASSWORT ist sie zu (fail-closed). Der Gateway proxyt nur.
+	# Alles -> Website. Den Zugangsschutz macht die Website SELBST (eine Kennwort-Seite,
+	# EIN Kennwort ohne Benutzernamen - Eigentuemer-Wunsch; HTTP-Basic-Auth erzwingt im
+	# Browser immer ein Benutzerfeld). Ohne WEB_PASSWORT ist sie zu (fail-closed). Der
+	# Gateway proxyt nur. Ihr /health traegt das externe Uptime-Monitoring auf dieser
+	# Domain; die Verfuegbarkeit des MCP beantwortet jetzt der Router (dessen /health).
 	handle {
 		reverse_proxy web:8080
 	}

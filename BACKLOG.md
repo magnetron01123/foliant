@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 14.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 26.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -54,11 +54,14 @@ Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
 
 ### M3 — Betrieb für die Gruppe · *klein · Zugang ✅, Betrieb teilweise*
 - ✅ **Zugang:** Geheimpfad + IP-Allowlist, von außen verifiziert (Fremd-IPs bekommen für
-  jeden Pfad außer `/health` einheitlich 403 — kein Pfad-Orakel).
+  jeden Pfad außer `/health` einheitlich 403 — kein Pfad-Orakel). Den Geheimpfad hält seit
+  dem 26.08.2026 der geteilte MCP-Router des Geräts, die Allowlist bleibt im Dienst
+  ([CONCEPT.md](CONCEPT.md) §9).
 - ✅ **Backup-Werkzeug:** `admin backup` (konsistent, verifiziert, rotierend).
 - ⬜ **Cron + Off-Site-Spiegel einrichten** — das Spiegeln ist die eigentliche Sicherung.
   Ziel/Zugang muss David festlegen.
-- ⬜ **Uptime-Monitoring** auf `/health` (z. B. UptimeRobot).
+- ⬜ **Uptime-Monitoring** auf `/health` (z. B. UptimeRobot) — zwei Ziele, seit die
+  Website und der MCP auf getrennten Hostnamen liegen.
 - ✅ **Antwortzeiten gemessen — auch unter Sessionlast** (B9). Einzeln am Pi-Vollbestand
   25–192 ms (§2). Nebenläufig mit `make lasttest-pi` (28.07.2026):
 

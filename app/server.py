@@ -23,7 +23,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.db import lade_konfig
-from app.zugriff import ZugriffsFilter
+from app.zugriff import (MODUS_GEHEIMPFAD, MODUS_ROUTER, ZugriffsFilter,
+                         ip_filter_aktiv, zugangsmodus)
 from config.stil import INSTRUCTIONS
 
 # SYN-P1-003 (codex TECH-020): alle sechs Tools sind strikt lesend/idempotent -
@@ -102,27 +103,52 @@ mcp.tool(_charakter.foliant_liste_optionen, annotations=_NUR_LESEND)
 mcp.tool(_charakter.foliant_hol_attributswerte, annotations=_NUR_LESEND)
 mcp.tool(_charakter.foliant_pruefe_build, annotations=_NUR_LESEND)
 
-# Zugang (NF3/NF4, M3 - Details in app/zugriff.py): GEHEIMPFAD aus FOLIANT_PFAD_TOKEN
-# (.env auf dem Pi; leer = /mcp fuer Dev/Tests) + IP-Allowlist als ASGI-Wrapper. Die
-# Verbindungs-URL ist damit https://<host>/<token>/mcp - die URL selbst ist der Schluessel.
+# Zugang (NF3/NF4, M3 - Details in app/zugriff.py). Zwei Betriebsarten, EIN Unterschied:
+# wer den Geheimpfad haelt.
+#   FOLIANT_ZUGANG=geheimpfad (Standard): Foliant selbst. Endpoint /<FOLIANT_PFAD_TOKEN>/mcp,
+#     die Verbindungs-URL ist der Schluessel.
+#   FOLIANT_ZUGANG=router: der vorgelagerte mcp-router. Der prueft SEIN Token, entfernt es
+#     und reicht /mcp weiter - ein eigenes Token wuerde dieselbe Anfrage hier mit 404
+#     beantworten. Foliant serviert deshalb das nackte /mcp.
+_ZUGANG = zugangsmodus()
 _PFAD_TOKEN = os.environ.get("FOLIANT_PFAD_TOKEN", "").strip().strip("/")
-# Aus der Konfiguration, aber praktisch fest: deploy/Caddyfile routet auf "/mcp" und
-# die optionale Cloudflare-Regel prueft `uri.path contains "/mcp"`. Ein anderer Wert
-# hier laesst das Gateway ins Leere zeigen - die Kopplung steht deshalb auch in der
+# Aus der Konfiguration, aber praktisch fest: der mcp-router leitet auf "/mcp" weiter und
+# die optionale Cloudflare-Regel prueft `uri.path contains "/mcp"`. Ein anderer Wert hier
+# laesst den Router ins Leere zeigen - die Kopplung steht deshalb auch in der
 # Config-Vorlage (Befund 31.07.2026: sie sah frei waehlbar aus).
 _BASIS_PFAD = _SERVER_KONFIG.get("pfad", "/mcp")
-_MCP_PFAD = f"/{_PFAD_TOKEN}{_BASIS_PFAD}" if _PFAD_TOKEN else _BASIS_PFAD
+_MCP_PFAD = _BASIS_PFAD if _ZUGANG == MODUS_ROUTER or not _PFAD_TOKEN \
+    else f"/{_PFAD_TOKEN}{_BASIS_PFAD}"
+
 # SYN-P1-004 (fail-open): Compose defaultete das Token auf leer - der Endpoint lag dann
 # still offen unter /mcp, geschuetzt nur durch die geteilte IP-Allowlist. Im
-# Produktionsmodus (FOLIANT_PRODUKTION=an, setzt der Container) bricht der Start ohne
-# starkes Token hart ab; Dev/Tests bleiben ohne Token lauffaehig.
-if os.environ.get("FOLIANT_PRODUKTION", "aus").strip().lower() == "an" \
-        and len(_PFAD_TOKEN) < 16:
-    raise RuntimeError(
-        "FOLIANT_PRODUKTION=an verlangt ein FOLIANT_PFAD_TOKEN mit mindestens 16 "
-        "Zeichen (.env; erzeugen: python3 -c \"import secrets; "
-        "print(secrets.token_urlsafe(18))\") - Start abgebrochen statt fail-open.")
-if _PFAD_TOKEN:
+# Produktionsmodus (FOLIANT_PRODUKTION=an, setzt der Container) bricht der Start ab, wenn
+# der gewaehlte Zugang nicht VOLLSTAENDIG konfiguriert ist; Dev/Tests bleiben lauffaehig.
+#
+# Die Pruefung haengt am Modus, weil die Schutzschicht am Modus haengt (26.08.2026):
+#  - geheimpfad: das Token IST der Schutz -> mindestens 16 Zeichen, sonst Abbruch.
+#  - router:     das Token gehoert dem Router, hier bleibt als Pruefung IM Dienst allein
+#                die IP-Allowlist -> `FOLIANT_IP_FILTER=aus` waere ein voellig offener
+#                MCP und bricht deshalb ab. Der Router-Modus lockert die Fail-closed-
+#                Zusage also nicht, er verschiebt nur, WORAUF sie sich richtet.
+if os.environ.get("FOLIANT_PRODUKTION", "aus").strip().lower() == "an":
+    if _ZUGANG == MODUS_GEHEIMPFAD and len(_PFAD_TOKEN) < 16:
+        raise RuntimeError(
+            "FOLIANT_PRODUKTION=an mit FOLIANT_ZUGANG=geheimpfad verlangt ein "
+            "FOLIANT_PFAD_TOKEN mit mindestens 16 Zeichen (.env; erzeugen: python3 -c "
+            "\"import secrets; print(secrets.token_urlsafe(18))\") - Start abgebrochen "
+            "statt fail-open. Hinter dem geteilten Router stattdessen "
+            "FOLIANT_ZUGANG=router setzen; das Token haelt dann der Router.")
+    if _ZUGANG == MODUS_ROUTER and not ip_filter_aktiv():
+        raise RuntimeError(
+            "FOLIANT_PRODUKTION=an mit FOLIANT_ZUGANG=router verlangt eine aktive "
+            "IP-Allowlist (FOLIANT_IP_FILTER=an): ohne eigenen Geheimpfad ist sie die "
+            "einzige Pruefung im Dienst - Start abgebrochen statt fail-open.")
+
+if _ZUGANG == MODUS_ROUTER:
+    print("foliant: MCP-Endpoint unter /mcp - der Geheimpfad gehoert dem vorgelagerten "
+          "mcp-router (FOLIANT_ZUGANG=router).")
+elif _PFAD_TOKEN:
     print(f"foliant: MCP-Endpoint unter /{_PFAD_TOKEN[:4]}…{_BASIS_PFAD} (Geheimpfad aktiv)")
 else:
     print("foliant: KEIN Geheimpfad gesetzt (FOLIANT_PFAD_TOKEN) - Endpoint liegt offen "
