@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 11.08.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 14.08.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -586,6 +586,7 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
 ```
 status        Bestand je Quelle/Edition/Kategorie + Glossar
 manifest      Korpus-Fingerabdruck (inhalts_hash) - nach jedem Import festhalten
+quellen-register  Quellen-Register als TOML aus der DB - Wiederherstellungs-Artefakt (ohne Buchtitel); erneuern mit `make register-vom-pi`
 import        --quelle <kuerzel> | glossar | facetten (Facetten ohne Re-Import nachziehen)
 quellen-auffrischen  Quellen-METADATEN (Titel, Prioritaet, Lizenz, inhaltsart, versions_stand, quell_url) aus der config nachziehen - ohne Re-Import, Eintraege bleiben unberuehrt
 pdf-triage    welche PDFs haben keine Textschicht?
@@ -715,11 +716,24 @@ Einmal aus- und wieder einloggen. Test: `docker run --rm hello-world`.
 ```sh
 make deploy-pi
 ```
-Das ist der **eine** Weg: rsync → `docker compose up -d --build --no-deps foliant web
-discord` → Golden-Suite am Vollbestand → **`admin check` am Vollbestand** (`make check-pi`).
-Alle vier Schritte hängen zusammen, weil das Weglassen jedes einzelnen schon schiefgegangen
-ist (Rebuild vergessen → alter Code meldet „Erfolg"; Golden vergessen → korpusabhängige
+Das ist der **eine** Weg: `make test` → Eval-Reports retten → laufende Images als
+`:vorher` taggen → rsync → `docker compose up -d --build --no-deps foliant web discord` →
+Golden-Suite am Vollbestand → **`admin check --vollbestand`** (`make check-pi`). Die
+Schritte hängen zusammen, weil das Weglassen jedes einzelnen schon schiefgegangen ist
+(Rebuild vergessen → alter Code meldet „Erfolg"; Golden vergessen → korpusabhängige
 Regression bleibt unentdeckt).
+
+**Warum die Gates trotzdem hinten stehen — und was daraus folgt:** Die Golden-Suite
+braucht den Vollbestand, und der liegt nur auf dem Pi; sie kann also nicht vor dem
+Live-Schalten laufen. Genau deshalb gibt es seit dem 14.08.2026 zwei Ergänzungen: `test`
+als *Vorbedingung* (was schon der Mac durchfallen lässt, hat auf dem Pi nichts verloren)
+und `make rollback-pi` als Rückweg — die vorherigen Images liegen als `:vorher` bereit,
+werden zurückgetauscht und durchlaufen dieselben Gates. Vorher gab es auf dem Pi
+ausschließlich `:latest`, der alte Stand war nach dem Build überschrieben.
+
+**Wartung:** `make pflege-pi` zeigt die Belegung; erst `make pflege-pi LOESCHEN=ja` gibt
+Build-Cache älter als sieben Tage frei. Bewusst nicht Teil des Deploys — ein Löschschritt,
+der ungefragt mitläuft, erwischt irgendwann das Falsche.
 
 **Alle drei Code-Dienste, nicht nur `foliant`:** `web` und `discord` backen dasselbe Image
 aus demselben Repo — wird nur `foliant` gebaut, laufen Bot und Website nach einem Deploy
@@ -1157,6 +1171,82 @@ echter Konflikt. Ein eigener Test hält das fest. Dieselbe Logik trägt
 `config/qualitaet_basis.json` für die Datenmängel (§12) — ein Basiswert, gegen den eine Zahl
 steigen *oder* fallen kann, statt einer Dauerwarnung.
 
+### Entscheidung: Bei zwei englischen Partnern entscheidet der Grad (14.08.2026)
+
+Drei der acht gemeldeten „Facetten-Widersprüche" waren keine. `Celestisches Wesen
+beschwören` trug gleichzeitig `Conjure Celestial` **und** `Summon Celestial` als
+offizielle Brücke — zwei verschiedene Zauber. Der deutsche SRD-Eintrag ist 7. Grades wie
+Conjure Celestial; Summon Celestial ist 5. Der Fassungsabgleich verglich daraufhin den
+deutschen Conjure- gegen den englischen Summon-Zauber und meldete pflichtgemäß einen
+Widerspruch: **Die Daten stimmten, die Brücke war falsch.** Dasselbe bei Elementar (5
+gegen 4) und Feenwesen (6 gegen 3); die Summon-Zeilen stammen aus *Tashas Kessel mit
+Allem* (2014) und kollidieren mit den SRD-5.2.1-Namen.
+
+`kanonisiere_zauberkonflikte` demotet deshalb den Partner, dessen Grad dem des deutschen
+Eintrags **widerspricht**. Das ist keine Vermutung: Beide Grade stehen im Bestand, und ein
+Zauber anderen Grades kann nicht derselbe sein. Bewusst eng gebaut — nur wo auf beiden
+Seiten ein Grad steht und **mindestens ein Partner passt**; passt keiner, ist unklar, wer
+recht hat, und dann wird nicht entschieden. Am Vollbestand vom 14.08.2026 trifft die Regel
+bei 3.166 offiziellen Glossarzeilen genau diese drei Fälle — gemessen, nicht geschätzt.
+
+Die Zeilen werden **demotet, nicht gelöscht**: Als Suchvariante bleibt „Summon Celestial →
+Celestisches Wesen beschwören" nützlich, sie darf nur nicht als zweite *offizielle*
+Fassung auftreten (dieselbe Trennung wie bei `kanonisiere_konflikte`).
+
+### Entscheidung: Das Quellen-Register wird erzeugt, nicht gepflegt (14.08.2026)
+
+`config/foliant.toml` ist gitignored, aus dem Deploy-`rsync` ausgeschlossen und von
+`admin backup` nicht erfasst. Die Folge war kein Datenverlust, sondern etwas Leiseres: Pi
+und Mac trugen **zwei verschiedene Register** — 12 gegen 8 Quellenblöcke, sieben Kürzel
+disjunkt —, und keines beschrieb den Produktionsbestand vollständig. Die sieben
+DDB-Quellen standen in gar keiner der beiden Dateien.
+
+Die Datenbank weiß es besser. `quellen` führt alle 18 Quellen mit Edition, Lizenz,
+Priorität, `inhaltsart`, Herkunft und Pfad — und genau diese Angaben macht Kernregel 2
+(„Editionen werden NIE geraten") nach einem Kartenausfall unersetzlich: Raten ist
+verboten, also muss es aufgeschrieben sein. `config/quellen-register.toml` ist deshalb ein
+**Erzeugnis** aus der DB (`admin quellen-register`, Logik in `importer/quellen.py` neben
+dem Schreibweg), kein von Hand gepflegtes zweites Register — das wäre wieder eine Datei,
+die auseinanderlaufen kann.
+
+Drei bewusste Festlegungen:
+
+- **Wiederherstellungs-Artefakt, kein Laufzeit-Eingang.** `lade_konfig` bleibt unberührt.
+  Eine zweite Konfigurationsquelle wäre ein tägliches Risiko für einen Nutzen, den man
+  hoffentlich nie braucht.
+- **Ohne Buchtitel** (Davids Entscheidung): Das Repo ist öffentlich. Die Kürzel stehen
+  ohnehin darin, die Dateipfade sind durchgehend kürzelbasiert — geprüft, es leckt keiner.
+  Beim Wiederherstellen sind 18 Titel nachzutragen; alles, was man nicht raten darf,
+  steht da.
+- **Solange kein Off-Site-Spiegel existiert** (M3, am 14.08.2026 zurückgestellt), ist
+  diese Datei im Git das Einzige, was einen Kartenausfall überlebt.
+
+### Entscheidung: Der Korpus bekommt einen Sollstand (14.08.2026)
+
+`admin check` verglich die Eintragszahl bis dahin nur mit der eigenen FTS-Zeilenzahl. Das
+findet einen kaputten Index, aber keinen fehlenden Bestand: Geht ein Buch verloren, fallen
+**beide** Zahlen gemeinsam, der Vergleich bleibt grün, und ein Rückgang galt als „Basiswert
+nachziehen". Die Frage „ist noch alles da?" konnte das Gate nicht stellen.
+
+`config/korpus_soll.json` beantwortet sie — Kürzel, Edition, Sprache, `inhaltsart` und
+Eintragszahl je Quelle, erhoben aus `berechne_manifest`. Eine fehlende Quelle und ein
+Einbruch über 5 % sind am Vollbestand Fehler, eine neue Quelle ist ein Hinweis.
+
+Zwei Entwurfsentscheidungen tragen das:
+
+- **`--vollbestand` trennt die Welten.** Auf der Dev-Maschine fehlen 11 der 18 Quellen —
+  das ist der Normalfall, kein Befund. Ohne diese Trennung stünde die Prüfung lokal
+  dauerhaft rot, und eine Kennzahl, die immer rot ist, hört man auf zu lesen (dieselbe
+  Lehre wie beim Konflikt-Gate weiter oben). `make check-pi` setzt das Flag, `make test`
+  nicht.
+- **Kein Inhalts-Hash als Gate.** Der Hash aus dem Manifest ändert sich bei jedem
+  legitimen Import; als Schranke wäre er eine Dauerwarnung. Er bleibt, wo er hingehört —
+  im Eval-Report als Stempel des gemessenen Stands.
+
+Nachgezogen wird der Sollstand nach einem *beabsichtigten* Import mit `make soll-vom-pi`
+(liest den Pi, schreibt lokal, gehört in den Commit). Buchtitel stehen bewusst nicht in
+der Datei, solange offen ist, ob DDB-Titel öffentlich stehen dürfen (BACKLOG M9).
+
 ### Entscheidung: Der Discord-Bot bleibt Nachschlagewerk im Gespräch (30.07.–02.08.2026)
 
 Der Bot wird **kein zweites Avrae**. Die Abgrenzung ist inhaltlich, nicht technisch: Avrae
@@ -1286,6 +1376,13 @@ Kuratiert. Quellen-spezifische Eigenheiten stehen im Modul-Docstring des jeweili
 Importers (`importer/import_open5e.py` für die Open5e-API, `importer/import_markdown.py`
 für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de).
 
+- **Ein einseitiges PDF hat keine falsche Seitenzahl.** Die drei Errata-Quellen tragen
+  durchgehend `seite = '1'`, und das sieht nach einem nicht gefüllten Feld aus. Es ist
+  aber die richtige Angabe: Die Errata-PDFs sind einseitig. Beim DB-Audit vom 03.08.2026
+  war das einer von zwei geprüften Nicht-Befunden — der zweite sind treu reproduzierte
+  WotC-Klammer-Typos, die in `config/quellfehler.py` als Quellfehler stehen und deshalb
+  ebenfalls nicht „repariert" gehören. Ein Wert, der wie ein Platzhalter aussieht, ist
+  erst dann einer, wenn die Quelle es hergibt.
 - **Ein Meldeweg, der ein Eingabezeichen nicht kennt, schweigt — er meckert nicht.**
   Der Daumen-Vergleich entfernte den Variantenselektor, nicht die fünf Hautton-Zeichen.
   Wer den Ton einmal eingestellt hat, sendet auf dem Handy fortan die geschmückte Form,

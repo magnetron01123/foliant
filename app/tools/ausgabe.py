@@ -18,12 +18,52 @@ Regel: Ausgabe weiss nichts davon, wer sie benutzt.
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 
 from app import db as _db
 from app import facetten as _facetten
 from app import glossar as _glossar
 from config import quellfehler as _quellfehler
+
+
+# Attribution ist eine LIZENZPFLICHT, keine Formatierung - deshalb haengt sie seit dem
+# 14.08.2026 an einer normalisierten Pruefung statt an `lizenz.startswith("CC-BY")`.
+# Zwei Loecher hatte der rohe Praefix-Vergleich:
+#   1. Er traf nur den Zeilenanfang in genau EINER Schreibweise. "SRD 5.2.1 (CC-BY-4.0)"
+#      oder "CC BY 4.0" lieferten still ohne Attribution aus - eine Lizenzverletzung
+#      durch Tippfehler, die keine Pruefung gemeldet haette.
+#   2. OGL kam ueberhaupt nicht vor, obwohl README.md sie fuer Open5e (srd-2014)
+#      ausdruecklich zusagt. "CC-BY-4.0 / OGL" bekam die CC-BY-Zeile und sonst nichts.
+# Der Gegentest steht in tests/test_lizenz_attribution.py und faehrt die Lizenzstrings
+# aus config/foliant.example.toml mit.
+ATTRIBUTION_CC_BY = ("Enthaelt Material aus dem System Reference Document 5.2.1 von "
+                     "Wizards of the Coast LLC, lizenziert unter CC-BY-4.0.")
+
+ATTRIBUTION_OGL = ("Enthaelt Open Game Content unter der Open Game License 1.0a; "
+                   "Attribution gemaess den Open5e-Dokumenten.")
+
+
+def attribution_fuer(lizenz) -> str | None:
+    """Die Attributionszeile zu einem Lizenzstring - oder None, wenn keine faellig ist.
+
+    Erkennt beide offenen Lizenzen unabhaengig voneinander und an beliebiger Stelle des
+    Strings; Trennzeichen und Gross-/Kleinschreibung sind egal. Traegt eine Quelle beide
+    (Open5e), stehen beide Zeilen da.
+
+    Bewusst NICHT erkannt wird "WotC (frei verteilt, keine offene Lizenz)": frei verteilt
+    ist keine offene Lizenz, und eine SRD-Attribution daran waere eine falsche Aussage
+    ueber den Rechteinhaber (CONCEPT.md par. 10, Errata-Entscheidung vom 31.07.2026).
+    """
+    if not lizenz:
+        return None
+    norm = re.sub(r"[^A-Z0-9]+", " ", str(lizenz).upper()).strip()
+    teile = []
+    if re.search(r"\bCC\s*BY\b", norm):
+        teile.append(ATTRIBUTION_CC_BY)
+    if re.search(r"\bOGL\b|\bOPEN GAME LICEN[SC]E\b", norm):
+        teile.append(ATTRIBUTION_OGL)
+    return " ".join(teile) or None
 
 
 # "Eventuell fehlt ein Buch" stand hier bis zum 04.08.2026 als Angebot - und die Runde
@@ -679,13 +719,12 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
             f"immer in dieser Reihenfolge: hoechstens EIN Angebot, dann die *-Fussnote, "
             f"ZULETZT die 📖-Belegzeile - nach ihr steht nichts mehr.")
     if e.get("lizenz"):
-        # A12/Q6: die Quellenlizenz wird im Detailpfad nicht verworfen; CC-BY verlangt
-        # die mitgefuehrte Attribution (Wortlaut konsistent mit README.md, Lizenz & Recht).
+        # A12/Q6: die Quellenlizenz wird im Detailpfad nicht verworfen; offene Lizenzen
+        # verlangen die mitgefuehrte Attribution (Wortlaut konsistent mit README.md,
+        # Lizenz & Recht).
         d["lizenz"] = e["lizenz"]
-        if str(e["lizenz"]).upper().startswith("CC-BY"):
-            d["attribution"] = ("Enthaelt Material aus dem System Reference Document "
-                                "5.2.1 von Wizards of the Coast LLC, lizenziert unter "
-                                "CC-BY-4.0.")
+        if (zusatz := attribution_fuer(e["lizenz"])):
+            d["attribution"] = zusatz
     # SYN-P0-007: Sonderquellen sind bewusst geladen - Abenteuerbaende wegen der
     # Terminologie, Errata und Auslegungen wegen ihres Inhalts -, aber jede Antwort daraus
     # traegt die Kennzeichnung. Spoiler-Schutz und 'kein Regeltext' duerfen nicht allein am

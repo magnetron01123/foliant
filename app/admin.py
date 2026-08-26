@@ -706,9 +706,50 @@ def messe_leere_sektionen(c: sqlite3.Connection) -> tuple[dict, list[str]]:
     return dict(je_quelle), beispiele
 
 
+def messe_verschmolzene_statbloecke(c: sqlite3.Connection) -> tuple[dict, list[str]]:
+    """Statbloecke, die Felder eines NACHBARN mittragen - das Spiegelsymptom zu
+    `messe_leere_sektionen`.
+
+    Dieselbe Ursache, andere Seite: Im Zweispalten-Satz der PDF-Textschicht geraet der
+    Wertekasten der einen Kreatur zwischen die Zeilen der naechsten. Wo dabei Text
+    VERLOREN geht, zaehlt `messe_leere_sektionen`; wo er beim FALSCHEN Eintrag landet,
+    zaehlt diese Funktion. Gemessen am 14.08.2026: acht Faelle, alle in srd-de.
+
+    Erkennungsmerkmal ist die STRUKTUR, nicht der Inhalt: Ein Statblock hat genau EINE
+    Herausforderungsgrad-Angabe und genau EINE Attributstabelle. Zwei davon heissen, dass
+    ein zweiter Kasten mit hineingeraten ist. Der Ghul trug so das `**HG** 8` und das
+    Regenerations-Merkmal der Geisternaga - und die Naga trug es nicht mehr.
+
+    BEWUSST NUR GEZAEHLT, NICHT REPARIERT: Eine Textchirurgie muesste entscheiden, WOHIN
+    das Fremdstueck gehoert, und der Nachbar in Eintragsreihenfolge ist nicht die Antwort
+    (zwischen Geisternaga und Ghul steht 'Gemeiner'). Eine inhaltsgebundene Regel dafuer
+    ist genau die Bauform, die am 30.07.2026 fuenfzehn Ueberschriften verschoben und 5093
+    Zeichen gekostet hat (CONCEPT.md par. 12). Die Facetten sind seit dem Fassungsabgleich
+    korrekt; beschaedigt ist nur der Fliesstext, und den haelt das Modell beim Vorlesen
+    auseinander. Die saubere Loesung sitzt in der PDF-Textschicht, nicht hier.
+
+    Rueckgabe: (Anzahl je Quellenkuerzel, bis zu drei Beispielnamen)."""
+    from collections import Counter
+
+    hg = re.compile(r"\*\*HG\*\*")
+    tabelle = re.compile(r"MOD RW MOD RW MOD RW")
+    je_quelle: Counter = Counter()
+    beispiele: list[str] = []
+    for name, kuerzel, body in c.execute(
+            "SELECT coalesce(e.name_de, e.name_en, ''), q.kuerzel, e.body_md "
+            "FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "WHERE e.kategorie = 'monster' AND e.body_md IS NOT NULL"):
+        if len(hg.findall(body)) > 1 or len(tabelle.findall(body)) > 1:
+            je_quelle[kuerzel] += 1
+            if len(beispiele) < 3:
+                beispiele.append(name)
+    return dict(je_quelle), beispiele
+
+
 def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list,
                              logik: dict | None = None,
-                             leere_sektionen: dict | None = None) -> int:
+                             leere_sektionen: dict | None = None,
+                             verschmolzen: dict | None = None) -> int:
     """Vergleicht die gemessenen Maengel mit dem dokumentierten Stand und liefert die Zahl
     der FEHLER (Anstiege).
 
@@ -752,6 +793,10 @@ def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list,
                                   leere_sektionen or {}, "leere Statblock-Sektionen")
     fehler += n
     gesunken += gs
+    n, gs = _vergleiche_je_quelle(vorhanden, basis.get("verschmolzene_statbloecke_je_quelle", {}),
+                                  verschmolzen or {}, "verschmolzene Statbloecke")
+    fehler += n
+    gesunken += gs
     soll_meta = basis.get("metadaten_namen_gesamt", 0)
     if len(meta) > soll_meta:
         print(f"NEUE Metadaten-Namen: {len(meta)} statt {soll_meta} dokumentierten  FEHLER")
@@ -788,6 +833,7 @@ def cmd_qualitaet_basis(args) -> None:
         # Dopplung, gegen die META_TABELLEN angetreten ist.
         logik, _geprueft, _bsp, _belegt = _messe_logik(c)
         leere_sektionen, _leer_bsp = messe_leere_sektionen(c)
+        verschmolzen, _versch_bsp = messe_verschmolzene_statbloecke(c)
     finally:
         c.close()
     from collections import Counter
@@ -809,6 +855,7 @@ def cmd_qualitaet_basis(args) -> None:
     neu["tp_formel_abweichungen_je_quelle"] = _sortiert(logik["tp_formel"])
     neu["attributs_abweichungen_je_quelle"] = _sortiert(logik["attribut"])
     neu["leere_sektionen_je_quelle"] = _sortiert(Counter(leere_sektionen))
+    neu["verschmolzene_statbloecke_je_quelle"] = _sortiert(Counter(verschmolzen))
     if not getattr(args, "schreiben", False):
         print("Vorschau (nichts geschrieben - mit --schreiben uebernehmen):")
         print(json.dumps({k: v for k, v in neu.items() if not k.startswith("_")},
@@ -921,7 +968,68 @@ def _pruefe_prioritaetsbaender(c: sqlite3.Connection) -> None:
                   f"prioritaet={q['prioritaet']}, erwartet {band}-{band + 9}  WARNUNG")
 
 
-def cmd_check(_args) -> None:
+def pruefe_korpus_soll(c: sqlite3.Connection, streng: bool,
+                       soll_pfad: Path | None = None) -> tuple[int, list[str]]:
+    """Vergleicht den Bestand mit `config/korpus_soll.json` - der Frage, die `admin check`
+    bis zum 14.08.2026 gar nicht stellen konnte: **ist noch alles da?**
+
+    Vorher verglich der Check die Eintragszahl nur mit der eigenen FTS-Zeilenzahl. Beide
+    fallen bei einem verlorenen Buch gemeinsam, also blieb es unauffaellig; ein Rueckgang
+    galt als 'Basiswert nachziehen'. Der Schrumpf-Schutz in `importer/schwellen.py` deckt
+    den wahrscheinlichsten Weg ab (ein Re-Import unter 50 % bricht ab), aber nicht den
+    Fall, dass eine Quelle gar nicht erst mitkommt.
+
+    `streng` trennt die beiden Welten: Am Vollbestand ist eine fehlende Quelle ein FEHLER,
+    auf der Dev-Maschine ist sie der Normalfall (7 von 18 Quellen). Ohne diese Trennung
+    waere die Pruefung lokal dauerhaft rot - und eine Kennzahl, die immer rot ist, liest
+    irgendwann niemand mehr (CONCEPT.md par. 10, Konflikt-Gate).
+
+    `soll_pfad` ist nur fuer Tests da - im Betrieb steht die Datei immer an derselben
+    Stelle. Rueckgabe: (Fehlerzahl, Ausgabezeilen).
+    """
+    import json
+
+    pfad = soll_pfad or Path(__file__).resolve().parents[1] / "config" / "korpus_soll.json"
+    if not pfad.exists():
+        return 0, [f"Korpus-Sollstand: {pfad.name} fehlt - Vergleich uebersprungen"]
+
+    soll = json.loads(pfad.read_text("utf-8"))
+    erwartet = {q["kuerzel"]: q for q in soll.get("quellen", [])}
+    ist = {r[0]: r[1] for r in c.execute(
+        "SELECT q.kuerzel, count(e.id) FROM quellen q "
+        "LEFT JOIN eintraege e ON e.quelle_id = q.id GROUP BY q.kuerzel")}
+
+    fehlt = sorted(set(erwartet) - set(ist))
+    neu = sorted(set(ist) - set(erwartet))
+    # 5 % Toleranz: Ein Re-Import derselben Quelle schwankt um einzelne Chunks, ein
+    # verlorenes Kapitel nicht. Die Schwelle ist bewusst grob - sie soll den Einbruch
+    # finden, nicht die Kommastelle.
+    geschrumpft = [(k, erwartet[k]["eintraege"], ist[k]) for k in sorted(set(erwartet) & set(ist))
+                   if ist[k] < erwartet[k]["eintraege"] * 0.95]
+
+    zeilen = [f"Korpus-Sollstand ({soll.get('erhoben_an', '?')}): "
+              f"{len(ist)}/{len(erwartet)} Quellen, {sum(ist.values())}/"
+              f"{soll.get('eintraege_gesamt', '?')} Eintraege"]
+    fehler = 0
+    if fehlt:
+        if streng:
+            zeilen.append(f"   FEHLENDE Quellen: {fehlt}  FEHLER"); fehler += len(fehlt)
+        else:
+            zeilen.append(f"   {len(fehlt)} Quellen nicht vorhanden - Dev-Subset, kein Befund "
+                          f"(am Vollbestand: `admin check --vollbestand`)")
+    for k, soll_n, ist_n in geschrumpft:
+        zeilen.append(f"   '{k}': {ist_n} statt {soll_n} Eintraege (-{soll_n - ist_n})  "
+                      f"{'FEHLER' if streng else 'WARNUNG'}")
+        fehler += 1 if streng else 0
+    if neu:
+        zeilen.append(f"   Neue Quellen (nicht im Soll): {neu}  HINWEIS - beabsichtigt? "
+                      f"Dann `make soll-vom-pi`")
+    if not (fehlt or geschrumpft or neu):
+        zeilen[0] += "  OK"
+    return fehler, zeilen
+
+
+def cmd_check(args=None) -> None:
     """Konsistenz- und Mini-Qualitaetschecks (O3-Unterstuetzung); ausfuehrlicher:
     tests/smoke_test.py gegen echte Daten."""
     c = _con()
@@ -932,6 +1040,10 @@ def cmd_check(_args) -> None:
     n_f = c.execute("SELECT count(*) FROM eintraege_fts").fetchone()[0]
     print(f"Eintraege: {n_e} / FTS-Zeilen: {n_f}" + ("  OK" if n_e == n_f else "  INKONSISTENT -> reindex-fts!"))
     fehler += 0 if n_e == n_f else 1
+    soll_fehler, soll_zeilen = pruefe_korpus_soll(c, streng=bool(getattr(args, "vollbestand", False)))
+    for zeile in soll_zeilen:
+        print(zeile)
+    fehler += soll_fehler
     verwaist = c.execute(
         "SELECT count(*) FROM eintraege WHERE edition IS NULL OR edition = '' "
         "OR quelle_id IS NULL").fetchone()[0]
@@ -1052,7 +1164,16 @@ def cmd_check(_args) -> None:
           + ("  OK" if not leere_sektionen else "  WARNUNG"))
     if leere_sektionen:
         print(f"   {leer_beispiele} ... aus {sorted(leere_sektionen)}")
-    fehler += _pruefe_gegen_basiswerte(c, meta, risse, logik, leere_sektionen)
+    # Das Spiegelsymptom desselben Zweispalten-Risses: Wo Text nicht verloren geht,
+    # sondern beim NACHBARN landet. Bis 14.08.2026 unbeobachtet - die Zahl stand als
+    # Prosa im BACKLOG (dort mit neun statt acht Namen, teils falschen) und niemand
+    # verglich sie je nach.
+    verschmolzen, versch_beispiele = messe_verschmolzene_statbloecke(c)
+    print(f"Statbloecke mit Fremdfeldern: {sum(verschmolzen.values())}"
+          + ("  OK" if not verschmolzen else "  WARNUNG"))
+    if verschmolzen:
+        print(f"   {versch_beispiele} ... aus {sorted(verschmolzen)}")
+    fehler += _pruefe_gegen_basiswerte(c, meta, risse, logik, leere_sektionen, verschmolzen)
     # Facetten-Deckung (Befund C1, 28.07.2026): Die Meta-Tabellen waren auf dem Pi LEER,
     # lokal gefuellt - und niemand merkte es, weil kein Check hinsah. WARNUNG statt Fehler:
     # eine vollstaendige Deckung ist gar nicht erreichbar (Ausruestung ohne Preisangabe
@@ -1121,6 +1242,20 @@ def cmd_manifest(_args) -> None:
     c = _con()
     try:
         print(json.dumps(berechne_manifest(c), ensure_ascii=False, indent=2))
+    finally:
+        c.close()
+
+
+def cmd_quellen_register(_args) -> None:
+    """Das Quellen-Register aus der DB auf stdout - Wiederherstellungs-Artefakt (K-01).
+
+    Duenn mit Absicht: Die Logik steht in `importer.quellen`, wo auch der Schreibweg der
+    Quellen wohnt. `admin.py` behaelt Parser und Weiterleitung."""
+    from datetime import date
+
+    c = _con()
+    try:
+        print(_quellen.exportiere_register(c, date.today().isoformat()), end="")
     finally:
         c.close()
 
@@ -1422,10 +1557,46 @@ def cmd_suchbericht(args) -> None:
                 return None
             return int(dauern[min(len(dauern) - 1, int(p * len(dauern)))])
 
+        def _juengste(tabelle: str) -> str | None:
+            """Zeitpunkt der neuesten Zeile - ueber die GESAMTE Tabelle, nicht nur im
+            Berichtsfenster. Genau darum geht es: Ein Weg, der seit sechs Wochen nichts
+            mehr liefert, hat im 30-Tage-Fenster einfach gar keine Zeile, und ein
+            leerer Abschnitt sieht aus wie ein ruhiger."""
+            try:
+                return con.execute(f"SELECT max(zeitpunkt) FROM {tabelle}").fetchone()[0]
+            except sqlite3.OperationalError:      # Tabelle entsteht erst mit der 1. Zeile
+                return None
+
+        def _alter_tage(zeitpunkt: str | None) -> float | None:
+            if not zeitpunkt:
+                return None
+            try:
+                dann = datetime.fromisoformat(zeitpunkt)
+            except ValueError:
+                return None
+            if dann.tzinfo is None:
+                dann = dann.replace(tzinfo=timezone.utc)
+            return round((datetime.now(timezone.utc) - dann).total_seconds() / 86400, 1)
+
+        letzte_abfrage, letzte_rueckmeldung = _juengste("abfragen"), _juengste("rueckmeldungen")
+
         bericht = {
             "zeitraum_tage": tage,
             "anfragen_gesamt": con.execute(
                 "SELECT count(*) FROM abfragen WHERE zeitpunkt >= ?", (seit,)).fetchone()[0],
+            # Lebenszeichen der beiden Wege (Review 14.08.2026, B-09). Der Bericht sagte
+            # bis dahin, WAS ankam, aber nie, OB noch etwas ankommt - und am 11.08.2026
+            # verschluckte ein Hautton-Emoji die Rueckmeldungen still. Niemand meldet,
+            # dass das Melden nicht geht; der Bericht kann es.
+            "letzte_abfrage": letzte_abfrage,
+            "letzte_abfrage_vor_tagen": _alter_tage(letzte_abfrage),
+            "letzte_rueckmeldung": letzte_rueckmeldung,
+            "letzte_rueckmeldung_vor_tagen": _alter_tage(letzte_rueckmeldung),
+            # NICHT hier: die beiden Selbstabschalt-Zaehler aus app/protokoll.py. Sie sind
+            # Zustand DES SCHREIBENDEN PROZESSES (Server bzw. Bot); diese CLI laeuft in
+            # einem eigenen und laese immer 0 - eine Beruhigung, die nichts gesehen hat.
+            # Sichtbar werden sie erst, wenn sie in der DB stehen; bis dahin ist das Alter
+            # der juengsten Zeile das ehrlichere Signal.
             "dauer_ms_p50": _perzentil(0.50),
             "dauer_ms_p95": _perzentil(0.95),
             # Nulltreffer ueber alle Nachschlage-Werkzeuge; Parameterfehler sind bewusst
@@ -1459,7 +1630,23 @@ def cmd_suchbericht(args) -> None:
 
         print(f"Suchbericht (letzte {tage} Tage) - {bericht['anfragen_gesamt']} Anfragen, "
               f"Antwortzeit p50 {bericht['dauer_ms_p50']} ms / p95 "
-              f"{bericht['dauer_ms_p95']} ms\n")
+              f"{bericht['dauer_ms_p95']} ms")
+
+        # Lebenszeichen VOR den Zahlen: Ein stiller Weg entwertet alles, was darunter
+        # steht - ein leerer Abschnitt sieht dann aus wie ein ruhiger Zeitraum.
+        for name, alter, wann in (("Anfragen", bericht["letzte_abfrage_vor_tagen"],
+                                   bericht["letzte_abfrage"]),
+                                  ("Rueckmeldungen", bericht["letzte_rueckmeldung_vor_tagen"],
+                                   bericht["letzte_rueckmeldung"])):
+            if wann is None:
+                print(f"  Lebenszeichen {name}: noch nie eine Zeile  HINWEIS")
+            elif alter is not None and alter > tage:
+                print(f"  Lebenszeichen {name}: zuletzt vor {alter} Tagen ({wann[:10]}) - "
+                      f"aelter als der Berichtszeitraum  WARNUNG: Weg pruefen, nicht nur "
+                      f"die Zahlen darunter lesen")
+            else:
+                print(f"  Lebenszeichen {name}: zuletzt vor {alter} Tagen ({wann[:10]})  OK")
+        print()
 
         def _abschnitt(titel: str, zeilen: list[dict], leer_ok: str) -> None:
             print(f"  {titel}:")
@@ -1575,6 +1762,10 @@ def baue_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="Bestand zusammenfassen (Import-Kontrolle)").set_defaults(func=cmd_status)
     sub.add_parser("manifest", help="Korpus-Fingerabdruck (Quellen + Inhalts-Hash) als JSON"
                    ).set_defaults(func=cmd_manifest)
+    sub.add_parser("quellen-register",
+                   help="Quellen-Register als TOML auf stdout (Wiederherstellung; "
+                        "erneuern mit `make register-vom-pi`)"
+                   ).set_defaults(func=cmd_quellen_register)
     pi = sub.add_parser("import", help="Quelle importieren")
     pi.add_argument("--quelle", required=True,
                     help="kuerzel aus config, z. B. srd-de; 'glossar' = dnddeutsch-Seeding "
@@ -1612,7 +1803,12 @@ def baue_parser() -> argparse.ArgumentParser:
     pq.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad)")
     pq.set_defaults(func=cmd_quellen_auffrischen)
     sub.add_parser("reindex-fts", help="FTS-Index neu aufbauen").set_defaults(func=cmd_reindex_fts)
-    sub.add_parser("check", help="Smoke-/Qualitaetschecks").set_defaults(func=cmd_check)
+    pch = sub.add_parser("check", help="Smoke-/Qualitaetschecks")
+    pch.add_argument("--vollbestand", action="store_true",
+                     help="Der Bestand IST der Produktionsbestand: fehlende oder "
+                          "geschrumpfte Quellen aus config/korpus_soll.json sind dann "
+                          "Fehler, nicht Dev-Subset (make check-pi setzt das)")
+    pch.set_defaults(func=cmd_check)
     pqb = sub.add_parser("qualitaet-basis",
                          help="Basiswert bekannter Datenmaengel neu erheben (nur am Vollbestand)")
     pqb.add_argument("--db", help="Ziel-DB-Pfad (Standard: [db].pfad)")

@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 11.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 14.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -11,17 +11,24 @@ Kurationsschleife lief gegen echte Nutzungsdaten. Am 31.07./01.08.2026 kam die
 Datenqualitäts-Schicht dazu — Revisions-Layer, Quellen-Provenienz, Prioritätsbänder und
 das Register der deutschen Abkürzungen (PR #80, Schema v3, auf dem Pi deployed). Das
 DB-Vollaudit vom 03.08.2026 (technisch + fachlich, Schwerpunkt Errata) bestätigte den
-Bestand als solide; seine Nacharbeiten (M8) sind abgeschlossen und deployt.
+Bestand als solide; seine Nacharbeiten sind abgeschlossen und deployt. Der Discord-Bot
+läuft seit Ende Juli in der Runde und hat seither zwei Rückmeldungsdurchgänge geliefert.
+
+Am 14.08.2026 lief ein Grundsatz-Review über das ganze Projekt. Sein Ergebnis in einem
+Satz: Die Software trägt, aber das Projekt deckt seine eigenen Zusagen an drei Stellen
+nicht mehr — Wiederherstellbarkeit, Auslieferungsweg und Buchführung über den eigenen
+Zustand. Was daraus ohne Entscheidung umsetzbar war, ist umgesetzt; der Rest steht als
+**M9**.
 
 Von den verbliebenen Punkten hängen **fast alle an einer Entscheidung oder Handlung von
 David**, nicht an Code:
 
 | offen | wartet auf |
 |---|---|
-| **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — derzeit liegen Bestand *und* alle Sicherungen auf derselben SD-Karte. **Das einzige Risiko mit unwiederbringlichem Schaden** |
+| **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — **kein Artefakt hat heute ein echtes Backup**: Jede Kopie ist entweder ein rsync-Spiegel (gibt Schaden weiter) oder ein Einzelexemplar, und Historie gibt es nur für das, was auf GitHub liegt. Zwei Verlustpfade, nicht einer — siehe M3 |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
-| **M6** Discord-Bot | Token im Entwicklerportal, Erst-Test in der Guild |
-| **M7** Discord-Ausbau | Eval-Lauf mit den DC-Fällen, Echttest nach einem Neustart |
+| **M7** Discord-Ausbau | zwei Echttests in der Guild (nach einem Neustart, und der Meldeweg mit 👎/👍) |
+| **M9** Nacharbeiten aus dem Grundsatz-Review | Off-Site-Spiegel (zurückgestellt), Restore-Probe, `constraints.txt` aus einem ARM-Build |
 | **M2** Abnahme: A4 (Websuche), E1 (Injektion) | beides nur im echten Chat prüfbar — die Server-Hälfte von E1 ist seit 03.08.2026 automatisiert |
 | **M1** dt. PHB 2024 | die PDFs |
 | **M5** Kurationsschleife | läuft — braucht aber echte Anfragen, um Signal zu liefern |
@@ -181,20 +188,6 @@ Regressionstests belegt; die Lehre zum Zeichenvergleich steht in
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking und
 Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 
-### M6 — Discord-Bot · *neu 26.07.2026*
-Foliant in Discord (`app/discord_bot/`): `/regel` + @Mention, Antworten öffnen Threads mit
-Gesprächskontext (in-memory), voller Bestand mit Guild-Sperre (SPEC §12 Nr. 6), Modell
-`claude-sonnet-5` (der gemessene Stand — gleiche Schleife wie der Eval, `app/llm.py`).
-- ✅ Code, Tests, Compose-Service, Doku
-- ⬜ **Discord-Seite (David):** Application + Bot im Entwicklerportal anlegen, Token
-  erzeugen, **Message Content Intent aktivieren** — das ist alles, was Discord nicht über
-  die API zulässt. Den Rest macht `bash deploy/discord_einrichten.sh`: Einladungslink,
-  Server-ID, Pi-`.env`, Dienststart (CONCEPT §9 „Discord-Bot einrichten")
-- ⬜ Erst-Test in der echten Guild (`/regel`, Mention, Thread-Folgefrage, Limits)
-
-**Gate:** ein Mitspieler stellt eine Regelfrage in Discord und bekommt eine belegte
-Antwort; `admin suchbericht` zeigt die Anfrage.
-
 ### M7 — Discord-Ausbau · *neu 30.07.2026 · Code ✅, zwei Nachweise offen*
 Der Bot bleibt ein **Nachschlagewerk im Gespräch** und wird kein zweites Avrae. Der
 Funktionsumfang steht (Thread-Rebuild, `/regel-privat`, `/hilfe`, Kontextmenü,
@@ -238,39 +231,52 @@ die Tokens bzw. eine echte Guild brauchen:
 **Gate:** eine Folgefrage nach einem Neustart wird mit Kontext beantwortet, und der
 DC-Lauf steht im Eval-Report.
 
-### M8 — Nacharbeiten aus dem DB-Audit · *03.08.2026 · abgeschlossen*
+### M9 — Nacharbeiten aus dem Grundsatz-Review · *14.08.2026*
 
-Vollaudit der Datenbank gegen den Pi-Vollbestand (technisch + fachlich, Schwerpunkt
-Errata): Die Errata-Integration ist **vollständig und wortgetreu** (43/43 gegen die drei
-Original-PDFs, Seitenreferenzen und Zahlenkorrekturen fachlich gegengerechnet), das
-kanonische Serving liefert überall die korrekte Fassung. Geprüfte NICHT-Befunde — die
-einseitigen Errata-PDFs (⇒ `seite = '1'` ist richtig) und treu reproduzierte
-WotC-Klammer-Typos — bitte nicht „reparieren".
+Das Review hat 32 Befunde bestätigt. Der Code-Teil ist umgesetzt (Import-Wächter,
+Rettungsschritt, Rollback-Weg, Container-Härtung, Lizenz-Attribution). Was hier steht,
+braucht eine Entscheidung oder eine Handlung an einem Gerät:
 
-Was aus dem Audit folgte, ist umgesetzt und **am 03.08.2026 auf dem Pi deployt**
-(Golden-Suite 23 passed, `check-pi` OK, Korpus-`inhalts_hash` jetzt `7bbda621…`); die
-tragenden Begründungen stehen als drei Entscheidungen in [CONCEPT.md](CONCEPT.md) §10
-(Rückweg zum Nachtrag · Quellfehler kennzeichnen statt korrigieren · Errata-Kategorien
-bleiben `regel`). Offen bleibt ein Posten, den das Audit **größer gemacht hat, als er im
-Befund stand**:
-
-**Gate erfüllt:** srd-de führt kein Monster mehr ohne eigenen Statblock (waren 13), keine
-Namensdubletten, Facetten-Deckung Monster 100 %, der korrupte Open5e-Datensatz wird beim
-Import verworfen statt gekennzeichnet — `make check-pi` und die Golden-Suite grün.
+- ⬜ **Sicherungen vom Gerät wegbekommen** (deckt sich mit M3). *Am 14.08.2026 bewusst
+  zurückgestellt.* Damit trägt `config/quellen-register.toml` im Git allein die Last: Es
+  ist derzeit das Einzige, was einen Kartenausfall überlebt. Wenn der Spiegel kommt,
+  gehören `data/backups/`, `config/foliant.toml`, `quellen/`,
+  `data/private/ddb-artifacts/` und die Protokoll-DB hinein — letztere ist heute in
+  keinem Backup-Pfad.
+- ⬜ **Buchtitel im Register.** Die 18 Titel fehlen bewusst (Entscheidung 14.08.2026,
+  öffentliches Repo). Beim Wiederherstellen sind sie von Hand nachzutragen — alles
+  andere, was Kernregel 2 zu raten verbietet, steht da.
+- ⬜ **Restore-Probe einmal wirklich fahren.** CONCEPT §8 schreibt sie vor; es gibt keinen
+  Beleg, dass sie je lief. Eine Sicherung, aus der noch nie jemand zurückgespielt hat,
+  ist eine Vermutung.
+- ⬜ **`constraints.txt` aus einem geprüften Build.** Die Pins decken 12 von rund 100
+  installierten Paketen; das Basis-Image trägt keinen Digest. Muss auf dem Pi entstehen,
+  nicht auf dem Mac — ein Mac-Pin für einen ARM64/py3.12-Build ist geraten, und geraten
+  ist hier genau das Falsche.
+- ⬜ **Serve-Pfad vom Import-Pfad trennen.** Der einzige von außen erreichbare Container
+  ist auch Import-Worker und Backup-Schreiber. Die Härtung ist nachgezogen (14.08.2026),
+  aber `read_only` bleibt unmöglich, solange Importe in demselben Container laufen. Muster
+  dafür steht bereit: der `ddb-exporter` als kurzlebiger Lauf mit eigenem Mount.
+**Gate:** Ein Ausfall der SD-Karte kostet Zeit, aber keinen Bestand, der sich nicht
+wiederherstellen lässt.
 
 ### Offene Anforderungen im Überblick
-Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11–S15, V1–V6/V8, NF1–NF3/NF5–NF7,
-B1–B8/B11–B16, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7).
+Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11–S15, V1–V6/V8, NF1–NF3/NF6–NF7,
+B1–B8/B11/B13–B16, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7, D1–D2/D4).
 
 | Anf. | Inhalt | Status | Zu |
 |---|---|---|---|
 | **S10** | Deutscher Regeltext primär (dt. 2024-Grundregelwerke) | ⬜ | M1 |
 | V7 | Erweiterbares Versionsschema | 🟡 | `edition` ist ein Textfeld — reicht heute, feinere Granularität ohne Migration nachrüstbar |
-| NF4 | Legale Quellen; DDB nur privat | 🟡 | bewusste Entscheidung, siehe [SPEC.md](SPEC.md) §12 Nr. 1 |
+| NF4 | Legale Quellen; DDB nur privat | 🟡 | Für die eigene Nutzung entschieden ([SPEC.md](SPEC.md) §12 Nr. 1). Offen ist die zweite Handlung: ob das Verfahren im öffentlichen Repo stehen soll — §4 |
+| NF5 | Keine laufenden Kosten außer Strom | 🟡 | Zwei Dienste rufen Modelle auf und kosten Guthaben: Charakterbogen (§14) und Discord-Bot (§15). Bis 14.08.2026 stand NF5 fälschlich in der Sammelklammer — die Ausnahme war nur für den Charakterbogen notiert |
+| **D3** | Kostendeckel des Bots (fail-closed) | 🟡 | Deckel greift vor dem Modellaufruf und ist getestet; er zählt aber prozesslokal und startet bei jedem Neustart neu (`restart: unless-stopped`) — M7 |
+| **D5** | Rückmeldungen 👍/👎 als Teil des Dienstes | 🟡 | Weg steht und liefert (Runden 04.08. und 11.08.), aber sein Ausfall bliebe unbemerkt — genau das ist am 11.08. passiert (Hautton-Emoji). Lebenszeichen offen, M7 |
 | NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | 🟡 | Anleitung inkl. Beta-Fallback steht (M4); offen ist nur der Nachweis am echten Mitspieler |
 | B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln **und unter Sessionlast** belegt — Zahlen in §1/M3; `make lasttest-pi` hält sie als Wächter fest (bricht bei p95 > 1000 ms ab) |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
-| O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe) |
+| **B12** | Antwortgerüst (fünf feste Slots) | 🟡 | Gerüst steht und wird deterministisch gemessen; die **Rest-Streuung ist nicht geschlossen** (§3). Bis 14.08.2026 stand B12 in der Sammelklammer als erfüllt und in §3 als offen — beides gleichzeitig |
+| O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe). **Achtung: O4 steht bei zwei Brüchen** (beide Meldeweg, 11.08.2026) — beim dritten sitzt die Regel laut eigener Doktrin im falschen Kanal und gehört verlegt, nicht nachgebessert |
 | V9 | Nachträge stehen NEBEN dem Grundtext (Errata/Regelauslegung) | 🟡 | Errata erfüllt und auf dem Pi live (43 Korrekturen, wortgetreu; seit 03.08.2026 auch der Rückweg: Detailabruf und gefilterte Suche nennen den Nachtrag). Offen nur noch: Sage Advice — §4 |
 | V10 | Quellen-Provenienz (`versions_stand`, `quell_url`, `quell_hash`, `importiert_am`) | ✅ | Schema v3; alle vier optional, nichts wird geraten |
 
@@ -374,24 +380,60 @@ Was von einem Lauf dauerhaft gilt, gehört als Aussage in §1 (offene Arbeit), �
 
 ## 3. Bekannte Rest-Posten (bewusst niedrig priorisiert)
 
-- ⬜ **8 gemeldete Facetten-Widersprüche einzeln prüfen** (am Vollbestand gemessen
-  11.08.2026, Liste über `admin import --quelle facetten`). Der Fassungsabgleich
-  korrigiert sie bewusst nicht — jeder Fall braucht eine eigene Entscheidung:
-  - `Tasha's Hideous Laughter` / `Mind Spike` in `ddb-br-2024-en`: Kopfzeile sagt
-    „Evocation Cantrip", die PHB-Fassung Grad 1 bzw. 2 → sehr wahrscheinlich
-    Import-/Chunking-Schaden in dieser Quelle.
-  - `Summon Celestial/Elemental/Fey` (PHB, Grad 5/4/3) gegen die deutschen SRD-Einträge
-    „Celestisches Wesen beschwören" & Co. (Grad 7/6/5): erst klären, ob die Glossarzeile
-    (Quelle: *Tashas Kessel mit Allem*, 2014) hier überhaupt dieselben Zauber verbindet.
-  - `Krabbe`/`Crab`: deutsche und englische Fassung nennen verschiedene HG (2 gegen 0) —
-    eine der beiden hat den Wert des Nachbar-Statblocks erwischt.
-- ⬜ **9 verschmolzene Statblöcke im `srd-de`-Import** (Ghul, Dschinni, Worg, Lemure,
-  Priester, Schreckhahn, Gruftschrecken, Hobgoblin-Hauptmann, Junger Bronzedrache): Der
-  Text enthält jeweils Teile des Nachbareintrags. Die **Facetten** sind seit dem
-  Fassungsabgleich richtig (er hat am 11.08.2026 den Ghul von HG 8 auf 1 gezogen — der
-  Wert stammte vom Geister-Naga-Kopf im selben Chunk), der **Text** bleibt beschädigt — das Modell muss ihn beim
-  Vorlesen auseinanderhalten (im Simulationslauf hat es das getan und dazugesagt).
-  Saubere Lösung ist eine Chunking-Korrektur im Importer, nicht im Serving-Pfad.
+- ⬜ **Unbebrückte deutsche Regelbegriffe** (B3, geparkt am 14.08.2026, Buchführung in
+  `config/rueckmeldungen_stand.json`). Die Suche nach `grapple` liefert das Monster
+  `Grappler` auf Platz 1, die gesuchte Regel `Gepackt halten` erst auf Platz 5 und nur als
+  Textfund — ihr fehlt die Glossarbrücke. Verschärfend greift der eingebaute Wächter genau
+  hier daneben: `fuzz.ratio('grapple','grappler')` ergibt 93,3, damit gilt der
+  Monstertreffer als Namenstreffer und der Relevanz-Hinweis bleibt aus — das System meldet
+  Zuversicht an der Stelle, an der es sich irrt.
+
+  *Am 14.08.2026 nachgemessen:* Die früher genannten „514 von 1.616 Namen ohne
+  Glossarzeile" sind zu hoch gegriffen. Der Bestand führt Regelbegriffe mit Qualifikator
+  (`Bezaubert (Zustand)`), das Glossar ohne (`Bezaubert`) — ein naiver Abgleich zählt
+  jeden davon als Lücke. Was wirklich fehlt, sind einzelne Regelbegriffe wie
+  `Gepackt halten`; für die gibt es beidseitig **keinen** Eintragsbeleg, weil die
+  Fassung 2024 Grapple als Option des unbewaffneten Schlags führt und nicht als eigene
+  Aktion. Ein kuratiertes Paar bräuchte deshalb einen Beleg aus dem Fließtext beider
+  Fassungen — machbar, aber Handarbeit, und Raten ist hier verboten.
+- ⬜ **2 verbleibende Facetten-Widersprüche** (ursprünglich 8; am 14.08.2026 einzeln
+  geprüft, drei aufgelöst, drei waren gar keine — siehe unten):
+  - `Tasha's Hideous Laughter` / `Mind Spike` in `ddb-br-2024-en`: dort Grad 0 und Schule
+    „Hervorrufung", während `ddb-phb-2024-en` **und** `open5e-srd-2024` übereinstimmend
+    Grad 1/Verzauberung bzw. 2/Erkenntnis nennen. Zwei unabhängige Quellen gegen eine →
+    Extraktionsschaden in `ddb-br-2024-en` (die Kopfzeile eines Zaubertricks aus dem
+    Nachbarblock). Offen ist nur noch die Form der Behebung: Re-Import dieser Quelle oder
+    Eintrag ins Quellfehler-Register.
+  - `Krabbe`: srd-de nennt HG 2, `open5e-srd-2024` für `Crab` HG 0. Am PDF nachgesehen —
+    die deutsche Textschicht liefert `**Sprachen HG** 2 (EP 450; ÜB +2)` mit verschmolzenen
+    Labels, und direkt daneben steht „Der **Hai** kann nur unter Wasser atmen". Der HG 2
+    gehört dem Hai; Krabbes eigener Wert fehlt in der deutschen Fassung ganz. Ihn aus der
+    englischen zu übernehmen wäre quellenübergreifendes Raten — die ehrliche Behebung ist
+    NULL statt 2 (dieselbe Doktrin wie bei `seltenheit`).
+  - *Aufgelöst:* `Summon Celestial/Elemental/Fey` waren **kein** Datenfehler. Die drei
+    deutschen Namen trugen je zwei offizielle englische Partner; die Grade des deutschen
+    SRD (7/5/6) gehören zu *Conjure* Celestial/Elemental/Fey, nicht zu *Summon* (5/4/3).
+    Der Fassungsabgleich verglich zwei verschiedene Zauber. Die Brücke ist seit dem
+    14.08.2026 nach Grad kanonisiert ([CONCEPT.md](CONCEPT.md) §10).
+- ⬜ **8 verschmolzene Statblöcke im `srd-de`-Import** (Ausgewachsener Bronzedrache,
+  Dryade, Ghul, Lemure, Priester, Schreckhahn, Seevettel, Worg): Der Text enthält jeweils
+  Felder des Nachbareintrags. Die **Facetten** sind seit dem Fassungsabgleich richtig (er
+  hat am 11.08.2026 den Ghul von HG 8 auf 1 gezogen — der Wert stammte vom Geisternaga-Kopf
+  im selben Chunk), der **Text** bleibt beschädigt; das Modell hält ihn beim Vorlesen
+  auseinander (im Simulationslauf hat es das getan und dazugesagt).
+
+  *Am 14.08.2026 nachgemessen und korrigiert:* Es sind acht, nicht neun. Dschinni,
+  Gruftschrecken und Hobgoblin-Hauptmann sind nicht betroffen, dafür fehlten drei andere —
+  eine Zahl, die als Prosa dasteht, rechnet niemand nach. Seither zählt sie
+  `admin check` gegen einen Basiswert (`config/qualitaet_basis.json`).
+
+  Die Ursache ist **nicht** das Chunking, sondern die **Zweispalten-Textschicht des PDF**:
+  Schon im Roh-Markdown steht der Schwanz der Geisternaga zwischen Ghuls Typzeile und
+  Ghuls eigener `**RK**`-Zeile. Dieselbe Ursache wie die fünf leeren Sektionen — dort geht
+  Text verloren, hier landet er beim Falschen. Eine nachträgliche Textchirurgie ist bewusst
+  **verworfen**: Sie müsste entscheiden, wohin das Fremdstück gehört, und der Nachbar in
+  Eintragsreihenfolge ist nicht die Antwort (zwischen Geisternaga und Ghul steht
+  „Gemeiner"). Die Behebung sitzt in einer spaltenbewussten Extraktion.
 
 Aus der abgeschlossenen Datenbank-QS und dem Tiefen-Audit der DDB-Druck-Bücher. Alles
 dokumentiert, nichts blockiert die Runde.
@@ -442,6 +484,26 @@ Alle docken laut Datenmodell **ohne Neuaufbau** an (NF7).
 ### Ideen mit Klärungsbedarf
 
 Vorgemerkt, aber noch nicht als Arbeit beschlossen — hier steht die Frage, nicht die Antwort.
+
+#### Gehört die DDB-Extraktionskette in ein öffentliches Repo? · *14.08.2026*
+
+NF4 wägt ab, ob **David** die eigenen Bücher extrahieren darf: ToS-Grauzone, bewusst
+akzeptiert. Das Repo ist öffentlich, und was dort steht, ist eine **zweite Handlung** —
+`importer/ddb_exporter/` dokumentiert die Endpunktkette, den Schlüsselbezug und die
+SQLCipher-Parameter. Die drei Stellen, die über Öffentlichkeit sprechen (README, LICENSE,
+CONCEPT „Inhalte-Recht"), argumentieren durchweg über **Inhalte** („enthält keine
+kommerziellen Regelinhalte") und behandeln die **Methode** nirgends als eigenen
+Gegenstand. Der heutige Zustand ist damit nicht „bewusst getragen", sondern nie
+entschieden.
+
+Entlastend: null Forks, null Stars; der Spike-Test arbeitet nur mit synthetischen Daten,
+weist also keine funktionierende Kette nach; der Code filtert strikt auf `isOwned`.
+
+Vier Wege, keiner davon hier vorweggenommen: privat schalten · den DDB-Teil in ein
+privates Repo auslagern (erhält das erklärte Ziel „SRD-Pipeline als Referenzbeispiel") ·
+History-Rewrite · das Risiko bewusst tragen und die Entscheidung erstmals aufschreiben.
+Solange nichts geforkt ist, ist der Preis jeder Option niedrig. **Eine belastbare
+rechtliche Bewertung ist anwaltlich, nicht hier.**
 
 #### Prioritätsbänder: Band 10 vor Band 20?
 

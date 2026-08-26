@@ -1,0 +1,137 @@
+{
+  "_zweck": "Erwarteter Korpus-Sollstand des Produktionsbestands. Vergleichsgrundlage fuer `admin check --vollbestand`: Eine fehlende Quelle oder ein Einbruch der Eintragszahl faellt damit auf, statt als neuer Basiswert durchzugehen.",
+  "_pflege": "Nach einem beabsichtigten Import neu erheben: make soll-vom-pi (schreibt diese Datei).",
+  "_ohne_titel": "Buchtitel stehen bewusst NICHT hier - ob DDB-Titel oeffentlich stehen duerfen, ist offen (BACKLOG M9). Die Kuerzel stehen ohnehin schon im Repo.",
+  "erhoben_an": "2026-08-14",
+  "schema_version": 3,
+  "eintraege_gesamt": 12545,
+  "glossar_zeilen": 3340,
+  "quellen": [
+    {
+      "kuerzel": "srd-de",
+      "edition": "2024",
+      "sprache": "de",
+      "inhaltsart": "regelwerk",
+      "eintraege": 1616
+    },
+    {
+      "kuerzel": "ddb-basic-rules-2014-en",
+      "edition": "2014",
+      "sprache": "en",
+      "inhaltsart": "regelwerk",
+      "eintraege": 1559
+    },
+    {
+      "kuerzel": "ddb-br-2024-en",
+      "edition": "2024",
+      "sprache": "en",
+      "inhaltsart": "regelwerk",
+      "eintraege": 2214
+    },
+    {
+      "kuerzel": "ddb-cosco-en",
+      "edition": "2014",
+      "sprache": "en",
+      "inhaltsart": "abenteuer_setting",
+      "eintraege": 3
+    },
+    {
+      "kuerzel": "ddb-ee-en",
+      "edition": "2014",
+      "sprache": "en",
+      "inhaltsart": "regelwerk",
+      "eintraege": 96
+    },
+    {
+      "kuerzel": "ddb-mcv1-en",
+      "edition": "2014",
+      "sprache": "en",
+      "inhaltsart": "regelwerk",
+      "eintraege": 40
+    },
+    {
+      "kuerzel": "ddb-phb-2024-en",
+      "edition": "2024",
+      "sprache": "en",
+      "inhaltsart": "regelwerk",
+      "eintraege": 1581
+    },
+    {
+      "kuerzel": "ddb-rthw-en",
+      "edition": "2024",
+      "sprache": "en",
+      "inhaltsart": "abenteuer_setting",
+      "eintraege": 792
+    },
+    {
+      "kuerzel": "ddb-wa-en",
+      "edition": "2014",
+      "sprache": "en",
+      "inhaltsart": "abenteuer_setting",
+      "eintraege": 116
+    },
+    {
+      "kuerzel": "efota-en",
+      "edition": "2024",
+      "sprache": "en",
+      "inhaltsart": "abenteuer_setting",
+      "eintraege": 202
+    },
+    {
+      "kuerzel": "frhof-en",
+      "edition": "2024",
+      "sprache": "en",
+      "inhaltsart": "abenteuer_setting",
+      "eintraege": 281
+    },
+    {
+      "kuerzel": "open5e-srd-2024",
+      "edition": "2024",
+      "sprache": "en",
+      "inhaltsart": "regelwerk",
+      "eintraege": 981
+    },
+    {
+      "kuerzel": "errata-dmg-2024-en",
+      "edition": "2024",
+      "sprache": "en",
+      "inhaltsart": "errata",
+      "eintraege": 3
+    },
+    {
+      "kuerzel": "errata-mm-2025-en",
+      "edition": "2024",
+      "sprache": "en",
+      "inhaltsart": "errata",
+      "eintraege": 25
+    },
+    {
+      "kuerzel": "errata-phb-2024-en",
+      "edition": "2024",
+      "sprache": "en",
+      "inhaltsart": "errata",
+      "eintraege": 18
+    },
+    {
+      "kuerzel": "phb-2014-de",
+      "edition": "2014",
+      "sprache": "de",
+      "inhaltsart": "regelwerk",
+      "eintraege": 1539
+    },
+    {
+      "kuerzel": "xgte-2014-de",
+      "edition": "2014",
+      "sprache": "de",
+      "inhaltsart": "regelwerk",
+      "eintraege": 929
+    },
+    {
+      "kuerzel": "scag-2014-de",
+      "edition": "2014",
+      "sprache": "de",
+      "inhaltsart": "abenteuer_setting",
+      "eintraege": 550
+    }
+  ]
+}

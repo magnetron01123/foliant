@@ -127,6 +127,36 @@ def test_suchbericht_aggregiert_kurationssignale(bestand, capsys):
     assert bericht["dauer_ms_p50"] is not None
 
 
+def test_suchbericht_meldet_das_alter_der_juengsten_zeile(bestand, capsys):
+    """Lebenszeichen (Review 14.08.2026, B-09): Der Bericht sagte bisher, WAS ankam, aber
+    nie, OB noch etwas ankommt. Am 11.08.2026 verschluckte ein Hautton-Emoji die
+    Rueckmeldungen still - niemand meldet, dass das Melden nicht geht."""
+    su.foliant_suche_bestand("Feuerball")
+    adm.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=True))
+    bericht = json.loads(capsys.readouterr().out)
+    assert bericht["letzte_abfrage"] is not None
+    assert bericht["letzte_abfrage_vor_tagen"] < 1
+    # Ohne je eine Markierung bleibt der zweite Weg ehrlich leer statt "0 Tage".
+    assert bericht["letzte_rueckmeldung"] is None
+    assert bericht["letzte_rueckmeldung_vor_tagen"] is None
+
+
+def test_stiller_weg_wird_zur_warnung_nicht_zum_ruhigen_zeitraum(bestand, capsys):
+    """Eine Zeile, die aelter ist als das Berichtsfenster, taucht in KEINEM Abschnitt auf -
+    der Bericht saehe ohne Lebenszeichen aus wie eine ruhige Woche."""
+    su.foliant_suche_bestand("Feuerball")          # legt die Protokoll-DB ueberhaupt erst an
+    con = sqlite3.connect(_protokoll.protokoll_pfad())
+    con.execute("DELETE FROM abfragen")            # nur eine ALTE Zeile soll uebrig bleiben
+    con.execute("INSERT INTO abfragen (zeitpunkt, werkzeug, anzahl_treffer, suchweg) "
+                "VALUES ('2026-01-01T00:00:00+00:00', 'suche_bestand', 1, '-')")
+    con.commit()
+    con.close()
+    adm.cmd_suchbericht(argparse.Namespace(tage=7, limit=10, json=False))
+    ausgabe = capsys.readouterr().out
+    assert "Lebenszeichen Anfragen" in ausgabe
+    assert "WARNUNG" in ausgabe and "aelter als der Berichtszeitraum" in ausgabe
+
+
 def test_suchbericht_ohne_protokoll_ist_freundlich(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(_protokoll, "protokoll_pfad", lambda: tmp_path / "leer.sqlite")
     adm.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=False))
