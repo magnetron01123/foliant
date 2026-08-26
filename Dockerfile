@@ -11,6 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Ohne das puffert Python seinen stdout, sobald er kein Terminal ist - und in einem
+# langlebigen Serverprozess wird der Puffer nie geleert. Die Startzeile mit dem
+# ZUGANGSMODUS (app/server.py) stand deshalb in KEINEM Container-Log: Nach einem
+# Neustart war aus `docker compose logs` nicht zu erkennen, ob der Dienst mit eigenem
+# Geheimpfad oder hinter dem Router hochgekommen ist (Befund 26.08.2026). Uvicorns
+# eigene Zeilen kamen an, weil sie ueber `logging` auf stderr gehen - was den Verlust
+# der stdout-Zeilen zusaetzlich verdeckt hat.
+ENV PYTHONUNBUFFERED=1
+
 # Abhaengigkeiten zuerst (Layer-Cache)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

@@ -145,14 +145,19 @@ if os.environ.get("FOLIANT_PRODUKTION", "aus").strip().lower() == "an":
             "IP-Allowlist (FOLIANT_IP_FILTER=an): ohne eigenen Geheimpfad ist sie die "
             "einzige Pruefung im Dienst - Start abgebrochen statt fail-open.")
 
+# Die Zeile beschreibt, wo `app.server:app` den MCP AUFHAENGT - nicht, was gerade
+# bedient wird: Der Discord-Container importiert dieses Modul ebenfalls (fuer das
+# mcp-Objekt, Tools laufen dort in-process) und hat gar keine HTTP-Flaeche. Formuliert
+# ist sie deshalb als Aussage ueber die ASGI-App, nicht ueber den Betrieb.
 if _ZUGANG == MODUS_ROUTER:
-    print("foliant: MCP-Endpoint unter /mcp - der Geheimpfad gehoert dem vorgelagerten "
-          "mcp-router (FOLIANT_ZUGANG=router).")
+    print("foliant: app.server:app haengt den MCP unter /mcp auf - den Geheimpfad haelt "
+          "der vorgelagerte mcp-router (FOLIANT_ZUGANG=router).")
 elif _PFAD_TOKEN:
-    print(f"foliant: MCP-Endpoint unter /{_PFAD_TOKEN[:4]}…{_BASIS_PFAD} (Geheimpfad aktiv)")
+    print(f"foliant: app.server:app haengt den MCP unter /{_PFAD_TOKEN[:4]}…{_BASIS_PFAD} "
+          f"auf (eigener Geheimpfad aktiv).")
 else:
-    print("foliant: KEIN Geheimpfad gesetzt (FOLIANT_PFAD_TOKEN) - Endpoint liegt offen "
-          "unter /mcp (ok fuer Dev, nicht fuer den Pi-Betrieb).")
+    print("foliant: app.server:app haengt den MCP ohne Geheimpfad unter /mcp auf "
+          "(FOLIANT_PFAD_TOKEN leer - ok fuer Dev, nicht fuer den Pi-Betrieb).")
 
 app = ZugriffsFilter(mcp.http_app(path=_MCP_PFAD,
                                   stateless_http=bool(_SERVER_KONFIG.get("stateless_http", True))))
