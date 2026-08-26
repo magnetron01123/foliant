@@ -554,7 +554,7 @@ def _mcp_url_aus_env() -> str | None:
     Zusammenbau ergaebe eine URL, die es nicht mehr gibt. Ein toter Connector-Link ist
     schlechter als gar keiner: er sieht richtig aus, und wer ihn eintraegt, sucht den
     Fehler bei sich. Also: FOLIANT_MCP_URL setzen (`make url SERVICE=foliant` im Projekt
-    "Interneteingang" druckt sie) oder es bleibt beim Hinweis."""
+    "Ingress Gateway" druckt sie) oder es bleibt beim Hinweis."""
     url = (os.environ.get("FOLIANT_MCP_URL") or "").strip()
     if url:
         return url
