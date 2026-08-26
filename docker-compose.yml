@@ -130,9 +130,14 @@ services:
     pids_limit: 128
     # Bis 14.08.2026 ohne Healthcheck: Ein Dienst, der laeuft, aber nichts mehr bedient,
     # stand in `docker ps` als "Up" - genau die Auskunft, die eine Stoerung verdeckt.
-    # `/` genuegt als Sonde (die Kennwortseite antwortet auch ohne Anmeldung).
+    #
+    # Sonde ist `/health`, NICHT `/` (Korrektur 26.08.2026): Die Kennwortseite antwortet
+    # zwar ohne Anmeldung, aber mit 401 - und `urlopen` wirft darauf. Der Container stand
+    # damit dauerhaft auf `unhealthy`, obwohl die Seite tadellos bediente. Das ist der
+    # gleiche Schaden wie vorher, nur mit umgekehrtem Vorzeichen: ein Waechter, der
+    # grundlos schreit, wird genauso ignoriert wie einer, der schweigt.
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/').status==200 else 1)"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health').status==200 else 1)"]
       interval: 60s
       timeout: 5s
       retries: 3
