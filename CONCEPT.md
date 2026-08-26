@@ -546,16 +546,16 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
   Host-Port, und `/ready` liegt hinter dem Router-Token.
 - **Uptime:** externer Monitor auf `https://dnd.magnetron.me/health` (Website) und
   `https://mcp.magnetron.me/health` (Router; beide immer offen, nur Status).
-- **Off-Site-Backup (nächtlich):** `admin backup` erstellt ein **konsistentes** Online-Backup
-  über die SQLite-Backup-API (verträgt einen laufenden Import — anders als `cp`/`rsync` auf
-  die offene Datei), **verifiziert** es (integrity_check + FTS-Zeilengleichheit; scheitert die
-  Prüfung, wird die Datei verworfen) und hält die letzten `--behalten` Stände (Default 14).
-  Danach das Verzeichnis auf ein zweites Gerät spiegeln — **der Spiegel-Schritt ist die
-  eigentliche Off-Site-Sicherung:**
-  ```
-  0 3 * * * docker compose exec -T foliant python -m app.admin backup && \
-            rsync -a <db-ordner>/backups/ <offsite>:foliant-backups/
-  ```
+- **Nächtliche Sicherung:** `make sicherung-cron-pi` trägt den Cron ein (03:00, idempotent;
+  `make sicherung-cron-pi-aus` nimmt ihn zurück). `admin backup` erstellt ein **konsistentes**
+  Online-Backup über die SQLite-Backup-API (verträgt einen laufenden Import — anders als
+  `cp`/`rsync` auf die offene Datei), **verifiziert** es (integrity_check + FTS-Zeilengleichheit;
+  scheitert die Prüfung, wird die Datei verworfen) und hält die letzten `--behalten` Stände
+  (Default 14). Das Protokoll steht auf dem Pi in `data/sicherung.log`.
+- **Off-Site-Spiegel — der Schritt, der noch fehlt (BACKLOG M3):** Alle Stände liegen auf
+  **derselben SD-Karte** wie der Bestand; keiner überlebt deren Ausfall. Erst das Spiegeln auf
+  ein zweites Gerät ist die Sicherung. Ziel und Zugang legt der Betreiber fest — die Sicherungen
+  enthalten private Buchinhalte, das ist keine beiläufige Wahl.
   Restore-Probe: ein Backup als `data/foliant.sqlite` zurückspielen → `make test-daten` muss
   bestehen.
 - **Token-Rotation bei Leak:** neuen Token in `.env` → `docker compose up -d --build foliant`

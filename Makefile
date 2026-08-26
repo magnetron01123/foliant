@@ -152,6 +152,40 @@ test-golden-pi: _pi-ziel
 check-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin check --vollbestand'
 
+# M3: die naechtliche Sicherung als Cron auf dem Pi einrichten.
+#
+# Bis zum 26.08.2026 stand diese Zeile nur als Copy-Paste-Block in CONCEPT.md - und war
+# nie eingerichtet: `crontab -l` sagte "no crontab for pi", das juengste Backup war 15
+# Tage alt. Eine Zeile, die man abtippen muss, wird eben nicht abgetippt; deshalb steht
+# sie jetzt als Ziel da, so wie `bericht-pi` es vorgemacht hat.
+#
+# Idempotent ueber die Kennung am Zeilenende: ein zweiter Lauf ERSETZT den Eintrag,
+# statt ihn zu verdoppeln. `admin backup` sichert ueber die SQLite-Backup-API
+# (vertraegt einen laufenden Import), verifiziert das Ergebnis und haelt die letzten 14
+# Staende - der Cron muss davon nichts wissen.
+#
+# Absoluter Docker-Pfad, weil cron mit einem minimalen PATH startet. Auf dem Pi geprueft
+# (`env -i sh -c 'command -v docker'`), aber ein Cron-Job, der nur in der Login-Shell
+# funktioniert, faellt genau dann aus, wenn niemand hinsieht.
+#
+# ⚠️ DAS IST DIE HALBE SICHERUNG. Solange die Staende auf DERSELBEN SD-Karte liegen wie
+# der Bestand, ueberlebt keiner von ihnen deren Ausfall. Der Spiegel auf ein zweites
+# Geraet ist der eigentliche Schutz und braucht ein Ziel, das David festlegt (BACKLOG M3).
+SICHERUNG_ZEIT ?= 0 3 * * *
+.PHONY: sicherung-cron-pi
+sicherung-cron-pi: _pi-ziel
+	@ssh $(PI) '(crontab -l 2>/dev/null | grep -v "# foliant-sicherung"; \
+	  echo "$(SICHERUNG_ZEIT) cd $$HOME/foliant && /usr/bin/docker compose exec -T foliant python -m app.admin backup >> $$HOME/foliant/data/sicherung.log 2>&1 # foliant-sicherung") \
+	  | crontab -'
+	@echo "--- eingetragen ---"
+	@ssh $(PI) 'crontab -l | grep "# foliant-sicherung"'
+
+# Den Cron-Eintrag wieder entfernen - der Rueckweg gehoert zum Einrichten dazu.
+.PHONY: sicherung-cron-pi-aus
+sicherung-cron-pi-aus: _pi-ziel
+	@ssh $(PI) 'crontab -l 2>/dev/null | grep -v "# foliant-sicherung" | crontab -'
+	@echo "Cron-Eintrag entfernt (die vorhandenen Sicherungen bleiben)."
+
 # Den Korpus-Sollstand nach einem BEABSICHTIGTEN Import neu erheben. Rein lesend auf dem
 # Pi, schreibt lokal `config/korpus_soll.json` - die Datei gehoert in den Commit, sonst
 # meldet der naechste `check-pi` die neue Quelle als Abweichung.

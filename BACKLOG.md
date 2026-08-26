@@ -58,10 +58,14 @@ Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
   dem 26.08.2026 der geteilte MCP-Router des Geräts, die Allowlist bleibt im Dienst
   ([CONCEPT.md](CONCEPT.md) §9).
 - ✅ **Backup-Werkzeug:** `admin backup` (konsistent, verifiziert, rotierend).
-- ⬜ **Cron + Off-Site-Spiegel einrichten** — das Spiegeln ist die eigentliche Sicherung.
-  Ziel/Zugang muss David festlegen.
+- ⬜ **Off-Site-Spiegel einrichten** — der Cron läuft seit dem 26.08.2026 (`make
+  sicherung-cron-pi`, nächtlich, verifiziert, 14 Stände), aber **alle Stände liegen auf
+  derselben SD-Karte wie der Bestand**. Erst das Spiegeln auf ein zweites Gerät ist die
+  Sicherung. Ziel/Zugang muss David festlegen — die Sicherungen tragen private
+  Buchinhalte, deshalb ist das keine beiläufige Wahl.
 - ⬜ **Uptime-Monitoring** auf `/health` (z. B. UptimeRobot) — zwei Ziele, seit die
-  Website und der MCP auf getrennten Hostnamen liegen.
+  Website und der MCP auf getrennten Hostnamen liegen. Braucht ein Konto und ein Gerät
+  außerhalb des Pi: ein Wächter, der mit dem Bewachten stirbt, meldet nichts.
 - ✅ **Antwortzeiten gemessen — auch unter Sessionlast** (B9). Einzeln am Pi-Vollbestand
   25–192 ms (§2). Nebenläufig mit `make lasttest-pi` (28.07.2026):
 
