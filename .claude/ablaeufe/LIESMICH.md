@@ -1,8 +1,14 @@
 # Abläufe für wiederkehrende Arbeit
 
-Diese Dateien beschreiben Arbeitsabläufe, die **zeitgesteuert von selbst laufen** — als
-geplante Aufgaben in Claude Code auf Davids Mac (`~/.claude/scheduled-tasks/`). Sie sind
-**keine** Slash-Befehle: David soll nichts tippen müssen.
+Diese Dateien beschreiben wiederkehrende Arbeitsabläufe. Ein Teil davon läuft
+**zeitgesteuert von selbst** — als geplante Aufgabe in Claude Code auf Davids Mac
+(`~/.claude/scheduled-tasks/`); die übrigen stößt David an. Welcher Ablauf wie läuft,
+steht in der Spalte „Läuft". Slash-Befehle sind es in keinem Fall.
+
+> Die Spalte „Läuft" ist eine Behauptung über den Zustand von Davids Mac, nicht über
+> dieses Repo. Steht dort „geplant", muss dazu eine registrierte Aufgabe existieren —
+> ein Ordner unter `~/.claude/scheduled-tasks/` allein genügt nicht, der kann seine
+> Registrierung verlieren, ohne dass es auffällt. Im Zweifel gegenprüfen.
 
 Der Prompt jeder Aufgabe verweist auf die Datei hier, statt den Ablauf zu kopieren. So
 liegt er versioniert im Repo, ist im PR reviewbar, und eine Änderung am Ablauf wirkt beim
@@ -10,10 +16,15 @@ nächsten Lauf — ohne die Aufgabe anzufassen.
 
 | Datei | Läuft | Was sie tut |
 |---|---|---|
-| `rueckmeldungen.md` | 2×/Woche | 👎/👍 der Runde auswerten, gegen die Doku prüfen, Freigabekarten vorlegen |
-| `ddb-abgleich.md` | monatlich | Fehlen gekaufte DDB-Bücher im Bestand? Cobalt-Cookie noch gültig? |
-| `egress-abgleich.md` | monatlich | Passen die IP-Bereiche in `app/zugriff.py` noch zu Anthropics Liste? |
+| `rueckmeldungen.md` | geplant, 2×/Woche | 👎/👍 der Runde auswerten, gegen die Doku prüfen, Freigabekarten vorlegen |
+| `ddb-abgleich.md` | auf Zuruf | Fehlen gekaufte DDB-Bücher im Bestand? Cobalt-Cookie noch gültig? |
+| `egress-abgleich.md` | auf Zuruf | Passen die IP-Bereiche in `app/zugriff.py` noch zu Anthropics Liste? |
 | `import.md` | auf Zuruf | Geführter Quellen-Import (neue PDFs / DDB) — kein Zeitplan, David stößt ihn an |
+
+Die beiden Abgleiche liefen bis August 2026 monatlich als geplante Aufgabe. David hat sie
+am 29.08.2026 abgeschaltet; die Abläufe hier bleiben gültig und werden bei Bedarf von Hand
+angestoßen. Beim Egress-Abgleich heißt das: Ändert Anthropic seine IP-Bereiche, fällt es
+erst auf, wenn jemand nachsieht oder der Connector nicht mehr durchkommt.
 
 ## Zwei Regeln, die für alle gelten
 
