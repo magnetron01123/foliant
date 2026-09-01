@@ -268,7 +268,7 @@ def test_unbekannter_zugangsmodus_bricht_ab(monkeypatch):
 
 
 def test_compose_erfuellt_den_router_vertrag():
-    """Der Vertrag des geteilten Routers ist reine Namenskonvention (~/ingress-gateway,
+    """Der Vertrag des geteilten Routers ist reine Namenskonvention (~/cloudflare-tunnel,
     README "The contract"): Container `<name>-mcp`, Port 8000, MCP unter /mcp, Netz
     `mcp-net`. Nichts davon steht in einer Konfigurationsdatei des Routers - eine
     Umbenennung nimmt den Dienst STILL vom Netz, kein Log sagt etwas. Genau deshalb

@@ -1,6 +1,6 @@
 services:
-  # MCP-Server. Haengt seit dem 26.08.2026 am GETEILTEN Router (Projekt "Ingress Gateway",
-  # auf dem Pi ~/ingress-gateway), der alle MCP-Server des Geraets unter mcp.magnetron.me
+  # MCP-Server. Haengt seit dem 26.08.2026 am GETEILTEN Router (Projekt "Cloudflare Tunnel",
+  # auf dem Pi ~/cloudflare-tunnel), der alle MCP-Server des Geraets unter mcp.magnetron.me
   # bedient. Dessen Vertrag ist reine Namenskonvention und steht in dessen README ("The contract"): der
   # Container heisst `<name>-mcp`, lauscht auf 8000, serviert MCP unter `/mcp` und haengt
   # im Netz `mcp-net`. Alle vier Punkte sind unten verdrahtet - der CONTAINERNAME IST die
@@ -13,7 +13,7 @@ services:
     # Endpoint unter dem nackten /mcp - ein veroeffentlichter Port waere damit genau der
     # direkte Weg am Router vorbei, den der Geheimpfad frueher zugehalten hat. Lokal
     # nachsehen geht ueber `docker compose exec` (CONCEPT.md §9), von aussen ueber den
-    # Router (`make smoke-pi SERVICE=foliant` im Projekt "Ingress Gateway").
+    # Router (`make smoke-pi SERVICE=foliant` im Projekt "Cloudflare Tunnel").
     networks:
       - mcp-net
     volumes:
@@ -195,7 +195,7 @@ services:
     logging: *logdeckel
 
   # Gateway (Caddy) vor der WEBSITE. Origin von dnd.magnetron.me, erreicht ueber den
-  # geteilten web-tunnel-Connector (~/ingress-gateway) im Netz web-edge.
+  # geteilten web-tunnel-Connector (~/cloudflare-tunnel) im Netz web-edge.
   # Seit dem 26.08.2026 routet er NUR noch die Website: der MCP liegt am geteilten Router
   # unter mcp.magnetron.me und ist auf dieser Domain bewusst nicht mehr erreichbar - ein
   # Eingang, ein Geheimnis. Die Pfad-Regeln stehen in deploy/Caddyfile.
@@ -280,7 +280,7 @@ services:
       - no-new-privileges:true
 
 # Beide Netze gehoeren KEINEM Stack: sie werden ausserhalb jedes Compose-Projekts
-# angelegt (`make net` im Projekt "Ingress Gateway"), damit ein
+# angelegt (`make net` im Projekt "Cloudflare Tunnel"), damit ein
 # `docker compose down` hier niemandem sonst das Netz wegnimmt. `external: true` heisst
 # ausserdem: fehlt eines, verweigert compose den Start, statt ein leeres Ersatznetz zu
 # bauen, in dem der Dienst still unerreichbar waere.
