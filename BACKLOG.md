@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 26.08.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 02.09.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -55,8 +55,9 @@ Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
 ### M3 — Betrieb für die Gruppe · *klein · Zugang ✅, Betrieb teilweise*
 - ✅ **Zugang:** Geheimpfad + IP-Allowlist, von außen verifiziert (Fremd-IPs bekommen für
   jeden Pfad außer `/health` einheitlich 403 — kein Pfad-Orakel). Den Geheimpfad hält seit
-  dem 26.08.2026 der geteilte MCP-Router des Geräts, die Allowlist bleibt im Dienst
-  ([CONCEPT.md](CONCEPT.md) §9).
+  dem 26.08.2026 der geteilte MCP-Router des Geräts; die Allowlist liegt seit dem
+  02.09.2026 als WAF-Regel an der Cloudflare-Kante und damit außerhalb dieses Repos —
+  nachweisbar nur noch durch Messung von außen ([CONCEPT.md](CONCEPT.md) §9).
 - ✅ **Backup-Werkzeug:** `admin backup` (konsistent, verifiziert, rotierend).
 - ⬜ **Off-Site-Spiegel einrichten** — der Cron läuft seit dem 26.08.2026 (`make
   sicherung-cron-pi`, nächtlich, verifiziert, 14 Stände), aber **alle Stände liegen auf

@@ -4,8 +4,8 @@ diese Datei uebersetzt nur zwischen Discord-Ereignissen und diesen Bausteinen un
 bleibt damit der einzige manuell abgenommene Teil.
 
 Zugriffsmodell (SPEC §12): Die Tools laufen in-process (fastmcp.Client an
-app.server.mcp, wie der Eval-Harness) - bewusst am ZugriffsFilter vorbei, der nur den
-HTTP-Weg schuetzt. Der Bot hat KEINE eingehende HTTP-Flaeche; Zugangskontrolle ist die
+app.server.mcp, wie der Eval-Harness) - bewusst an allem vorbei, was den HTTP-Weg
+schuetzt. Der Bot hat KEINE eingehende HTTP-Flaeche; Zugangskontrolle ist die
 Guild-Sperre plus die Schranken."""
 from __future__ import annotations
 

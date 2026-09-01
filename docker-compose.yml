@@ -34,15 +34,15 @@ services:
       #   router     = der geteilte mcp-router (Endpoint /mcp, ohne eigenes Token)
       # Vorbelegung hier `router`, weil genau das der Pi-Betrieb seit dem 26.08.2026 ist;
       # der Code-Standard bleibt `geheimpfad` (wer nichts setzt, bekommt die strengere
-      # Variante). Die IP-Allowlist gilt in BEIDEN Modi - sie prueft CF-Connecting-IP,
-      # und der Header ueberlebt Cloudflare -> mcp-router -> Dienst unveraendert.
+      # Variante). Die IP-Allowlist stand bis zum 02.09.2026 zusaetzlich IM Dienst; sie
+      # liegt jetzt als WAF-Regel an der Cloudflare-Kante und damit ausserhalb dieses
+      # Repos (app/zugriff.py, CONCEPT.md §9).
       - FOLIANT_ZUGANG=${FOLIANT_ZUGANG:-router}
       - FOLIANT_PFAD_TOKEN=${FOLIANT_PFAD_TOKEN:-}
-      - FOLIANT_IP_FILTER=${FOLIANT_IP_FILTER:-an}
-      - FOLIANT_ERLAUBTE_IPS=${FOLIANT_ERLAUBTE_IPS:-}
       # SYN-P1-004: Der Container IST Produktion - ohne vollstaendig konfigurierten Zugang
-      # bricht der Start ab statt fail-open zu servieren. Was "vollstaendig" heisst, haengt
-      # am Modus: Geheimpfad -> Token >= 16 Zeichen; Router -> IP-Allowlist AN.
+      # bricht der Start ab statt fail-open zu servieren. Das greift seit dem 02.09.2026
+      # nur noch im Geheimpfad-Modus (Token >= 16 Zeichen); im Router-Modus gibt es hier
+      # nichts mehr zu pruefen, weil der ganze Schutz ausserhalb liegt.
       - FOLIANT_PRODUKTION=${FOLIANT_PRODUKTION:-an}
     healthcheck:
       # /ready statt /health (SYN-P1-011): prueft DB+FTS, nicht nur den Prozess.
