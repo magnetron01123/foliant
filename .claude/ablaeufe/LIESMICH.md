@@ -18,7 +18,7 @@ nächsten Lauf — ohne die Aufgabe anzufassen.
 |---|---|---|
 | `rueckmeldungen.md` | geplant, 2×/Woche | 👎/👍 der Runde auswerten, gegen die Doku prüfen, Freigabekarten vorlegen |
 | `ddb-abgleich.md` | auf Zuruf | Fehlen gekaufte DDB-Bücher im Bestand? Cobalt-Cookie noch gültig? |
-| `egress-abgleich.md` | auf Zuruf | Passen die IP-Bereiche in `app/zugriff.py` noch zu Anthropics Liste? |
+| `egress-abgleich.md` | auf Zuruf | Passen die IP-Bereiche in der Cloudflare-WAF-Regel noch zu Anthropics Liste — und greift sie überhaupt noch? |
 | `import.md` | auf Zuruf | Geführter Quellen-Import (neue PDFs / DDB) — kein Zeitplan, David stößt ihn an |
 
 Die beiden Abgleiche liefen bis August 2026 monatlich als geplante Aufgabe. David hat sie

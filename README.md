@@ -21,13 +21,16 @@ ausgefüllten offiziellen deutschen WotC-Bogen 2024, druckbar.
    keine offizielle Übersetzung existiert.
 3. **Version immer:** aktuelle Regeln (2024) als Standard; ältere Stände klar gekennzeichnet.
 
-## Stand (26.08.2026)
+## Stand (02.09.2026)
 
 **Läuft, wird benutzt — der Tisch-Test steht noch aus.** Der Server läuft auf einem
 Raspberry Pi 4: 12 545 Einträge aus 18 Quellen (dt. SRD 5.2.1, drei deutsche 2014-Bücher,
 Open5e, D&D-Beyond-Bücher, drei Errata-Bände), 6 Tools, Zugang über geheimen Pfad +
 IP-Allowlist. Seit dem 26.08.2026 hängt der MCP am geteilten Router des Geräts
-(`mcp.magnetron.me`), `dnd.magnetron.me` trägt nur noch die Website.
+(`mcp.magnetron.me`), `dnd.magnetron.me` trägt nur noch die Website; seit dem 02.09.2026
+liegt die IP-Allowlist als WAF-Regel an der Cloudflare-Kante statt im Dienst — sie schützt
+damit alle MCP-Server des Geräts, ist aber nicht mehr versioniert oder testbar
+([CONCEPT.md](CONCEPT.md) §9).
 Charakterbogen-Übersetzer und Discord-Bot laufen als eigene Container daneben; der Bot beantwortet seit Ende Juli Fragen der Runde und hat zwei
 Rückmeldungsdurchgänge geliefert. Maßgeblich für den Bestand ist immer `admin status`.
 

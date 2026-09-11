@@ -1,114 +1,34 @@
-"""Zugangsschutz-Tests (M3, NF3/NF4): Geheimpfad + IP-Allowlist (app/zugriff.py).
+"""Zugangsschutz-Tests (M3, NF3/NF4): Geheimpfad und Zugangsmodus (app/zugriff.py).
 
-Der Filter ist ein reiner ASGI-Wrapper -> hier ohne HTTP-Client direkt mit
-handgebauten Scopes getrieben (dependency-frei, deckt genau die Entscheidungslogik ab).
-Kernszenarien: Anthropic-Egress darf; fremde Edge-IP wird 403; lokale Aufrufe ohne
-CF-Header (compose-Healthcheck, Container-curl) duerfen; /health bleibt immer offen;
-FOLIANT_IP_FILTER=aus schaltet ab. Geheimpfad: server.app routet unter /<token>/mcp,
-der alte /mcp existiert dann nicht mehr."""
+Geprueft wird, was dieser Dienst selbst entscheidet: server.app routet im
+Geheimpfad-Modus unter /<token>/mcp und der alte /mcp existiert dann nicht mehr; im
+Router-Modus serviert er das nackte /mcp; ein unbekannter FOLIANT_ZUGANG bricht ab.
+
+Was hier NICHT mehr geprueft werden kann: ob der Endpoint tatsaechlich geschuetzt ist.
+Die IP-Allowlist ist am 02.09.2026 in eine WAF-Regel an der Cloudflare-Kante gewandert
+(Begruendung und Preis: app/zugriff.py, CONCEPT.md §9). Im Router-Modus liegt damit
+KEINE Pruefung mehr im Dienst - eine gruene Testsuite sagt ueber die Erreichbarkeit von
+aussen nichts aus."""
 from __future__ import annotations
 
-import asyncio
 import importlib
 
-from app.zugriff import ZugriffsFilter
 from tests.hilfen import SCHEMA
-
-
-def _scope(pfad="/geheim/mcp", cf_ip=None, peer="203.0.113.9"):
-    headers = [(b"host", b"dnd.example")]
-    if cf_ip is not None:
-        headers.append((b"cf-connecting-ip", cf_ip.encode()))
-    return {"type": "http", "method": "POST", "path": pfad,
-            "headers": headers, "client": (peer, 12345)}
-
-
-def _rufe(filter_, scope) -> int | str:
-    """Treibt den Filter; Rueckgabe: 'durchgelassen' oder der gesendete Statuscode."""
-    ergebnis = {}
-
-    async def innen(scope, receive, send):
-        ergebnis["durch"] = True
-
-    async def send(nachricht):
-        if nachricht["type"] == "http.response.start":
-            ergebnis["status"] = nachricht["status"]
-
-    async def receive():
-        return {"type": "http.request", "body": b"", "more_body": False}
-
-    filter_.app = innen
-    asyncio.run(filter_(scope, receive, send))
-    return "durchgelassen" if ergebnis.get("durch") else ergebnis.get("status")
-
-
-def test_anthropic_egress_darf():
-    f = ZugriffsFilter(None, aktiv=True, extra_ranges=[])
-    # 160.79.104.0/21 deckt 104.0-111.255; Rand-IPs beidseitig pruefen.
-    assert _rufe(f, _scope(cf_ip="160.79.104.1")) == "durchgelassen"
-    assert _rufe(f, _scope(cf_ip="160.79.111.254")) == "durchgelassen"
-    assert _rufe(f, _scope(cf_ip="2607:6bc0::1")) == "durchgelassen"
-
-
-def test_fremde_edge_ip_wird_blockiert():
-    f = ZugriffsFilter(None, aktiv=True, extra_ranges=[])
-    assert _rufe(f, _scope(cf_ip="160.79.112.1")) == 403      # knapp AUSSERHALB des /21
-    assert _rufe(f, _scope(cf_ip="203.0.113.50")) == 403      # beliebige Fremd-IP
-    assert _rufe(f, _scope(cf_ip="nicht-parsebar")) == 403    # kaputter Header -> zu
-
-
-def test_lokale_aufrufe_ohne_cf_header_duerfen():
-    f = ZugriffsFilter(None, aktiv=True, extra_ranges=[])
-    assert _rufe(f, _scope(cf_ip=None, peer="127.0.0.1")) == "durchgelassen"   # Container-curl
-    assert _rufe(f, _scope(cf_ip=None, peer="192.168.131.5")) == "durchgelassen"  # LAN
-    assert _rufe(f, _scope(cf_ip=None, peer="testclient")) == "durchgelassen"  # Test-Harness
-    # ECHTE oeffentliche IP (Doku-Ranges wie 203.0.113.x gelten in Python als is_private!):
-    assert _rufe(f, _scope(cf_ip=None, peer="8.8.8.8")) == 403                 # oeffentlich
-
-
-def test_health_bleibt_immer_offen():
-    f = ZugriffsFilter(None, aktiv=True, extra_ranges=[])
-    assert _rufe(f, _scope(pfad="/health", cf_ip="203.0.113.50")) == "durchgelassen"
-
-
-def test_filter_abschaltbar_und_extra_ranges():
-    aus = ZugriffsFilter(None, aktiv=False, extra_ranges=[])
-    assert _rufe(aus, _scope(cf_ip="203.0.113.50")) == "durchgelassen"
-    heim = ZugriffsFilter(None, aktiv=True, extra_ranges=["203.0.113.0/24"])
-    assert _rufe(heim, _scope(cf_ip="203.0.113.50")) == "durchgelassen"
-
-
-def test_lifespan_scope_laeuft_durch():
-    """uvicorn startet die App ueber den Wrapper - lifespan darf nie gefiltert werden."""
-    f = ZugriffsFilter(None, aktiv=True, extra_ranges=[])
-    gesehen = {}
-
-    async def innen(scope, receive, send):
-        gesehen["typ"] = scope["type"]
-
-    f.app = innen
-    asyncio.run(f({"type": "lifespan"}, None, None))
-    assert gesehen["typ"] == "lifespan"
-
 
 def test_geheimpfad_verschiebt_mcp_endpoint(monkeypatch):
     """Mit FOLIANT_PFAD_TOKEN liegt der MCP-Endpoint unter /<token>/mcp; /mcp existiert
     nicht mehr. Ohne Token bleibt /mcp (Dev). Geprueft an den echten Starlette-Routen."""
     import app.server as server
 
-    def routen(app_) -> set[str]:
-        innen = app_.app if isinstance(app_, ZugriffsFilter) else app_
-        return {r.path for r in innen.routes}
-
     monkeypatch.setenv("FOLIANT_PFAD_TOKEN", "test-token-123")
     neu = importlib.reload(server)
-    assert any(p.startswith("/test-token-123/mcp") for p in routen(neu.app)), routen(neu.app)
-    assert not any(p == "/mcp" or p.startswith("/mcp/") for p in routen(neu.app))
-    assert "/health" in routen(neu.app)                     # Health bleibt an der Wurzel
+    assert any(p.startswith("/test-token-123/mcp") for p in _routen(neu.app)), _routen(neu.app)
+    assert not any(p == "/mcp" or p.startswith("/mcp/") for p in _routen(neu.app))
+    assert "/health" in _routen(neu.app)                    # Health bleibt an der Wurzel
 
     monkeypatch.delenv("FOLIANT_PFAD_TOKEN")
     alt = importlib.reload(server)
-    assert any(p.startswith("/mcp") for p in routen(alt.app))
+    assert any(p.startswith("/mcp") for p in _routen(alt.app))
 
 
 def test_produktionsmodus_bricht_ohne_starkes_token_ab(monkeypatch):
@@ -129,13 +49,6 @@ def test_produktionsmodus_bricht_ohne_starkes_token_ab(monkeypatch):
     monkeypatch.delenv("FOLIANT_PRODUKTION")
     monkeypatch.delenv("FOLIANT_PFAD_TOKEN")
     importlib.reload(server)
-
-
-def test_pfad_wird_in_logs_redigiert():
-    """SYN-P1-004: der Pfad IST das Secret (Geheimpfad-Token) - Blockier-Logs kuerzen es."""
-    f = ZugriffsFilter(None, aktiv=True, extra_ranges=[])
-    red = f._redigiere_pfad("/supergeheimestoken123/mcp")
-    assert "supergeheimestoken123" not in red and red.startswith("/supe")
 
 
 def test_serving_verbindung_ist_read_only(tmp_path):
@@ -199,8 +112,9 @@ def test_ready_endpoint_spiegelt_db_zustand(tmp_path, monkeypatch):
 # --------------------------------------------------------------------------------------
 
 def _routen(app_) -> set[str]:
-    innen = app_.app if isinstance(app_, ZugriffsFilter) else app_
-    return {r.path for r in innen.routes}
+    # Seit dem 02.09.2026 ist `server.app` die nackte ASGI-App: der ZugriffsFilter, der
+    # sie bis dahin umschloss, ist mit der IP-Allowlist entfallen (app/zugriff.py).
+    return {r.path for r in app_.routes}
 
 
 def test_router_modus_serviert_das_nackte_mcp(monkeypatch):
@@ -220,34 +134,6 @@ def test_router_modus_serviert_das_nackte_mcp(monkeypatch):
 
     monkeypatch.delenv("FOLIANT_ZUGANG")
     monkeypatch.delenv("FOLIANT_PFAD_TOKEN")
-    importlib.reload(server)
-
-
-def test_router_modus_bleibt_in_produktion_fail_closed(monkeypatch):
-    """Der Router-Modus lockert die Fail-closed-Zusage nicht, er verschiebt nur, WORAUF
-    sie sich richtet: ohne eigenen Geheimpfad ist die IP-Allowlist die einzige Pruefung
-    IM Dienst. `FOLIANT_IP_FILTER=aus` waere damit ein voellig offener MCP - und bricht
-    den Start ab, genau wie ein fehlendes Token es im Geheimpfad-Modus tut."""
-    import pytest
-
-    import app.server as server
-
-    monkeypatch.setenv("FOLIANT_PRODUKTION", "an")
-    monkeypatch.setenv("FOLIANT_ZUGANG", "router")
-    monkeypatch.delenv("FOLIANT_PFAD_TOKEN", raising=False)
-
-    monkeypatch.setenv("FOLIANT_IP_FILTER", "aus")
-    with pytest.raises(RuntimeError, match="IP-Allowlist"):
-        importlib.reload(server)
-
-    # Mit aktiver Allowlist startet er - OHNE eigenes Token, das ist der Punkt.
-    monkeypatch.setenv("FOLIANT_IP_FILTER", "an")
-    neu = importlib.reload(server)
-    assert any(p.startswith("/mcp") for p in _routen(neu.app))
-
-    monkeypatch.delenv("FOLIANT_PRODUKTION")
-    monkeypatch.delenv("FOLIANT_ZUGANG")
-    monkeypatch.delenv("FOLIANT_IP_FILTER")
     importlib.reload(server)
 
 

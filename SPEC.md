@@ -1,7 +1,7 @@
 # Foliant — Spezifikation (das verbindliche „Was")
 
 **D&D-5e-Regelassistent (Fassung 2024), Deutsch-first · self-hosted MCP-Server**
-**Rev. 11 · Stand: 26.08.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
+**Rev. 11 · Stand: 02.09.2026** *(Rev. 1–8: Anforderungskatalog; Rev. 9: Konsolidierung,
 Widersprüche aufgelöst, Charakterbogen-Übersetzer aufgenommen; Rev. 10: Datenqualitäts-Schicht
 — S12, V9, V10, B11 — und die Nummerierung aus Rev. 8 geheilt; Rev. 11: der Discord-Bot wird
 Anforderung — §15, D1–D5 —, NF5 nennt beide Modelldienste, NF4 trennt eigene Nutzung von
@@ -412,7 +412,8 @@ So sind sie entschieden — Nr. 6 ist ein späterer Nachtrag:
    NF3 ist zu lesen als **„nicht öffentlich"**, nicht als „nur für eine Person". Die
    DDB-Bücher werden per `ins_hauptbestand = true` in den bedienten Bestand gemergt und der
    Runde über den zugangsgeschützten Endpoint bereitgestellt — **bewusste, protokollierte
-   Eigentümer-Entscheidung (11.07.2026)**, abgesichert durch Geheimpfad + IP-Allowlist. Die
+   Eigentümer-Entscheidung (11.07.2026)**, abgesichert durch Geheimpfad und IP-Allowlist
+   (letztere seit dem 02.09.2026 an der Cloudflare-Kante statt im Dienst). Die
    Weitergabe von URL und Inhalten über die Runde hinaus bleibt untersagt.
 
 2. **Frühere Annahme „DDB-Extraktion über die MrPrimate-Toolchain" — überholt.** Der

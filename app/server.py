@@ -23,8 +23,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.db import lade_konfig
-from app.zugriff import (MODUS_GEHEIMPFAD, MODUS_ROUTER, ZugriffsFilter,
-                         ip_filter_aktiv, zugangsmodus)
+from app.zugriff import MODUS_GEHEIMPFAD, MODUS_ROUTER, zugangsmodus
 from config.stil import INSTRUCTIONS
 
 # SYN-P1-003 (codex TECH-020): alle sechs Tools sind strikt lesend/idempotent -
@@ -121,16 +120,16 @@ _MCP_PFAD = _BASIS_PFAD if _ZUGANG == MODUS_ROUTER or not _PFAD_TOKEN \
     else f"/{_PFAD_TOKEN}{_BASIS_PFAD}"
 
 # SYN-P1-004 (fail-open): Compose defaultete das Token auf leer - der Endpoint lag dann
-# still offen unter /mcp, geschuetzt nur durch die geteilte IP-Allowlist. Im
-# Produktionsmodus (FOLIANT_PRODUKTION=an, setzt der Container) bricht der Start ab, wenn
-# der gewaehlte Zugang nicht VOLLSTAENDIG konfiguriert ist; Dev/Tests bleiben lauffaehig.
+# still offen unter /mcp. Im Produktionsmodus (FOLIANT_PRODUKTION=an, setzt der Container)
+# bricht der Start deshalb ab, wenn der Geheimpfad-Modus nicht VOLLSTAENDIG konfiguriert
+# ist; Dev/Tests bleiben lauffaehig.
 #
-# Die Pruefung haengt am Modus, weil die Schutzschicht am Modus haengt (26.08.2026):
-#  - geheimpfad: das Token IST der Schutz -> mindestens 16 Zeichen, sonst Abbruch.
-#  - router:     das Token gehoert dem Router, hier bleibt als Pruefung IM Dienst allein
-#                die IP-Allowlist -> `FOLIANT_IP_FILTER=aus` waere ein voellig offener
-#                MCP und bricht deshalb ab. Der Router-Modus lockert die Fail-closed-
-#                Zusage also nicht, er verschiebt nur, WORAUF sie sich richtet.
+# Fuer den Router-Modus gibt es hier seit dem 02.09.2026 NICHTS mehr zu pruefen, und das
+# ist eine bewusst hingenommene Luecke: Der Zugangsschutz liegt seither vollstaendig
+# ausserhalb dieses Repos - Geheimpfad im Router, IP-Allowlist als WAF-Regel an der
+# Cloudflare-Kante (CONCEPT.md §9). Kein Start und kein Test hier kann noch feststellen,
+# ob dieser Schutz ueberhaupt existiert. Faellt die WAF-Regel weg, laeuft Foliant
+# fail-OPEN an, ohne dass etwas rot wird.
 if os.environ.get("FOLIANT_PRODUKTION", "aus").strip().lower() == "an":
     if _ZUGANG == MODUS_GEHEIMPFAD and len(_PFAD_TOKEN) < 16:
         raise RuntimeError(
@@ -139,11 +138,6 @@ if os.environ.get("FOLIANT_PRODUKTION", "aus").strip().lower() == "an":
             "\"import secrets; print(secrets.token_urlsafe(18))\") - Start abgebrochen "
             "statt fail-open. Hinter dem geteilten Router stattdessen "
             "FOLIANT_ZUGANG=router setzen; das Token haelt dann der Router.")
-    if _ZUGANG == MODUS_ROUTER and not ip_filter_aktiv():
-        raise RuntimeError(
-            "FOLIANT_PRODUKTION=an mit FOLIANT_ZUGANG=router verlangt eine aktive "
-            "IP-Allowlist (FOLIANT_IP_FILTER=an): ohne eigenen Geheimpfad ist sie die "
-            "einzige Pruefung im Dienst - Start abgebrochen statt fail-open.")
 
 # Die Zeile beschreibt, wo `app.server:app` den MCP AUFHAENGT - nicht, was gerade
 # bedient wird: Der Discord-Container importiert dieses Modul ebenfalls (fuer das
@@ -159,8 +153,8 @@ else:
     print("foliant: app.server:app haengt den MCP ohne Geheimpfad unter /mcp auf "
           "(FOLIANT_PFAD_TOKEN leer - ok fuer Dev, nicht fuer den Pi-Betrieb).")
 
-app = ZugriffsFilter(mcp.http_app(path=_MCP_PFAD,
-                                  stateless_http=bool(_SERVER_KONFIG.get("stateless_http", True))))
+app = mcp.http_app(path=_MCP_PFAD,
+                   stateless_http=bool(_SERVER_KONFIG.get("stateless_http", True)))
 
 if __name__ == "__main__":
     mcp.run()

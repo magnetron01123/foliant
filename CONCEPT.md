@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 26.08.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 02.09.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -880,45 +880,52 @@ Seit dem DDB-Import serviert der MCP **private Buchinhalte** → der Endpoint is
    | Modus | Endpoint | Geheimpfad hält | Produktion verlangt |
    |---|---|---|---|
    | `geheimpfad` (Standard) | `/<FOLIANT_PFAD_TOKEN>/mcp` | Foliant selbst | Token ≥ 16 Zeichen |
-   | `router` (Pi seit 26.08.2026) | `/mcp` | der `mcp-router` | `FOLIANT_IP_FILTER=an` |
+   | `router` (Pi seit 26.08.2026) | `/mcp` | der `mcp-router` | nichts *im Dienst* |
 
    Die Architekturregel lautet: **der Geheimpfad gehört dem Router, nicht dem Dienst.** Der
    Router prüft sein Token, entfernt es und reicht `/mcp` weiter — ein zweites Token im
    Dienst beantwortete genau diese Anfrage mit 404, und der Container sähe dabei gesund aus.
-   Der Router-Modus gibt die Fail-closed-Zusage **nicht** auf, er verschiebt nur, worauf sie
-   sich richtet: ohne eigenes Token ist die IP-Allowlist die einzige Prüfung *im Dienst*, und
-   `FOLIANT_IP_FILTER=aus` bricht den Produktionsstart deshalb genauso hart ab, wie es früher
-   ein fehlendes Token tat.
+   Im Router-Modus prüft der Dienst seit dem 02.09.2026 **gar nichts** mehr: kein eigenes
+   Token, keine eigene Allowlist. Die Fail-closed-Zusage gilt dort nicht mehr — Foliant
+   startet auch dann sauber, wenn vor ihm nichts steht.
 
    Geheimer **Pfad**, nicht geheime Subdomain — Subdomains leaken über
    Zertifikats-Transparenz-Logs. Rotation im Router-Modus: `MCP_PFAD_TOKEN` im Projekt
    „Cloudflare Tunnel“ — das betrifft dann **alle** MCP-Server des Geräts.
 
-2. **IP-Allowlist** — nur Anthropics veröffentlichte Egress-Ranges (`160.79.104.0/21`,
-   `2607:6bc0::/48`) erreichen den MCP-Pfad; geprüft an der von der Cloudflare-Edge gesetzten
-   `CF-Connecting-IP`. Der Header überlebt die Kette Cloudflare → `mcp-router` → Dienst
-   unverändert (geprüft 26.08.2026), die Schicht wirkt also hinter dem Router genauso.
-   Eine geleakte URL ist damit **nur über Claude** nutzbar, nie per curl/Scanner/Browser.
-   Lokale Aufrufe ohne Edge-Header bleiben möglich; `/health` bleibt immer offen. Schalter:
-   `FOLIANT_IP_FILTER=aus`, `FOLIANT_ERLAUBTE_IPS=<cidr,cidr>`.
+2. **IP-Allowlist an der Cloudflare-Kante** — nur Anthropics veröffentlichte Egress-Ranges
+   (`160.79.104.0/21`, `2607:6bc0::/48`) kommen durch; alles andere bekommt 403, bevor die
+   Anfrage den Pi erreicht. Eine geleakte URL ist damit **nur über Claude** nutzbar, nie per
+   curl/Scanner/Browser. Die Regel gilt für den **ganzen Hostnamen**, also für jeden
+   MCP-Dienst hinter dem Router — auch für jeden, der später dazukommt.
 
-**Der 403-Test ist Pflicht nach jeder Änderung am Weg nach außen** (Router-Caddyfile,
-Netze, Modus) — er läuft im `mcp-net`, weil nichts mehr einen Host-Port veröffentlicht:
+   Cloudflare → Security → Sicherheitsregeln → benutzerdefinierte Regel, Aktion **Block**
+   (steht dort seit dem 02.09.2026 als „MCP nur aus Anthropic-Egress"):
+   ```
+   (http.host eq "mcp.magnetron.me" and http.request.uri.path ne "/health" and not ip.src in {160.79.104.0/21 2607:6bc0::/48})
+   ```
+   `http.host` **niemals** weglassen — sonst trifft die Regel `dnd.magnetron.me` und sperrt
+   die Website für alle aus. `uri.path` statt `uri`, sonst umginge `?x=…` die Regel.
+   `/health` bleibt ausgenommen, weil dort das externe Uptime-Monitoring hängt. Regel **nie
+   löschen und neu anlegen** — im Löschfenster steht alles offen.
+
+   Bis zum 02.09.2026 lief dieselbe Prüfung zusätzlich **im Dienst** (ASGI-Wrapper in
+   `app/zugriff.py`, gegen `CF-Connecting-IP`). Sie ist entfallen, weil die Kanten-Regel sie
+   für alle Dienste auf einmal erledigt; zwei Kopien wären bei jeder Änderung an Anthropics
+   Bereichen zweimal nachzuziehen gewesen.
+
+**Was dieser Umzug gekostet hat, offen gesagt:** Der gesamte Zugangsschutz liegt jetzt
+außerhalb dieses Repos. Er ist nicht versioniert, `make test` sagt über ihn nichts, und wer
+die Regel im Dashboard löscht, macht jeden MCP des Geräts still öffentlich — nichts wird
+dabei rot. Der Nachweis ist deshalb eine **Messung von außen**, Pflicht nach jeder Änderung
+am Weg nach außen (Router-Caddyfile, Netze, Modus, WAF-Regel):
 ```sh
-docker run --rm --network mcp-net curlimages/curl:latest -s -o /dev/null -w '%{http_code}\n' \
-     -H 'CF-Connecting-IP: 8.8.8.8' http://foliant-mcp:8000/mcp     # muss 403 sein
+curl -s -o /dev/null -w '%{http_code}\n' https://mcp.magnetron.me/nichts-hier   # muss 403 sein
+curl -s -o /dev/null -w '%{http_code}\n' https://mcp.magnetron.me/health        # muss 200 bleiben
 ```
-Ginge `CF-Connecting-IP` unterwegs verloren, wäre die IP-Allowlist *lautlos* aus (der Peer
-wäre dann der Router = private IP = durchgelassen).
-
-**Optionales Edge-Upgrade** (Cloudflare → Security rules, Aktion Block):
-```
-(http.host eq "mcp.magnetron.me" and http.request.uri.path contains "/mcp" and not ip.src in {160.79.104.0/21 2607:6bc0::/48})
-```
-`http.host` **niemals** weglassen (sonst trifft die Regel Davids Smarthome-Tunnel).
-`uri.path` statt `uri` (sonst umgeht `?x=/mcp` die Regel). `contains "/mcp"` hält den Token
-aus der Cloudflare-Konfiguration. Regel **nie löschen und neu anlegen** — im Löschfenster
-fehlt die Edge-Schicht.
+403 statt der 404 des Routers heißt: die Regel greift. Kommt 404, ist sie weg — und mit ihr
+der Schutz. Gemessen am 02.09.2026, zusammen mit einem lesenden Tool-Aufruf durch Claude als
+Gegenprobe, dass der erlaubte Weg offen bleibt.
 
 **Rollback auf den eigenen Weg:** `FOLIANT_ZUGANG=geheimpfad` plus Token in die Pi-`.env`,
 `gateway` wieder mit einer MCP-Route versehen, `docker compose up -d --build foliant gateway`.
@@ -1020,7 +1027,8 @@ Connector läuft ohne Änderung weiter.
 
 | Entscheidung | Warum |
 |---|---|
-| **Geheimpfad + IP-Allowlist statt OAuth** | Claude-Connectors können keine Custom-Header senden; ein server-seitiger Filter ist versioniert und testbar; OAuth wäre für < 5 Nutzer überdimensioniert |
+| **Geheimpfad + IP-Allowlist statt OAuth** | Claude-Connectors können keine Custom-Header senden; OAuth wäre für < 5 Nutzer überdimensioniert. Die Allowlist lag zunächst bewusst im Server (versioniert und testbar) und ist am 02.09.2026 an die Cloudflare-Kante gewandert — siehe die Zeile darunter |
+| **IP-Allowlist an der Kante statt im Dienst** (02.09.2026) | Auf dem Pi stehen inzwischen mehrere MCP-Server hinter *einem* Hostnamen. Eine Allowlist je Dienst hieße, Anthropics Egress-Bereiche bei jeder Änderung *n*-mal nachzuziehen — und jeder neue Dienst müsste daran denken. Eine WAF-Regel auf `mcp.magnetron.me` erledigt das einmal, für alle, und blockt schon vor dem Pi. Der Preis ist der Verlust der Prüfbarkeit: Die Regel liegt im Dashboard, nicht im Repo, kein Test sieht sie, und ihr Verschwinden macht jeden Dienst still öffentlich. Deshalb ist der 403-Nachweis von außen (§9) Pflicht statt Kür |
 | **Der Geheimpfad gehört dem Router, nicht dem Dienst** (26.08.2026) | Auf dem Pi stehen inzwischen mehrere MCP-Server. Jeder mit eigenem Hostname, eigenem DNS-Eintrag, eigenem Token wäre dieselbe Arbeit mal *n* — der geteilte Router macht daraus einen Eingang. Ein Dienst, der zusätzlich auf seinem eigenen Token besteht, antwortet auf das weitergereichte `/mcp` mit 404 und sieht dabei gesund aus. Foliant kann deshalb **beides** (`FOLIANT_ZUGANG`), und der Router-Modus ersetzt die Token-Prüfung durch eine Pflicht-IP-Allowlist — die Fail-closed-Zusage wandert mit, statt zu verschwinden. Der Preis steht im README des Routers: **ein** Token öffnet alle Dienste dahinter |
 | **Kein eigener Tunnel-Connector mehr** (26.08.2026) | Foliants `cloudflared` war ein *zweiter* Connector desselben Tunnels „mcp" — dieselbe Verbindung, zweimal betrieben, aus zwei Repositorys gepflegt. Die Tunnel liegen jetzt im fremden Stack `~/cloudflare-tunnel`, getrennt nach MCP und Website: ein Connector erreicht nur Container in seinen eigenen Netzen, ein Website-Deploy kann also keinen MCP-Server mitreißen. Foliants Repository trägt dafür kein Tunnel-Token mehr |
 | **Ein internes Schema für alle Quellen** | einheitlicher Tool-Output; Provenienz bleibt sichtbar |
@@ -1615,17 +1623,21 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   `.env` bzw. `data/` — beide gitignored. `.env.example` zeigt die Variablen ohne Werte. Die
   Tunnel-Token gehören seit dem 26.08.2026 gar nicht mehr hierher: sie liegen in den `.env`
   der eigenständigen Tunnel-Stacks.
-- **Zugang** (`app/zugriff.py`): geheimer Pfad-Token + IP-Allowlist auf `CF-Connecting-IP`.
-  Im Modus `router` hält den Pfad der vorgelagerte `mcp-router`, die Allowlist bleibt im
-  Dienst. `/health` bleibt offen (nur Status, keine Inhalte — trägt das Monitoring).
+- **Zugang** (`app/zugriff.py`): geheimer Pfad-Token; den Modus wählt `FOLIANT_ZUGANG`.
+  Im Modus `router` hält den Pfad der vorgelagerte `mcp-router`, und der Dienst prüft dann
+  selbst **nichts** mehr — die IP-Allowlist liegt seit dem 02.09.2026 als WAF-Regel an der
+  Cloudflare-Kante (§9). `/health` bleibt offen (nur Status, keine Inhalte — trägt das
+  Monitoring) und ist auch von der Kanten-Regel ausgenommen.
 - **Read-only-Betrieb:** Der Server öffnet die SQLite-DB schreibgeschützt (`mode=ro`,
   `query_only=ON`); alle 6 Tools sind `readOnlyHint`. **Jeder** Lesepfad geht über
   `db.connect_readonly` — auch `/ready`, das bis zum 31.07.2026 ein rohes `sqlite3.connect`
   ohne `query_only` benutzte und damit als einziger Pfad ohne die zweite Leitplanke lief.
-- **Fail-fast:** Mit `FOLIANT_PRODUKTION=an` verweigert der Server den Start, wenn der
-  gewählte Zugang nicht vollständig ist — im Modus `geheimpfad` bei einem Pfad-Token unter
-  16 Zeichen, im Modus `router` bei abgeschalteter IP-Allowlist. Ein unbekannter Wert in
-  `FOLIANT_ZUGANG` bricht ebenfalls ab, statt still den anderen Modus zu fahren.
+- **Fail-fast:** Mit `FOLIANT_PRODUKTION=an` verweigert der Server den Start bei einem
+  Pfad-Token unter 16 Zeichen — das greift seit dem 02.09.2026 nur noch im Modus
+  `geheimpfad`. Im Modus `router` gibt es nichts mehr zu prüfen, weil der Schutz vollständig
+  außerhalb liegt; der Server startet dort auch dann, wenn vor ihm nichts steht. Ein
+  unbekannter Wert in `FOLIANT_ZUGANG` bricht weiterhin ab, statt still den anderen Modus
+  zu fahren.
 - **Eingabegrenzen:** Suchanfragen sind längenbegrenzt, `limit` wird gedeckelt (DoS-Schutz).
 - **Abfrage-Protokoll ohne PII:** Das Log (`data/foliant-protokoll.sqlite`) enthält nur
   Suchbegriffe, Filter und Zeiten — keine Nutzerkennungen, IPs oder Gesprächsinhalte. Es
@@ -1645,7 +1657,8 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   über den Tunnel, nur lokal/SSH.
 - **Discord-Bot:** keine eingehende HTTP-Fläche (nur ausgehend zu Discord/Anthropic);
   Zugangskontrolle ist die **Guild-Sperre** plus Nutzer-Cooldown und Tagesdeckel. Die
-  Tools laufen in-process am `ZugriffsFilter` vorbei — bewusst, wie beim Eval-Harness:
+  Tools laufen in-process an allem vorbei, was den HTTP-Weg schützt — bewusst, wie beim
+  Eval-Harness:
   der Filter schützt den HTTP-Weg, nicht die Prozessgrenze (SPEC.md §12 Nr. 6). Der
   Spoiler-Schutz bleibt prompt-basiert; im gemeinsamen Kanal sieht jeder jede Antwort
   (Ausnahme: `/regel-privat` antwortet ephemer nur dem Fragenden — das ist Rücksicht
