@@ -207,7 +207,10 @@ services:
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
     ports:
-      - "127.0.0.1:8080:8080"     # nur lokal fuer die Abnahme; der Connector kommt ueber web-edge
+      # Nur lokal fuer die Abnahme; der Connector kommt ueber web-edge. Host-Port 8180 statt
+      # 8080, weil 8080 seit dem 11.09.2026 kosync im Ebook-Stack gehoert - der
+      # Container-Port bleibt 8080, darauf zeigt die Tunnel-Route.
+      - "127.0.0.1:8180:8080"
     networks:
       # default: hier liegt `web`, das einzige Ziel des Gateways.
       default:
