@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 02.09.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 11.09.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -32,12 +32,13 @@ Engl. SRD (Markdown) ─┤  PyMuPDF4LLM/Docling             │              �
 Eigene dt. PDFs ──────┤────────────► Markdown            ▼              ▼
 Open5e (API) ─────────┤  Transform  ─► Chunks   Tunnel "mcp"      Tunnel "web"
 DDB-Bücher (Exporter) ┘                  │      mcp.magnetron.me   dnd.magnetron.me
+                                         │      + WAF-Allowlist           │
 dnddeutsch-API ──────────► Glossar       │             │                  │
                                          │             ▼                  ▼
                                          │        mcp-router       gateway (Caddy :8080)
                                          ▼        (fremder Stack)         │
                                    SQLite + FTS5 ◄─ foliant-mcp      web (Charakterbogen)
-                                         ▲          IP-Filter
+                                         ▲
                        Admin-CLI ────────┤
                        Datasette (127.0.0.1, read-only, SSH-Tunnel)
 ```
@@ -56,7 +57,7 @@ Zwei klar getrennte Ebenen:
 |---|---|
 | `foliant` | MCP-Server (uvicorn), 6 Tools, **read-only** auf `data/foliant.sqlite`. Container **`foliant-mcp`**, Netz `mcp-net`, kein Host-Port |
 | `web` | Charakterbogen-Website (eigene Kennwort-Seite; `read_only`, `cap_drop: ALL`, 512 MB / 1 CPU) |
-| `gateway` | Caddy vor der Website; Origin von `dnd.magnetron.me`, Netz `web-edge`. **Keine Access-Logs** |
+| `gateway` | Caddy vor der Website; Origin von `dnd.magnetron.me`, Netz `web-edge`, Host-Port `127.0.0.1:8180` (nur lokal, §9). **Keine Access-Logs** |
 | `discord` | Discord-Bot der Runde (Threads, `/regel`); kein Port, nur ausgehend; Guild-Sperre |
 | `datasette` | optional (`--profile admin`), read-only Datenblick, nur `127.0.0.1` |
 | `ddb-exporter` | optional (`--profile ddb`), kurzlebiger DDB-Export, **ohne DB-Mount** |
@@ -756,6 +757,11 @@ aus demselben Repo — wird nur `foliant` gebaut, laufen Bot und Website nach ei
 still mit dem alten Stand weiter. `--no-deps` verhindert dabei, dass `depends_on` das
 Gateway mit durchstartet (§12).
 
+**Das Gateway rollt `make deploy-pi` deshalb nie aus.** Eine Änderung an seinem Dienst in
+`docker-compose.yml` (Ports, Netze) kommt per rsync zwar auf den Pi, der Container läuft
+aber mit der alten Konfiguration weiter. Danach gezielt `docker compose up -d --no-deps
+gateway` — das startet nur ihn neu.
+
 **Warum der Check dazugehört:** `make test` fährt ihn lokal, aber die Dev-DB ist ein
 **Subset** (7 von 18 Quellen) — alles, was erst am Vollbestand sichtbar wird, fällt dort
 nicht auf. `admin check` endet bei Problemen mit Exitcode ≠ 0 und bricht damit den Deploy
@@ -872,6 +878,13 @@ Beide Tunnel liegen in **getrennten Netzen** (`mcp-edge`, `web-edge`). Ein Conne
 erreichen, was in seinen eigenen Netzen liegt: der Website-Tunnel kommt an keinen MCP-Server,
 und der MCP-Tunnel an keine Website. Die Grenze ist echt, keine Namenskonvention.
 
+**Host-Port und Tunnel-Port sind zwei verschiedene Dinge.** Der Tunnel `web` erreicht das
+Gateway über den Container-Port `gateway:8080` im Netz `web-edge`. Der Host-Port
+`127.0.0.1:8180` dient nur der Abnahme direkt auf dem Pi
+(`curl http://127.0.0.1:8180/health`); Host-Port 8080 gehört dort dem Ebook-Stack (kosync).
+Wer den Container-Port ändert, nimmt die Website still vom Netz; wer den Host-Port auf 8080
+zurückstellt, lässt den Gateway-Start an der Port-Kollision scheitern.
+
 ### Zugang absichern (zwei Schichten, ohne Nutzer-Management)
 Seit dem DDB-Import serviert der MCP **private Buchinhalte** → der Endpoint ist nicht offen.
 
@@ -893,9 +906,11 @@ Seit dem DDB-Import serviert der MCP **private Buchinhalte** → der Endpoint is
    Zertifikats-Transparenz-Logs. Rotation im Router-Modus: `MCP_PFAD_TOKEN` im Projekt
    „Cloudflare Tunnel“ — das betrifft dann **alle** MCP-Server des Geräts.
 
-2. **IP-Allowlist an der Cloudflare-Kante** — nur Anthropics veröffentlichte Egress-Ranges
-   (`160.79.104.0/21`, `2607:6bc0::/48`) kommen durch; alles andere bekommt 403, bevor die
-   Anfrage den Pi erreicht. Eine geleakte URL ist damit **nur über Claude** nutzbar, nie per
+2. **IP-Allowlist an der Cloudflare-Kante** — nur Anthropics veröffentlichter ausgehender
+   Bereich `160.79.104.0/21` und dessen IPv6-Adressraum `2607:6bc0::/48` kommen durch; alles
+   andere bekommt 403, bevor die Anfrage den Pi erreicht. Den IPv6-Block führt Anthropic als
+   *eingehend* — er steht bewusst mit drin, damit ein künftiger IPv6-Egress nicht still
+   blockt. Eine geleakte URL ist damit **nur über Claude** nutzbar, nie per
    curl/Scanner/Browser. Die Regel gilt für den **ganzen Hostnamen**, also für jeden
    MCP-Dienst hinter dem Router — auch für jeden, der später dazukommt.
 
@@ -924,8 +939,8 @@ curl -s -o /dev/null -w '%{http_code}\n' https://mcp.magnetron.me/nichts-hier   
 curl -s -o /dev/null -w '%{http_code}\n' https://mcp.magnetron.me/health        # muss 200 bleiben
 ```
 403 statt der 404 des Routers heißt: die Regel greift. Kommt 404, ist sie weg — und mit ihr
-der Schutz. Gemessen am 02.09.2026, zusammen mit einem lesenden Tool-Aufruf durch Claude als
-Gegenprobe, dass der erlaubte Weg offen bleibt.
+der Schutz. Zuletzt gemessen am 11.09.2026, zusammen mit einem lesenden Tool-Aufruf durch
+Claude als Gegenprobe, dass der erlaubte Weg offen bleibt.
 
 **Rollback auf den eigenen Weg:** `FOLIANT_ZUGANG=geheimpfad` plus Token in die Pi-`.env`,
 `gateway` wieder mit einer MCP-Route versehen, `docker compose up -d --build foliant gateway`.
