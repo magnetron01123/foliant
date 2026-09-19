@@ -809,6 +809,52 @@ def _pruefe_gegen_basiswerte(c: sqlite3.Connection, meta: list, risse: list,
     return fehler
 
 
+def _pruefe_suchbenchmark(vollbestand: bool) -> int:
+    """Die Such-Guete gegen ihren Basiswert (M10/R06) - dieselbe Bauform wie die
+    Datenmaengel daneben, nur mit umgekehrtem Vorzeichen: Hier darf die Zahl nicht
+    SINKEN.
+
+    NUR am Vollbestand. Das Mac-Subset fuehrt sieben von achtzehn Quellen; ein
+    Benchmark dagegen misst eine andere Welt, und ein Basiswert fuer beide waere fuer
+    genau eine von beiden falsch - dieselbe Korpus-Luecke, die schon bei den
+    Mangel-Basiswerten je Quelle zaehlt (CONCEPT §11).
+
+    Der Deploy-Abbruch ist der Zweck: R01 wird das Ranking anfassen, und eine
+    Ranking-Aenderung, die zwei Faelle repariert und drei kaputtmacht, sieht in der
+    Golden-Suite aus wie ein Erfolg."""
+    basis = _lade_basiswerte().get("suchbenchmark") or {}
+    if not vollbestand or not basis:
+        return 0
+    import argparse as _argparse
+    import contextlib
+    import io
+    import json as _json
+
+    puffer = io.StringIO()
+    with contextlib.redirect_stdout(puffer):
+        cmd_suchbenchmark(_argparse.Namespace(json=True))
+    try:
+        ist = _json.loads(puffer.getvalue())
+    except ValueError:
+        print("Such-Benchmark: Lauf lieferte kein Ergebnis  FEHLER")
+        return 1
+    fehler = 0
+    for schluessel, was in (("treffer_at_1", "Treffer@1"), ("treffer_at_3", "Treffer@3")):
+        soll, gemessen = int(basis.get(schluessel, 0)), int(ist.get(schluessel, 0))
+        if gemessen < soll:
+            print(f"Such-Benchmark {was}: {gemessen} statt {soll} dokumentierten  FEHLER")
+            for zeile in ist.get("verfehlt", []):
+                print(f"   {zeile}")
+            fehler += 1
+        elif gemessen > soll:
+            print(f"Such-Benchmark {was} gestiegen ({soll} -> {gemessen}) - Basiswert "
+                  f"nachziehen: admin qualitaet-basis --schreiben")
+    if not fehler:
+        print(f"Such-Benchmark: {ist.get('treffer_at_1')}/{ist.get('faelle')} Treffer@1, "
+              f"MRR {ist.get('mrr')}  OK")
+    return fehler
+
+
 def cmd_qualitaet_basis(args) -> None:
     """Den Basiswert bekannter Datenmaengel neu erheben (config/qualitaet_basis.json).
 
@@ -1174,6 +1220,7 @@ def cmd_check(args=None) -> None:
     if verschmolzen:
         print(f"   {versch_beispiele} ... aus {sorted(verschmolzen)}")
     fehler += _pruefe_gegen_basiswerte(c, meta, risse, logik, leere_sektionen, verschmolzen)
+    fehler += _pruefe_suchbenchmark(bool(getattr(args, "vollbestand", False)))
     # Facetten-Deckung (Befund C1, 28.07.2026): Die Meta-Tabellen waren auf dem Pi LEER,
     # lokal gefuellt - und niemand merkte es, weil kein Check hinsah. WARNUNG statt Fehler:
     # eine vollstaendige Deckung ist gar nicht erreichbar (Ausruestung ohne Preisangabe
@@ -1746,6 +1793,164 @@ def cmd_suchbericht(args) -> None:
         con.close()
 
 
+SUCHBENCHMARK = _db.projekt_pfad("tests/fixtures/suchbenchmark.json")
+
+
+def _benchmark_treffer(ziel: str, kategorie: str | None, treffer: list[dict]) -> int | None:
+    """Der 1-basierte Rang des Zieleintrags in der Trefferliste - oder None.
+
+    Verglichen wird ueber `glossar._eintrag_namen`, also DIESELBE Identitaetsregel, die
+    Ranking und Detail-Auswahl benutzen (A3). Eine eigene Normalisierung waere hier
+    besonders schaedlich: Der Benchmark wuerde dann etwas anderes messen, als das System
+    tut, und seine Zahl waere genau dort falsch, wo sie gebraucht wird.
+
+    ZUSAETZLICH zaehlt der `anzeige_name`, und das ist keine Bequemlichkeit: 63 % der
+    Eintraege tragen gar keinen `name_de`, ihr deutscher Name entsteht erst in der
+    Ausgabe ueber das Glossar. Der Top-Treffer auf 'langschwert' heisst in der Datenbank
+    nur 'Longsword' und beim Nutzer 'Langschwert (Longsword)'. Gemessen wird, was
+    ANKOMMT - sonst muesste der Benchmark seine Ziele englisch fuehren und haette
+    ausgerechnet Deutsch-first (S10) nicht mehr im Blick."""
+    from app import glossar as _glossar
+
+    soll = _glossar.norm_begriff(ziel)
+    for rang, t in enumerate(treffer, start=1):
+        if kategorie and t.get("kategorie") != kategorie:
+            continue
+        if soll in _glossar._eintrag_namen(t):
+            return rang
+        # 'Langschwert (Longsword)' / 'Gestalt des Schreckens* (Form of Dread)' -> der
+        # Teil vor der Klammer, ohne die S5-Markierung.
+        anzeige = (t.get("anzeige_name") or "").split(" (")[0].rstrip("*").strip()
+        if anzeige and _glossar.norm_begriff(anzeige) == soll:
+            return rang
+    return None
+
+
+def cmd_suchbenchmark(args) -> None:
+    """Deterministischer Such-Benchmark (M10/R06): Treffer@1, Treffer@3 und MRR ueber
+    echte Anfragen aus dem Abfrage-Protokoll.
+
+    WARUM (Review 19.09.2026): Die Golden-Suite kennt nur gruen oder rot. Fuer eine
+    Ranking-Aenderung - und R01 ist eine - braucht es ein Mass, das auch sagt, ob es ein
+    bisschen besser oder ein bisschen schlechter wurde. Ohne das ist jede Aenderung an der
+    Suche ein Blindflug, und der teure LLM-Eval streut zu stark, um die Luecke zu fuellen
+    (BACKLOG §3, 'Rest-Streuung': dieselben Faelle beanstandeten bei Wiederholung jedes
+    Mal etwas anderes).
+
+    Schreibt NICHT ins Abfrage-Protokoll: Eigene Messreihen im Suchbericht sind ein
+    bekannter Gotcha (CONCEPT §12) - der Kurations-Durchgang wuerde sonst Testdaten
+    kuratieren. Deshalb der Weg ueber die DB-Schicht statt ueber die Werkzeuge."""
+    import json as _json
+
+    from app.tools import suche as _suche
+
+    daten = _json.loads(SUCHBENCHMARK.read_text(encoding="utf-8"))
+    faelle = daten["faelle"]
+    pfad = _db.standard_pfad()
+    if not pfad.exists():
+        print(f"Kein Bestand unter {pfad} - Benchmark uebersprungen.")
+        return
+    from app import glossar as _glossar
+
+    con = _db.connect_readonly(str(pfad))
+
+    def _ziel_existiert(ziel: str, kategorie: str | None) -> bool:
+        """Fuehrt der BESTAND diesen Eintrag ueberhaupt?
+
+        Faelle, deren Ziel fehlt, werden uebersprungen statt als Verfehlung gezaehlt -
+        dieselbe Regel, mit der `_vergleiche_je_quelle` fehlende Quellen auslaesst
+        (CONCEPT §11, Korpus-Luecke). Das Mac-Subset fuehrt sieben von achtzehn Quellen;
+        ohne diese Schranke meldete es Scheinverfehlungen fuer Buecher, die es gar nicht
+        hat, und der Basiswert waere fuer eine der beiden Umgebungen immer falsch.
+
+        Damit erledigt sich auch die Frage, ob der Benchmark nur am Vollbestand laufen
+        darf: Er passt sich an, was da ist. Heute messen beide Umgebungen ohnehin
+        dasselbe - alle 65 Ziele stehen in beiden Bestaenden."""
+        sql = ("SELECT name_de, name_en FROM eintraege WHERE edition = '2024' "
+               "AND (name_de = ? COLLATE NOCASE OR name_en = ? COLLATE NOCASE "
+               "     OR name_de LIKE ? ESCAPE '\\' OR name_en LIKE ? ESCAPE '\\')")
+        params: list = [ziel, ziel,
+                        ziel.replace("%", "\\%").replace("_", "\\_") + " (%",
+                        ziel.replace("%", "\\%").replace("_", "\\_") + " (%"]
+        if kategorie:
+            sql += " AND kategorie = ?"
+            params.append(kategorie)
+        if con.execute(sql + " LIMIT 1", params).fetchone():
+            return True
+        # Zweiter Weg: Eintraege ohne `name_de` tragen ihren deutschen Namen nur im
+        # Glossar ('Longsword' -> 'Langschwert'). Ohne diesen Zweig gaelte 'langschwert'
+        # als fehlend, obwohl der Eintrag da ist.
+        for zeile in _glossar.nachschlagen_exakt(con, ziel, richtung="de_en"):
+            treffer = con.execute(
+                sql.replace("name_de = ? COLLATE NOCASE OR ", "") + " LIMIT 1",
+                [zeile["term_en"], zeile["term_en"] + " (%",
+                 zeile["term_en"] + " (%"] + ([kategorie] if kategorie else []))
+            if treffer.fetchone():
+                return True
+        return False
+
+    treffer1 = treffer3 = 0
+    mrr = 0.0
+    gezaehlt = 0
+    uebersprungen = 0
+    fehler: list[str] = []
+    for fall in faelle:
+        if fall.get("ziel") is not None and not _ziel_existiert(fall["ziel"],
+                                                                fall.get("kategorie")):
+            uebersprungen += 1
+            continue
+        antwort = _suche._suche_bestand_impl(fall["frage"])
+        antwort.pop("_suchweg", None)
+        liste = antwort.get("treffer", [])
+        gezaehlt += 1
+        if fall.get("ziel") is None:
+            # Soll-Nulltreffer: Die wertvollsten Faelle. Ein Benchmark, der nur Treffer
+            # belohnt, treibt geradewegs in die Halluzination (Kernregel 1).
+            if liste:
+                fehler.append(f"{fall['frage']!r}: sollte LEER sein, liefert "
+                              f"{liste[0].get('anzeige_name')!r}")
+            else:
+                treffer1 += 1
+                treffer3 += 1
+                mrr += 1.0
+            continue
+        rang = _benchmark_treffer(fall["ziel"], fall.get("kategorie"), liste)
+        if rang is None:
+            gezeigt = liste[0].get("anzeige_name") if liste else "(nichts)"
+            fehler.append(f"{fall['frage']!r}: erwartet {fall['ziel']!r}, "
+                          f"gefunden {gezeigt!r}")
+            continue
+        mrr += 1.0 / rang
+        treffer1 += int(rang == 1)
+        treffer3 += int(rang <= 3)
+
+    con.close()
+    ergebnis = {
+        "faelle": gezaehlt,
+        "uebersprungen": uebersprungen,
+        "treffer_at_1": treffer1,
+        "treffer_at_3": treffer3,
+        "mrr": round(mrr / gezaehlt, 4) if gezaehlt else 0.0,
+        "verfehlt": fehler,
+    }
+    if getattr(args, "json", False):
+        print(_json.dumps(ergebnis, ensure_ascii=False, indent=2))
+        return
+    print(f"Such-Benchmark ueber {gezaehlt} Faelle"
+          + (f" ({uebersprungen} uebersprungen)" if uebersprungen else ""))
+    print(f"  Treffer@1: {treffer1}/{gezaehlt} "
+          f"({treffer1 * 100 // max(gezaehlt, 1)} %)")
+    print(f"  Treffer@3: {treffer3}/{gezaehlt} "
+          f"({treffer3 * 100 // max(gezaehlt, 1)} %)")
+    print(f"  MRR:       {ergebnis['mrr']}")
+    if fehler:
+        print(f"\n  Verfehlt ({len(fehler)}):")
+        for zeile in fehler:
+            print(f"    {zeile}")
+        print("\n  Verfehlte Faelle sind dokumentierte Luecken, kein Fehlschlag des Laufs -"
+              "\n  der Basiswert in config/qualitaet_basis.json haelt fest, wo wir stehen.")
+
+
 def cmd_backup(args) -> None:
     """Online-Backup der SQLite-Datei ueber die SQLite-Backup-API - konsistent AUCH bei
     laufendem Import (anders als cp/rsync auf eine offene DB). Danach eine selbst-enthaltene
@@ -1881,6 +2086,12 @@ def baue_parser() -> argparse.ArgumentParser:
     ps.add_argument("--limit", type=int, default=25, help="Zeilen je Abschnitt (Default 25)")
     ps.add_argument("--json", action="store_true", help="maschinenlesbare Ausgabe")
     ps.set_defaults(func=cmd_suchbericht)
+    psb = sub.add_parser("suchbenchmark",
+                         help="Treffer@1/@3 und MRR ueber echte Anfragen "
+                              "(tests/fixtures/suchbenchmark.json) - das Mass fuer "
+                              "Ranking-Aenderungen")
+    psb.add_argument("--json", action="store_true", help="maschinenlesbare Ausgabe")
+    psb.set_defaults(func=cmd_suchbenchmark)
     pb = sub.add_parser("backup",
                         help="Online-Backup der SQLite (konsistent) + Verifikation (M3)")
     pb.add_argument("--ziel", help="Zielverzeichnis (Standard: <db-Ordner>/backups)")

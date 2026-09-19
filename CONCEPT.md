@@ -614,6 +614,7 @@ qualitaet-basis  Basiswert bekannter Datenmaengel neu erheben [--schreiben] - nu
 glossar-audit Glossar-Stand und -Herkunft pruefen
 glossar-paare Kandidaten fuer neue Glossar-Paare zeigen [--nur-neue] [--json]
 suchbericht   Kuratier-Signale: MARKIERTE Antworten, Nulltreffer, Fuzzy, Mehrdeutigkeiten
+suchbenchmark Treffer@1/@3 und MRR ueber echte Anfragen - das Mass fuer Ranking-Aenderungen
 backup        konsistentes, verifiziertes Online-Backup mit Rotation
 ddb-pruefe | ddb-import | ddb-import-all | ddb-remove
 ```
@@ -1463,6 +1464,27 @@ zusätzlich:
 ```
 make test-golden-pi
 ```
+
+**Der Such-Benchmark ist das Maß für Ranking-Änderungen** (`admin suchbenchmark`,
+`make suchbenchmark-pi`). Die Golden-Suite kennt nur grün oder rot; ob eine Änderung an der
+Suche ein bisschen besser oder ein bisschen schlechter war, kann sie nicht sagen. Der
+Benchmark fährt 65 **echte** Anfragen aus dem Abfrage-Protokoll gegen ihr Soll-Ziel und
+liefert Treffer@1, Treffer@3 und MRR. Drei Entwurfsregeln:
+
+- **Ziele über (Name, Kategorie), nie über `eintrag_id`** — IDs wandern bei jedem
+  Re-Import. Verglichen wird über `glossar._eintrag_namen`, also dieselbe Identitätsregel,
+  die Ranking und Detail-Auswahl benutzen; zusätzlich zählt der `anzeige_name`, weil 63 %
+  der Einträge ihren deutschen Namen erst in der Ausgabe bekommen.
+- **Soll-Nulltreffer sind die wertvollsten Fälle.** Ein Benchmark, der nur Treffer belohnt,
+  treibt geradewegs in die Halluzination, gegen die Kernregel 1 steht.
+- **Fehlende Ziele werden übersprungen, nicht als Verfehlung gezählt** — dieselbe Regel,
+  mit der `_vergleiche_je_quelle` fehlende Quellen auslässt. Deshalb messen Mac-Subset und
+  Pi-Vollbestand heute dasselbe (55/65, MRR 0,846), und *ein* Basiswert trägt für beide.
+
+Der Basiswert steht in `config/qualitaet_basis.json` und wird von `admin check
+--vollbestand` geprüft — mit **umgekehrtem Vorzeichen** zu den Mangel-Zahlen daneben: Diese
+darf nicht sinken. Das ist der Zweck: Eine Ranking-Änderung, die zwei Fälle repariert und
+drei kaputtmacht, sieht in der Golden-Suite aus wie ein Erfolg.
 
 **T2/T10/T12 sind Verhaltenstests** und in pytest nicht beweisbar → Checkliste in
 [BACKLOG.md](BACKLOG.md) §2. Wichtigster Dauertest: **T2** — Frage außerhalb des Bestands →
