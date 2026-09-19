@@ -355,6 +355,13 @@ Was von einem Lauf dauerhaft gilt, gehört als Aussage in §1 (offene Arbeit), �
 
 ## 3. Bekannte Rest-Posten (bewusst niedrig priorisiert)
 
+- ⬜ **Sechs Begriffe, die die Runde benutzt und der Bestand nicht kennt** (gefunden beim
+  Aufbau des Such-Benchmarks, 19.09.2026): `spurten`, `schubsen`, `niederwerfen`,
+  `ausholend`, `wuchtig`, `nachladen` — Waffeneigenschaften und Aktionen, alle mit
+  Nulltreffer. Das sind **Vokabellücken, keine Ranking-Probleme**: Die Ziele existieren
+  (Spurt, Stoßen, Umstoßen, Laden), nur die Suchvariante fehlt. Gehört in den nächsten
+  M5-Durchgang über `admin glossar-paare`, nicht in den Benchmark — dieselbe Behandlung wie
+  `rennen`/`sprinten`/`umklammern` am 03.08.2026 (`import_glossar.UMGANGSSPRACHE`).
 - ⬜ **Unbebrückte deutsche Regelbegriffe** (B3, geparkt am 14.08.2026, Buchführung in
   `config/rueckmeldungen_stand.json`). Der Bestand führt Regelbegriffe mit Qualifikator
   (`Bezaubert (Zustand)`), das Glossar ohne (`Bezaubert`) — ein naiver Abgleich zählt
