@@ -1318,6 +1318,23 @@ noch Meta-Zeilen aus dem in Phase 3 entfernten Open5e-Schreiber tragen (`Evocati
 Schreiber nicht) und schaltet den Vorfilter sonst **ganz ab**. Wer hier optimiert, muss diese
 Probe erhalten.
 
+Die Messung dahinter (`make lasttest-pi`, 28.07.2026, Pi-Vollbestand) — sie belegt B9 und
+ist zugleich der Regressionswächter, weil der Lauf bei p95 > 1000 ms abbricht:
+
+| gleichzeitige Spieler | p95 vorher | p95 nachher | Aufrufe/s |
+|---|---|---|---|
+| 1 | 100 ms | **91 ms** | 22 |
+| 2 | 207 ms | **119 ms** | 35 |
+| 4 | **584 ms** | **191 ms** | 41 |
+| 8 | **1729 ms** | **546 ms** | 32 |
+
+Der erste Lauf riss ab sechs Spielern die Sekunde, und der Durchsatz deckelte bei
+~26 Aufrufen/s — **Sättigung, nicht Auslastung**. Zwei Verdächtige wurden experimentell
+ausgeschlossen: das Abfrage-Protokoll (mit komplett abgeschaltetem Log waren die Werte bei
+acht Spielern identisch, p95 1733 statt 1734 ms) und die Datenbank. Es blieb reine
+Python-Rechenzeit am GIL. Seither skaliert der Durchsatz mit der Last (22 → 35 → 41), statt
+zu deckeln.
+
 ### Entscheidung: Das Konflikt-Gate muss 0 erreichen können (27.07.2026)
 
 `admin glossar-audit` meldete dauerhaft „12 echte Konflikte" — eine Zahl, die nie 0 werden
