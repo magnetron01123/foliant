@@ -234,7 +234,7 @@ def test_tagesverbrauch_ueberlebt_den_prozess(tmp_path, monkeypatch):
     CONCEPT §13 bleibt unberuehrt."""
     monkeypatch.setattr(_protokoll, "protokoll_pfad",
                         lambda: tmp_path / "protokoll.sqlite")
-    assert _protokoll.lade_tagesverbrauch("2026-09-19") is None    # noch keine Datei
+    assert _protokoll.lade_tagesverbrauch("2026-09-19") == 0       # Erstzustand, kein Fehler
     assert _protokoll.merke_tagesverbrauch("2026-09-19", 7) is True
     assert _protokoll.lade_tagesverbrauch("2026-09-19") == 7
     assert _protokoll.lade_tagesverbrauch("2026-09-20") == 0       # Datei da, Tag neu
@@ -262,3 +262,31 @@ def test_alte_tagesverbrauch_zeilen_werden_aufgeraeumt(tmp_path, monkeypatch):
     _protokoll.merke_tagesverbrauch("2026-09-19", 3)
     assert _protokoll.lade_tagesverbrauch("2026-01-01") == 0        # weggeraeumt
     assert _protokoll.lade_tagesverbrauch("2026-09-19") == 3
+
+
+def test_erster_lauf_ist_kein_unbekannter_stand(tmp_path, monkeypatch):
+    """Der Fehler, der am 19.09.2026 den frisch deployten Bot lahmlegte.
+
+    Die Protokoll-Datei existiert ab der ersten Anfrage, die Tabelle `tagesverbrauch`
+    aber erst nach dem ersten Schreiben. `SELECT` lief in 'no such table', die Funktion
+    meldete None ('unbekannt'), und `Schranken` liest None als Deckel erreicht - der Bot
+    lehnte JEDE Frage mit dem Kostendeckel ab. Beide Teile waren einzeln getestet und
+    richtig; falsch war die Bedeutung, die sie einander zuschrieben.
+
+    Ein noch nie geschriebener Stand ist der ERSTZUSTAND, kein Lesefehler."""
+    pfad = tmp_path / "protokoll.sqlite"
+    monkeypatch.setattr(_protokoll, "protokoll_pfad", lambda: pfad)
+    # So sieht es nach der ersten Suchanfrage aus: Datei da, `abfragen` da,
+    # `tagesverbrauch` noch nicht.
+    con = sqlite3.connect(pfad)
+    con.executescript(_protokoll._SCHEMA)
+    con.commit()
+    con.close()
+    assert _protokoll.lade_tagesverbrauch("2026-09-19") == 0
+
+    # Und der Bot muss damit antworten duerfen - das ist der Fall, der live gebrochen ist.
+    from app.discord_bot.schranken import Schranken
+    s = Schranken(1, frozenset(), tagesdeckel=100, cooldown_s=0.0,
+                  lade_verbrauch=_protokoll.lade_tagesverbrauch,
+                  speichere_verbrauch=_protokoll.merke_tagesverbrauch)
+    assert s.beginne(1) is None, "frisch deployter Bot lehnt jede Frage ab"
