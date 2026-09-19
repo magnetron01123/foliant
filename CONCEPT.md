@@ -1100,6 +1100,43 @@ aus wie Vokabellücken — der dort angebotene Kur-Weg („Glossar-Paar ergänze
 der falsche. Seither trägt jede Signalzeile ihre `kategorie`, und die Fälle haben einen
 eigenen Abschnitt.
 
+### Gemessen und verworfen: der ODER-Rückfall für Mehrwort-Anfragen (19.09.2026)
+
+`_fts_match` verknüpft alle Wörter einer Anfrage mit UND. Fehlt eines im Eintrag, gibt es
+null Treffer — und die Runde fragt genau so: „gelegenheitsangriff erzwungene bewegung" (9×
+im Protokoll), „wie funktioniert verstecken", dazu rund zwanzig Varianten zu
+Waffeneigenschaften. Der naheliegende Griff ist ein ODER-Rückfall, wenn der UND-Lauf leer
+ausgeht. **Fünf Varianten gemessen, alle verworfen.**
+
+| Variante | Treffer@1 | Soll-Nulltreffer |
+|---|---|---|
+| heute (nur UND) | 55/65 | alle 4 heil |
+| ODER, Rang nach bm25 | 54 | **4 kaputt** |
+| ODER, Rang nach Token-Zahl | 55 | **4 kaputt** |
+| ODER + Mindestdeckung 50 % | 54 | 3 kaputt |
+| ODER + Mindestdeckung 67/100 % | 54 | heil, findet aber nichts |
+| ODER + **Namens-Gate** | **58** | **2 kaputt** |
+| ODER + Namens-Gate + Deckung ≥ 2 | 56 | heil |
+
+Die beste Variante findet sechs echte Anfragen mehr — und macht aus zwei ehrlichen
+Nulltreffern plausibel aussehende Fehltreffer. Darunter der Kontrollfall
+`quatschbegriff ohne bestand`, eine reine Erfindung, die einen Treffer bekam. **Genau die
+Fehlerform, gegen die Kernregel 1 steht**, und die teurere von beiden: Ein Leerbefund ist
+als solcher erkennbar, ein falscher Treffer sieht aus wie eine Antwort.
+
+Die sichere Variante (56) bringt zwei Fälle und kostet vier — das Verhältnis trägt den
+Eingriff ins Ranking nicht.
+
+Ohne den Benchmark (§11) wäre das unsichtbar geblieben: Die Variante mit Rang nach
+Token-Zahl misst **dieselben 55** wie heute und hätte wie ein Nullsummenspiel ausgesehen.
+Erst die Soll-Nulltreffer zeigen, dass dahinter vier zerstörte und vier neue Fälle stehen.
+
+**Was stattdessen zu tun wäre**, falls der Posten wieder aufgegriffen wird: nicht die
+Trefferliste auffüllen, sondern den Fund **daneben** stellen — dieselbe Bauform wie
+`treffer_andere_kategorie` (§10). Der Leerbefund bliebe ein Leerbefund, und das Modell
+bekäme die Teiltreffer als klar gekennzeichneten Hinweis. Das ist ein Ausgabe-Entwurf, kein
+Ranking-Eingriff, und braucht eine eigene Runde.
+
 ### Gemessen und verworfen: das SRD-Paar für `Grappling` (19.09.2026)
 
 Die zwei 👎 vom 10.08.2026 auf `grapple` sahen nach einem fehlenden Glossar-Paar aus, und
