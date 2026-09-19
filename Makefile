@@ -151,6 +151,22 @@ rollback-pi: _pi-ziel
 test-golden-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T -w /app foliant python -m pytest -q tests/test_golden_bestand.py'
 
+# M3/M9: Die Sicherungen vom Pi HOLEN (nie schieben) und pruefen. Ziel steht in .env
+# (SICHERUNG_ZIEL) oder als ZIEL=... - nicht im Repo, die Sicherungen tragen private
+# Buchinhalte und dieses Repository ist oeffentlich.
+.PHONY: sicherung-holen
+sicherung-holen:
+	@ZIEL="$(ZIEL)" BEHALTEN="$(BEHALTEN)" ./deploy/sicherung_holen.sh $(ZIEL)
+
+# M9/R13: Aus einer Sicherung zurueckspielen und beweisen, dass sie traegt - Integritaet,
+# `admin check`, Golden-Suite und Benchmark gegen den wiederhergestellten Stand.
+# CONCEPT.md §8 schreibt die Probe vor; bis zum 19.09.2026 gab es keinen Beleg, dass sie
+# je lief. Fasst den Produktionsbestand NICHT an (temporaeres Verzeichnis).
+.PHONY: restore-probe
+restore-probe:
+	@test -n "$(DATEI)" || { echo "Aufruf: make restore-probe DATEI=<pfad zur sicherung.sqlite>"; exit 1; }
+	.venv/bin/python deploy/restore_probe.py "$(DATEI)"
+
 # Der Such-Benchmark am VOLLBESTAND (M10/R06): Treffer@1, Treffer@3 und MRR ueber echte
 # Anfragen aus dem Abfrage-Protokoll. Rein lesend.
 #

@@ -553,12 +553,36 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
   `cp`/`rsync` auf die offene Datei), **verifiziert** es (integrity_check + FTS-Zeilengleichheit;
   scheitert die Prüfung, wird die Datei verworfen) und hält die letzten `--behalten` Stände
   (Default 14). Das Protokoll steht auf dem Pi in `data/sicherung.log`.
-- **Off-Site-Spiegel — der Schritt, der noch fehlt (BACKLOG M3):** Alle Stände liegen auf
-  **derselben SD-Karte** wie der Bestand; keiner überlebt deren Ausfall. Erst das Spiegeln auf
-  ein zweites Gerät ist die Sicherung. Ziel und Zugang legt der Betreiber fest — die Sicherungen
-  enthalten private Buchinhalte, das ist keine beiläufige Wahl.
-  Restore-Probe: ein Backup als `data/foliant.sqlite` zurückspielen → `make test-daten` muss
-  bestehen.
+- **Off-Site-Spiegel** (`make sicherung-holen`, BACKLOG M3): Alle Stände auf dem Pi liegen
+  auf **derselben SD-Karte** wie der Bestand; keiner überlebt deren Ausfall. Das Werkzeug
+  **zieht** die Artefakte auf den Mac — Backups, Protokoll-DB, `config/foliant.toml`,
+  `quellen/` und die privaten DDB-Artefakte —, prüft das jüngste Korpus-Backup und hält
+  sechs Generationen.
+
+  Drei Entwurfsregeln: Es wird **gezogen, nie geschoben** (ein kompromittierter Pi kann die
+  Historie auf dem Mac nicht anfassen). Es hält **mehrere Generationen** — ein Spiegel, der
+  nur den letzten Stand führt, gibt Schaden weiter. Und es prüft, ob das Zielverzeichnis
+  wirklich existiert: Ein nicht eingehängtes Volume ließe `mkdir -p` klaglos im Mountpoint
+  anlegen, die Sicherung landete auf der Systemplatte und sähe aus wie ein Erfolg.
+
+  Das **Ziel** legt der Betreiber in `.env` fest (`SICHERUNG_ZIEL`) — die Sicherungen
+  enthalten private Buchinhalte, das ist keine beiläufige Wahl und gehört nicht ins
+  öffentliche Repo.
+- **Restore-Probe** (`make restore-probe DATEI=…`): Spielt eine Sicherung in ein temporäres
+  Verzeichnis zurück und fährt dagegen Integritätsprüfung, `admin check`, die Golden-Suite
+  und den Such-Benchmark. Die letzten beiden sind der Punkt: Sie beweisen, dass aus der
+  Sicherung ein **arbeitsfähiger** Bestand wird, nicht nur eine lesbare Datei.
+
+  **Erstmals gefahren am 19.09.2026** (`foliant-20260919-174009.sqlite`, 12 545 Einträge,
+  18 Quellen, 3 340 Glossarzeilen): **bestanden** — Golden-Suite 31/31, `admin check` OK,
+  Benchmark 55/65. Bis dahin schrieb dieser Abschnitt die Probe vor, ohne dass ein Beleg
+  existierte, dass sie je lief; eine Sicherung, aus der nie jemand zurückgespielt hat, ist
+  eine Vermutung.
+
+  Ein Befund aus demselben Lauf: Ist der **Code neuer** als der gesicherte Stand, fallen
+  Golden-Tests durch, die frische Kuration voraussetzen (hier die `grapple`-Suchvariante).
+  Das ist kein Defekt der Sicherung — die Probe gehört gegen einen Stand gefahren, der zum
+  Code passt.
 - **Token-Rotation bei Leak:** neuen Token in `.env` → `docker compose up -d --build foliant`
   → neue URL an die Runde. **Alte Logs gelten als tokenbelastet** (der Pfad *war* das Secret).
 - **Feedback-Schleife (O4/M5):** Der Server protokolliert jede Nachschlage-Anfrage in eine
