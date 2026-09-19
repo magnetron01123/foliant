@@ -6,12 +6,10 @@ Hintergrund-Erhalt. Die visuelle Abnahme auf der echten Vorlage ist ein privater
 from __future__ import annotations
 
 import fitz
-import pytest
 
-from app.charakterbogen import de_bogen
 from app.charakterbogen.de_bogen import _fit_size, _gewicht_kg, _para, _saeubere, _umbrich, rendere
 from app.charakterbogen.modelle import (
-    Attribut, Ausruestung, Charakter, Fertigkeit, Gegenstand, Merkmal, UeText, Waffe, Zauber,
+    Attribut, Charakter, Fertigkeit, Gegenstand, Merkmal, UeText, Waffe, Zauber,
 )
 
 MEDIA = (603, 774)
@@ -358,7 +356,7 @@ def test_ueberschrift_nie_letzte_zeile_der_box():
     Umbruch zurueck (Befund 17.07.2026: 'Betäubender Schlag' stand allein am Boxende,
     der Body komplett auf der Folgeseite) - sie wandert mit in die Fortsetzung."""
     import fitz
-    from app.charakterbogen.de_bogen import FORTS_MARKE, _ohne_marker, _para
+    from app.charakterbogen.de_bogen import FORTS_MARKE, _para
 
     doc = fitz.open()
     page = doc.new_page(width=600, height=800)

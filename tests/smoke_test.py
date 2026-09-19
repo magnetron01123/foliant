@@ -260,8 +260,8 @@ def smoke_srd_paare() -> int:
             print(f"!! Paare mit nur EINER Bestandsseite (Kuratierungsfehler?): {kaputt}")
             fehler += len(kaputt)
         if fehlend:
-            print(f"   -> zum Seeden: python -m app.admin import --quelle glossar "
-                  f"(offline, Upsert; korrigiert auch A9-Editionen)")
+            print("   -> zum Seeden: python -m app.admin import --quelle glossar "
+                  "(offline, Upsert; korrigiert auch A9-Editionen)")
     finally:
         con.close()
     return fehler

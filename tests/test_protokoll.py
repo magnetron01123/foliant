@@ -4,7 +4,6 @@ admin-suchbericht aggregiert die Kurations-Signale."""
 import argparse
 import json
 import sqlite3
-from pathlib import Path
 
 import pytest
 

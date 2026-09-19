@@ -5,7 +5,6 @@ Bilanz auffallen UND am Wachstums-Schutz abbrechen. Genau das war vorher nicht s
 Import, der zehnmal so viele Chunks lieferte, lief kommentarlos durch.
 """
 import sqlite3
-from pathlib import Path
 
 import pytest
 

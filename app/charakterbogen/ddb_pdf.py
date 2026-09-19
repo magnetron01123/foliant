@@ -420,8 +420,12 @@ def _parse_zauber(char: Charakter, idx: dict, feldkarte: dict) -> None:
     aktueller_grad: int | None = None
     aktueller_kopf: str | None = None
     for i in range(spec["start"], spec["max"]):
+        # noqa B023: `hol` liest die Feldnummer der LAUFENDEN Zeile und wird nur in
+        # dieser Iteration aufgerufen - nie gespeichert, nie weitergereicht. Die Regel
+        # bleibt aktiv, weil ein spaeteres Aufheben der Funktion genau hier still die
+        # Zauber der letzten Zeile ueberall einsetzen wuerde.
         def hol(key: str) -> str | None:
-            return idx.get(felder[key].replace("{i}", str(i)))
+            return idx.get(felder[key].replace("{i}", str(i)))  # noqa: B023
         kopf = hol("kopf")
         if kopf:
             aktueller_kopf = kopf

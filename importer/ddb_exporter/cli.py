@@ -144,7 +144,8 @@ def _exportiere_buch(transport, client, buch: dict, *, dry_run: bool) -> Path | 
     try:
         lock.touch(exist_ok=False)
     except FileExistsError:
-        raise SystemExit(f"Export fuer '{buch['kuerzel']}' laeuft bereits (Lock: {lock}).")
+        raise SystemExit(
+            f"Export fuer '{buch['kuerzel']}' laeuft bereits (Lock: {lock}).") from None
     try:
         url = client.buch_url(int(buch["id"]))
         archiv = book_archive.lade_archiv(transport, url, work / "buch.zip")
@@ -162,10 +163,10 @@ def _exportiere_buch(transport, client, buch: dict, *, dry_run: bool) -> Path | 
             buch = {**buch, "edition": db_edition}
         elif not buch.get("edition_sicher"):
             raise SystemExit(
-                f"Edition nicht sicher bestimmbar (Buch-DB ohne eindeutige Regelversion, "
-                f"Katalog unsicher) - Buch NICHT importiert (V1/Q3: keine geratene "
-                f"Edition). Bei Bedarf in config/foliant.toml als [[ddb.buch]] mit "
-                f"edition explizit setzen.")
+                "Edition nicht sicher bestimmbar (Buch-DB ohne eindeutige Regelversion, "
+                "Katalog unsicher) - Buch NICHT importiert (V1/Q3: keine geratene "
+                "Edition). Bei Bedarf in config/foliant.toml als [[ddb.buch]] mit "
+                "edition explizit setzen.")
         zeilen = book_archive.lies_content(db3, schluessel)
         quelle_art = "Content"
         if not zeilen:
@@ -209,7 +210,7 @@ def cmd_export(args) -> None:
         print(f"Eigenes Buch bestaetigt: {eigene[int(buch['id'])]}")
         ziel = _exportiere_buch(transport, client, buch, dry_run=args.dry_run)
     if ziel:
-        print(f"Weiter (offline, ohne Secret): python -m app.admin ddb-import-all")
+        print("Weiter (offline, ohne Secret): python -m app.admin ddb-import-all")
 
 
 def cmd_inspect(args) -> None:

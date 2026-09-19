@@ -15,9 +15,7 @@ from __future__ import annotations
 
 import json
 import pathlib
-import sqlite3
 
-import pytest
 
 from importer.quellen import REGISTER_FELDER, exportiere_register
 from tests.hilfen import neue_db

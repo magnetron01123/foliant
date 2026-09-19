@@ -1,0 +1,70 @@
+name: Abhaengigkeiten
+
+# Meldet bekannte Schwachstellen in den gepinnten Abhaengigkeiten.
+#
+# Warum als eigener, ZEITGESTEUERTER Lauf und nicht als Schritt in der CI: Die Pins sind
+# exakt (requirements.txt, SYN-P1-012) und aendern sich selten - eine Pruefung bei jedem
+# Push prueft fast immer denselben Stand. Eine Schwachstelle wird dagegen bekannt, ohne
+# dass hier jemand etwas commitet; genau dann soll die Meldung kommen. `fastmcp`,
+# `starlette`, `uvicorn` und `python-multipart` haengen am einzigen von aussen
+# erreichbaren Endpunkt.
+#
+# Der Lauf MELDET nur - er hebt keine Pins an. Ein Update bleibt Handarbeit mit
+# `make test` und Import-Stichprobe (Kopf von requirements.txt): Foliants Pins sind
+# einmal gesetzt worden, weil pymupdf4llm umgebungsempfindlich ist, und ein Bot, der sie
+# beilaeufig anhebt, waere genau die Automatik, gegen die sie stehen.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"        # montags 06:00 UTC
+  workflow_dispatch:            # und auf Zuruf
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 3.12 einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: pip-audit installieren
+        run: pip install pip-audit==2.9.0
+
+      # Beide Anforderungsdateien: Die DDB-Kette laeuft zwar nur lokal, zieht aber
+      # SQLCipher und einen eigenen HTTP-Stack - sie hier auszulassen hiesse, den
+      # unbequemeren Teil nicht anzusehen.
+      #
+      # Die drei --ignore-vuln sind die Funde des ERSTEN Laufs (19.09.2026), einzeln
+      # geprueft und in CONCEPT.md §13 mit ihren Belegen festgehalten. Sie stehen hier und
+      # nicht als dauerhaft rotes Ergebnis, weil ein Job, der immer rot ist, nach zwei
+      # Wochen niemanden mehr erreicht - NEUE Funde sollen auffallen. Jede Zeile nennt die
+      # Bedingung, unter der die Bewertung kippt; faellt sie weg, gehoert die Zeile weg.
+      #
+      #   PYSEC-2026-2475  fastmcp: Command Injection unter WINDOWS ueber `fastmcp
+      #                    install`. Foliant laeuft im Linux-Container und ruft das
+      #                    Kommando nirgends auf.
+      #   PYSEC-2026-2476  fastmcp: Confused Deputy im OAuthProxy/GitHubProvider. Foliant
+      #                    hat KEIN OAuth - der Zugang laeuft ueber Geheimpfad und WAF
+      #                    (§9). >>> Kippt, sobald BACKLOG §4 "OAuth-Identitaet statt
+      #                    Geheimpfad" umgesetzt wird. <<<
+      #   PYSEC-2026-2447  diskcache: Pickle-Deserialisierung. Verwaistes transitives
+      #                    Paket - sein Traeger py-key-value-aio ist gar nicht
+      #                    installiert, und kein Foliant-Modul importiert es.
+      #
+      # Behoben waeren die beiden fastmcp-Funde erst mit 3.2.0, also einem Major-Sprung.
+      # Der ist ein eigener Vorgang mit eigenem Test-Gate (BACKLOG M10/R09), kein
+      # beilaeufiges Anheben.
+      - name: pip-audit (Laufzeit + DDB)
+        run: |
+          pip-audit --strict --requirement requirements.txt \
+            --ignore-vuln PYSEC-2026-2475 \
+            --ignore-vuln PYSEC-2026-2476 \
+            --ignore-vuln PYSEC-2026-2447
+          pip-audit --strict --requirement requirements-ddb.txt

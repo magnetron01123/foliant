@@ -15,7 +15,6 @@ Die zwei Zusicherungen, an denen die Brücke hängt:
      (`offiziell=0`), also unsichtbar für Anzeige und Konflikt-Gate.
 """
 import sqlite3
-from pathlib import Path
 
 import pytest
 

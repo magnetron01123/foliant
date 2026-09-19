@@ -12,7 +12,6 @@ nicht in pytest pruefbar -> manuelle Checkliste im Claude-Chat (nach jedem Deplo
   T12: "Hilf mir, einen Charakter zu bauen" -> Reihenfolge Klasse -> Hintergrund -> Spezies.
 Die SERVER-Seite dieser Faelle (leere Treffer + Grounding-Hinweis) testet test_t2 unten."""
 import sqlite3
-from pathlib import Path
 
 import pytest
 

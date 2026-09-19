@@ -55,7 +55,6 @@ def test_serving_verbindung_ist_read_only(tmp_path):
     """SYN-P1-005 + TECH-020: connect_readonly erlaubt keine Schreibtransaktion -
     zweite Leitplanke neben dem read-only Volume-Mount."""
     import sqlite3
-    from pathlib import Path
 
     from app import db as adb
     pfad = tmp_path / "ro.sqlite"
@@ -91,7 +90,6 @@ def test_ready_endpoint_spiegelt_db_zustand(tmp_path, monkeypatch):
 
     # Gefuellte, konsistente DB -> 200
     import sqlite3
-    from pathlib import Path
     pfad = tmp_path / "da.sqlite"
     con = sqlite3.connect(pfad)
     con.executescript(SCHEMA.read_text(encoding="utf-8"))

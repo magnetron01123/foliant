@@ -323,7 +323,7 @@ def _mit_wiederholung(provider: Uebersetzungsprovider, ids: dict[str, str],
     danach kontrolliert scheitern (SPEC.md §14). (Der frühere Listen-Anzahl-Guard ist
     obsolet: Listen laufen seit 17.07.2026 gar nicht mehr durchs Sprachmodell.)"""
     letzter: Exception | None = None
-    for versuch in range(2):
+    for _versuch in range(2):
         try:
             ergebnis = provider.uebersetze(dict(ids), vorgaben)
             _pruefe_schluessel(ids, ergebnis)

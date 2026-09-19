@@ -1752,6 +1752,21 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Teil des öffentlichen Codes (gitignored). Ohne sie bleibt der Server voll funktionsfähig —
   nur die kommerziellen Druck-Importe entfallen, die zugehörigen Tests überspringen sich
   selbst.
+- **Bekannte Schwachstellen der Abhängigkeiten** prüft `pip-audit` wöchentlich
+  (`.github/workflows/abhaengigkeiten.yml`) — melden, nicht anheben: Die Pins sind
+  bewusst exakt. Der erste Lauf am 19.09.2026 fand vier Funde; einer ist behoben, drei
+  sind bewertet und im Workflow mit ihrer Begründung stumm geschaltet, damit **neue**
+  Funde auffallen statt in einem dauerhaft roten Job unterzugehen.
+
+  | Fund | Bewertung |
+  |---|---|
+  | `markdownify` PYSEC-2026-1604 | **behoben** — Pin auf 0.14.1 angehoben, DDB-Suite grün |
+  | `fastmcp` PYSEC-2026-2475 | nicht betroffen: Command Injection unter **Windows** über `fastmcp install`; Foliant läuft im Linux-Container und ruft das Kommando nirgends auf |
+  | `fastmcp` PYSEC-2026-2476 | nicht betroffen: Confused Deputy im OAuthProxy — Foliant hat **kein** OAuth (Geheimpfad + WAF, §9). **Die Bewertung kippt**, sobald „OAuth-Identität statt Geheimpfad" (BACKLOG §4) umgesetzt wird |
+  | `diskcache` PYSEC-2026-2447 | nicht ausnutzbar: verwaistes transitives Paket — sein Träger `py-key-value-aio` ist nicht einmal installiert, und kein Foliant-Modul importiert es. Dass es trotzdem im Laufzeit-Image liegt, ist der Befund R16 in klein |
+
+  Die beiden `fastmcp`-Funde wären erst mit 3.2.0 behoben, also einem Major-Sprung; der
+  ist ein eigener Vorgang mit eigenem Gate (BACKLOG M10/R09), kein beiläufiges Anheben.
 - **Schwachstellen melden:** nicht über öffentliche Issues, sondern über die private
   „Report a vulnerability"-Funktion (GitHub → *Security* → *Advisories*). Bitte betroffene
   Komponente, Reproduktionsschritte und mögliche Auswirkung angeben.

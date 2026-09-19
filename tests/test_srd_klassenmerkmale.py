@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import sqlite3
 
-import pytest
 
 from importer.srd_klassenmerkmale import QUELLE, apostroph_varianten, finde_paare
 

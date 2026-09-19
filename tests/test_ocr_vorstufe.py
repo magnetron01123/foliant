@@ -9,7 +9,7 @@ import sys
 
 import pytest
 
-from importer.ocr_vorstufe import (MIN_ZEICHEN, SCAN_SCHWELLE, ocr_befehl,
+from importer.ocr_vorstufe import (MIN_ZEICHEN, ocr_befehl,
                                    triagiere_pdf)
 
 _TEXT = ("Feuerball (Fireball): Ein heller Lichtstreif schiesst auf einen Punkt deiner "

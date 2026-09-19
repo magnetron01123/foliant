@@ -1,0 +1,33 @@
+# Foliant - Werkzeug-Konfiguration.
+#
+# Bewusst KEINE Paket-Metadaten: Foliant wird nicht installiert, sondern aus dem
+# Projektverzeichnis gefahren (Dockerfile: COPY . .). Diese Datei traegt allein die
+# Linter-Konfiguration, damit CI und Mac denselben Stand pruefen.
+
+[tool.ruff]
+line-length = 100
+extend-exclude = [".venv", ".venv-ddb", "data", "quellen"]
+
+[tool.ruff.lint]
+# NUR Regelklassen, die echte Defekte anzeigen - keine Stil- oder Formatierungsregeln.
+# Der Bestand ist gewachsen und durchgaengig kommentiert; ein Formatierer wuerde hier
+# tausende Zeilen anfassen, ohne einen einzigen Fehler zu finden.
+#   F = Pyflakes: ungenutzte Importe/Variablen, doppelte Definitionen, echte Namensfehler
+#   B = flake8-bugbear: Fallen, die als Laufzeitfehler enden (Closures ueber Schleifen-
+#       variablen, blinde Exception-Asserts, veraenderliche Default-Argumente)
+select = ["F", "B"]
+
+# B905 (`zip()` ohne `strict=`) ist am 19.09.2026 gemessen und VERWORFEN worden: Von den
+# sechs Fundstellen waere `strict=True` in zweien schlicht falsch.
+#   - `app/tools/charakter.py` zippt Tabellenkopf und Zeile einer OCR-Quelle. Eine kaputte
+#     Zeile soll eine Teiltabelle liefern, nicht die ganze Auskunft sprengen.
+#   - `tests/test_prioritaetsbaender.py` nutzt das paarweise-Idiom `zip(xs, xs[1:])`, das
+#     per Konstruktion ungleich lang ist.
+# In den uebrigen vier ist die Gleichheit eine Zeile darueber schon geprueft oder kommt
+# aus derselben SELECT-Liste - `strict=True` waere dort korrekt, aber wirkungslos. Eine
+# Regel, die in einem Drittel der Faelle das Falsche verlangt, erzieht zum Wegklicken.
+ignore = ["B905"]
+
+[tool.ruff.lint.per-file-ignores]
+# Testdateien duerfen Fixtures importieren, die pytest per Namen einsammelt.
+"tests/conftest.py" = ["F401"]

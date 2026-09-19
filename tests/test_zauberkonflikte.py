@@ -13,9 +13,7 @@ Kanonisierer, der raet, richtet mehr Schaden an als eine fehlende Zeile.
 """
 from __future__ import annotations
 
-import sqlite3
 
-import pytest
 
 from importer.import_glossar import kanonisiere_zauberkonflikte
 from tests.hilfen import neue_db

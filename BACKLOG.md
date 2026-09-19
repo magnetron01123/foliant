@@ -284,7 +284,7 @@ belegt, nicht an Testdaten.
 | R04b | ⬜ | Kapitelverweise (`„Kapitel" („Abschnitt")`) bleiben unaufgelöst — Glossar-Stubs liefern einen Satz statt der Regel |
 | R05 | ⬜ | Gleichnamige Abschnitte derselben Quelle verdrängen die Fremdfassung nicht mehr und belegen Trefferplätze |
 | R06 | ⬜ | Kein deterministischer Such-Benchmark; Ranking-Änderungen sind ohne ihn ein Blindflug |
-| R08/R09 | ⬜ | Kein Linter und kein Signal für verwundbare Pins in der CI |
+| R09 | 🟡 | `pip-audit` läuft wöchentlich. Offen bleibt der **`fastmcp`-Sprung auf 3.x** — behebt zwei Funde, ist aber ein Major-Wechsel am MCP-Server und braucht ein eigenes Gate (Bewertung: [CONCEPT.md](CONCEPT.md) §13) |
 | R10/R11 | ⬜ | Discord: kein Lebenszeichen, Tagesdeckel zählt prozesslokal (deckt D3/D5) |
 | R16 | ⬜ | Laufzeit-Image trägt die Import-Werkzeuge (deckt den M9-Posten „Serve-Pfad trennen") |
 | R17 | ⬜ | Statische Hinweise sind 35–40 % jeder Suchantwort — **nur messen, nicht auf Verdacht kürzen** |

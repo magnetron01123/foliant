@@ -376,7 +376,6 @@ def test_der_bot_meldet_die_ablehnung_selbst(protokoll_db, monkeypatch):
     dass die Antwort sich aendert. Vorher waere genau dieser Fall (🚫 ohne Werkzeuge)
     spurlos geblieben; gefunden hat ihn nur die Meldung eines Spielers."""
     import asyncio
-    import types
 
     from app import llm
     from app.discord_bot.bot import FoliantBot

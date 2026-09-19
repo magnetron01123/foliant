@@ -2,12 +2,10 @@
 Kern der Absicherung sind die Negativfaelle - ein falsch 'reparierter' Name waere
 schlimmer als ein zerrissener, weil er echte Inhalte unter falschem Namen zeigt."""
 import sqlite3
-from pathlib import Path
 
 import pytest
 
 from importer.import_glossar import _namensvarianten, repariere_2014_namen
-from importer import namensreparatur as nr
 from tests.hilfen import SCHEMA
 
 _SCHEMA = SCHEMA

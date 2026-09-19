@@ -16,12 +16,10 @@ Zusicherungen tragen das, und jede hat hier ihren Test:
      richtig als schnell falsch.
 """
 import sqlite3
-from pathlib import Path
 
 import pytest
 
 from app import db as adb
-from app.tools import nachschlagen as ns
 from app.tools import suche as su
 from importer.facetten_seeder import seed_facetten
 from tests.hilfen import SCHEMA

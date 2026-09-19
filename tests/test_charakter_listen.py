@@ -20,7 +20,6 @@ Fehler damals auffiel:
       Werkzeug fiel aus.
 """
 import sqlite3
-from pathlib import Path
 
 import pytest
 

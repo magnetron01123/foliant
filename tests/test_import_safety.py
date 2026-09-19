@@ -3,7 +3,6 @@
 Grundsatz: Ein fehlgeschlagener, leerer oder unplausibel geschrumpfter Import darf NIE
 einen vorhandenen, funktionierenden Quellenbestand ersetzen. Alle Tests laufen gegen
 temporaere Datenbanken; Open5e wird ueber einen Fake-httpx-Client simuliert (kein Netz)."""
-import json
 import sqlite3
 from pathlib import Path
 
@@ -183,7 +182,11 @@ def test_open5e_api_fehler_erhaelt_bestand(tmp_path, monkeypatch):
     con = _open5e_db(tmp_path)
     try:
         _fake_httpx(monkeypatch, {f"{_API}documents/": _FakeAntwort(500)})
-        with pytest.raises(Exception):
+        # Auf den ECHTEN Fehler pruefen, nicht auf `Exception` (ruff B017, 19.09.2026):
+        # Ein blinder Assert war auch dann gruen, wenn der Import an einem Tippfehler im
+        # Test starb - er haette also bestaetigt, dass der Bestand erhalten bleibt, ohne
+        # dass die Abbruchlogik je gelaufen waere.
+        with pytest.raises(RuntimeError, match="HTTP 500"):
             with con:
                 import_open5e(con, ["srd-2024"])
         assert con.execute("SELECT count(*) FROM eintraege").fetchone()[0] == 1

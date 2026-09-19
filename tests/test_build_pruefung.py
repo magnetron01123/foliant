@@ -9,7 +9,6 @@ Wichtige Konstellationen:
 - Die Attributs- und Hintergrund-Regelbelege liegen ALS BESTANDSEINTRAEGE vor (A5:
   Belege kommen aus der DB, nicht aus hartcodierten Quellenzeilen)."""
 import sqlite3
-from pathlib import Path
 
 import pytest
 
