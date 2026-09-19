@@ -184,6 +184,22 @@ services:
     cap_drop: ["ALL"]
     security_opt:
       - no-new-privileges:true
+    # Der Bot war als EINZIGER Dienst ohne Healthcheck (D5, 19.09.2026): foliant und web
+    # melden sich ueber ihren HTTP-Endpunkt, der Bot hat keinen und soll auch keinen
+    # bekommen (CONCEPT §13 fuehrt das Fehlen einer eingehenden Flaeche als
+    # Sicherheitsmerkmal). `docker ps` sagte deshalb auch dann "Up", wenn die
+    # Gateway-Verbindung tot war - und genau so blieb am 11.08.2026 ein stiller
+    # Meldeweg tagelang unbemerkt.
+    #
+    # Das Lebenszeichen schreibt die Gateway-Schleife jede Minute nach /tmp (tmpfs, also
+    # nach einem Neustart garantiert leer - ein Altstand kann keine Gesundheit vortaeuschen).
+    # start_period deckt den Verbindungsaufbau ab; davor gibt es noch nichts zu bezeugen.
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.discord_bot.lebenszeichen"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
     # Bot ist leicht (kein PDF-Parsing); der Pi traegt auch MCP, Website und Davids
     # Smarthome-Tunnel - lieber stirbt der Bot als der Rest.
     mem_limit: 256m

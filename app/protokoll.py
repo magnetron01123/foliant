@@ -179,6 +179,72 @@ def _schreibe_rueckmeldung(sql: str, werte: tuple) -> None:
         _fehler_rueckmeldungen += 1
 
 
+_SCHEMA_TAGESVERBRAUCH = """
+CREATE TABLE IF NOT EXISTS tagesverbrauch (
+    tag    TEXT PRIMARY KEY,
+    anzahl INTEGER NOT NULL DEFAULT 0
+);
+"""
+
+
+def lade_tagesverbrauch(tag: str) -> int | None:
+    """Wie viele Modellaufrufe an diesem UTC-Tag schon gezaehlt wurden - oder None,
+    wenn die Zahl nicht zu ermitteln ist (kein Protokoll, Tabelle fehlt, Datei kaputt).
+
+    None ist bewusst von 0 unterschieden: 0 heisst 'heute war noch nichts', None heisst
+    'ich weiss es nicht'. Der Aufrufer (app/discord_bot/schranken.py) behandelt beides
+    verschieden - ein unbekannter Stand darf nicht als frisches Tagesbudget durchgehen."""
+    try:
+        pfad = protokoll_pfad()
+        if not pfad.exists():
+            return None
+        con = sqlite3.connect(f"file:{pfad}?mode=ro", uri=True, timeout=0.25)
+        try:
+            zeile = con.execute("SELECT anzahl FROM tagesverbrauch WHERE tag = ?",
+                                (tag,)).fetchone()
+        finally:
+            con.close()
+        return int(zeile[0]) if zeile else 0
+    except Exception:
+        return None
+
+
+def merke_tagesverbrauch(tag: str, anzahl: int) -> bool:
+    """Den Tagesstand festschreiben; True bei Erfolg.
+
+    Warum ueberhaupt persistent (D3, Review 19.09.2026): Der Deckel zaehlte prozesslokal,
+    und der Bot laeuft mit `restart: unless-stopped`. Jeder Absturz - und jeder Deploy -
+    setzte das Tagesbudget auf null zurueck. Ein Kostendeckel, den ein Neustart aufhebt,
+    deckelt nichts; genau deshalb stand D3 im BACKLOG bei 🟡.
+
+    Die Protokoll-DB ist der richtige Ort: Sie ist die EINE Schreib-Ausnahme des
+    Serving-Pfads, liegt im beschreibbaren Mount und ueberlebt Image-Rebuilds. Ein Zaehler
+    ist kein Gespraechsinhalt und keine Nutzerkennung - die PII-Zusage aus CONCEPT §13
+    bleibt unberuehrt (es steht nur da, WIE OFT heute gefragt wurde, nicht von wem).
+
+    Die Zeilen rotieren NICHT mit `abfragen`: Es gibt eine je Tag, und der Bericht liest
+    sie nicht. Alte Tage raeumt `_rotiere_tagesverbrauch` beim Schreiben mit auf."""
+    try:
+        con = sqlite3.connect(protokoll_pfad(), timeout=0.25)
+        try:
+            con.execute("PRAGMA journal_mode=WAL;")
+            con.execute("PRAGMA busy_timeout=250;")
+            con.execute(_SCHEMA_TAGESVERBRAUCH)
+            con.execute("INSERT INTO tagesverbrauch (tag, anzahl) VALUES (?,?) "
+                        "ON CONFLICT(tag) DO UPDATE SET anzahl = excluded.anzahl",
+                        (tag, int(anzahl)))
+            # 30 Tage genuegen: Der Wert interessiert nur fuer HEUTE, ein kleiner
+            # Nachlauf hilft beim Nachsehen, warum gestern abgeriegelt wurde.
+            con.execute("DELETE FROM tagesverbrauch WHERE tag < date(?, '-30 days')",
+                        (tag,))
+            con.commit()
+        finally:
+            con.close()
+        return True
+    except Exception:
+        return False
+
+
 def merke_rueckmeldung(art: str, verweis: str, frage: str | None = None,
                        kanal: str = "discord") -> None:
     """Eine markierte Antwort als Kurations-Kandidat ablegen (idempotent).

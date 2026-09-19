@@ -285,7 +285,7 @@ belegt, nicht an Testdaten.
 | R05 | ⬜ | Gleichnamige Abschnitte derselben Quelle verdrängen die Fremdfassung nicht mehr und belegen Trefferplätze |
 | R06 | ⬜ | Kein deterministischer Such-Benchmark; Ranking-Änderungen sind ohne ihn ein Blindflug |
 | R09 | 🟡 | `pip-audit` läuft wöchentlich. Offen bleibt der **`fastmcp`-Sprung auf 3.x** — behebt zwei Funde, ist aber ein Major-Wechsel am MCP-Server und braucht ein eigenes Gate (Bewertung: [CONCEPT.md](CONCEPT.md) §13) |
-| R10/R11 | ⬜ | Discord: kein Lebenszeichen, Tagesdeckel zählt prozesslokal (deckt D3/D5) |
+
 | R16 | ⬜ | Laufzeit-Image trägt die Import-Werkzeuge (deckt den M9-Posten „Serve-Pfad trennen") |
 | R17 | ⬜ | Statische Hinweise sind 35–40 % jeder Suchantwort — **nur messen, nicht auf Verdacht kürzen** |
 | R18 | ⬜ | 32 % der Codezeilen sind Kommentar/Docstring, 106 datierte Befundgeschichten. Beim Anfassen kürzen, kein Großumbau |
@@ -307,8 +307,8 @@ B1–B8/B11/B13–B16, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7, D1–D2/D4).
 | V7 | Erweiterbares Versionsschema | 🟡 | `edition` ist ein Textfeld — reicht heute, feinere Granularität ohne Migration nachrüstbar |
 | NF4 | Legale Quellen; DDB nur privat | 🟡 | Für die eigene Nutzung entschieden ([SPEC.md](SPEC.md) §12 Nr. 1). Offen ist die zweite Handlung: ob das Verfahren im öffentlichen Repo stehen soll — §4 |
 | NF5 | Keine laufenden Kosten außer Strom | 🟡 | Zwei Dienste rufen Modelle auf und kosten Guthaben: Charakterbogen (§14) und Discord-Bot (§15). Bis 14.08.2026 stand NF5 fälschlich in der Sammelklammer — die Ausnahme war nur für den Charakterbogen notiert |
-| **D3** | Kostendeckel des Bots (fail-closed) | 🟡 | Deckel greift vor dem Modellaufruf und ist getestet; er zählt aber prozesslokal und startet bei jedem Neustart neu (`restart: unless-stopped`) — M7 |
-| **D5** | Rückmeldungen 👍/👎 als Teil des Dienstes | 🟡 | Weg steht und liefert (Runden 04.08. und 11.08.), aber sein Ausfall bliebe unbemerkt — genau das ist am 11.08. passiert (Hautton-Emoji). Lebenszeichen offen, M7 |
+| **D3** | Kostendeckel des Bots (fail-closed) | ✅ | Greift vor dem Modellaufruf und zählt seit 19.09.2026 persistent in der Protokoll-DB — ein Neustart schenkt kein frisches Budget mehr. Ein unbekannter Stand gilt als erreicht, ein Schreibfehler sperrt die Runde nicht aus |
+| **D5** | Rückmeldungen 👍/👎 als Teil des Dienstes | 🟡 | Weg steht und liefert (Runden 04.08. und 11.08.). Der Bot hat seit 19.09.2026 ein Lebenszeichen samt Healthcheck — ein toter Gateway fällt jetzt auf. Offen bleibt der Echttest in der Guild (M7) |
 | NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | 🟡 | Anleitung inkl. Beta-Fallback steht (M4); offen ist nur der Nachweis am echten Mitspieler |
 | B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln **und unter Sessionlast** belegt — Zahlen in §1/M3; `make lasttest-pi` hält sie als Wächter fest (bricht bei p95 > 1000 ms ab) |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
