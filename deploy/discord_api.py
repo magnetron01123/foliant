@@ -47,12 +47,12 @@ def hole(pfad: str, token: str):
             print("Token ungueltig (401). Im Bot-Tab 'Reset Token' druecken und den "
                   "NEUEN Token verwenden - ein Reset macht den alten sofort ungueltig.",
                   file=sys.stderr)
-            raise SystemExit(TOKEN_UNGUELTIG)
+            raise SystemExit(TOKEN_UNGUELTIG) from None
         print(f"Discord-API-Fehler {fehler.code}: {fehler.reason}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
     except urllib.error.URLError as fehler:
         print(f"Discord nicht erreichbar: {fehler.reason}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
 
 def _eine_zeile(text: str) -> str:

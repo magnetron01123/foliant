@@ -153,8 +153,15 @@ def finde_gegenstands_paare(con: sqlite3.Connection
         offen_de = {glossar.norm_begriff(_kurz(n)): (n, g) for n, g in de_liste}
         offen_en = dict(enumerate(en_liste))
 
+        # noqa B023: Die Closure greift absichtlich auf die Buckets DIESER Iteration zu
+        # und wird nur innerhalb derselben aufgerufen - sie wird nirgends gespeichert oder
+        # ueber die Schleife hinaus gereicht. Die Warnung bleibt trotzdem aktiv (kein
+        # globales Ignorieren): Wuerde jemand `_fixiere` spaeter in eine Liste legen,
+        # saehen alle Eintraege die Buckets des LETZTEN Preises, und die Bruecken landeten
+        # still beim falschen Gegenstand.
         def _fixiere(schluessel_de, j, stufe: str) -> None:
-            paare.append((offen_en.pop(j)[0], offen_de.pop(schluessel_de)[0], stufe))
+            paare.append((offen_en.pop(j)[0],  # noqa: B023
+                          offen_de.pop(schluessel_de)[0], stufe))  # noqa: B023
 
         # Gleichnamige (nach Suffix-/Diakritika-Normalisierung) brauchen keine Bruecke
         # ('Sack' == 'Sack (1 KM)') - aus dem Bucket nehmen, sonst blockieren sie den

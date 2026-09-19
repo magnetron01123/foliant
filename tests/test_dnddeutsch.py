@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import sqlite3
 
-import pytest
 
 from app import dnddeutsch
 from app.dnddeutsch import Zeile, zeilen_aus_antwort

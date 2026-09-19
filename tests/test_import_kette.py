@@ -14,7 +14,6 @@ Beide Fehlerformen haben denselben Kern: ein Seeder existiert, laeuft aber nicht
 Genau darauf zielen die Tests hier - rein statisch, ohne DB."""
 import ast
 import inspect
-import pathlib
 import sqlite3
 import types
 

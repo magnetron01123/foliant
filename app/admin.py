@@ -1188,7 +1188,7 @@ def cmd_check(args=None) -> None:
         for kat, mit, ges in zeilen)
         + ("  OK" if all(mit or not ges for _, mit, ges in zeilen)
            else "  WARNUNG - Tabelle leer trotz Eintraegen: "
-                f"`python -m app.admin import --quelle facetten` nachziehen"))
+                "`python -m app.admin import --quelle facetten` nachziehen"))
     if n_e:
         beispiel = c.execute(
             "SELECT e.name_de, e.name_en, e.edition, q.titel FROM eintraege e "
@@ -1830,7 +1830,7 @@ def baue_parser() -> argparse.ArgumentParser:
     po = sub.add_parser("ocr-pdf",
                         help="OCR-Vorstufe fuer gescannte PDFs (OCRmyPDF/Tesseract, deu+eng)")
     po.add_argument("--datei", required=True, help="Eingabe-PDF (z. B. quellen/Buch.pdf)")
-    po.add_argument("--ausgabe", help=f"Ziel (Standard: data/ocr/<name>.ocr.pdf)")
+    po.add_argument("--ausgabe", help="Ziel (Standard: data/ocr/<name>.ocr.pdf)")
     po.add_argument("--redo", action="store_true",
                     help="vorhandene (schlechte) Alt-OCR-Textschicht ersetzen statt "
                          "textlose Seiten zu ergaenzen")

@@ -2,7 +2,6 @@
 Dauer), Eindeutigkeits- und Widerspruchsregel. Die Negativfaelle sind die eigentliche
 Absicherung - ein falsches Paar ist schlimmer als eine Luecke."""
 import sqlite3
-from pathlib import Path
 
 import pytest
 

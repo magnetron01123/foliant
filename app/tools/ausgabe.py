@@ -871,7 +871,7 @@ def _detail(e: dict, con: sqlite3.Connection) -> dict:
     fehler = _quellfehler.quellfehler_zu(e.get("quelle"), e.get("name_de"), e.get("name_en"))
     if fehler and fehler.steht_noch_im_bestand(e.get("body_md")):
         d["hinweis_quellfehler"] = (
-            f"⚠️ Bekannter Fehler in dieser Quelle"
+            "⚠️ Bekannter Fehler in dieser Quelle"
             + (f" (S. {fehler.seite})" if fehler.seite else "")
             + f": Dort steht {' bzw. '.join(repr(w) for w in fehler.wortlaute)}. Belegt "
             f"richtig ist '{fehler.richtig}' - {fehler.beleg} Den Quelltext wiedergeben "

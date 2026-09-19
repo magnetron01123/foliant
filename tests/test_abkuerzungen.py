@@ -160,15 +160,26 @@ def test_hinweis_kommt_bei_jeder_regelauskunft_mit():
     assert "S12" in hinweis
 
 
-def test_hinweis_wird_aus_dem_register_gebaut():
+def test_hinweis_wird_aus_dem_register_gebaut(monkeypatch):
     """Nicht abgeschrieben: kommt eine Abkuerzung ins Register, steht sie auch im Hinweis.
-    Eine Kopie liefe der Liste beim ersten Zuwachs davon."""
+    Eine Kopie liefe der Liste beim ersten Zuwachs davon.
+
+    Bis zum 19.09.2026 pruefte dieser Test genau das NICHT (ruff F841 fand die tote
+    Variable, die davon uebrig war): Er verglich die Funktion mit ihrem eigenen Ergebnis
+    und sah im Hinweis nach, ob `EMPFOHLEN[0]` vorkommt - die Funktion nimmt aber
+    `EMPFOHLEN[:6]`. Eine abgeschriebene Kopie waere durchgegangen, solange nur ihr erster
+    Eintrag stimmte. Jetzt kommt eine Abkuerzung ins Register dazu, und der Hinweis muss
+    sie fuehren."""
     from app.tools import ausgabe as aus
 
-    quelltext = (aus._baue_abkuerzungs_hinweis.__code__.co_consts,)
-    gebaut = aus._baue_abkuerzungs_hinweis()
-    assert gebaut == aus.HINWEIS_ABKUERZUNGEN
-    assert abk.EMPFOHLEN[0][0] in gebaut and abk.ATTRIBUTE[0][0] in gebaut
+    assert aus._baue_abkuerzungs_hinweis() == aus.HINWEIS_ABKUERZUNGEN
+
+    # Der Zuwachs kommt VORNE hinein: die Funktion nimmt nur die ersten sechs Zeilen.
+    zuwachs = ("PRB", "Probenwert", "TST", None)
+    monkeypatch.setattr(abk, "EMPFOHLEN", (zuwachs, *abk.EMPFOHLEN))
+    gewachsen = aus._baue_abkuerzungs_hinweis()
+    assert "PRB" in gewachsen and "Probenwert" in gewachsen, gewachsen
+    assert "TST" in gewachsen, "die englische Form gehoert in die VERSTEHEN-Liste"
 
 
 def test_tool_beschreibungen_nennen_die_regel():

@@ -9,10 +9,23 @@
 # gruen. Nach jedem Deploy / srd-de-Re-Import daher zusaetzlich `make test-golden-pi` gegen
 # den VOLLEN Bestand fahren (CONCEPT.md §8).
 
-.PHONY: test test-haupt test-ddb test-daten test-golden-pi lasttest-pi deploy-pi
+.PHONY: test test-haupt test-ddb test-daten test-golden-pi lasttest-pi deploy-pi lint
 
 test: test-haupt test-ddb test-daten
 	@echo "OK: alle Test-Stufen bestanden."
+
+# Statische Pruefung auf echte Defekte (Konfiguration: pyproject.toml). Bewusst NICHT Teil
+# von `test`: ruff steht nicht in requirements.txt, weil die Datei ins Laufzeit-Image
+# gebacken wird (M10/R16) - `make test` muss aber ohne Zusatzinstallation laufen. In der
+# CI ist der Linter ein eigener Job und damit das verbindliche Gate.
+lint:
+	@if .venv/bin/python -c "import ruff" 2>/dev/null; then \
+		.venv/bin/python -m ruff check .; \
+	else \
+		echo "ruff fehlt in .venv - einmalig: .venv/bin/pip install ruff==0.16.8"; \
+		echo "(die CI prueft es ohnehin; dieses Ziel ist die schnelle Vorab-Runde)"; \
+		exit 1; \
+	fi
 
 test-haupt:
 	.venv/bin/python -m pytest -q

@@ -293,8 +293,7 @@ def test_grader_misst_die_codeblock_breite():
     breit, Median 51. Ein Codeblock bricht in Discord NICHT um - am Handy muss man
     breitere Tabellen seitwaerts schieben. Die Regel sagte bis dahin nur 'Codeblock mit
     festen Spalten' und nichts ueber Breite; jetzt wird sie gemessen."""
-    from evals.verhaltens_eval import (CODEBLOCK_MAX_BREITE,
-                                       zu_breite_codeblock_zeilen)
+    from evals.verhaltens_eval import (zu_breite_codeblock_zeilen)
 
     schmal = "🐉 **Vampirbrut**\n```text\nRK 16 · TP 90\nGES 16 +3\n```"
     breit = ("🐉 **Vampirbrut**\n```text\n" + "Eigenschaft      | Wirkung " + "x" * 60

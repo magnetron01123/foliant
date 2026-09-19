@@ -95,7 +95,6 @@ def test_monster_stats_de_en_und_dezimal_cr():
 
 
 def test_name_sauber_filtert_kurzfragmente_nicht_komposita():
-    from importer import import_glossar as ig
     assert nr.name_sauber("Menschenaffe") and nr.name_sauber("Goblin-Scherge")
     assert not nr.name_sauber("Gar l gy")                 # Kurz-Fragment 'l'
     assert not nr.name_sauber("Atterko pp")               # Kurz-Fragment 'pp'

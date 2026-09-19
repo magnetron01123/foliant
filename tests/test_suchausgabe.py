@@ -16,7 +16,6 @@ als der Bestand hergibt — alle vier wirken direkt gegen die Verhaltensregeln:
 Die Negativfaelle sind hier die eigentliche Absicherung: ein zu strenger Filter ist
 schlimmer als ein zu lascher, weil er als 'nicht im Bestand' beim Nutzer ankommt."""
 import sqlite3
-from pathlib import Path
 
 import pytest
 

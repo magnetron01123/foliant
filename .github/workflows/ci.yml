@@ -42,6 +42,33 @@ jobs:
       - name: Tests (pytest)
         run: pytest -q
 
+  # Statische Pruefung auf ECHTE Defekte (F = Pyflakes, B = bugbear) - Konfiguration und
+  # Begruendung der einen ignorierten Regel stehen in pyproject.toml.
+  #
+  # Eigener Job statt eines Schritts in `test`: Er braucht weder die Projekt-
+  # Abhaengigkeiten noch die Matrix und laeuft in Sekunden; ein roter Linter soll ausserdem
+  # als eigenes Signal erkennbar sein und nicht wie ein fehlgeschlagener Test aussehen.
+  #
+  # ruff wird hier direkt installiert und steht bewusst NICHT in requirements.txt: Die
+  # Datei wird ins Laufzeit-Image gebacken, und der einzige von aussen erreichbare
+  # Container soll kein Entwicklungswerkzeug tragen (BACKLOG M10/R16).
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 3.12 einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: ruff installieren
+        run: pip install ruff==0.16.8
+
+      - name: Linter (ruff)
+        run: ruff check --output-format=github .
+
   # Zweite Stufe wie in `make test` (SYN-P1-001). Sie MUSS getrennt laufen: SQLite3MC
   # gehoert nie in die Laufzeit-Umgebung (CONCEPT.md par. 10, ADR), deshalb liegen die
   # Exporter-Abhaengigkeiten in requirements-ddb.txt und die DDB-Tests ueberspringen sich

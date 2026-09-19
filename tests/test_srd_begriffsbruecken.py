@@ -3,9 +3,7 @@ Tausenderpunkte!), Beweisstufen, Verwerfung ununterscheidbarer Kandidaten, kein
 Kapern fremder Glossar-Zeilen - und die HG-Normalisierung, ohne die dieselbe
 Kreatur in Open5e ('4.0') und srd-de ('4') zwei verschiedene waere."""
 import sqlite3
-from pathlib import Path
 
-import pytest
 
 from app import facetten as f
 from importer import srd_begriffsbruecken as bb

@@ -1,7 +1,6 @@
 """Regressionstests A9 (Glossar: korrekte Edition + kanonische Auswahl) - offline,
 mit gefakter dnddeutsch-Antwort (kein Netz, kein Cache)."""
 import sqlite3
-from pathlib import Path
 
 import pytest
 

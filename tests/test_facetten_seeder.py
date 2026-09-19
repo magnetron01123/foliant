@@ -6,7 +6,6 @@ Wertraum EINER ist, dass nichts geraten wird, dass Alt-DBs die neuen Spalten bek
 und dass die Beweisgrundlage der Glossar-Zauberbruecken (fingerabdruck) sich NICHT bewegt.
 """
 import sqlite3
-from pathlib import Path
 
 import pytest
 

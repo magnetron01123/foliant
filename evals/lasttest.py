@@ -29,7 +29,6 @@ def _mix() -> list[tuple[str, callable]]:
     """Ein realistischer Sessionschnitt statt einer einzelnen Abfrage: In der Runde wird
     gesucht, nachgeschlagen, uebersetzt und ein Build geprueft - die Mischung entscheidet
     ueber die Last, nicht der guenstigste Fall."""
-    from app.tools import charakter as ch
     from app.tools import nachschlagen as ns
     from app.tools import suche as su
     return [

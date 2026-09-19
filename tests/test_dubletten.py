@@ -5,7 +5,6 @@ Kern: 'Feuerball' (srd-de, ohne name_en - wie der reale PDF-Import) und 'Firebal
 (kleinste prioritaet liefert den Text, weitere Quellen als Provenienz). Nur EXAKTE
 Glossarentsprechungen bruecken; Fuzzy-Naehe begruendet keine Dublette."""
 import sqlite3
-from pathlib import Path
 
 import pytest
 

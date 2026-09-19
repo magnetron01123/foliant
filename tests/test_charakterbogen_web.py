@@ -514,7 +514,6 @@ def test_balkenbreite_kommt_ohne_inline_stil_aus():
     Der Test prüft beides: keinen Inline-Stil in der Ausgabe UND dass die Klasse, die
     dort steht, in site.css auch wirklich definiert ist."""
     import re
-    from pathlib import Path
 
     from app.charakterbogen import web
 
