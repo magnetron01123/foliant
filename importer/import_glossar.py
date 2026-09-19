@@ -106,6 +106,13 @@ SRD_2024_BEGRIFFSPAARE: list[tuple[str, str]] = [
     # 2024-Umbenennung (dnddeutsch fuehrt die 2014-Fassung 'Kampf mit zwei Waffen';
     # S8: der neuere offizielle Begriff gewinnt in der Sortierung)
     ("Two-Weapon Fighting", "Zwei-Waffen-Kampf"),
+    # BEWUSST NICHT hier: ("Grappling", "Gepackt halten"). Das Paar sah nach dem naechsten
+    # Fall dieser Liste aus (Review 19.09.2026, R03) - gemessen erzeugt `seed_regelglossar`
+    # die Zeile aber laengst aus den srd-de-Regeldefinitionen, und S8 waehlt zwischen ihr
+    # und der 2014-Form 'Ringen' korrekt nach Edition. Aufgenommen haette das Paar nur
+    # `kanonisiere_konflikte` ausgeloest und damit 'Ringen' demotet - eine richtige
+    # offizielle 2014-Form, die niemandem im Weg stand. Was fehlte, war allein die
+    # SUCHVARIANTE 'grapple' (siehe UMGANGSSPRACHE).
     # 2024-Flexionsform (dnddeutsch: 'Drachenblütige'; SRD 5.2.1: 'Drachenblütiger')
     ("Dragonborn", "Drachenblütiger"),
     # Zauber, deren 5.2.1-Namen von den dnddeutsch-Begriffen abweichen (2024-Umbenennungen,
@@ -1036,6 +1043,17 @@ UMGANGSSPRACHE: tuple[tuple[str, str, str], ...] = (
     # (Betaeubung, Heilung) sind bewusst NICHT dabei: Sie sind dieselbe Konstruktion,
     # aber niemand hat nach ihnen gesucht, und gebrueckt wird, was die Daten zeigen.
     ("Power Word Kill", "Wort der Macht: Tod", "Machtwort Tod"),
+    # Zwei 👎 vom 10.08.2026, Ursache erst am 19.09.2026 gefunden (R03): Die Frage
+    # 'grapple' lieferte das TALENT 'Ringer' statt der Regel - die Namens-Fuzzy verbindet
+    # 'grapple' mit 'Grappler' (fuzz.ratio 93,3), und der Wortstamm allein reicht dem
+    # Glossar nicht bis 'Grappling'. Der deutsche Zieleintrag war die ganze Zeit da und
+    # ueber das Regelglossar auch gebrueckt; es fehlte nur diese eine Suchvariante.
+    # Dass 'Gepackt halten' das richtige Ziel ist, belegt das Erratum 'Grappling'
+    # (errata-phb-2024-en) beidseitig: seine Ueberschrift "Ending a Grapple" und sein
+    # Nachsatz "release the target at any time (no action required)" stehen woertlich im
+    # deutschen Eintrag ("Den Zustand Gepackt beenden", "jederzeit loslassen (keine Aktion
+    # erforderlich)"). BACKLOG §3 hielt diesen Beleg fuer fehlend.
+    ("Grappling", "Gepackt halten", "grapple"),
 )
 
 

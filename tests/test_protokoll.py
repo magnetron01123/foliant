@@ -192,3 +192,37 @@ def test_interne_sonden_landen_nicht_im_abfrage_protokoll(tmp_path, monkeypatch)
         "interne Sonde im Abfrage-Protokoll - der Suchbericht meldet sie als "
         "Nutzeranfrage und verwaessert die Kurationsliste")
     assert len(begriffe) == 1, f"erwartet genau den Werkzeugaufruf, protokolliert: {begriffe}"
+
+
+def test_suchbericht_trennt_kategorie_verwechslung_vom_nulltreffer(bestand, capsys):
+    """R07 (Review 19.09.2026): Eine Anfrage mit der FALSCHEN Kategorie ist keine
+    Vokabelluecke - im Bestand fehlt nichts. Der Bericht fuehrte sie trotzdem unter den
+    Nulltreffern, und der dort angebotene Kur-Weg ('Glossar-Paar ergaenzen') ist fuer
+    diese Faelle der falsche. Genau daran blieb R02 vier Kurationsdurchgaenge unsichtbar.
+
+    'Nachtmahr' ist ein monster; als kategorie='regel' gefragt greift der Rueckfall."""
+    su.foliant_suche_bestand("Nachtmahr", kategorie="regel")
+    su.foliant_suche_bestand("gibtesnichtxyz", kategorie="regel")
+    adm.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=True))
+    bericht = json.loads(capsys.readouterr().out)
+
+    verwechselt = bericht["kategorie_verwechselt"]
+    assert [z["begriff"] for z in verwechselt] == ["nachtmahr"], verwechselt
+    # Die Kategorie steht an der Zeile - ohne sie sieht der Fall wie eine Luecke aus.
+    assert verwechselt[0]["kategorien"] == "regel"
+    # Und er taucht NICHT mehr unter den Nulltreffern auf; der echte bleibt dort.
+    assert [z["begriff"] for z in bericht["nulltreffer"]] == ["gibtesnichtxyz"]
+    assert bericht["nulltreffer"][0]["kategorien"] == "regel"
+
+
+def test_suchbericht_weist_gesetzte_strukturfilter_aus(bestand, capsys):
+    """Ein Nulltreffer mit Struktur-Filter ist etwas anderes als einer ohne: Vielleicht
+    ist der Filter zu eng, nicht der Bestand zu duenn. Die Null-Kulisse der ungesetzten
+    Filter bleibt draussen, sonst stuende sie in jeder Zeile."""
+    su.foliant_suche_bestand("gibtesnichtxyz", grad=3)
+    su.foliant_suche_bestand("gibtesnichtxyz2")
+    adm.cmd_suchbericht(argparse.Namespace(tage=30, limit=10, json=True))
+    bericht = json.loads(capsys.readouterr().out)
+    nach_begriff = {z["begriff"]: z for z in bericht["nulltreffer"]}
+    assert nach_begriff["gibtesnichtxyz"]["filter"] == "grad"
+    assert nach_begriff["gibtesnichtxyz2"]["filter"] is None

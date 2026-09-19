@@ -60,6 +60,17 @@ def bestand(tmp_path, monkeypatch):
         (1, "gegenstand", "Elfenruestung", "Elven Chain", "de", "2024", "20",
          "*Kontext: Magische Gegenstaende*\n\nEine Kettenruestung aus Mithral. Der "
          "Begriff Mithral kommt hier NUR im Fliesstext vor, nie im Namen."),
+        # R02, zweite Gestalt (19.09.2026): Die Waffeneigenschaft steht als GEGENSTAND im
+        # Bestand, und in kategorie='regel' gibt es dazu nur eine Fliesstext-Erwaehnung.
+        # Eine Anfrage mit kategorie='regel' lief damit nicht in einen Leerbefund, sondern
+        # in eine Rueckfrage nach dem falschen Eintrag - die teurere Form, weil sie wie
+        # eine ordentliche B4-Rueckfrage aussieht.
+        (1, "gegenstand", "Vielseitig", "Versatile", "de", "2024", "103",
+         "*Kontext: Ausruestung > Waffen*\n\nWaffen mit dieser Eigenschaft koennen "
+         "ein- oder zweihaendig gefuehrt werden."),
+        (1, "regel", "Staubfuersten", None, "de", "2024", "88",
+         "*Kontext: Regeln*\n\nIhre Anhaenger fuehren vielseitige Waffen und meiden "
+         "das Tageslicht."),
     ]
     con.executemany(
         "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
@@ -214,3 +225,90 @@ def test_fuzzy_namenspfad_ersetzt_die_angefragte_edition_nicht(bestand):
     d = ns.foliant_hol_eintrag("regel", "Nebelwanderun", edition="2014")
     assert d.get("gefunden") is not True, \
         f"2024-Fassung fuer eine 2014-Anfrage geliefert: {d.get('edition')}"
+
+
+# --- R02 (Review 19.09.2026): die falsche Kategorie darf kein Leerbefund sein ----------
+#
+# Gemessen am Dev-Bestand: 'Zweihaendig', 'Vielseitig' und 'Munition' liegen als
+# kategorie='gegenstand' im Bestand. Mit kategorie='regel' gefragt - was ein Modell bei
+# einer Waffeneigenschaft naheliegend tut - kam HINWEIS_LEER samt der Anweisung, ❌ zu
+# sagen. Dieselben Begriffe standen zugleich in der Nulltreffer-Liste des Pi-Suchberichts
+# und sahen dort wie eine Vokabelluecke aus.
+
+def test_falsche_kategorie_ist_kein_leerbefund(bestand):
+    """Der Kernfall: 'Elfenruestung' ist ein gegenstand. Mit kategorie='regel' gefragt,
+    darf NICHT 'Nichts im Bestand' herauskommen - der Eintrag existiert."""
+    r = su.foliant_suche_bestand("Elfenruestung", kategorie="regel")
+    assert r["treffer"] == []
+    anders = r.get("treffer_andere_kategorie")
+    assert anders, f"kein Rueckfall auf die andere Kategorie: {r.get('hinweis')}"
+    assert [t["kategorie"] for t in anders] == ["gegenstand"]
+    assert "Nichts im Bestand" not in r.get("hinweis", "")
+    assert "KEIN 'nicht im Bestand'" in r["hinweis"]
+
+
+def test_detailabruf_mit_falscher_kategorie_nennt_die_richtige(bestand):
+    """Der Detailpfad antwortet verbindlicher als die Suche - hier wiegt der falsche
+    Leerbefund am schwersten."""
+    d = ns.foliant_hol_eintrag("regel", "Elfenruestung")
+    assert d.get("gefunden") is False
+    anders = d.get("treffer_andere_kategorie")
+    assert anders and anders[0]["kategorie"] == "gegenstand", d.get("hinweis")
+    assert "Nichts im Bestand" not in d.get("hinweis", "")
+
+
+def test_echter_leerbefund_bleibt_leerbefund(bestand):
+    """Gegenprobe - die wichtigere Haelfte: Was WIRKLICH fehlt, muss weiterhin ehrlich
+    als Fehlanzeige herauskommen. Ein Rueckfall, der immer etwas findet, ersetzte den
+    falschen Leerbefund durch einen falschen Fundbefund (B1)."""
+    r = su.foliant_suche_bestand("Silbriger Widerhaken", kategorie="zauber")
+    assert r["treffer"] == []
+    assert not r.get("treffer_andere_kategorie")
+    assert "Nichts im Bestand" in r.get("hinweis", "")
+
+
+def test_rueckfall_greift_nur_bei_namenstreffern(bestand):
+    """'Mithral' steht NUR im Fliesstext der Elfenruestung. Ein Rueckfall ohne
+    Namensgate meldete diese Body-Erwaehnung als 'steht in einer anderen Kategorie' -
+    dieselbe Fehlerform wie der Einzelkandidat ohne Relevanzgate eine Datei weiter."""
+    r = su.foliant_suche_bestand("Mithral", kategorie="regel")
+    assert not r.get("treffer_andere_kategorie"), r.get("treffer_andere_kategorie")
+    assert "Nichts im Bestand" in r.get("hinweis", "")
+
+
+def test_rueckfall_traegt_die_spoiler_kennzeichnung(bestand):
+    """Der Rueckfall liefert Auszuege aus dem Bestand - also denselben Spoiler-Weg wie
+    jede andere Trefferliste. 'Domain Secrets' steht im Abenteuerband und muss auch hier
+    markiert ankommen (oberste Regel; dieselbe Luecke fand der Audit-Nachzug 28.07.2026
+    an der kandidaten-Liste des Detail-Pfads)."""
+    r = su.foliant_suche_bestand("Domain Secrets", kategorie="zauber")
+    anders = r.get("treffer_andere_kategorie")
+    assert anders, r.get("hinweis")
+    assert anders[0].get("inhaltsart") == "abenteuer_setting", anders[0]
+    assert "hinweis_inhaltsart" in r
+
+
+def test_facetten_anfrage_bekommt_keinen_kategorie_rueckfall(bestand):
+    """Struktur-Facetten implizieren ihre Kategorie selbst - ein Rueckfall auf eine
+    andere waere sinnlos (Zauber-Facetten passen auf kein Monster) und wuerde den
+    praezisen Filter-Hinweis verdraengen."""
+    r = su.foliant_suche_bestand("Pruefflamme", kategorie="zauber", grad=9)
+    assert not r.get("treffer_andere_kategorie")
+    assert "KEIN" in r.get("hinweis", "") and "Filter" in r.get("hinweis", "")
+
+
+def test_nur_fliesstext_kandidat_verdeckt_die_andere_kategorie_nicht(bestand):
+    """R02, zweite Gestalt: 'Vielseitig' als kategorie='regel' gefragt findet einen
+    Kandidaten - aber nur ueber den FLIESSTEXT der 'Staubfuersten'. Ohne Rueckfall wurde
+    daraus eine Rueckfrage nach einem Eintrag, den niemand gemeint hat, bzw. ein
+    'hinweis_geringe_relevanz', der ausdruecklich zur Fehlanzeige raet."""
+    r = su.foliant_suche_bestand("Vielseitig", kategorie="regel")
+    anders = r.get("treffer_andere_kategorie")
+    assert anders and anders[0]["kategorie"] == "gegenstand", r.get("hinweis")
+    # Die beiden Anweisungen widersprechen sich - es darf nur eine im Payload stehen.
+    assert "hinweis_geringe_relevanz" not in r
+
+    d = ns.foliant_hol_eintrag("regel", "Vielseitig")
+    assert d.get("gefunden") is False
+    assert d.get("treffer_andere_kategorie"), d.get("hinweis")
+    assert d["hinweis"].startswith("KEIN 'nicht im Bestand'")

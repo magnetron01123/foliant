@@ -1509,15 +1509,45 @@ def cmd_suchbericht(args) -> None:
         seit = (datetime.now(timezone.utc) - timedelta(days=tage)
                 ).isoformat(timespec="seconds")
 
+        def _verdichte_filter(roh: str | None) -> str | None:
+            """Aus den rohen filter_json-Werten einer Gruppe die NAMEN der tatsaechlich
+            gesetzten Filter. `{"grad": null, ...}` heisst 'kein Filter' - ohne diese
+            Verdichtung stuende in jeder Zeile dieselbe Null-Kulisse."""
+            namen: list[str] = []
+            for stueck in (roh or "").split("\x1f"):
+                if not stueck.strip():
+                    continue
+                try:
+                    werte = _json.loads(stueck)
+                except ValueError:
+                    continue
+                if isinstance(werte, dict):
+                    namen += [k for k, v in werte.items() if v is not None and k not in namen]
+            return ", ".join(sorted(namen)) or None
+
         def _gruppe(wo: str, params: tuple = (), extra: str = "") -> list[dict]:
-            return [dict(r) for r in con.execute(
+            # Kategorie und Filter gehoeren an JEDE Signalzeile (Review 19.09.2026, R07).
+            # Der Bericht gruppierte nur nach dem Begriff - ein Nulltreffer, der bloss an
+            # einer falsch geratenen Kategorie lag (R02), sah damit exakt aus wie eine
+            # Vokabelluecke und wurde vier Kurationsdurchgaenge lang als solche behandelt.
+            # Der Kurations-Weg ('Glossar-Paar ergaenzen') ist fuer diese Faelle der
+            # FALSCHE; sichtbar wird der Unterschied allein an der Kategorie.
+            # group_concat mit \x1f als Trenner: ein Komma kommt in filter_json selbst vor.
+            zeilen = [dict(r) for r in con.execute(
                 f"""SELECT lower(suchbegriff) AS begriff, count(*) AS anzahl,
-                           max(zeitpunkt) AS zuletzt{extra}
+                           max(zeitpunkt) AS zuletzt,
+                           group_concat(DISTINCT coalesce(kategorie, '-')) AS kategorien,
+                           group_concat(filter_json, char(31)) AS filter_roh{extra}
                     FROM abfragen
                     WHERE zeitpunkt >= ? AND suchbegriff IS NOT NULL AND {wo}
                     GROUP BY lower(suchbegriff)
                     ORDER BY anzahl DESC, zuletzt DESC LIMIT ?""",
                 (seit, *params, limit))]
+            for z in zeilen:
+                z["filter"] = _verdichte_filter(z.pop("filter_roh", None))
+                if z.get("kategorien") in ("-", None):
+                    z["kategorien"] = None       # ohne Kategorie gefragt - keine Spalte noetig
+            return zeilen
 
         def _markierungen(art: str) -> list[dict]:
             """Markierte Antworten EINER Art im Zeitraum. Bestands-Protokolle kennen die
@@ -1602,7 +1632,13 @@ def cmd_suchbericht(args) -> None:
             # Nulltreffer ueber alle Nachschlage-Werkzeuge; Parameterfehler sind bewusst
             # KEIN Leerbefund (SYN-P0-006) und bleiben draussen.
             "nulltreffer": _gruppe("anzahl_treffer = 0 AND suchweg != 'fehler' "
+                                   "AND suchweg != 'andere_kategorie' "
                                    "AND werkzeug != 'uebersetze_begriff'"),
+            # Eigene Klasse, nicht unter den Nulltreffern (R02/R07): Hier FEHLT nichts im
+            # Bestand - der Aufruf nannte die falsche Kategorie. Ein Glossar-Paar waere die
+            # falsche Kur; zu pruefen ist, warum das Modell die Kategorie verfehlt hat
+            # (Werkzeugbeschreibung, Kategorienschnitt des Bestands).
+            "kategorie_verwechselt": _gruppe("suchweg = 'andere_kategorie'"),
             "fuzzy_treffer": _gruppe("suchweg = 'fuzzy' AND werkzeug != 'uebersetze_begriff'"),
             "glossar_bruecken": _gruppe("suchweg LIKE 'glossar:%'",
                                         extra=", max(suchweg) AS bruecke"),
@@ -1654,6 +1690,12 @@ def cmd_suchbericht(args) -> None:
                 print(f"    {leer_ok}")
             for z in zeilen:
                 zusatz = f"  [{z['bruecke'][8:]}]" if z.get("bruecke") else ""
+                # Kategorie/Filter nur, wo sie gesetzt waren - eine Spalte voller '-'
+                # traegt nichts und verdraengt nur den Begriff aus dem Blick (R07).
+                if z.get("kategorien"):
+                    zusatz += f"  kategorie={z['kategorien']}"
+                if z.get("filter"):
+                    zusatz += f"  filter={z['filter']}"
                 print(f"    {z['anzahl']:>4}x  {z['begriff']}{zusatz}  "
                       f"(zuletzt {z['zuletzt'][:10]})")
             print()
@@ -1687,6 +1729,9 @@ def cmd_suchbericht(args) -> None:
 
         _abschnitt("Nulltreffer (Glossar-/Synonym-Kandidaten, ggf. fehlt ein Buch)",
                    bericht["nulltreffer"], "keine - alles gefunden ✓")
+        _abschnitt("Kategorie verfehlt (im Bestand, nur unter anderer Kategorie - KEINE "
+                   "Vokabelluecke, kein Glossar-Paar noetig)",
+                   bericht["kategorie_verwechselt"], "keine ✓")
         _abschnitt("Nur per Tippfehler-Toleranz gefunden (Schreibvarianten-Kandidaten)",
                    bericht["fuzzy_treffer"], "keine ✓")
         _abschnitt("Per Glossar-Bruecke gefunden (Bruecke funktioniert; [Ziel])",
