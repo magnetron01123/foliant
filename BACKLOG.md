@@ -281,7 +281,6 @@ belegt, nicht an Testdaten.
 | ID | offen | Inhalt |
 |---|---|---|
 | R01 | 🟡 | Mehrwort- und Satzanfragen scheitern an der UND-Verknüpfung. Der naheliegende ODER-Rückfall ist **in fünf Varianten gemessen und verworfen** — er tauscht ehrliche Nulltreffer gegen plausible Fehltreffer ([CONCEPT.md](CONCEPT.md) §10). Ein Weg bleibt: die Teiltreffer NEBEN den Leerbefund stellen statt in die Trefferliste. Eigener Entwurf, eigene Runde |
-| R04b | ⬜ | Kapitelverweise (`„Kapitel" („Abschnitt")`) bleiben unaufgelöst — Glossar-Stubs liefern einen Satz statt der Regel |
 | R09 | 🟡 | `pip-audit` läuft wöchentlich. Offen bleibt der **`fastmcp`-Sprung auf 3.x** — behebt zwei Funde, ist aber ein Major-Wechsel am MCP-Server und braucht ein eigenes Gate (Bewertung: [CONCEPT.md](CONCEPT.md) §13) |
 
 | R16 | ⬜ | Laufzeit-Image trägt die Import-Werkzeuge (deckt den M9-Posten „Serve-Pfad trennen") |
