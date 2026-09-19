@@ -17,7 +17,7 @@ import httpx
 from discord import app_commands
 
 from app import llm, protokoll
-from app.discord_bot import antwort, bestand, wiederaufbau, rueckmeldung
+from app.discord_bot import antwort, bestand, lebenszeichen, wiederaufbau, rueckmeldung
 from app.discord_bot.gespraech import GespraechsSpeicher, verlaufsschluessel
 from app.discord_bot.schranken import Schranken
 
@@ -50,7 +50,12 @@ class FoliantBot(discord.Client):
                          allowed_mentions=discord.AllowedMentions.none())
         self.baum = app_commands.CommandTree(self)
         self._guild = discord.Object(id=guild_id)
-        self.schranken = Schranken(guild_id, kanal_ids, tagesdeckel, cooldown_s)
+        # Der Tagesdeckel zaehlt persistent (D3): `restart: unless-stopped` schenkte der
+        # Runde sonst bei jedem Absturz ein frisches Budget. Die beiden Funktionen halten
+        # schranken.py frei von Protokoll-Wissen.
+        self.schranken = Schranken(guild_id, kanal_ids, tagesdeckel, cooldown_s,
+                                   lade_verbrauch=protokoll.lade_tagesverbrauch,
+                                   speichere_verbrauch=protokoll.merke_tagesverbrauch)
         self.gespraeche = GespraechsSpeicher()
         # Welche Frage welche gesendete Antwort beantwortet - damit eine Markierung die
         # richtige Frage protokolliert statt einer geratenen (rueckmeldung.Fragenspeicher).
@@ -60,6 +65,7 @@ class FoliantBot(discord.Client):
         # als zwei gleichzeitige Schleifen bringt der Runde nichts.
         self._semaphor = asyncio.Semaphore(2)
         self._mcp = None
+        self._lebenszeichen_task: asyncio.Task | None = None
         self._http: httpx.AsyncClient | None = None
         self._werkzeuge: list[dict] = []
 
@@ -165,8 +171,23 @@ class FoliantBot(discord.Client):
         # Guild-scoped Sync: sofort verfuegbar (globaler Sync braucht bis zu 1 h).
         await self.baum.sync(guild=self._guild)
 
+    async def _lebenszeichen_schleife(self) -> None:
+        """Jede Minute den Zeitstempel erneuern, solange die Gateway-Verbindung steht.
+
+        An `is_closed()` und nicht an einem festen `while True`: Genau das soll die Datei
+        ja bezeugen - dass die VERBINDUNG lebt, nicht dass der Prozess existiert. Ein
+        Bot, dessen Gateway tot ist, hoert damit auf zu schreiben, und der Healthcheck
+        sieht es nach drei verpassten Runden."""
+        while not self.is_closed():
+            lebenszeichen.schreibe()
+            await asyncio.sleep(60)
+
     async def on_ready(self) -> None:
         _log.info("angemeldet als %s (Guilds: %d)", self.user, len(self.guilds))
+        # Erst hier starten, nicht in setup_hook: Vor on_ready steht die Verbindung noch
+        # nicht, und ein Lebenszeichen waehrend des Verbindungsaufbaus bezeugt nichts.
+        if self._lebenszeichen_task is None:
+            self._lebenszeichen_task = asyncio.create_task(self._lebenszeichen_schleife())
         for guild in self.guilds:
             if guild.id != self._guild.id:
                 # Server-Sperre (SPEC §12): der Bestand ist privat fuer die Runde -

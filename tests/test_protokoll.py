@@ -225,3 +225,40 @@ def test_suchbericht_weist_gesetzte_strukturfilter_aus(bestand, capsys):
     nach_begriff = {z["begriff"]: z for z in bericht["nulltreffer"]}
     assert nach_begriff["gibtesnichtxyz"]["filter"] == "grad"
     assert nach_begriff["gibtesnichtxyz2"]["filter"] is None
+
+
+def test_tagesverbrauch_ueberlebt_den_prozess(tmp_path, monkeypatch):
+    """D3: Der Zaehler liegt in der Protokoll-DB, nicht im Prozess. Sie ist die EINE
+    Schreib-Ausnahme des Serving-Pfads, liegt im beschreibbaren Mount und ueberlebt
+    Image-Rebuilds. Ein Zaehler ist dabei kein Gespraechsinhalt - die PII-Zusage aus
+    CONCEPT §13 bleibt unberuehrt."""
+    monkeypatch.setattr(_protokoll, "protokoll_pfad",
+                        lambda: tmp_path / "protokoll.sqlite")
+    assert _protokoll.lade_tagesverbrauch("2026-09-19") is None    # noch keine Datei
+    assert _protokoll.merke_tagesverbrauch("2026-09-19", 7) is True
+    assert _protokoll.lade_tagesverbrauch("2026-09-19") == 7
+    assert _protokoll.lade_tagesverbrauch("2026-09-20") == 0       # Datei da, Tag neu
+    assert _protokoll.merke_tagesverbrauch("2026-09-19", 8) is True
+    assert _protokoll.lade_tagesverbrauch("2026-09-19") == 8
+
+
+def test_tagesverbrauch_meldet_unlesbar_als_unbekannt(tmp_path, monkeypatch):
+    """None heisst 'ich weiss es nicht' und ist von 0 zu unterscheiden - der Aufrufer
+    behandelt beides verschieden (ein unbekannter Stand darf kein frisches Tagesbudget
+    sein). Eine Datei, die keine SQLite-DB ist, muss also None liefern und nicht 0."""
+    kaputt = tmp_path / "protokoll.sqlite"
+    kaputt.write_bytes(b"kein sqlite")
+    monkeypatch.setattr(_protokoll, "protokoll_pfad", lambda: kaputt)
+    assert _protokoll.lade_tagesverbrauch("2026-09-19") is None
+    assert _protokoll.merke_tagesverbrauch("2026-09-19", 1) is False
+
+
+def test_alte_tagesverbrauch_zeilen_werden_aufgeraeumt(tmp_path, monkeypatch):
+    """Die Zeilen rotieren nicht mit `abfragen` - es gibt eine je Tag. 30 Tage Nachlauf
+    genuegen, um nachzusehen, warum gestern abgeriegelt wurde."""
+    monkeypatch.setattr(_protokoll, "protokoll_pfad",
+                        lambda: tmp_path / "protokoll.sqlite")
+    _protokoll.merke_tagesverbrauch("2026-01-01", 5)
+    _protokoll.merke_tagesverbrauch("2026-09-19", 3)
+    assert _protokoll.lade_tagesverbrauch("2026-01-01") == 0        # weggeraeumt
+    assert _protokoll.lade_tagesverbrauch("2026-09-19") == 3

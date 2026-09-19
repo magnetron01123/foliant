@@ -2,8 +2,13 @@
 
 Die Guild-Sperre IST die Zugangskontrolle (SPEC §12: Vollbestand inkl. DDB nur fuer
 die private Runde): der Bot laeuft ohne HTTP-Flaeche, die Tools in-process - was ihn
-begrenzt, steht hier. Alles in-memory: ein Neustart resettet Zaehler und Cooldowns
-(bewusst akzeptiert, der harte Deckel ist das Spend-Limit des API-Workspace)."""
+begrenzt, steht hier.
+
+Cooldowns und laufende Anfragen bleiben in-memory - sie gelten fuer Sekunden, ein
+Neustart dauert laenger. Der TAGESDECKEL dagegen ist seit dem 19.09.2026 persistent
+(D3): Er zaehlte prozesslokal, und der Bot laeuft mit `restart: unless-stopped` - jeder
+Absturz und jeder Deploy schenkte der Runde ein frisches Tagesbudget. Ein Kostendeckel,
+den ein Neustart aufhebt, deckelt nichts."""
 from __future__ import annotations
 
 import time
@@ -19,17 +24,38 @@ ABGELEHNT_TAGESDECKEL = ("🚫 Das Tageslimit der Runde ist erreicht - morgen ge
 class Schranken:
     def __init__(self, guild_id: int, kanal_ids: frozenset[int] = frozenset(),
                  tagesdeckel: int = 100, cooldown_s: float = 10.0,
-                 uhr=time.monotonic, utc_datum=None):
+                 uhr=time.monotonic, utc_datum=None,
+                 lade_verbrauch=None, speichere_verbrauch=None):
         self._guild_id = guild_id
         self._kanal_ids = kanal_ids          # leer = alle Kanaele der Guild
         self._tagesdeckel = tagesdeckel
         self._cooldown_s = cooldown_s
         self._uhr = uhr                      # injizierbar fuer Tests
         self._utc_datum = utc_datum or (lambda: datetime.now(timezone.utc).date())
+        # Persistenz als zwei Funktionen statt eines Imports: Diese Datei bleibt damit
+        # frei von Protokoll- und Datenbankwissen (sie ist reine Logik), und die Tests
+        # koennen den Speicher ohne Datei nachstellen. Beide duerfen None sein - dann
+        # verhaelt sich der Deckel wie vor dem 19.09.2026.
+        self._lade_verbrauch = lade_verbrauch
+        self._speichere_verbrauch = speichere_verbrauch
         self._laufend: set[int] = set()
         self._zuletzt_fertig: dict[int, float] = {}
         self._tag = self._utc_datum()
-        self._tageszaehler = 0
+        self._tageszaehler = self._hole_stand(self._tag)
+
+    def _hole_stand(self, tag) -> int:
+        """Den Tagesstand aus dem Speicher holen - beim Start und bei jedem Tageswechsel.
+
+        Ein UNBEKANNTER Stand (None) zaehlt als DECKEL ERREICHT, nicht als null. Das ist
+        die unbequeme, aber richtige Richtung: Wer nicht weiss, wie viel heute schon
+        verbraucht wurde, darf nicht so tun, als waere es nichts - sonst waere ein
+        beschaedigtes Protokoll genau der Weg, den Deckel zu umgehen. Ein fehlender
+        Speicher (beide Funktionen None) ist etwas anderes als ein kaputter: Dort ist gar
+        keine Persistenz gewollt, und es bleibt beim prozesslokalen Zaehlen."""
+        if self._lade_verbrauch is None:
+            return 0
+        stand = self._lade_verbrauch(tag.isoformat())
+        return self._tagesdeckel if stand is None else int(stand)
 
     def richtiger_ort(self, guild_id: int | None, kanal_id: int | None) -> bool:
         """Fremde Guild oder gesperrter Kanal -> still ignorieren (kein Orakel, welche
@@ -55,6 +81,14 @@ class Schranken:
             return ABGELEHNT_TAGESDECKEL
         self._laufend.add(nutzer_id)
         self._tageszaehler += 1
+        # VOR dem Modellaufruf festschreiben (D3 fail-closed): Stuerzt der Bot waehrend
+        # der Antwort ab, ist der Aufruf trotzdem bezahlt - und muss gezaehlt bleiben.
+        # Ein Schreibfehler laesst die Anfrage durch: Der Prozess weiss selbst, was er
+        # heute verbraucht hat, und ein kaputtes Protokoll soll die Runde nicht
+        # aussperren. Verloren geht der Stand nur, wenn Schreibfehler UND Neustart
+        # zusammenkommen.
+        if self._speichere_verbrauch is not None:
+            self._speichere_verbrauch(self._tag.isoformat(), self._tageszaehler)
         return None
 
     def beende(self, nutzer_id: int) -> None:
@@ -65,4 +99,6 @@ class Schranken:
         heute = self._utc_datum()
         if heute != self._tag:
             self._tag = heute
-            self._tageszaehler = 0
+            # Auch am neuen Tag den Speicher fragen: Laeuft ein zweiter Prozess (Deploy
+            # mit Ueberlappung), hat der vielleicht schon gezaehlt.
+            self._tageszaehler = self._hole_stand(heute)
