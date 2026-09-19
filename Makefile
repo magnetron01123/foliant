@@ -151,6 +151,18 @@ rollback-pi: _pi-ziel
 test-golden-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T -w /app foliant python -m pytest -q tests/test_golden_bestand.py'
 
+# Der Such-Benchmark am VOLLBESTAND (M10/R06): Treffer@1, Treffer@3 und MRR ueber echte
+# Anfragen aus dem Abfrage-Protokoll. Rein lesend.
+#
+# Das Mass fuer Ranking-Aenderungen - die Golden-Suite kennt nur gruen oder rot und kann
+# deshalb nicht sagen, ob eine Aenderung an der Suche ein bisschen besser oder ein
+# bisschen schlechter war. `admin check --vollbestand` prueft die Zahl ohnehin bei jedem
+# Deploy gegen ihren Basiswert; dieses Ziel ist der Blick zwischendurch, samt der Liste
+# der verfehlten Faelle.
+.PHONY: suchbenchmark-pi
+suchbenchmark-pi: _pi-ziel
+	@ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin suchbenchmark'
+
 # Das Glossar am VOLLBESTAND neu bauen - nach jeder Aenderung an der Glossar-Kette
 # (kuratierte Paare, Umgangssprache-Bruecken, Abkuerzungen) und nach jedem Re-Import
 # einer PDF-Quelle (CONCEPT.md §12).

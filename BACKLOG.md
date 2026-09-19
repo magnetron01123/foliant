@@ -280,10 +280,9 @@ belegt, nicht an Testdaten.
 
 | ID | offen | Inhalt |
 |---|---|---|
-| R01 | ⬜ | Mehrwort-Anfragen scheitern an der UND-Verknüpfung inkl. Stoppwörtern; die Retry-Kaskade dahinter treibt den Runden-Cap. Braucht erst den Benchmark (R06) |
+| R01 | ⬜ | Mehrwort- und Satzanfragen scheitern an der UND-Verknüpfung inkl. Stoppwörtern; die Retry-Kaskade dahinter treibt den Runden-Cap. **Messgrundlage steht** (`make suchbenchmark-pi`): 10 der 65 Fälle hängen daran |
 | R04b | ⬜ | Kapitelverweise (`„Kapitel" („Abschnitt")`) bleiben unaufgelöst — Glossar-Stubs liefern einen Satz statt der Regel |
 | R05 | ⬜ | Gleichnamige Abschnitte derselben Quelle verdrängen die Fremdfassung nicht mehr und belegen Trefferplätze |
-| R06 | ⬜ | Kein deterministischer Such-Benchmark; Ranking-Änderungen sind ohne ihn ein Blindflug |
 | R09 | 🟡 | `pip-audit` läuft wöchentlich. Offen bleibt der **`fastmcp`-Sprung auf 3.x** — behebt zwei Funde, ist aber ein Major-Wechsel am MCP-Server und braucht ein eigenes Gate (Bewertung: [CONCEPT.md](CONCEPT.md) §13) |
 
 | R16 | ⬜ | Laufzeit-Image trägt die Import-Werkzeuge (deckt den M9-Posten „Serve-Pfad trennen") |
