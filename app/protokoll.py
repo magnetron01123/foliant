@@ -188,20 +188,40 @@ CREATE TABLE IF NOT EXISTS tagesverbrauch (
 
 
 def lade_tagesverbrauch(tag: str) -> int | None:
-    """Wie viele Modellaufrufe an diesem UTC-Tag schon gezaehlt wurden - oder None,
-    wenn die Zahl nicht zu ermitteln ist (kein Protokoll, Tabelle fehlt, Datei kaputt).
+    """Wie viele Modellaufrufe an diesem UTC-Tag schon gezaehlt wurden - oder None, wenn
+    vorhandene Daten sich NICHT LESEN lassen.
 
     None ist bewusst von 0 unterschieden: 0 heisst 'heute war noch nichts', None heisst
     'ich weiss es nicht'. Der Aufrufer (app/discord_bot/schranken.py) behandelt beides
-    verschieden - ein unbekannter Stand darf nicht als frisches Tagesbudget durchgehen."""
+    verschieden - ein unbekannter Stand gilt dort als Deckel erreicht.
+
+    Genau deshalb ist die Grenze zwischen beiden heikel, und sie lag beim ersten Anlauf
+    falsch (19.09.2026, im Deploy aufgefallen): Ein NOCH NIE geschriebener Stand ist der
+    Erstzustand, kein Lesefehler. Die Protokoll-Datei existiert von der ersten Anfrage an,
+    die Tabelle `tagesverbrauch` aber erst nach dem ersten Schreiben - `SELECT` lief also
+    in 'no such table', die Funktion meldete None, und der Bot hielt sein Tagesbudget fuer
+    aufgebraucht. Live gemessen: Der frisch deployte Bot lehnte JEDE Frage mit dem
+    Kostendeckel ab. Beide Einzelteile waren fuer sich getestet und richtig; falsch war
+    die Bedeutung, die sie einander zuschrieben.
+
+    Eine geloeschte Datei zaehlt ebenfalls als Erstzustand und nicht als Fehler. Das ist
+    kein Umgehungsweg: Wer sie loeschen kann, kann auch den Container neu starten - die
+    Persistenz schuetzt gegen ABSTUERZE, nicht gegen absichtliche Eingriffe. Dafuer steht
+    die Guild-Sperre (CONCEPT §13)."""
     try:
         pfad = protokoll_pfad()
         if not pfad.exists():
-            return None
+            return 0                       # Erstzustand: heute wurde noch nichts gezaehlt
         con = sqlite3.connect(f"file:{pfad}?mode=ro", uri=True, timeout=0.25)
         try:
             zeile = con.execute("SELECT anzahl FROM tagesverbrauch WHERE tag = ?",
                                 (tag,)).fetchone()
+        except sqlite3.OperationalError as fehler:
+            # Nur DIESE eine Meldung ist der Erstzustand. Ein gesperrtes oder
+            # beschaedigtes Protokoll faellt weiter unten durch und bleibt 'unbekannt'.
+            if "no such table" in str(fehler):
+                return 0
+            raise
         finally:
             con.close()
         return int(zeile[0]) if zeile else 0
