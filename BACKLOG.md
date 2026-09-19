@@ -56,11 +56,12 @@ Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
 Zugang (Geheimpfad + WAF-Allowlist), Backup-Werkzeug und die Antwortzeiten unter
 Sessionlast sind erledigt — Belege in [CONCEPT.md](CONCEPT.md) §9 (Zugang) und §10
 (Lastmessung). Offen bleiben zwei Handlungen an Geräten:
-- ⬜ **Off-Site-Spiegel einrichten** — der Cron läuft seit dem 26.08.2026 (`make
-  sicherung-cron-pi`, nächtlich, verifiziert, 14 Stände), aber **alle Stände liegen auf
-  derselben SD-Karte wie der Bestand**. Erst das Spiegeln auf ein zweites Gerät ist die
-  Sicherung. Ziel/Zugang muss David festlegen — die Sicherungen tragen private
-  Buchinhalte, deshalb ist das keine beiläufige Wahl.
+- ⬜ **Off-Site-Spiegel: das ZIEL festlegen** — das Werkzeug steht seit dem 19.09.2026
+  (`make sicherung-holen`: zieht, prüft, hält sechs Generationen; die Restore-Probe ist
+  gefahren und bestanden, [CONCEPT.md](CONCEPT.md) §8). Was fehlt, ist eine Zeile in
+  `.env`: `SICHERUNG_ZIEL=/Volumes/<Platte>/Foliant`. Die Sicherungen tragen private
+  Buchinhalte, deshalb ist die Wahl Davids und nicht beiläufig. Bis dahin liegen **alle
+  Stände auf derselben SD-Karte wie der Bestand**.
 - ⬜ **Uptime-Monitoring** auf `/health` — zwei Ziele, seit Website und MCP auf getrennten
   Hostnamen liegen. Braucht ein Gerät außerhalb des Pi: ein Wächter, der mit dem Bewachten
   stirbt, meldet nichts.
@@ -197,9 +198,6 @@ braucht eine Entscheidung oder eine Handlung an einem Gerät:
 - ⬜ **Buchtitel im Register.** Die 18 Titel fehlen bewusst (Entscheidung 14.08.2026,
   öffentliches Repo). Beim Wiederherstellen sind sie von Hand nachzutragen — alles
   andere, was Kernregel 2 zu raten verbietet, steht da.
-- ⬜ **Restore-Probe einmal wirklich fahren.** CONCEPT §8 schreibt sie vor; es gibt keinen
-  Beleg, dass sie je lief. Eine Sicherung, aus der noch nie jemand zurückgespielt hat,
-  ist eine Vermutung.
 - ⬜ **`constraints.txt` aus einem geprüften Build.** Die Pins decken 12 von rund 100
   installierten Paketen; das Basis-Image trägt keinen Digest. Muss auf dem Pi entstehen,
   nicht auf dem Mac — ein Mac-Pin für einen ARM64/py3.12-Build ist geraten, und geraten

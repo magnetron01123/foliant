@@ -18,6 +18,7 @@ Dubletten gleicher Version/Kategorie loest quellen.prioritaet auf (Q2, kleiner =
 from __future__ import annotations
 
 import copy
+import os
 import re
 import sqlite3
 import tomllib
@@ -91,7 +92,18 @@ def standard_pfad() -> Path:
     Gemessen: 0,24 ms ungecacht gegen 0,03 ms gecacht, also Faktor 8 - je Tool-Aufruf
     mindestens einmal, und weil TOML-Parsen reine Python-Arbeit ist, serialisiert es
     die Threads zusaetzlich am GIL (dieselbe Klasse, die BACKLOG §M3 als Saettigung
-    bei ~26 Aufrufen/s beschreibt)."""
+    bei ~26 Aufrufen/s beschreibt).
+
+    `FOLIANT_DB_PROBE` uebersteuert alles - ausschliesslich fuer die Restore-Probe
+    (`deploy/restore_probe.py`, M9/R13). Sie muss `admin check`, die Golden-Suite und den
+    Benchmark gegen einen ZURUECKGESPIELTEN Stand fahren, und zwar in Kindprozessen, in
+    denen ein Monkeypatch nicht wirkt. Bewusst eine eigene, sprechend benannte Variable
+    statt eines allgemeinen `FOLIANT_DB`: Ein beilaeufiger Pfad-Schalter waere ein Weg,
+    den Produktionsbestand versehentlich zu umgehen oder zu ueberschreiben - diese hier
+    liest man nicht aus Versehen."""
+    probe = os.environ.get("FOLIANT_DB_PROBE")
+    if probe:
+        return Path(probe)
     return projekt_pfad(lade_konfig().get("db", {}).get("pfad", "data/foliant.sqlite"))
 
 
