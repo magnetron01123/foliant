@@ -598,9 +598,78 @@ _ZITIERTER_NAME = re.compile(r"[“„\"]([^“”„\"]{2,60})"
                              r"[”“\"]")
 # Kapitel-Verweise haben die Form `„Die Spielregeln" („Aktionen")` - das Kapitel zuerst,
 # der Abschnitt darin in Klammern. Geschwister-Eintraege stehen dagegen nebeneinander:
-# `„Unarmed Strike" und „Grappled"`. Die Klammer ist damit das Unterscheidungsmerkmal,
-# und was in ihr steht, ist nie ein abrufbarer Eintrag.
+# `„Unarmed Strike" und „Grappled"`. Die Klammer ist damit das Unterscheidungsmerkmal.
 _KLAMMER = re.compile(r"\([^)]*\)")
+# Derselbe Ausdruck, nur behaltend: Kapitel + Klammerinhalt, aus dem die Abschnitte
+# einzeln gezogen werden.
+_KAPITEL_VERWEIS = re.compile(r"[“„\"]([^“”„\"]{2,60})[”“\"]\s*\(([^)]*)\)")
+
+
+def _kapitelabschnitte(con, abschnitt: str, edition: str, eigene_id: int | None,
+                       eigener_name: str | None = None) -> list[str]:
+    """Die Ziele eines KAPITEL-Verweises `„Kapitel" („Abschnitt")` aufloesen (R04b).
+
+    Bis zum 19.09.2026 fielen diese Verweise ersatzlos weg - `_KLAMMER` loeschte sie, und
+    der Kommentar daneben begruendete das damit, was in der Klammer stehe, sei "nie ein
+    abrufbarer Eintrag". Das stimmt fuer den blanken Namen: „Aktionen" gibt es dreimal, und
+    ein Griff danach traefe je nach Zufall den Regelabschnitt, die Statblock-Sektion eines
+    Monsters oder einen Gegenstand - ein B4-Fehler, eingeschleppt von der B15-Reparatur.
+
+    Der Fehlschluss war, den Kapitelnamen wegzuwerfen: Er IST das Unterscheidungsmerkmal.
+    `kontext` traegt den Breadcrumb, und ein Abschnitt zaehlt nur, wenn seiner mit genau
+    diesem Kapitel beginnt. Am Vollbestand gemessen: 35 von 45 Einzelverweisen loesen sich
+    damit eindeutig auf.
+
+    Was die Faelle kostet, um die es geht: Die Regelglossar-Stubs sind ein, zwei Saetze und
+    verweisen fuer alles Weitere auf ihr Kapitel. 'Todesrettungswurf' liefert 206 Zeichen
+    ("muss er einen Todesrettungswurf ausfuehren") - die eigentliche Regel steht in 'Auf 0
+    Trefferpunkte sinken' und blieb unerreichbar. 57 solcher Stubs stehen im Bestand.
+
+    Ist das Ziel selbst nur ein Kapitelkopf (kurzer Body, keine Regel), werden STATTDESSEN
+    seine Kinder genannt - 'Schaden und Heilung' hat 114 Zeichen und ist eine
+    Inhaltsangabe, kein Regeltext."""
+    treffer: list[str] = []
+    gesehen: set[str] = set()
+    for kapitel, innen in _KAPITEL_VERWEIS.findall(abschnitt):
+        for ziel in _ZITIERTER_NAME.findall(innen):
+            ziel = ziel.strip(" .,;")
+            if not ziel or ziel in gesehen:
+                continue
+            gesehen.add(ziel)
+            zeilen = con.execute(
+                "SELECT COALESCE(name_de, name_en), length(body_md), id FROM eintraege "
+                "WHERE edition = ? AND id != ? AND kategorie = 'regel' "
+                "AND (name_de = ? COLLATE NOCASE OR name_en = ? COLLATE NOCASE) "
+                "AND COALESCE(kontext, '') LIKE ? ESCAPE '\\' LIMIT 2",
+                [edition, eigene_id or -1, ziel, ziel,
+                 kapitel.replace("%", "\\%").replace("_", "\\_") + "%"]).fetchall()
+            if len(zeilen) != 1:
+                continue                      # mehrdeutig trotz Kapitel -> nicht raten
+            name, laenge, eid = zeilen[0]
+            if laenge and laenge < 400:
+                # Kapitelkopf statt Regel: Die Kinder tragen den Inhalt. NUR die, die den
+                # eigenen Begriff auch behandeln - sonst ist der Hinweis Rauschen. Beim
+                # ersten Anlauf lieferte 'Todesrettungswurf' die drei erstbesten Kinder
+                # von 'Schaden und Heilung' ('Trefferpunkte', 'Schadenswuerfe',
+                # 'Kritische Treffer') und ausgerechnet nicht 'Auf 0 Trefferpunkte
+                # sinken', wo die Regel wirklich steht. Nur der Breadcrumb DIREKT
+                # darunter zaehlt; Enkel waeren wieder Rauschen.
+                if not eigener_name:
+                    continue
+                kinder = [r[0] for r in con.execute(
+                    "SELECT COALESCE(name_de, name_en) FROM eintraege "
+                    "WHERE edition = ? AND kategorie = 'regel' AND kontext = ? "
+                    "AND id != ? AND length(body_md) >= 400 "
+                    "AND body_md LIKE ? ESCAPE '\\' ORDER BY length(body_md) DESC LIMIT 2",
+                    [edition, f"{kapitel} > {ziel}", eigene_id or -1,
+                     "%" + eigener_name.replace("%", "\\%").replace("_", "\\_") + "%"])
+                    if r[0]]
+                if kinder:
+                    treffer += [k for k in kinder if k not in treffer]
+                continue
+            if name and name not in treffer:
+                treffer.append(name)
+    return treffer
 
 
 def _verwandte_regelabschnitte(d: dict) -> dict:
@@ -680,6 +749,17 @@ def _verwandte_regelabschnitte(d: dict) -> dict:
                  wie, wie]).fetchall()
             if len(treffer) == 1 and treffer[0][2] and treffer[0][2] not in verwandte:
                 verwandte.append(treffer[0][2])
+        # R04b: Kapitel-Verweise, die der Klammer-Schnitt oben verworfen hat. Sie tragen
+        # die Stub-Faelle - ein Glossar-Eintrag von zwei Saetzen, dessen eigentliche Regel
+        # im verwiesenen Kapitel steht.
+        for name in _kapitelabschnitte(con, abschnitt.group(1), d["edition"],
+                                       d.get("eintrag_id"),
+                                       d.get("name_de") or d.get("name_en")):
+            if name not in verwandte and name not in eigene:
+                verwandte.append(name)
+        # Deckel: Mehr als drei Verweise sind kein Hinweis mehr, sondern eine zweite
+        # Trefferliste - und der Hinweis verlangt, sie ALLE nachzuladen (B15).
+        verwandte = verwandte[:3]
         if verwandte:
             d["verwandte_abschnitte"] = verwandte
             d["hinweis_abschnitte"] = (

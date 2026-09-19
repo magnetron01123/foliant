@@ -494,3 +494,40 @@ def test_golden_waffeneigenschaft_als_regel_gefragt_ist_kein_leerbefund():
         assert anders, f"{begriff}: kein Rueckfall ({d.get('hinweis')})"
         assert anders[0]["kategorie"] == "gegenstand", anders[0]
         assert "Nichts im Bestand" not in d.get("hinweis", "")
+
+
+def test_golden_kapitelverweis_fuehrt_zur_vollen_regel():
+    """R04b: Die Regelglossar-Stubs sind ein, zwei Saetze und verweisen fuer alles Weitere
+    auf ihr Kapitel - 'Todesrettungswurf' liefert 206 Zeichen ("muss er einen
+    Todesrettungswurf ausfuehren"), die eigentliche Regel steht in 'Auf 0 Trefferpunkte
+    sinken'. 57 solcher Stubs stehen im Bestand, und ihre Verweise fielen ersatzlos weg.
+
+    Genannt wird NUR das Kind, das den eigenen Begriff auch behandelt: Beim ersten Anlauf
+    kamen die drei erstbesten Kinder von 'Schaden und Heilung' heraus und ausgerechnet
+    nicht das richtige."""
+    d = ns.foliant_hol_eintrag("regel", "Todesrettungswurf")
+    assert d.get("gefunden") is True
+    assert len(d["regeltext_md"]) < 400, "Stub-Annahme haelt nicht mehr"
+    assert d.get("verwandte_abschnitte") == ["Auf 0 Trefferpunkte sinken"], \
+        d.get("verwandte_abschnitte")
+    # Und dort steht die Regel wirklich:
+    voll = ns.foliant_hol_eintrag("regel", "Auf 0 Trefferpunkte sinken")
+    assert "Todesrettungswurf" in voll["regeltext_md"]
+
+
+def test_golden_verwandte_abschnitte_bleiben_signal():
+    """Die Schranke, an der die B15-Reparatur am 11.08.2026 schon einmal haengen blieb:
+    Ohne sie bekamen 213 von 250 Regeln verwandte Abschnitte, und der Hinweis war Rauschen
+    statt Signal. Gemessen nach R04a+R04b: 53 von 693."""
+    con = adb.connect_readonly(str(Path(__file__).resolve().parent.parent
+                                   / "data" / "foliant.sqlite"))
+    try:
+        namen = [r[0] for r in con.execute(
+            "SELECT COALESCE(name_de, name_en) FROM eintraege "
+            "WHERE kategorie='regel' AND edition='2024'") if r[0]]
+    finally:
+        con.close()
+    mit = sum(1 for name in namen
+              if (ns.foliant_hol_eintrag("regel", name).get("verwandte_abschnitte")))
+    anteil = mit * 100 / max(len(namen), 1)
+    assert anteil < 25, f"verwandte_abschnitte bei {anteil:.0f} % der Regeln - Rauschen"
