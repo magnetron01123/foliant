@@ -81,6 +81,24 @@ HINWEIS_LEER = ("Nichts im Bestand gefunden. Sag das ehrlich mit ❌ ('Dazu find
                 "mit Bestandsinhalten vermischen; Abenteuer-/Kampagnen-Spoiler bleiben auch "
                 "dort tabu (🚫).")
 
+# Der Leerbefund, der KEINER ist (Review 19.09.2026, R02): Die Kategorie kam aus dem
+# AUFRUF, nicht aus dem Bestand - und ein falscher Wert dort erzeugte bisher exakt die
+# Antwortform, gegen die B1 und SYN-P0-006 antreten. Gemessen: 'Zweihaendig', 'Vielseitig'
+# und 'Munition' liegen als kategorie='gegenstand' im Bestand; mit kategorie='regel'
+# gefragt, kam `HINWEIS_LEER` samt der Anweisung, ❌ zu sagen. Alle drei standen zugleich
+# in der Nulltreffer-Liste des Pi-Suchberichts - der Fall war also vier
+# Kurationsdurchgaenge lang sichtbar und sah jedes Mal wie eine Vokabelluecke aus.
+#
+# Bewusst NICHT automatisch ausliefern: Die Kategorie ist eine Aussage des Aufrufers, und
+# sie stillschweigend zu ersetzen waere Raten (B4). Der Hinweis nennt den Weg, das Modell
+# geht ihn.
+HINWEIS_ANDERE_KATEGORIE = (
+    "KEIN 'nicht im Bestand' - der Begriff steht im Bestand, nur in einer ANDEREN "
+    "Kategorie (siehe 'treffer_andere_kategorie'). Die angefragte Kategorie kam aus dem "
+    "AUFRUF, nicht aus dem Bestand. Mit der dort genannten 'kategorie' (oder direkt per "
+    "'eintrag_id') nachladen und DANN antworten - dem Nutzer keine Fehlanzeige melden und "
+    "die Kategorie-Verwechslung nicht erwaehnen (B1/B4/B13).")
+
 HINWEIS_ALT = ("Keine 2024-Fassung im Bestand, nur ein aelterer Regelstand. Klar kennzeichnen "
                "mit ⚠️: 'Keine 2024-Fassung im Bestand; hier der aeltere Stand - ggf. an die "
                "aktuellen Regeln anzupassen.' (V4/B5) Die ⚠️-Zeile steht NACH der Kopfzeile "
@@ -222,6 +240,43 @@ def _ohne_eckiges_suffix(name: str | None) -> str | None:
         return name
     gekuerzt = _ECKIGES_SUFFIX.sub("", name).strip()
     return gekuerzt or name
+
+def andere_kategorie_treffer(con: sqlite3.Connection, suchbegriff: str,
+                             kategorie: str, edition: str | None,
+                             limit: int = 5) -> list[dict]:
+    """Dieselbe Anfrage OHNE Kategorie-Filter - die Rettung vor dem falschen Leerbefund
+    (R02). Liefert knappe Treffer anderer Kategorien oder eine leere Liste.
+
+    In der gemeinsamen Ausgabeschicht und nicht in einem der beiden Werkzeuge, weil BEIDE
+    Pfade denselben Rueckfall brauchen: die Suche (`kategorie='regel'` ohne Treffer) und
+    der Detailabruf (`foliant_hol_eintrag('regel', 'Zweihaendig')`). Zwei Kopien waeren
+    genau die Doppelung, aus der diese Datei entstanden ist.
+
+    NUR Namenstreffer (`_name_score >= _NAME_MIN`): Ohne dieses Gate meldete der Rueckfall
+    jede Fliesstext-Erwaehnung als 'steht in einer anderen Kategorie' und ersetzte einen
+    falschen Leerbefund durch einen falschen Fundbefund - die teurere der beiden
+    Fehlerformen, weil sie wie eine Antwort aussieht. Dasselbe Gate wie in der
+    Detail-Auswahl und im Relevanz-Ausweis der Suche.
+
+    Die angefragte Kategorie selbst faellt heraus: Treffer daraus haette der Aufrufer
+    schon."""
+    try:
+        ergebnis = _db.fts_suche(con, suchbegriff, kategorie=None, edition=edition,
+                                 limit=_db.MAX_LIMIT)
+    except ValueError:
+        return []                                  # Parameterfehler meldet der Aufrufer
+    varianten = _db.anfrage_varianten(con, suchbegriff)
+    treffer = []
+    for t in ergebnis["treffer"]:
+        if t["kategorie"] == kategorie:
+            continue
+        if _glossar._name_score(t, varianten) < _glossar._NAME_MIN:
+            continue
+        treffer.append(_knapp(t, con))
+        if len(treffer) >= limit:
+            break
+    return treffer
+
 
 def _verbinde() -> sqlite3.Connection | None:
     # SYN-P1-005/TECH-020: Serving-Verbindungen sind READ-ONLY - die Tools schreiben nie,

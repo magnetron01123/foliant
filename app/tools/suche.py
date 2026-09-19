@@ -25,8 +25,8 @@ from app import facetten as _facetten
 from app import glossar as _glossar
 from app import protokoll as _protokoll
 from app.tools.ausgabe import (
-    _HINWEIS_PARAMETER, HINWEIS_ABKUERZUNGEN, HINWEIS_ALT, HINWEIS_KOPFZEILE, HINWEIS_DB_FEHLT, markiere_mehrdeutige_treffer, HINWEIS_LEER, _haenge_revisionen_an, _knapp, _markiere_inhaltsart, _reichere_facetten_an,
-    _verbinde, markiere_unuebersetzte,
+    _HINWEIS_PARAMETER, HINWEIS_ABKUERZUNGEN, HINWEIS_ALT, HINWEIS_ANDERE_KATEGORIE, HINWEIS_KOPFZEILE, HINWEIS_DB_FEHLT, markiere_mehrdeutige_treffer, HINWEIS_LEER, _haenge_revisionen_an, _knapp, _markiere_inhaltsart, _reichere_facetten_an,
+    _verbinde, andere_kategorie_treffer, markiere_unuebersetzte,
 )
 
 
@@ -432,7 +432,35 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
                 treffer_am_namen = _glossar._name_score(k, varianten) >= _glossar._NAME_MIN
                 k["relevanz"] = "name" if treffer_am_namen else "nur_im_text"
                 namenstreffer += int(treffer_am_namen)
-        if antwort["treffer"] and not namenstreffer:
+        # R02: Kein einziger NAMENSTREFFER in der angefragten Kategorie - genau hier
+        # entsteht der falsche Leerbefund, und zwar in zwei Formen. Entweder war die
+        # Trefferliste leer (dann steht oben HINWEIS_LEER), oder sie enthaelt nur
+        # Fliesstext-Erwaehnungen; dann raet `hinweis_geringe_relevanz` unten
+        # ausdruecklich dazu, "im Zweifel ehrlich 'nicht gefunden' zu sagen". Beide Wege
+        # enden beim ❌ fuer einen Eintrag, den es gibt - er steht nur unter einer anderen
+        # Kategorie ('Zweihaendig' und 'Vielseitig' sind gegenstand, nicht regel).
+        #
+        # Nur mit gesetzter Kategorie und ohne Struktur-Facetten: Facetten implizieren
+        # ihre Kategorie selbst, ein Rueckfall darauf ergaebe nichts.
+        if kategorie and praedikat is None and not namenstreffer:
+            anders = andere_kategorie_treffer(con, suchbegriff, kategorie, edition)
+            # Nicht gegen einen ANDEREN Befund stellen: Liegen aeltere Staende vor, ist
+            # deren Hinweis die praezisere Aussage und bleibt stehen.
+            if anders and antwort.get("hinweis", HINWEIS_LEER) == HINWEIS_LEER:
+                antwort["treffer_andere_kategorie"] = anders
+                antwort["hinweis"] = HINWEIS_ANDERE_KATEGORIE
+                # Eigener Suchweg, damit der Suchbericht diese Faelle als EIGENE Klasse
+                # zeigt statt als Vokabelluecke unter den Nulltreffern (R07). Genau daran
+                # lag es, dass R02 vier Kurationsdurchgaenge lang unsichtbar blieb.
+                antwort["_suchweg"] = "andere_kategorie"
+                _markiere_inhaltsart(con, antwort, anders)
+                markiere_unuebersetzte(antwort, anders)
+                _reichere_facetten_an(con, anders)
+        if (antwort["treffer"] and not namenstreffer
+                and not antwort.get("treffer_andere_kategorie")):
+            # Bewusst NICHT beides: Der Satz unten schickt das Modell in die Fehlanzeige,
+            # der Kategorie-Hinweis verbietet sie. Zwei widerspruechliche Anweisungen im
+            # selben Payload sind schlimmer als eine fehlende.
             antwort["hinweis_geringe_relevanz"] = (
                 "Kein Treffer passt dem NAMEN nach zur Anfrage - alle erwaehnen den Begriff "
                 "nur im Fliesstext. Das ist oft das Zeichen, dass der gesuchte Eintrag NICHT "
@@ -472,6 +500,8 @@ def foliant_suche_bestand(suchbegriff: str | None = None, kategorie: Kategorie |
     quelle_kuerzel optional: das QUELLEN-KUERZEL (z. B. 'srd-de'), NICHT der Titel. edition
     Standard '2024'; andere Regelversionen (z. B. '2014') explizit angeben. Ungueltige
     Parameterwerte werden mit 'fehler' abgelehnt - das bedeutet NICHT 'nicht im Bestand'.
+    Steht der Begriff nur unter einer ANDEREN kategorie, kommt 'treffer_andere_kategorie'
+    statt eines Leerbefunds - von dort nachladen, nie ❌ melden.
     Beim 2024-Standard kommen aeltere Staende getrennt als 'aeltere_staende'; bei explizit
     anderer Edition heissen weitere Fassungen neutral 'andere_fassungen'. KERNREGELN: nur
     aus dem Bestand; Quelle + Regelversion nennen; Deutsch-first (Original in Klammern);

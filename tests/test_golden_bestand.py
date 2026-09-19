@@ -457,3 +457,40 @@ def test_golden_magieschmied_einstimmung_vier_und_sechs():
     sechs = _text(ns.foliant_hol_eintrag("klasse", "LEVEL 18: MAGIC ITEM MASTER"))
     assert "four magic items" in vier, vier[:200]
     assert "six magic items" in sechs, sechs[:200]
+
+
+def test_golden_grapple_liefert_die_regel_nicht_das_talent():
+    """R03 (zwei 👎 vom 10.08.2026): 'grapple' landete ueber die Namens-Fuzzy beim Talent
+    'Ringer' (fuzz.ratio 93,3) statt bei der Regel 'Gepackt halten'. Die kuratierte
+    Suchvariante in importer.import_glossar.UMGANGSSPRACHE bruecket sie; 'Ringen' bleibt
+    dabei die offizielle 2014-Form (S8 trennt nach Edition, deshalb KEIN SRD-Paar)."""
+    d = ns.foliant_hol_eintrag("regel", "grapple")
+    assert d.get("gefunden") is True, d.get("kandidaten") or d.get("hinweis")
+    assert d["name_de"] == "Gepackt halten", d.get("anzeige_name")
+    assert d["quelle_kuerzel"] == "srd-de", d["quelle_kuerzel"]
+    # Die Anzeige traegt das Original aus der 2024-Bruecke, nicht die 2014-Form.
+    assert "Grappling" in d["anzeige_name"] and "Ringen" not in d["anzeige_name"]
+
+
+def test_golden_siehe_auch_loest_qualifizierte_namen_auf():
+    """R04a: Der Bestandstext verweist auf „Gepackt", der Eintrag heisst 'Gepackt
+    (Zustand)' - ohne Qualifikator-Abgleich blieb der Verweis unaufgeloest und B15 konnte
+    nicht zusammensetzen, was die Ausgabe nie nennt. Genau der gemeldete 'grapple'-Fall:
+    WIE man packt, steht im waffenlosen Angriff, WAS der Zustand bewirkt in 'Gepackt'."""
+    d = ns.foliant_hol_eintrag("regel", "Gepackt halten")
+    verwandte = d.get("verwandte_abschnitte") or []
+    assert "Waffenloser Angriff" in verwandte, verwandte
+    assert any(v.startswith("Gepackt (") for v in verwandte), verwandte
+
+
+def test_golden_waffeneigenschaft_als_regel_gefragt_ist_kein_leerbefund():
+    """R02 am ECHTEN Bestand: Die Waffeneigenschaften liegen als kategorie='gegenstand'
+    im Korpus. Ein Modell fragt sie naheliegend als 'regel' - und bekam dafuer
+    HINWEIS_LEER samt der Anweisung, ❌ zu sagen. Dieselben Begriffe standen zugleich in
+    der Nulltreffer-Liste des Pi-Suchberichts und sahen dort wie Vokabelluecken aus."""
+    for begriff in ("Zweihändig", "Vielseitig"):
+        d = ns.foliant_hol_eintrag("regel", begriff)
+        anders = d.get("treffer_andere_kategorie")
+        assert anders, f"{begriff}: kein Rueckfall ({d.get('hinweis')})"
+        assert anders[0]["kategorie"] == "gegenstand", anders[0]
+        assert "Nichts im Bestand" not in d.get("hinweis", "")

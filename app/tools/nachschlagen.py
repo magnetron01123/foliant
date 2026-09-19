@@ -17,6 +17,7 @@ from app import glossar as _glossar
 from app import protokoll as _protokoll
 from app.tools.ausgabe import (
     HINWEIS_DB_FEHLT,
+    HINWEIS_ANDERE_KATEGORIE,
     HINWEIS_LEER,
     HINWEIS_MEHRDEUTIG,
     _HINWEIS_PARAMETER,
@@ -26,6 +27,7 @@ from app.tools.ausgabe import (
     _knapp,
     _markiere_inhaltsart,
     _verbinde,
+    andere_kategorie_treffer,
 )
 
 
@@ -354,6 +356,38 @@ def _quellabweichungen(con, voll: dict, gewaehlt: dict, exakt: list[dict],
     return konflikte, fremdsprachige
 
 
+def _mit_anderer_kategorie(con, absage: dict, name: str, kategorie: str,
+                           edition: str | None) -> dict:
+    """Eine Absage des Detailpfads um den Kategorie-Rueckfall ergaenzen (R02).
+
+    An BEIDEN Absage-Stellen noetig, weil die falsche Kategorie in zwei Gestalten
+    auftritt - gemessen am Dev-Bestand:
+      - `foliant_hol_eintrag('regel', 'Zweihaendig')` findet gar keinen Kandidaten und
+        meldete HINWEIS_LEER samt der Anweisung, ❌ zu sagen.
+      - `foliant_hol_eintrag('regel', 'Vielseitig')` findet EINEN Fliesstext-Kandidaten
+        ('Staubfuersten' aus einem Abenteuerband) und wurde damit zur Rueckfrage nach
+        einem Eintrag, den niemand gemeint hat. Die zweite Form ist die teurere: Sie
+        sieht aus wie eine ordentliche B4-Rueckfrage.
+    Beide Male steht der gesuchte Eintrag im Bestand, nur unter kategorie='gegenstand'.
+
+    Der Rueckfall ERSETZT die Absage nicht - er legt den Weg daneben. Die Kategorie kam
+    vom Aufrufer, und sie stillschweigend zu ersetzen waere Raten (B4)."""
+    anders = andere_kategorie_treffer(con, name, kategorie, edition)
+    if not anders:
+        return absage
+    absage["treffer_andere_kategorie"] = anders
+    # Der Kategorie-Hinweis kommt ZUERST: Er traegt die Aussage, die den Unterschied
+    # zwischen Auskunft und Fehlanzeige macht. Ein vorhandener Mehrdeutigkeits-Hinweis
+    # bleibt dahinter stehen - beide sind vertraeglich (nachladen ODER rueckfragen),
+    # anders als HINWEIS_LEER, den der Kategorie-Hinweis ausdruecklich widerlegt.
+    vorher = absage.get("hinweis")
+    absage["hinweis"] = (HINWEIS_ANDERE_KATEGORIE
+                         if not vorher or vorher == HINWEIS_LEER
+                         else f"{HINWEIS_ANDERE_KATEGORIE} {vorher}")
+    _markiere_inhaltsart(con, absage, anders)
+    return absage
+
+
 def _hole_detail_impl(kategorie: str, name: str | None = None,
                       edition: str = _db.STANDARD_EDITION,
                       aggregiere_kinder: bool = False,
@@ -400,11 +434,12 @@ def _hole_detail_impl(kategorie: str, name: str | None = None,
         ergebnis = _db.fts_suche(con, name, kategorie=kategorie, edition=None, limit=6)
         kandidaten = ergebnis["treffer"]
         if not kandidaten:
-            return {"gefunden": False, "hinweis": HINWEIS_LEER}
+            return _mit_anderer_kategorie(
+                con, {"gefunden": False, "hinweis": HINWEIS_LEER}, name, kategorie, edition)
 
         auswahl = _waehle_kandidat(con, name, kategorie, edition, kandidaten)
         if auswahl.absage is not None:
-            return auswahl.absage
+            return _mit_anderer_kategorie(con, auswahl.absage, name, kategorie, edition)
         gewaehlt, unterabschnitt = auswahl.gewaehlt, auswahl.unterabschnitt
         weitere_abschnitte, exakt = auswahl.weitere_abschnitte, auswahl.exakt
 
@@ -619,12 +654,30 @@ def _verwandte_regelabschnitte(d: dict) -> dict:
     try:
         verwandte: list[str] = []
         for kandidat in kandidaten:
+            # Der Verweis nennt den BLANKEN Namen, der Bestand fuehrt ihn oft mit
+            # Qualifikator: Der Text sagt *Siehe auch* „Gepackt", der Eintrag heisst
+            # 'Gepackt (Zustand)'. Ohne die LIKE-Zeile verfehlte der Abgleich genau die
+            # Verweise, um die es geht - 60 von 72 Regeln mit Geschwister-Verweis hatten
+            # mindestens einen unaufgeloesten (gemessen 19.09.2026, R04a), darunter der
+            # gemeldete 'grapple'-Fall ("Gepackt", "Beeinflussen", "Erschoepfung").
+            # Dass der Zusatz Qualifikator und nicht Namensbestandteil ist, ist keine neue
+            # Annahme: `glossar.KLAMMER_SUFFIX` zieht ihn im Ranking und in der
+            # Exakt-Auswahl laengst ab - nur dieser Pfad nutzte ihn nicht.
+            #
+            # Die Eindeutigkeitsschranke bleibt unveraendert: Bringt der Zusatz MEHRERE
+            # (Kategorie, Kontext) mit ins Spiel ('Deckung (Halb)'/'Deckung (Drei Viertel)'),
+            # faellt der Verweis weg statt zu raten - genau wie bisher bei „Aktionen".
+            # LIKE-Sonderzeichen im Kandidaten werden escaped, sonst waere ein Name mit '%'
+            # oder '_' ein stiller Platzhalter.
+            wie = kandidat.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + " (%"
             treffer = con.execute(
                 "SELECT DISTINCT kategorie, COALESCE(kontext, ''), "
                 "       COALESCE(name_de, name_en) FROM eintraege "
                 "WHERE edition = ? AND id != ? "
-                "AND (name_en = ? COLLATE NOCASE OR name_de = ? COLLATE NOCASE) LIMIT 2",
-                [d["edition"], d.get("eintrag_id") or -1, kandidat, kandidat]).fetchall()
+                "AND (name_en = ? COLLATE NOCASE OR name_de = ? COLLATE NOCASE "
+                "     OR name_en LIKE ? ESCAPE '\\' OR name_de LIKE ? ESCAPE '\\') LIMIT 2",
+                [d["edition"], d.get("eintrag_id") or -1, kandidat, kandidat,
+                 wie, wie]).fetchall()
             if len(treffer) == 1 and treffer[0][2] and treffer[0][2] not in verwandte:
                 verwandte.append(treffer[0][2])
         if verwandte:
@@ -653,6 +706,8 @@ def foliant_hol_eintrag(kategorie: Kategorie, name: str | None = None,
                   Regelglossar) - NICHT als Auffangwert benutzen: fuer Zauber, Monster,
                   Gegenstaende, Spezies, Klassen, Hintergruende und Talente gibt es die
                   eigenen Werte, und ein falscher Wert liefert einen fremden Eintrag.
+                  Lag er daneben, kommt 'treffer_andere_kategorie' - dort steht die
+                  richtige kategorie; nachladen statt ❌ melden.
       spezies     Spezies inkl. Merkmalen (Schritt 3 der 2024-Erstellung, B7)
       klasse      Klasse ODER Unterklasse ('Kaempfer', 'Champion'); bei Klassen kommen
                   die verwandten Abschnitte als Namen dazu (Schritt 1, B7)
@@ -674,6 +729,8 @@ def foliant_hol_eintrag(kategorie: Kategorie, name: str | None = None,
         suchweg = "direkt_id"        # Nachladen einer Referenz - kein Kurations-Signal
     elif "fehler" in d:
         suchweg = "fehler"
+    elif d.get("treffer_andere_kategorie"):
+        suchweg = "andere_kategorie"  # R02/R07: eigene Signalklasse, kein Nulltreffer
     else:
         suchweg = "name"
     # werkzeug bleibt kategoriebasiert (hol_<kategorie>), damit der Suchbericht ueber die

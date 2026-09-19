@@ -85,6 +85,23 @@ die früher abgelehnten Vorschläge. **Diese Zahlen nicht selbst auszählen.** A
 eine Entscheidung — ab dem dritten Bruch sitzt die Regel im falschen Kanal —, und eine
 Kopfrechnung über verschachtelte Listen fällt unbeaufsichtigt um 18:07 still aus.
 
+### Bevor ein Nulltreffer zum Glossar-Kandidaten wird
+
+Der Bericht führt seit dem 19.09.2026 einen eigenen Abschnitt **„Kategorie verfehlt"** und
+schreibt `kategorie=` an jede Signalzeile. Beides beantwortet dieselbe Frage: Fehlt der
+Begriff wirklich im Bestand, oder lag nur die **Kategorie** des Aufrufs daneben?
+
+- Steht ein Begriff unter „Kategorie verfehlt", ist er **kein Kurations-Kandidat**. Im
+  Bestand fehlt nichts; ein Glossar-Paar wäre die falsche Kur. Zu prüfen ist, warum das
+  Modell die Kategorie verfehlt — Werkzeugbeschreibung, oder ein Eintrag, den der Korpus
+  anders einsortiert, als die Frage es erwarten lässt.
+- Trägt eine **Nulltreffer**-Zeile ein `kategorie=`, dann prüfe denselben Begriff einmal
+  ohne Kategorie, bevor du ein Paar vorschlägst.
+
+Warum das hier steht: `zweihändig`, `vielseitig` und `munition` standen monatelang in der
+Nulltreffer-Liste und sahen wie Vokabellücken aus. Zwei davon liegen schlicht als
+`kategorie='gegenstand'` im Bestand (R02).
+
 ## 2. Je 👎 prüfen — in dieser Reihenfolge
 
 1. **Ist es überhaupt ein Befund?** Gegen BACKLOG M5 „Was im Bericht KEIN Befund ist"

@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 11.09.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 19.09.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -268,6 +268,35 @@ braucht eine Entscheidung oder eine Handlung an einem Gerät:
 **Gate:** Ein Ausfall der SD-Karte kostet Zeit, aber keinen Bestand, der sich nicht
 wiederherstellen lässt.
 
+### M10 — Nacharbeiten aus dem Projekt-Review 09/2026 · *19.09.2026*
+
+Zwei Durchgänge (Ausgabequalität, dann Gesamtprojekt) haben 19 Befunde ergeben, `R01`–`R19`.
+Der Umsetzungsplan liegt wie schon der Phasenplan vom Juli **außerhalb des Repos**
+(`~/.claude/plans/foliant-review-2026-09-umsetzungsplan.md`); hier steht nur, was offen ist.
+
+Der Leitbefund: Die Suche **versagt dort, wo sie am verbindlichsten klingt** — sie meldet
+„nicht im Bestand" für Einträge, die es gibt. Drei Ursachen, alle an echten Pi-Anfragen
+belegt, nicht an Testdaten.
+
+| ID | offen | Inhalt |
+|---|---|---|
+| R01 | ⬜ | Mehrwort-Anfragen scheitern an der UND-Verknüpfung inkl. Stoppwörtern; die Retry-Kaskade dahinter treibt den Runden-Cap. Braucht erst den Benchmark (R06) |
+| R04b | ⬜ | Kapitelverweise (`„Kapitel" („Abschnitt")`) bleiben unaufgelöst — Glossar-Stubs liefern einen Satz statt der Regel |
+| R05 | ⬜ | Gleichnamige Abschnitte derselben Quelle verdrängen die Fremdfassung nicht mehr und belegen Trefferplätze |
+| R06 | ⬜ | Kein deterministischer Such-Benchmark; Ranking-Änderungen sind ohne ihn ein Blindflug |
+| R08/R09 | ⬜ | Kein Linter und kein Signal für verwundbare Pins in der CI |
+| R10/R11 | ⬜ | Discord: kein Lebenszeichen, Tagesdeckel zählt prozesslokal (deckt D3/D5) |
+| R16 | ⬜ | Laufzeit-Image trägt die Import-Werkzeuge (deckt den M9-Posten „Serve-Pfad trennen") |
+| R17 | ⬜ | Statische Hinweise sind 35–40 % jeder Suchantwort — **nur messen, nicht auf Verdacht kürzen** |
+| R18 | ⬜ | 32 % der Codezeilen sind Kommentar/Docstring, 106 datierte Befundgeschichten. Beim Anfassen kürzen, kein Großumbau |
+| R19 | ⬜ | Dieser BACKLOG verstößt gegen seine eigene Regel 2 — `test_doku_pflege.py` prüft das nicht |
+
+R12–R15 (Off-Site-Spiegel, Restore-Probe, private Module, Monitoring) sind **dieselben
+Posten wie M3/M9** und stehen dort; sie werden nicht doppelt geführt.
+
+**Gate:** Kein Leerbefund mehr für einen Eintrag, den der Bestand führt — belegt am
+Pi-Vollbestand, nicht am Mac-Subset.
+
 ### Offene Anforderungen im Überblick
 Alles nicht Aufgeführte ist erfüllt (F1–F7, F5b, S1–S9/S11–S15, V1–V6/V8, NF1–NF3/NF6–NF7,
 B1–B8/B11/B13–B16, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7, D1–D2/D4).
@@ -389,21 +418,18 @@ Was von einem Lauf dauerhaft gilt, gehört als Aussage in §1 (offene Arbeit), �
 ## 3. Bekannte Rest-Posten (bewusst niedrig priorisiert)
 
 - ⬜ **Unbebrückte deutsche Regelbegriffe** (B3, geparkt am 14.08.2026, Buchführung in
-  `config/rueckmeldungen_stand.json`). Die Suche nach `grapple` liefert das Monster
-  `Grappler` auf Platz 1, die gesuchte Regel `Gepackt halten` erst auf Platz 5 und nur als
-  Textfund — ihr fehlt die Glossarbrücke. Verschärfend greift der eingebaute Wächter genau
-  hier daneben: `fuzz.ratio('grapple','grappler')` ergibt 93,3, damit gilt der
-  Monstertreffer als Namenstreffer und der Relevanz-Hinweis bleibt aus — das System meldet
-  Zuversicht an der Stelle, an der es sich irrt.
-
-  *Am 14.08.2026 nachgemessen:* Die früher genannten „514 von 1.616 Namen ohne
-  Glossarzeile" sind zu hoch gegriffen. Der Bestand führt Regelbegriffe mit Qualifikator
+  `config/rueckmeldungen_stand.json`). Der Bestand führt Regelbegriffe mit Qualifikator
   (`Bezaubert (Zustand)`), das Glossar ohne (`Bezaubert`) — ein naiver Abgleich zählt
-  jeden davon als Lücke. Was wirklich fehlt, sind einzelne Regelbegriffe wie
-  `Gepackt halten`; für die gibt es beidseitig **keinen** Eintragsbeleg, weil die
-  Fassung 2024 Grapple als Option des unbewaffneten Schlags führt und nicht als eigene
-  Aktion. Ein kuratiertes Paar bräuchte deshalb einen Beleg aus dem Fließtext beider
-  Fassungen — machbar, aber Handarbeit, und Raten ist hier verboten.
+  jeden davon als Lücke, die früher genannten „514 von 1.616 Namen" sind deshalb zu hoch
+  gegriffen (nachgemessen 14.08.2026). Was bleibt, sind einzelne Regelbegriffe ohne
+  beidseitigen Eintragsbeleg; ein kuratiertes Paar braucht dort Handarbeit am Fließtext,
+  und Raten ist verboten.
+
+  *Der `grapple`-Fall gehört seit dem 19.09.2026 nicht mehr dazu* — er war der
+  namensgebende Posten und ist gelöst (M10/R03). Die Annahme, es fehle „beidseitig ein
+  Eintragsbeleg", hielt der Prüfung nicht stand: Das Erratum `Grappling` belegt die
+  Zuordnung wörtlich, und das Glossar führte `Gepackt halten ↔ Grappling` über
+  `seed_regelglossar` längst. Es fehlte allein die Suchvariante `grapple`.
 - ⬜ **2 verbleibende Facetten-Widersprüche** (ursprünglich 8; am 14.08.2026 einzeln
   geprüft, drei aufgelöst, drei waren gar keine — siehe unten):
   - `Tasha's Hideous Laughter` / `Mind Spike` in `ddb-br-2024-en`: dort Grad 0 und Schule

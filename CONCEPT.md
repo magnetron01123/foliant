@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 11.09.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 19.09.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -1062,6 +1062,61 @@ Connector läuft ohne Änderung weiter.
 | **Errata-Lizenz nicht „CC-BY…"** | Die Errata-PDFs sind frei verteilt, aber nicht frei lizenziert. Der Präfix `CC-BY` löst in `app/tools/ausgabe.py` automatisch die SRD-Attribution aus — sie hier anzuhängen wäre eine falsche Rechtsaussage |
 | **Antwortgerüst wird gemessen, nicht begutachtet** (07./08.08.2026) | Der LLM-Richter lag bei Strukturfragen in 2 von 3 Urteilen falsch, während der echte Verstoß unbemerkt in derselben Antwort stand — Struktur ist messbar (`pruefe_geruest`), der Richter behält nur Weiches. Drei Folge-Lehren aus derselben Woche: (1) Jedes neue Prüfmuster wird erst an den gespeicherten Antworten bezahlter Läufe kalibriert (vier von fünf F2-Fehlschlägen waren Fehlalarme des Musters, nicht des Modells). (2) Ein Kanal-3-Hinweis wirkt nur am Werkzeug, das die Antwort tatsächlich liefert — die „Rest-Streuung" waren Listen-Antworten, und die Optionslisten trugen als einziger Weg die Kopfzeilen-Regel nicht. (3) Wo eine Regel zweimal nicht wirkt, wirkt ein wörtliches Muster-Beispiel (DC4: 2/3 rot → 5/5 grün) |
 | **`max_tokens` 8000 + Runden-Cap-Schlussrunde ohne Werkzeuge** (08.08.2026) | Seit B15 setzt eine Unterklassen-Auskunft fünf Stufen-Merkmale zu EINER Antwort zusammen — die riss bei 4000 und 6000 jeweils kurz vor der Pflicht-Belegzeile ab. Und am Rundendeckel kam vorher eine LEERE Antwort zurück: acht Runden bezahlte Recherche, nichts geliefert. Die Schlussrunde geht ohne `tools` raus und braucht den expliziten Auftrag — ohne ihn produzierte das Modell einen Denkblock und keinen Text |
+
+### Entscheidung: Die falsche Kategorie ist ein Rückfall, keine Korrektur (19.09.2026)
+
+Der Projekt-Review fand die teuerste Ausprägung von B1: Der Bestand meldete „nicht im
+Bestand" für Einträge, die er führt. `foliant_hol_eintrag('regel', 'Zweihändig')` lieferte
+`HINWEIS_LEER` samt der Anweisung, ❌ zu sagen — die Waffeneigenschaften liegen als
+`kategorie='gegenstand'` im Korpus. Die **Kategorie kam aus dem Aufruf, nicht aus dem
+Bestand**; falsch war die Frage, nicht die Antwortlage.
+
+Die Behebung ist ein Rückfall auf dieselbe Anfrage ohne Kategorie-Filter
+(`ausgabe.andere_kategorie_treffer`). Drei Entscheidungen dabei:
+
+1. **Nicht automatisch ausliefern.** Die Kategorie ist eine Aussage des Aufrufers; sie
+   stillschweigend zu ersetzen wäre Raten (B4). Die Ausgabe nennt den Weg
+   (`treffer_andere_kategorie`), gehen muss ihn das Modell.
+2. **Nur Namenstreffer** (`_name_score ≥ _NAME_MIN`). Ohne das Gate meldete der Rückfall
+   jede Fließtext-Erwähnung als „steht in einer anderen Kategorie" und ersetzte einen
+   falschen Leerbefund durch einen falschen Fundbefund — die teurere Fehlerform, weil sie
+   wie eine Antwort aussieht.
+3. **Nicht neben `hinweis_geringe_relevanz` stellen.** Dieser rät ausdrücklich zur
+   Fehlanzeige; zwei widersprüchliche Anweisungen im selben Payload sind schlimmer als
+   eine fehlende. Greift der Rückfall, entfällt er.
+
+Der Fall hat **zwei Gestalten**, und die zweite kostete den längeren Weg: Neben dem leeren
+Kandidatensatz gibt es den, der nur Fließtext-Treffer enthält — `'Vielseitig'` wurde damit
+zur Rückfrage nach `'Staubfürsten'`. Das sieht wie eine ordentliche B4-Rückfrage aus und
+fällt deshalb niemandem auf. Beide Absage-Stellen des Detailpfads brauchen den Rückfall.
+
+Warum es vier Kurationsdurchgänge lang unsichtbar blieb: Der Suchbericht gruppierte nur
+nach dem Begriff. `zweihändig` und `vielseitig` standen in der Nulltreffer-Liste und sahen
+aus wie Vokabellücken — der dort angebotene Kur-Weg („Glossar-Paar ergänzen") ist für sie
+der falsche. Seither trägt jede Signalzeile ihre `kategorie`, und die Fälle haben einen
+eigenen Abschnitt.
+
+### Gemessen und verworfen: das SRD-Paar für `Grappling` (19.09.2026)
+
+Die zwei 👎 vom 10.08.2026 auf `grapple` sahen nach einem fehlenden Glossar-Paar aus, und
+`BACKLOG.md` §3 führte sie so: Es fehle „beidseitig ein Eintragsbeleg", ein kuratiertes
+Paar brauche Handarbeit am Fließtext. Beides hielt der Messung nicht stand.
+
+Der Beleg lag im Bestand: Das Erratum `Grappling` (errata-phb-2024-en) nennt die
+Überschrift „Ending a Grapple" und den Nachsatz „release the target at any time (no action
+required)" — beides steht wörtlich im deutschen `Gepackt halten`. Und die Glossarzeile
+`Gepackt halten ↔ Grappling` erzeugte `seed_regelglossar` längst aus den srd-de-Regel­
+definitionen.
+
+Das Paar in `SRD_2024_BEGRIFFSPAARE` wurde deshalb **wieder entfernt**: Es hätte nur
+`kanonisiere_konflikte` ausgelöst und damit `Ringen` demotet — eine korrekte offizielle
+2014-Form, die niemandem im Weg stand; S8 trennt die beiden längst nach Edition. Gefehlt
+hat eine einzige Zeile, die Suchvariante `grapple` in `UMGANGSSPRACHE`.
+
+Die Lehre ist die von S8 in anderer Gestalt: **Bevor eine kuratierte Liste wächst, prüfen,
+was die abgeleiteten Seeder schon liefern.** Eine kuratierte Zeile, die dasselbe noch
+einmal sagt, ist nicht neutral — sie greift über `kanonisiere_konflikte` in die
+Editions-Logik ein.
 
 ### Entscheidung: Bekannte Quellfehler kennzeichnen, nie korrigieren (03.08.2026)
 
