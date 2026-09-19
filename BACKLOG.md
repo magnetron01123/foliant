@@ -40,7 +40,7 @@ im echten Chat prüfen, M4 braucht Spieler, und M5 braucht deren Anfragen als Si
 
 ## 1. Offene Arbeit
 
-### M2 — Formale MVP-Abnahme · *klein · Schicht 1+2 ✅, Schicht 3 fast durch*
+### M2 — Formale MVP-Abnahme · *klein · Schicht 1+2 bestanden, Schicht 3 fast durch*
 Der Eval-Harness-Lauf gegen den **Pi-Vollbestand** (26.07.2026, `claude-sonnet-5`) hat alle
 prüfbaren P0-Zeilen bestanden — Protokoll in §2. **Es fehlt genau ein Fall:** A4 (Websuche
 getrennt gekennzeichnet) lässt sich nur im echten Chat prüfen, weil das Harness kein
@@ -52,58 +52,25 @@ Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
 [`config/projektanweisung.md`](config/projektanweisung.md).
 **Gate:** alle T1–T12 nachweislich erfüllt, Ergebnisse in §2 eingetragen.
 
-### M3 — Betrieb für die Gruppe · *klein · Zugang ✅, Betrieb teilweise*
-- ✅ **Zugang:** Geheimpfad + IP-Allowlist, von außen verifiziert (Fremd-IPs bekommen für
-  jeden Pfad außer `/health` einheitlich 403 — kein Pfad-Orakel). Den Geheimpfad hält seit
-  dem 26.08.2026 der geteilte MCP-Router des Geräts; die Allowlist liegt seit dem
-  02.09.2026 als WAF-Regel an der Cloudflare-Kante und damit außerhalb dieses Repos —
-  nachweisbar nur noch durch Messung von außen ([CONCEPT.md](CONCEPT.md) §9).
-- ✅ **Backup-Werkzeug:** `admin backup` (konsistent, verifiziert, rotierend).
+### M3 — Betrieb für die Gruppe · *klein · Zugang steht, Betrieb teilweise*
+Zugang (Geheimpfad + WAF-Allowlist), Backup-Werkzeug und die Antwortzeiten unter
+Sessionlast sind erledigt — Belege in [CONCEPT.md](CONCEPT.md) §9 (Zugang) und §10
+(Lastmessung). Offen bleiben zwei Handlungen an Geräten:
 - ⬜ **Off-Site-Spiegel einrichten** — der Cron läuft seit dem 26.08.2026 (`make
   sicherung-cron-pi`, nächtlich, verifiziert, 14 Stände), aber **alle Stände liegen auf
   derselben SD-Karte wie der Bestand**. Erst das Spiegeln auf ein zweites Gerät ist die
   Sicherung. Ziel/Zugang muss David festlegen — die Sicherungen tragen private
   Buchinhalte, deshalb ist das keine beiläufige Wahl.
-- ⬜ **Uptime-Monitoring** auf `/health` (z. B. UptimeRobot) — zwei Ziele, seit die
-  Website und der MCP auf getrennten Hostnamen liegen. Braucht ein Konto und ein Gerät
-  außerhalb des Pi: ein Wächter, der mit dem Bewachten stirbt, meldet nichts.
-- ✅ **Antwortzeiten gemessen — auch unter Sessionlast** (B9). Einzeln am Pi-Vollbestand
-  25–192 ms (§2). Nebenläufig mit `make lasttest-pi` (28.07.2026):
-
-  | gleichzeitige Spieler | p95 zuerst | p95 nach dem Vorfilter | Aufrufe/s |
-  |---|---|---|---|
-  | 1 | 100 ms | **91 ms** | 22 |
-  | 2 | 207 ms | **119 ms** | 35 |
-  | 4 | **584 ms** | **191 ms** | 41 |
-  | 8 | **1729 ms** | **546 ms** | 32 |
-
-  Der erste Lauf riss ab sechs Spielern die Sekunde, und der Durchsatz deckelte bei
-  ~26 Aufrufen/s — Sättigung, nicht Auslastung. **Zwei Verdächtige wurden experimentell
-  ausgeschlossen:** das Abfrage-Protokoll (mit komplett abgeschaltetem Log waren die Werte
-  bei 8 Spielern identisch, p95 1733 statt 1734 ms) und die Datenbank. Es blieb reine
-  Python-Rechenzeit am GIL.
-
-  Der Facetten-Vorfilter (§3) hat das behoben: **p95 bei vier Spielern 584 → 191 ms**, und
-  der Durchsatz skaliert jetzt mit der Last (22 → 35 → 41), statt zu deckeln.
-  `make lasttest-pi` läuft grün und bricht bei p95 > 1000 ms ab — damit ist die Messung
-  auch ein Regressionswächter.
+- ⬜ **Uptime-Monitoring** auf `/health` — zwei Ziele, seit Website und MCP auf getrennten
+  Hostnamen liegen. Braucht ein Gerät außerhalb des Pi: ein Wächter, der mit dem Bewachten
+  stirbt, meldet nichts.
 
 **Gate:** Backup liegt außerhalb des Pi, Dienst übersteht Neustart, Monitoring meldet Ausfälle.
 
-### M4 — Onboarding & Pilot-Session · *klein · Anleitung ✅, Pilot offen*
-- ✅ **Spielerfeste Kurzanleitung** (03.08.2026) — auf der Charakterbogen-Website, dort wo
-  die Spieler ohnehin Link und Projektanweisung holen. Der B10-Fallback („Connectoren sind
-  Beta → Link neu hinzufügen, sonst nimm Discord") steht als **eine Zeile** unter der
-  Einrichtung.
-- ✅ **Die Seite gekürzt statt erweitert** (Eigentümer-Entscheidung 03.08.2026). Der erste
-  Anlauf hatte sieben geprüfte Beispielfragen und einen vierteiligen Fehler-Fahrplan — beides
-  fachlich richtig und **trotzdem falsch**: Wer eine Regelfrage im Spiel hat, liest keine
-  Bedienungsanleitung. Gestrichen wurden Beispielfragen, Fehler-Fahrplan, der
-  „mit/ohne Foliant"-Vergleich, die Pipeline-Erklärung des Übersetzers und drei
-  Discord-Blöcke; der sichtbare Text der Seite halbierte sich (5900 → 2885 Zeichen ohne
-  Projektanweisung). **Maßstab bleibt: so viel wie nötig, so wenig wie möglich** — was der
-  Bot im richtigen Moment selbst sagt (Tageslimit erreicht, Faden vergessen), braucht nicht
-  vorab auf der Seite zu stehen.
+### M4 — Onboarding & Pilot-Session · *klein · Anleitung steht, Pilot offen*
+Die spielerfeste Kurzanleitung steht auf der Charakterbogen-Website (inkl. B10-Fallback);
+warum sie beim Ausbau **gekürzt** statt erweitert wurde, steht im Entscheidungsregister
+([CONCEPT.md](CONCEPT.md) §10).
 - ⬜ **Pilot-Session mit 1–2 Spielern** (David) — das eigentliche Gate.
 
 **Gate:** ein nicht-technischer Mitspieler verbindet sich eigenständig und nutzt es im Spiel.
@@ -196,45 +163,21 @@ Regressionstests belegt; die Lehre zum Zeichenvergleich steht in
 Verbleibende Daueraufgabe: Bericht regelmäßig sichten, daraus iterativ Synonyme, Chunking und
 Korrekturen. Die Rest-Posten aus §3 hier mitziehen.
 
-### M7 — Discord-Ausbau · *neu 30.07.2026 · Code ✅, zwei Nachweise offen*
+### M7 — Discord-Ausbau · *neu 30.07.2026 · Code steht, zwei Nachweise offen*
 Der Bot bleibt ein **Nachschlagewerk im Gespräch** und wird kein zweites Avrae. Der
-Funktionsumfang steht (Thread-Rebuild, `/regel-privat`, `/hilfe`, Kontextmenü,
-`fassung`-Option, konfigurierbarer Cooldown, drei Robustheits-Fixes aus dem Review vom
-02.08.2026) — was davon **warum** so geschnitten ist, samt Nicht-Zielen, steht im
-Entscheidungsregister ([CONCEPT.md](CONCEPT.md) §10). Offen sind nur noch die zwei Nachweise,
-die Tokens bzw. eine echte Guild brauchen:
+Funktionsumfang steht, ebenso der Meldeweg über 👎/👍, der behobene `/regel`-Absturz und die
+Paritäts-Baseline der DC-Fälle gegen den Pi-Vollbestand — was davon **warum** so geschnitten
+ist, samt Nicht-Zielen und Datenschutz-Schnitt, steht im Entscheidungsregister
+([CONCEPT.md](CONCEPT.md) §9/§10/§13). Offen sind die zwei Nachweise, die eine echte Guild
+brauchen:
 
-- ✅ **Eval-Lauf der DC-Fälle gegen den Pi-Vollbestand** — mehrfach erbracht (die
-  DC-Fälle laufen seit 06.08.2026 in jedem Volllauf mit), zuletzt als
-  **Paritäts-Baseline** (08.08.2026, `--prompt beide`: jeder der 25 ausführbaren Fälle
-  gegen Konnektor- UND Discord-Prompt). Ergebnis: **23/25 Fälle mit identischem
-  Ausgang**; nach Abzug eines Messmodus-Artefakts (das Discord-Tabellenverbot galt
-  fälschlich auch für den Konnektor — behoben) 22/25 gleich und 3 fallweise
-  Streuungsfälle, die **beide** Richtungen treffen (2× nur Discord rot, 1× nur
-  Konnektor rot) — kein systematischer Kanal-Unterschied. Der größte reale Unterschied
-  der beiden Wege bleibt das MODELL (Bot: `claude-sonnet-5` fest; Konnektor: was der
-  Client wählt) — bewusst nicht angeglichen, Kostenentscheidung des Eigentümers.
-- ✅ **`/regel`-Absturz im Kanal behoben** (Live-Befund 03.08.2026 aus dem Pi-Log): Die
-  Slash-Antwort ist eine `WebhookMessage` ohne Guild-Bezug, `Message.create_thread()` warf
-  dort `ValueError` **vor** jedem HTTP-Aufruf und lief am Fallback vorbei. Threads entstehen
-  jetzt über den Kanal ([CONCEPT.md](CONCEPT.md) §10), vier Regressionstests dazu. **Das war
-  der Hauptbefehl** — er lieferte Teil 1 und brach ab.
 - ⬜ Echttest in der Guild: Frage stellen → `docker compose restart discord` → Folgefrage
-  im Thread wird **mit** Kontext beantwortet. Prüft jetzt zugleich den behobenen
-  Thread-Absturz.
-- ✅ **Rückmeldung per 👎-Reaktion** (03.08.2026), seit 04.08.2026 auch per **👍**: macht
-  eine falsche Antwort zum Kurations-Kandidaten und eine besonders gelungene zum
-  Kandidaten für Regressionsschutz — ohne Befehl und ohne API-Kosten. Begründung,
-  Asymmetrie der beiden Signale und Datenschutz-Schnitt: [CONCEPT.md](CONCEPT.md)
-  §9/§10/§13.
+  im Thread wird **mit** Kontext beantwortet. Prüft zugleich den behobenen Thread-Absturz.
 - ⬜ Echttest des Meldewegs in der Guild: 👎 **und** 👍 auf je eine Antwort → 📝 erscheint
   → die Zeilen stehen im `admin suchbericht` unter der **jeweils richtigen** Überschrift
-  („markiert" bzw. „gelobt"). Seit dem 04.08.2026 deckt `tests/test_discord_reaktionen.py`
-  die **Prüfkette** ab (welche Reaktion zählt, Guild-/Kanal-/Autor-Sperre, eigene
-  Reaktionen des Bots, Löschen trifft nur die eigene Art, Leitplanken bei gelöschter
-  Nachricht und fehlendem Reaktions-Recht). Offen bleibt damit nur, was Fakes nicht
-  zeigen können: dass **Discord die Ereignisse überhaupt liefert** (Intents, Gateway) und
-  dass das Recht *Add Reactions* in der echten Guild gesetzt ist.
+  („markiert" bzw. „gelobt"). `tests/test_discord_reaktionen.py` deckt die Prüfkette ab;
+  offen bleibt allein, was Fakes nicht zeigen können — dass **Discord die Ereignisse
+  überhaupt liefert** (Intents, Gateway) und dass *Add Reactions* in der Guild gesetzt ist.
 
 **Gate:** eine Folgefrage nach einem Neustart wird mit Kontext beantwortet, und der
 DC-Lauf steht im Eval-Report.
@@ -307,7 +250,7 @@ B1–B8/B11/B13–B16, T1–T9/T11, O1–O3/O5, Q1–Q7, C1–C7, D1–D2/D4).
 | **D3** | Kostendeckel des Bots (fail-closed) | ✅ | Greift vor dem Modellaufruf und zählt seit 19.09.2026 persistent in der Protokoll-DB — ein Neustart schenkt kein frisches Budget mehr. Ein unbekannter Stand gilt als erreicht, ein Schreibfehler sperrt die Runde nicht aus |
 | **D5** | Rückmeldungen 👍/👎 als Teil des Dienstes | 🟡 | Weg steht und liefert (Runden 04.08. und 11.08.). Der Bot hat seit 19.09.2026 ein Lebenszeichen samt Healthcheck — ein toter Gateway fällt jetzt auf. Offen bleibt der Echttest in der Guild (M7) |
 | NF8 / B10 | Spielerfeste Ersteinrichtung + Fallback | 🟡 | Anleitung inkl. Beta-Fallback steht (M4); offen ist nur der Nachweis am echten Mitspieler |
-| B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln **und unter Sessionlast** belegt — Zahlen in §1/M3; `make lasttest-pi` hält sie als Wächter fest (bricht bei p95 > 1000 ms ab) |
+| B9 | Schnell & verfügbar im Spielbetrieb | ✅ | Einzeln **und unter Sessionlast** belegt — Messreihe in [CONCEPT.md](CONCEPT.md) §10; `make lasttest-pi` hält sie als Wächter fest (bricht bei p95 > 1000 ms ab) |
 | T2/T10/T12 | Verhaltenstests | 🟡 | M2 — am Pi-Vollbestand bestanden (§2 Lauf-Protokoll); nur A4 fehlt noch im Chat |
 | **B12** | Antwortgerüst (fünf feste Slots) | 🟡 | Gerüst steht und wird deterministisch gemessen; die **Rest-Streuung ist nicht geschlossen** (§3). Bis 14.08.2026 stand B12 in der Sammelklammer als erfüllt und in §3 als offen — beides gleichzeitig |
 | O4 | Feedback-/Korrekturschleife | 🟡 | M5 (Werkzeug gebaut: `admin suchbericht`; Sichten bleibt Daueraufgabe). **Achtung: O4 steht bei zwei Brüchen** (beide Meldeweg, 11.08.2026) — beim dritten sitzt die Regel laut eigener Doktrin im falschen Kanal und gehört verlegt, nicht nachgebessert |

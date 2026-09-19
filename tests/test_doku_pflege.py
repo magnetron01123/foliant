@@ -342,3 +342,25 @@ def test_keine_wortgleichen_saetze_in_zwei_dateien():
           "BACKLOG = offen, README = Einstieg), und verweise von den anderen darauf. "
           "Bewusst doppelt? Dann mit Grund in ERLAUBTE_DOPPELUNGEN."
     )
+
+
+def test_backlog_teil_eins_fuehrt_nur_offenes():
+    """BACKLOG-Regel 2 (CLAUDE.md): „BACKLOG führt nur Offenes. Erledigtes geht ins
+    Entscheidungsregister, zu den Gotchas oder in die Git-Historie — nicht als ✅-Zeile
+    stehen bleiben."
+
+    Die Regel galt für alle, nur nicht für die Datei selbst: Am 19.09.2026 standen acht
+    erledigte Aufzählungszeilen in §1, darunter eine Messtabelle, auf die die
+    Anforderungstabelle als Beleg verwies — genau die Zirkularität, an der die Chronik
+    laut §5 schon zweimal gescheitert ist.
+
+    Geprüft wird NUR §1 (offene Arbeit) und nur die Aufzählung. Die Anforderungstabelle
+    darunter und die Abnahme-Checkliste in §2 sind Statusregister: Dort ist ✅ die
+    Aussage, nicht ein Überbleibsel."""
+    text = (WURZEL / "BACKLOG.md").read_text(encoding="utf-8")
+    teil_eins = text.split("## 2. Abnahme")[0]
+    erledigt = [z.strip() for z in teil_eins.splitlines()
+                if z.lstrip().startswith(("- ✅", "* ✅", "- [x]"))]
+    assert not erledigt, (
+        "Erledigtes in BACKLOG §1 (offene Arbeit) - gehört nach CONCEPT.md §10/§12 oder "
+        "in die Git-Historie:\n  " + "\n  ".join(z[:100] for z in erledigt))
