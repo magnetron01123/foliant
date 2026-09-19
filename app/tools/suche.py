@@ -26,7 +26,7 @@ from app import glossar as _glossar
 from app import protokoll as _protokoll
 from app.tools.ausgabe import (
     _HINWEIS_PARAMETER, HINWEIS_ABKUERZUNGEN, HINWEIS_ALT, HINWEIS_ANDERE_KATEGORIE, HINWEIS_KOPFZEILE, HINWEIS_DB_FEHLT, markiere_mehrdeutige_treffer, HINWEIS_LEER, _haenge_revisionen_an, _knapp, _markiere_inhaltsart, _reichere_facetten_an,
-    _verbinde, andere_kategorie_treffer, markiere_unuebersetzte,
+    _verbinde, andere_kategorie_treffer, markiere_unuebersetzte, unterscheide_gleichnamige,
 )
 
 
@@ -278,6 +278,7 @@ def _struktur_filter(con, kategorie, edition, praedikat, echo, limit=25,
     if treffer:
         antwort["hinweis_abkuerzungen"] = HINWEIS_ABKUERZUNGEN
         antwort["hinweis_darstellung"] = HINWEIS_KOPFZEILE
+        unterscheide_gleichnamige(con, treffer)
         markiere_mehrdeutige_treffer(antwort, treffer)
     if not treffer:
         antwort["hinweis"] = ("Kein Eintrag im Bestand passt auf ALLE Filter - ehrlicher "
@@ -474,6 +475,7 @@ def _suche_bestand_impl(suchbegriff: str | None = None, kategorie: Kategorie | N
         if antwort.get("treffer"):
             antwort["hinweis_abkuerzungen"] = HINWEIS_ABKUERZUNGEN
             antwort["hinweis_darstellung"] = HINWEIS_KOPFZEILE
+            unterscheide_gleichnamige(con, antwort["treffer"])
             markiere_mehrdeutige_treffer(antwort, antwort["treffer"])
         _reichere_facetten_an(con, *listen)
         return antwort

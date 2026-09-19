@@ -196,6 +196,63 @@ HINWEIS_KOPFZEILE = (
 _ECKIGES_SUFFIX = __import__("re").compile(r"\\?\[[^\]]{1,24}\\?\]\s*$")
 
 
+def unterscheide_gleichnamige(con: sqlite3.Connection, treffer: list[dict]) -> None:
+    """Gleichnamige Treffer DERSELBEN Kategorie um ihren Fundort unterscheidbar machen.
+
+    Befund 19.09.2026 (R05): Die Suche nach 'Geschosse' zeigt dreimal
+    'Geschosse (Ammunition)' - identische Zeilen, zwischen denen niemand waehlen kann,
+    und drei von acht Plaetzen sind weg. Bei 'Deckung' dasselbe mit zwei Zeilen.
+
+    Der naheliegende Griff - die schwaecheren Fassungen wegmergen - ist hier VERBOTEN:
+    Genau daran scheiterte SYN-P0-003. Gleichnamige Eintraege derselben Quelle sind
+    verschiedene ABSCHNITTE mit verschiedenem Inhalt ('Geschosse' steht einmal unter
+    'Waffen > Eigenschaften' und einmal unter 'Abenteurerausruestung'), und sie zu
+    verschmelzen machte aus vollstaendigen Steckbriefen Fragmente.
+
+    Also das Gegenteil: nicht weniger zeigen, sondern mehr sagen. Der Breadcrumb steht in
+    `kontext` und ist das Unterscheidungsmerkmal, das B4 ohnehin verlangt - er wandert in
+    `namenszusatz`, wo Trefferliste und Detailabruf ihn schon fuehren. Nur der LETZTE
+    Abschnitt des Pfads: 'Ausruestung > Waffen > Eigenschaften' unterscheidet sich von
+    'Ausruestung > Abenteurerausruestung' erst am Ende, und der volle Pfad blaehte die
+    Zeile.
+
+    Ein bereits gesetzter `namenszusatz` bleibt: Er kommt aus dem Namen selbst
+    ('Verstecken (Aktion)') und ist damit die praezisere Angabe."""
+    nach_namen: dict[tuple, list[dict]] = {}
+    for t in treffer:
+        name = _glossar.norm_begriff(t.get("name_de") or t.get("name_en") or "")
+        if name:
+            nach_namen.setdefault((name, t.get("kategorie")), []).append(t)
+    strittig = [gruppe for gruppe in nach_namen.values() if len(gruppe) > 1]
+    if not strittig:
+        return
+    ids = [t["eintrag_id"] for gruppe in strittig for t in gruppe]
+    marker = ",".join("?" * len(ids))
+    # Spalte UND Body-Rueckfall, dieselbe Doppelung wie in `db.kontext_bedingung`: Der
+    # Serving-Pfad migriert nie, eine Bestands-DB kann die Spalte also noch gar nicht
+    # haben - und selbst mit Spalte bleibt sie NULL, solange die Quelle nicht neu
+    # importiert wurde. Der Breadcrumb steht dann weiterhin im Kopf des body_md.
+    try:
+        zeilen = con.execute(
+            f"SELECT id, kontext, substr(body_md, 1, 200) FROM eintraege "
+            f"WHERE id IN ({marker})", ids).fetchall()
+    except sqlite3.OperationalError:
+        try:
+            zeilen = [(r[0], None, r[1]) for r in con.execute(
+                f"SELECT id, substr(body_md, 1, 200) FROM eintraege "
+                f"WHERE id IN ({marker})", ids)]
+        except sqlite3.OperationalError:
+            return
+    kontexte = {r[0]: (r[1] or _db.kontext_aus_body(r[2]) or "") for r in zeilen}
+    for gruppe in strittig:
+        for t in gruppe:
+            if t.get("namenszusatz"):
+                continue
+            letzter = kontexte.get(t["eintrag_id"], "").split(">")[-1].strip()
+            if letzter:
+                t["namenszusatz"] = letzter
+
+
 def markiere_mehrdeutige_treffer(antwort: dict, treffer: list[dict]) -> None:
     """Tragen mehrere Treffer DENSELBEN Namen in verschiedenen Kategorien, ist die Frage
     mehrdeutig - und die Antwort ist eine Rueckfrage, keine Auskunft.

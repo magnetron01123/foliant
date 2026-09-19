@@ -70,6 +70,16 @@ def bestand(tmp_path, monkeypatch):
         (1, "regel", "Staubfuersten", None, "de", "2024", "88",
          "*Kontext: Regeln*\n\nIhre Anhaenger fuehren vielseitige Waffen und meiden "
          "das Tageslicht."),
+        # R05 (19.09.2026): DERSELBE Name, DIESELBE Quelle, verschiedene Abschnitte -
+        # der 'Geschosse'-Fall des echten Bestands (einmal unter 'Waffen > Eigenschaften',
+        # einmal unter 'Abenteurerausruestung'). Verschmelzen ist hier verboten
+        # (SYN-P0-003), also muessen die Zeilen unterscheidbar werden.
+        (1, "gegenstand", "Bolzen", None, "de", "2024", "101",
+         "*Kontext: Ausruestung > Waffen > Eigenschaften*\n\nBolzen werden aus einer "
+         "Armbrust verschossen."),
+        (1, "gegenstand", "Bolzen", None, "de", "2024", "102",
+         "*Kontext: Ausruestung > Abenteurerausruestung*\n\nBolzen kosten 1 GM fuer "
+         "zwanzig Stueck."),
     ]
     con.executemany(
         "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
@@ -311,3 +321,31 @@ def test_nur_fliesstext_kandidat_verdeckt_die_andere_kategorie_nicht(bestand):
     assert d.get("gefunden") is False
     assert d.get("treffer_andere_kategorie"), d.get("hinweis")
     assert d["hinweis"].startswith("KEIN 'nicht im Bestand'")
+
+
+def test_gleichnamige_treffer_werden_unterscheidbar(bestand):
+    """R05 (19.09.2026): Die Suche nach 'Geschosse' zeigte am echten Bestand DREIMAL
+    denselben Namen - identische Zeilen, zwischen denen niemand waehlen kann, und drei
+    von acht Plaetzen weg. Wegmergen ist hier VERBOTEN (SYN-P0-003: gleichnamige
+    Eintraege derselben Quelle sind verschiedene Abschnitte, und das Verschmelzen liess
+    vollstaendige Steckbriefe zu Fragmenten werden), also das Gegenteil: nicht weniger
+    zeigen, sondern mehr sagen - der Breadcrumb wird zum Unterscheidungsmerkmal (B4).
+
+    Der Kontext kommt hier aus dem BODY, nicht aus der Spalte: Das Fixture legt sie gar
+    nicht an, genau wie eine Bestands-DB vor der Migration (der Serving-Pfad migriert
+    nie)."""
+    r = su.foliant_suche_bestand("Bolzen")
+    gleiche = [t for t in r["treffer"] if t.get("name_de") == "Bolzen"]
+    assert len(gleiche) == 2, gleiche
+    zusaetze = sorted(t.get("namenszusatz") for t in gleiche)
+    assert zusaetze == ["Abenteurerausruestung", "Eigenschaften"], zusaetze
+
+
+def test_eigener_namenszusatz_bleibt_erhalten(bestand):
+    """Ein Zusatz aus dem NAMEN ('Verstecken (Aktion)') ist die praezisere Angabe und
+    darf nicht vom Breadcrumb ueberschrieben werden."""
+    r = su.foliant_suche_bestand("Vielseitig", kategorie="gegenstand")
+    for t in r["treffer"]:
+        if t.get("name_de") == "Vielseitig":
+            # kein Duplikat -> gar kein Zusatz noetig
+            assert t.get("namenszusatz") in (None, "Waffen")
