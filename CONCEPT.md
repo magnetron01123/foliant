@@ -605,7 +605,6 @@ status        Bestand je Quelle/Edition/Kategorie + Glossar
 manifest      Korpus-Fingerabdruck (inhalts_hash) - nach jedem Import festhalten
 quellen-register  Quellen-Register als TOML aus der DB - Wiederherstellungs-Artefakt (ohne Buchtitel); erneuern mit `make register-vom-pi`
 import        --quelle <kuerzel> | glossar | facetten (Facetten ohne Re-Import nachziehen)
-              Am Pi laeuft der Glossar-Lauf als `make glossar-pi` (Backup + beide Gates)
 quellen-auffrischen  Quellen-METADATEN (Titel, Prioritaet, Lizenz, inhaltsart, versions_stand, quell_url) aus der config nachziehen - ohne Re-Import, Eintraege bleiben unberuehrt
 pdf-triage    welche PDFs haben keine Textschicht?
 ocr-pdf       --datei <pfad> [--redo] [--voll]
@@ -618,6 +617,9 @@ suchbericht   Kuratier-Signale: MARKIERTE Antworten, Nulltreffer, Fuzzy, Mehrdeu
 backup        konsistentes, verifiziertes Online-Backup mit Rotation
 ddb-pruefe | ddb-import | ddb-import-all | ddb-remove
 ```
+
+Am Pi läuft der Glossar-Lauf nicht als nackter `import`-Aufruf, sondern als
+`make glossar-pi` — das Ziel klammert Backup und beide Gates mit ein.
 
 **Bewusst kein öffentliches Admin-Panel** — das wäre auf dem getunnelten Pi unnötige
 Angriffsfläche. Der grafische Blick läuft über Datasette an `127.0.0.1` per SSH-Tunnel:
