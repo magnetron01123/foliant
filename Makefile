@@ -138,6 +138,30 @@ rollback-pi: _pi-ziel
 test-golden-pi: _pi-ziel
 	ssh $(PI) 'cd ~/foliant && docker compose exec -T -w /app foliant python -m pytest -q tests/test_golden_bestand.py'
 
+# Das Glossar am VOLLBESTAND neu bauen - nach jeder Aenderung an der Glossar-Kette
+# (kuratierte Paare, Umgangssprache-Bruecken, Abkuerzungen) und nach jedem Re-Import
+# einer PDF-Quelle (CONCEPT.md §12).
+#
+# Warum als Ziel (19.09.2026): Der Weg stand nur als Copy-Paste-Zeile in CONCEPT.md - und
+# wurde prompt vergessen. Der Deploy von PR #135 brach an genau dieser Stelle: Der CODE
+# war live, die neue Suchvariante 'grapple' aber nur in der Mac-Dev-DB, weil sie erst mit
+# dem Glossar-Lauf entsteht. `make test` war gruen (Subset), `make test-golden-pi` rot -
+# die Arbeitsteilung der beiden Gates, wie sie sein soll, nur eben nach dem Live-Schalten.
+# Dieselbe Lehre wie bei `sicherung-cron-pi`: Eine Zeile, die man abtippen muss, wird
+# nicht abgetippt.
+#
+# BEWUSST NICHT Teil von `deploy-pi`: Der Lauf schreibt in den Produktions-Bestand und
+# dauert Minuten, die meisten Deploys fassen die Glossar-Kette aber gar nicht an. Ein
+# Schreibzugriff, der bei jedem Deploy mitlaeuft, waere genau die Sorte Automatik, gegen
+# die `--quelle facetten` als eigener Weg existiert. Das Backup vorweg ist Pflicht und
+# steht deshalb hier drin, nicht daneben.
+.PHONY: glossar-pi
+glossar-pi: _pi-ziel
+	ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin backup'
+	ssh $(PI) 'cd ~/foliant && docker compose exec -T foliant python -m app.admin import --quelle glossar'
+	$(MAKE) test-golden-pi PI=$(PI)
+	$(MAKE) check-pi PI=$(PI)
+
 # Datenqualitaet am VOLLBESTAND - Teil jedes Deploys, nicht nur auf Zuruf.
 #
 # Warum am Pi und nicht lokal: `make test` faehrt `admin check` gegen die Dev-DB, und die

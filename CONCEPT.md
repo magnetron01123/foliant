@@ -618,6 +618,9 @@ backup        konsistentes, verifiziertes Online-Backup mit Rotation
 ddb-pruefe | ddb-import | ddb-import-all | ddb-remove
 ```
 
+Am Pi läuft der Glossar-Lauf nicht als nackter `import`-Aufruf, sondern als
+`make glossar-pi` — das Ziel klammert Backup und beide Gates mit ein.
+
 **Bewusst kein öffentliches Admin-Panel** — das wäre auf dem getunnelten Pi unnötige
 Angriffsfläche. Der grafische Blick läuft über Datasette an `127.0.0.1` per SSH-Tunnel:
 ```
@@ -1534,13 +1537,22 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   Zeichen. Erst die harte Grenze am Kapitelkopf („ab `# Monster von A–Z`") trug. **Der
   Wächter, der es fand, war der Namensdiff gegen den vorherigen Stand** — die reine
   Eintragszahl fiel nur um zwölf und sah harmlos aus.
-- **Nach JEDEM Re-Import einer PDF-Quelle gehört `admin import --quelle glossar` hinterher.**
+- **Nach JEDEM Re-Import einer PDF-Quelle gehört `make glossar-pi` hinterher.**
   Die Namensreparatur (`importer/namensreparatur.py`) läuft in der Glossar-Kette, nicht im
   Import — ein Re-Import spielt also den rohen PDF-Namen wieder ein (`Gar l gy` statt
   `Gargyl`). Real passiert am 03.08.2026 beim srd-de-Re-Import auf dem Pi: Lokal war alles
   grün, weil dort zufällig die Glossar-Kette danach lief; auf dem Pi lief sie nicht, und
   `check-pi` brach den Deploy ab. **Genau so soll es sein** — der Basiswert-Vergleich in
   `admin check` hat den Regress gefangen, bevor ihn jemand am Spieltisch gemerkt hätte.
+
+  **Dasselbe gilt für eine geänderte Glossar-KETTE**, und dort ist die Falle größer, weil
+  kein Import im Spiel ist: Kuratierte Paare, Umgangssprache-Brücken und Abkürzungen
+  entstehen erst beim Glossar-Lauf. Ein Deploy bringt den Code, nicht die Zeilen. Am
+  19.09.2026 stand deshalb die neue Suchvariante `grapple` nur in der Mac-Dev-DB — `make
+  test` grün, `make test-golden-pi` rot, und zwar **nach** dem Live-Schalten. Seither ist
+  der Lauf ein Ziel (`make glossar-pi`, inkl. Backup und beider Gates) statt einer Zeile
+  zum Abtippen; bewusst **nicht** Teil von `deploy-pi`, weil er in den Produktions-Bestand
+  schreibt und die meisten Deploys die Kette gar nicht anfassen.
 - **`body_md` niemals von Hand korrigieren, auch wenn die Quelle sich nachweislich irrt.**
   Die Änderung stünde in keinem Diff, wäre beim nächsten Re-Import weg, und der Bestand
   sagte etwas, was sein Buch nicht sagt. Belegte Quellfehler gehören ins Register
