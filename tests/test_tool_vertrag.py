@@ -144,7 +144,7 @@ def test_p1_schemas_tragen_enums_und_annotations(bestand):
     from app.server import mcp
 
     async def hole():
-        return await mcp.get_tools()
+        return {t.name: t for t in await mcp.list_tools()}
 
     tools = asyncio.run(hole())
     assert set(tools) == {
@@ -174,5 +174,5 @@ def test_p1_schemas_tragen_enums_und_annotations(bestand):
         "klasse", "hintergrund", "spezies", "talent"}
     for name, t in tools.items():
         ann = t.annotations
-        assert ann is not None and ann.readOnlyHint is True, name
-        assert ann.idempotentHint is True, name
+        assert ann is not None and ann.read_only_hint is True, name
+        assert ann.idempotent_hint is True, name

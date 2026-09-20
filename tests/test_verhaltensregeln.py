@@ -233,8 +233,8 @@ def _tool_beschreibungen() -> dict[str, str]:
 
     from app.server import mcp
 
-    return {name: (werkzeug.description or "")
-            for name, werkzeug in asyncio.run(mcp.get_tools()).items()}
+    return {werkzeug.name: (werkzeug.description or "")
+            for werkzeug in asyncio.run(mcp.list_tools())}
 
 
 def test_jede_tool_beschreibung_traegt_die_kernregeln():
