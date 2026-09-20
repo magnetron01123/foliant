@@ -105,7 +105,7 @@ async def lade_werkzeuge(mcp_client) -> list[dict]:
     (fastmcp.Client), nie aus einer handgepflegten Kopie."""
     tools = await mcp_client.list_tools()
     return [{"name": t.name, "description": t.description or "",
-             "input_schema": t.inputSchema} for t in tools]
+             "input_schema": t.input_schema} for t in tools]
 
 
 async def api_aufruf(http: httpx.AsyncClient, key: str, body: dict) -> dict:
