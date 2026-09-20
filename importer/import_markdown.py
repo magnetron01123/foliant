@@ -55,6 +55,10 @@ SKIP_NAMEN: dict[str, "re.Pattern[str]"] = {
     "phb-2014-de": re.compile(r"^ANHANG E\b|^INHALTSVERZEICHNIS$"),
     "xgte-2014-de": re.compile(r"^INHALTSVERZEICHNIS$"),
     "scag-2014-de": re.compile(r"^INHALT$"),
+    # Das Register am Buchende zerfaellt in Buchstaben- und Stichwort-"Eintraege"
+    # ('X', 'Spaß,85'); ab dem Index-Kopf ist nichts mehr Regeltext.
+    "mm-2014-de": re.compile(r"^INDEX DER SPIELWERTE$|^[A-Za-zÄÖÜ]$"),
+    "dmg-2014-de": re.compile(r"^INDEX$|^[A-Za-zÄÖÜ]$|^.{1,40},\s?\d{1,3}$"),
 }
 _MIN_BODY = 1            # leere Abschnitte (reine Kapitel-Deckblaetter) ueberspringen
 # Die Plausibilitaets-Schwellen liegen seit Phase 4 gesammelt in importer/schwellen.py
@@ -163,6 +167,10 @@ SPLIT_REGELN: dict[str, list[tuple[str, int, str | None]]] = {
     "phb-2014-de": [(r"", 6, "regel")],
     "xgte-2014-de": [(r"", 6, "regel")],
     "scag-2014-de": [(r"", 6, "regel")],
+    # Spielleiter- und Monsterhandbuch 2014: derselbe Aufbau, am 20.09.2026 ausgezaehlt
+    # (1319 bzw. 1295 von je ~1330 Ueberschriften liegen auf H6).
+    "dmg-2014-de": [(r"", 6, "regel")],
+    "mm-2014-de": [(r"", 6, "regel")],
     # Errata-PDFs (WotC, offizielle Korrekturen). Ihre Eintragsebene entsteht erst durch
     # _errata_headings unten, das aus den fetten Absatzkoepfen H3-Ueberschriften macht -
     # deshalb Level 3. Kategorie durchgehend 'regel': ein Erratum ist keine Regel ihrer
@@ -618,7 +626,44 @@ def _errata_headings(markdown: str) -> str:
     return ergebnis
 
 
+# Wertekasten-Zwischenkoepfe der 2014-Scans. Der Scan setzt 'AKTIONEN', 'REAKTIONEN' usw.
+# in derselben Schrift wie die Monsternamen, also ebenfalls auf H6 - im Monsterhandbuch
+# 440-mal. Als Eintragsgrenze ergaebe das 440 Eintraege namens 'AKTIONEN', und der
+# Kreatur fehlten ihre Angriffe. Die OCR-Varianten ('ÄKTIONEN', 'A KTIONEN', 'AKT IONEN',
+# 'HoRTAKTIONEN') sind am Buch ausgezaehlt, nicht vermutet. Die Zeile bleibt fett im Body.
+_WERTEKASTEN_KOEPFE = frozenset((
+    "AKTIONEN", "REAKTIONEN", "LEGENDAREAKTIONEN", "HORTAKTIONEN", "REGIONALEEFFEKTE"))
+_WERTEZEILE = re.compile(r"^(?:Rüstungsklasse|Trefferpunkte|Bewegungsrate)\s+\d")
+
+
+def _scan_wertekasten_koepfe(markdown: str) -> str:
+    """H6-Zwischenkoepfe eines Wertekastens zu fetten Body-Zeilen machen (siehe oben).
+
+    Verglichen wird ohne Leerzeichen und Auszeichnung und mit den zwei belegten
+    OCR-Verlesungen (Ä fuer A am Wortanfang, 'o'/'ü' fuer O in HORT), weil die
+    Risse mitten im Wort an beliebiger Stelle liegen ('LEGENDÄ RE AKTIONE N')."""
+    zeilen = markdown.split("\n")
+    for i, zeile in enumerate(zeilen):
+        if not zeile.startswith("###### "):
+            continue
+        text = re.sub(r"[*_]", "", zeile[7:]).strip()
+        kern = re.sub(r"\s+", "", text).upper().replace("Ä", "A").replace("HÜRT", "HORT")
+        if kern in _WERTEKASTEN_KOEPFE or _WERTEZEILE.match(text):
+            zeilen[i] = f"**{text}**"
+    return "\n".join(zeilen)
+
+
+# Dasselbe bei magischen Gegenstaenden: die Typzeile ('Wundersamer Gegenstand, selten')
+# steht als eigene H6 zwischen Name und Beschreibung und nahm dem Gegenstand den Text.
+_SCAN_GEGENSTAND_TYPZEILE = (
+    r"^#{6}\s+\**\s*((?:Wundersamer Gegenstand|Waffe|Rüstung|Ring|Stab|Stecken|Zauberstab"
+    r"|Zepter|Trank|Schriftrolle)\b[^\n]*?,\s*(?:gewöhnlich|ungewöhnlich|selten"
+    r"|sehr selten|legendär|Seltenheit)[^\n]*?)\s*\**\s*$",
+    r"_\1_")
+
 BEREINIGUNG: dict[str, list] = {
+    "mm-2014-de": [_scan_wertekasten_koepfe],
+    "dmg-2014-de": [_scan_wertekasten_koepfe, _SCAN_GEGENSTAND_TYPZEILE],
     "errata-phb-2024-en": [_errata_headings],
     "errata-dmg-2024-en": [_errata_headings],
     "errata-mm-2025-en": [_errata_headings],

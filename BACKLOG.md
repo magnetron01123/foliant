@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 19.09.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 20.09.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -99,6 +99,12 @@ Zauber-Abdeckung ist geschlossen (345 von 369 deutschen 2024-Zaubern tragen eine
 24 übrigen sind Regelabschnitte, nicht Zauber — §3). Die Verfahren dahinter stehen bei ihrer
 Mechanik in [CONCEPT.md](CONCEPT.md) §5, die Fallen in §12; die Zahlen im Detail in
 `git show 83f1eea:BACKLOG.md`.
+
+**Offen seit 20.09.2026:** `dmg-2014-de` und `mm-2014-de` (Band 80) sind lokal vorbereitet —
+Zerlege-Regeln und Tests stehen, der Import auf dem Pi samt `admin import --quelle glossar`
+und `make test-golden-pi` fehlt. Dazu liegen neun frei geladene WotC-Dokumente zu den 2014er
+Büchern in `quellen/errata/` (acht Errata, ein Regelauslegungs-Kompendium) mit Config-Block,
+aber ohne Zerlege-Regeln: ihr Aufbau ist noch nicht an den Dateien geprüft.
 
 **Gate:** dt. Kernbegriffe/Optionen (z. B. Aasimar) kommen **deutsch** aus dem Bestand;
 die deutsche Quelle rankt vor DDB-Englisch. *Die `prioritaet` steht seit dem 31.07.2026 fest:

@@ -278,7 +278,8 @@ def test_2014_scans_splitten_auf_eintragsebene():
         "###### **KAVALIER**", "", "Ein Kavalier ist ein Kaempfer-Archetyp.", "",
         "###### **SAMURAI**", "", "Der Samurai kaempft mit Kampfgeist.", "",
     ])
-    for kuerzel in ("phb-2014-de", "xgte-2014-de", "scag-2014-de"):
+    for kuerzel in ("phb-2014-de", "xgte-2014-de", "scag-2014-de",
+                    "dmg-2014-de", "mm-2014-de"):
         regeln = SPLIT_REGELN.get(kuerzel)
         assert regeln, f"{kuerzel} braucht Split-Regeln"
         chunks = _chunks(md, kategorie_standard="regel", split_regeln=regeln)
@@ -287,6 +288,49 @@ def test_2014_scans_splitten_auf_eintragsebene():
     # Gegenprobe: OHNE Quell-Regeln (Standard-Level 3) verschwinden sie im Kapitel
     ohne = [c["name"] for c in _chunks(md, kategorie_standard="regel")]
     assert "KAVALIER" not in ohne
+
+
+def test_2014_scans_wertekasten_koepfe_sind_keine_eintraege():
+    """Im Monsterhandbuch-Scan stehen 'AKTIONEN', 'REAKTIONEN' usw. auf derselben Ebene
+    wie die Monsternamen - 440-mal, in den am Buch ausgezaehlten OCR-Varianten. Als
+    Eintragsgrenze gaebe das 440 Eintraege namens 'AKTIONEN', und der Kreatur fehlten
+    ihre Angriffe (Befund 20.09.2026)."""
+    from importer.import_markdown import BEREINIGUNG, SPLIT_REGELN, _chunks
+
+    md = "\n".join([
+        "###### GHULE", "", "Ghule streifen in Rudeln durch die Nacht.", "",
+        "###### **Rüstungsklasse** 12", "", "###### **ÄKTIONEN**", "", "**_Biss._** 2W6.", "",
+        "###### LEGENDÄ RE AKTIONE N", "", "Der Ghul kann ...", "",
+        "###### HoRTAKTIONEN", "", "Bei Initiative 20 ...", "",
+        "###### SOZIALE INTERAKTION", "", "Ein echter Abschnitt.", "",
+    ])
+    for kuerzel in ("mm-2014-de", "dmg-2014-de"):
+        bereinigt = md
+        for schritt in BEREINIGUNG[kuerzel]:
+            if callable(schritt):
+                bereinigt = schritt(bereinigt)
+        chunks = _chunks(bereinigt, split_regeln=SPLIT_REGELN[kuerzel])
+        assert [c["name"] for c in chunks] == ["GHULE", "SOZIALE INTERAKTION"], kuerzel
+        ghule = chunks[0]["body"]
+        assert "Biss" in ghule and "Rüstungsklasse 12" in ghule and "Initiative 20" in ghule
+
+
+def test_2014_scan_gegenstand_behaelt_seinen_text():
+    """Im Spielleiterhandbuch steht die Typzeile als eigene Ueberschrift zwischen Name und
+    Beschreibung - der Gegenstand blieb leer, sein Text hing an 'Wundersamer Gegenstand'."""
+    import re
+
+    from importer.import_markdown import BEREINIGUNG, SPLIT_REGELN, _chunks
+
+    md = "\n".join([
+        "###### FLIEGENDER TEPPICH", "", "###### Wundersamer Gegenstand, sehr selten", "",
+        "Du kannst das Befehlswort des Teppichs sprechen.", "",
+    ])
+    for schritt in BEREINIGUNG["dmg-2014-de"]:
+        md = schritt(md) if callable(schritt) else re.sub(schritt[0], schritt[1], md, flags=re.M)
+    chunks = _chunks(md, split_regeln=SPLIT_REGELN["dmg-2014-de"])
+    assert [c["name"] for c in chunks] == ["FLIEGENDER TEPPICH"]
+    assert "Befehlswort" in chunks[0]["body"] and "sehr selten" in chunks[0]["body"]
 
 
 def test_2014_scans_ueberspringen_endlose_anhaenge():
