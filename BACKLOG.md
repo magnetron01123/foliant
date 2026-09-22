@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 20.09.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 22.09.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -100,11 +100,13 @@ Zauber-Abdeckung ist geschlossen (345 von 369 deutschen 2024-Zaubern tragen eine
 Mechanik in [CONCEPT.md](CONCEPT.md) §5, die Fallen in §12; die Zahlen im Detail in
 `git show 83f1eea:BACKLOG.md`.
 
-**Offen seit 20.09.2026:** `dmg-2014-de` und `mm-2014-de` (Band 80) sind lokal vorbereitet —
-Zerlege-Regeln und Tests stehen, der Import auf dem Pi samt `admin import --quelle glossar`
-und `make test-golden-pi` fehlt. Dazu liegen neun frei geladene WotC-Dokumente zu den 2014er
-Büchern in `quellen/errata/` (acht Errata, ein Regelauslegungs-Kompendium) mit Config-Block,
-aber ohne Zerlege-Regeln: ihr Aufbau ist noch nicht an den Dateien geprüft.
+**Offen seit 22.09.2026:** 15 neue 2014er Quellen sind lokal importiert und im Branch
+`feat/import-2014-de-core` mit Zerlege-Regeln, Tests und Qualitäts-Basiswert versehen
+(`dmg-2014-de`, `mm-2014-de`, `cos-2014-de`, `bgdia-2014-en`, `tcoe-2014-en`,
+`vgtm-2014-en`, acht Errata, Sage Advice Compendium — 5936 Einträge). Auf dem Pi fehlen
+sie noch: PDFs und Config-Blöcke übertragen, importieren, `admin import --quelle glossar`,
+`make test-golden-pi`. Vorher klären, warum der `srd-de`-Re-Import am Mac drei kuratierte
+Reparaturen als WIRKUNGSLOS meldet (Verdacht: pymupdf 1.28.2 aus `chore/bump-dependencies`).
 
 **Gate:** dt. Kernbegriffe/Optionen (z. B. Aasimar) kommen **deutsch** aus dem Bestand;
 die deutsche Quelle rankt vor DDB-Englisch. *Die `prioritaet` steht seit dem 31.07.2026 fest:

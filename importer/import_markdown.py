@@ -59,6 +59,12 @@ SKIP_NAMEN: dict[str, "re.Pattern[str]"] = {
     # ('X', 'Spaß,85'); ab dem Index-Kopf ist nichts mehr Regeltext.
     "mm-2014-de": re.compile(r"^INDEX DER SPIELWERTE$|^[A-Za-zÄÖÜ]$"),
     "dmg-2014-de": re.compile(r"^INDEX$|^[A-Za-zÄÖÜ]$|^.{1,40},\s?\d{1,3}$"),
+    # Inhaltsverzeichnisse und Statblock-Register der uebrigen Scans: 9-17 kB Seitenzahlen.
+    "cos-2014-de": re.compile(r"^INHALT$"),
+    "bgdia-2014-en": re.compile(r"^CONTENTS$"),
+    "tcoe-2014-en": re.compile(r"^CONTENTS$"),
+    "vgtm-2014-en": re.compile(r"^CONTENTS$|^STAT BLOCKS BY CREATURE TYPE$"
+                               r"|^INDEX OF MONSTER STAT BLOCKS$"),
 }
 _MIN_BODY = 1            # leere Abschnitte (reine Kapitel-Deckblaetter) ueberspringen
 # Die Plausibilitaets-Schwellen liegen seit Phase 4 gesammelt in importer/schwellen.py
@@ -171,6 +177,12 @@ SPLIT_REGELN: dict[str, list[tuple[str, int, str | None]]] = {
     # (1319 bzw. 1295 von je ~1330 Ueberschriften liegen auf H6).
     "dmg-2014-de": [(r"", 6, "regel")],
     "mm-2014-de": [(r"", 6, "regel")],
+    # Abenteuer- und Erweiterungsbaende als Scan, ausgezaehlt 20.09.2026: 795 bis 1116
+    # von je rund 1000 Ueberschriften auf H6.
+    "cos-2014-de": [(r"", 6, "regel")],
+    "bgdia-2014-en": [(r"", 6, "regel")],
+    "tcoe-2014-en": [(r"", 6, "regel")],
+    "vgtm-2014-en": [(r"", 6, "regel")],
     # Errata-PDFs (WotC, offizielle Korrekturen). Ihre Eintragsebene entsteht erst durch
     # _errata_headings unten, das aus den fetten Absatzkoepfen H3-Ueberschriften macht -
     # deshalb Level 3. Kategorie durchgehend 'regel': ein Erratum ist keine Regel ihrer
@@ -179,6 +191,19 @@ SPLIT_REGELN: dict[str, list[tuple[str, int, str | None]]] = {
     "errata-phb-2024-en": [(r"", 3, "regel")],
     "errata-dmg-2024-en": [(r"", 3, "regel")],
     "errata-mm-2025-en": [(r"", 3, "regel")],
+    # Errata zu den 2014er Buechern: derselbe WotC-Aufbau, am 20.09.2026 an allen acht
+    # Dateien geprueft (kein Korrektur-Kopf bleibt unerkannt).
+    "errata-phb-2014-en": [(r"", 3, "regel")],
+    "errata-dmg-2014-en": [(r"", 3, "regel")],
+    "errata-mm-2014-en": [(r"", 3, "regel")],
+    "errata-xgte-2014-en": [(r"", 3, "regel")],
+    "errata-tcoe-2014-en": [(r"", 3, "regel")],
+    "errata-vgtm-2014-en": [(r"", 3, "regel")],
+    "errata-scag-2014-en": [(r"", 3, "regel")],
+    "errata-cos-2014-en": [(r"", 3, "regel")],
+    # Sage Advice Compendium: die Fragen liegen nach _sac_headings auf H6. Die Rubrik
+    # 'Rules References' ist ein Linkverzeichnis (Errata-Adressen), kein Regeltext.
+    "sac-2014-en": [(r"^Sage Advice Compendium > Rules References", 6, None), (r"", 6, "regel")],
 }
 
 
@@ -519,19 +544,27 @@ def _srd_de_reparatur(markdown: str) -> str:
 # Ein fetter Absatzkopf am ZEILENANFANG - so leiten Errata-PDFs ihre Korrekturen ein.
 # Was dahinter kommt, entscheidet _errata_headings; hier wird nur der Kandidat gefasst.
 _ERRATA_FETTKOPF = re.compile(r"^\*\*(?P<fett>[^*\n]+?)\*\*(?P<rest>[^\n]*)", re.M)
-# Eine Seitenangabe in Klammern: '(p. 30)', '(pp. 27-28)', '(page 30)', '(pp. 12, 40)'.
-_ERRATA_SEITE = re.compile(r"\(\s*(?:pp?\.|page)\s*([\d–—,\s-]+?)\s*\)")
+# Eine Seitenangabe in Klammern: '(p. 30)', '(pp. 27-28)', '(page 30)', '(pp. 12, 40)' -
+# und '(pg. 7)', so setzt es das Errata zu Tasha's Cauldron als einziges (20.09.2026).
+_ERRATA_SEITE = re.compile(r"\(\s*(?:pp?\.|pg\.|page)\s*([\d–—,\s-]+?)\s*\)")
 
 # Wie ein Korrektur-Kopf AUSSIEHT - unabhaengig davon, wo in der Zeile er steht. Zwei
 # reale Formen: Seitenangabe innerhalb der Fettung und dahinter.
-_ERRATA_KOPF_FORM = (r"\*\*_?[^*\n]{1,80}?\(\s*(?:pp?\.|page)"
-                     r"|\*\*_?[^*\n]{1,80}?_?\*\*\s*\(\s*(?:pp?\.|page)")
+_ERRATA_KOPF_FORM = (r"\*\*_?[^*\n]{1,80}?\(\s*(?:pp?\.|pg\.|page)"
+                     r"|\*\*_?[^*\n]{1,80}?_?\*\*\s*\(\s*(?:pp?\.|pg\.|page)")
 _ERRATA_KOPF_KANDIDAT = re.compile(_ERRATA_KOPF_FORM)
 # Ein Kopf, der MITTEN in der Zeile beginnt - unmittelbar hinter dem Satzende der vorigen
 # Korrektur. Genau so setzt das echte PHB-Errata 4 seiner 17 Korrekturen (Befund
 # 03.08.2026, erster Import an der echten Datei).
 _ERRATA_KOPF_MITTEN = re.compile(
     rf"(?<=[.!?”’\"')\]])[ \t]+(?=(?:{_ERRATA_KOPF_FORM}))")
+# Ein Kopf hinter einem AUFZAEHLUNGSZEICHEN ('- **_Deva (p. 16)._**'): die 2014er Errata
+# setzen ganze Rubriken als Liste, und `_ERRATA_FETTKOPF` verlangt den Zeilenanfang - 12
+# von 83 Koepfen des MM-Errata und 9 von 128 des PHB-Errata hingen sonst am Vorgaenger.
+_ERRATA_KOPF_LISTE = re.compile(rf"^[ \t]*[-•][ \t]+(?=(?:{_ERRATA_KOPF_FORM}))", re.M)
+# '[New]' markiert in den 2014er Errata, was seit der letzten Fassung dazukam - eine
+# Aussage ueber das Dokument, kein Teil des Regelnamens ('[New] Dwarf Traits').
+_ERRATA_NEU = re.compile(r"^\[New\]\s*", re.IGNORECASE)
 
 
 def _errata_headings(markdown: str) -> str:
@@ -583,6 +616,7 @@ def _errata_headings(markdown: str) -> str:
        positionsunabhaengig): fett + Seitenangabe. Ein Titel in Klammern ohne 'p.' ist
        damit kein Kandidat, ein unlesbares '(p. 12 and see also 40)' schon."""
     kandidaten = len(_ERRATA_KOPF_KANDIDAT.findall(markdown))
+    markdown = _ERRATA_KOPF_LISTE.sub("", markdown)
     markdown = _ERRATA_KOPF_MITTEN.sub("\n\n", markdown)
     erkannt = 0
 
@@ -610,7 +644,7 @@ def _errata_headings(markdown: str) -> str:
         # Auszeichnung aus dem NAMEN nehmen: die Errata setzen Zaubernamen teils kursiv
         # ('**_Fireball_ (p. 275).**'), und die Unterstriche wanderten sonst in den
         # Eintragsnamen - '_Fireball_' faende weder die Suche noch die Glossar-Bruecke.
-        name = name.strip().strip("_*").strip(" .")
+        name = _ERRATA_NEU.sub("", name.strip().strip("_*").strip(" ."))
         return (f"### {name}\n\n**Offizielle Korrektur zu S. {seite.strip()} im "
                 f"Grundbuch.** {schwanz.strip()}")
 
@@ -626,14 +660,48 @@ def _errata_headings(markdown: str) -> str:
     return ergebnis
 
 
+# Eine FRAGE des Sage Advice Compendium: die Zeile beginnt mit einer Folge fetter Laeufe,
+# deren letzter auf '?' endet. Mehrere Laeufe, weil ein kursiver Zaubername die Fettung
+# unterbricht ('**Does the** **_guidance_ spell stack?** Antwort ...') - 98 der 284
+# Fragen sind so gesetzt (ausgezaehlt 20.09.2026).
+_SAC_FRAGE = re.compile(r"^((?:\*\*[^*\n]+\*\*[ \t]*)+)(.*)$")
+
+
+def _sac_headings(markdown: str) -> str:
+    """Jede Frage des Sage Advice Compendium zu einer Ueberschrift machen.
+
+    Ohne diesen Schritt ist eine ganze Rubrik ('Spellcasting', 41 kB) EIN Eintrag, in dem
+    die Suche nichts findet. Der Eintragsname ist die Frage selbst: danach wird gesucht,
+    und einen kuerzeren Namen zu bilden hiesse, ihn zu erfinden. H6, damit die Rubriken
+    (H3/H4) als Kontext ueber der Frage stehen bleiben."""
+    zeilen, erkannt = markdown.split("\n"), 0
+    for i, zeile in enumerate(zeilen):
+        m = _SAC_FRAGE.match(zeile)
+        if not m:
+            continue
+        frage = re.sub(r"\s+", " ", re.sub(r"[*_]", "", m.group(1))).strip()
+        frage = re.sub(r"\s+([?,.])", r"\1", frage)
+        if not frage.endswith("?") or len(frage) < 12:
+            continue
+        erkannt += 1
+        zeilen[i] = f"###### {frage}\n\n{m.group(2).strip()}"
+    if not erkannt:
+        _BILANZ.greift_nicht("_sac_headings (keine fette Frage am Zeilenanfang)")
+    return "\n".join(zeilen)
+
+
 # Wertekasten-Zwischenkoepfe der 2014-Scans. Der Scan setzt 'AKTIONEN', 'REAKTIONEN' usw.
 # in derselben Schrift wie die Monsternamen, also ebenfalls auf H6 - im Monsterhandbuch
 # 440-mal. Als Eintragsgrenze ergaebe das 440 Eintraege namens 'AKTIONEN', und der
 # Kreatur fehlten ihre Angriffe. Die OCR-Varianten ('ÄKTIONEN', 'A KTIONEN', 'AKT IONEN',
 # 'HoRTAKTIONEN') sind am Buch ausgezaehlt, nicht vermutet. Die Zeile bleibt fett im Body.
 _WERTEKASTEN_KOEPFE = frozenset((
-    "AKTIONEN", "REAKTIONEN", "LEGENDAREAKTIONEN", "HORTAKTIONEN", "REGIONALEEFFEKTE"))
-_WERTEZEILE = re.compile(r"^(?:Rüstungsklasse|Trefferpunkte|Bewegungsrate)\s+\d")
+    "AKTIONEN", "REAKTIONEN", "LEGENDAREAKTIONEN", "HORTAKTIONEN", "REGIONALEEFFEKTE",
+    # die englischen Scans (Abenteuer- und Erweiterungsbaende) setzen sie genauso
+    "ACTIONS", "REACTIONS", "BONUSACTIONS", "LEGENDARYACTIONS", "LAIRACTIONS",
+    "REGIONALEFFECTS", "CTIONS"))     # 'CTIONS': Initiale A als Zierbuchstabe verloren
+_WERTEZEILE = re.compile(
+    r"^(?:Rüstungsklasse|Trefferpunkte|Bewegungsrate|Armor Class|Hit Points|Speed)\s+\d")
 
 
 def _scan_wertekasten_koepfe(markdown: str) -> str:
@@ -663,10 +731,23 @@ _SCAN_GEGENSTAND_TYPZEILE = (
 
 BEREINIGUNG: dict[str, list] = {
     "mm-2014-de": [_scan_wertekasten_koepfe],
+    "cos-2014-de": [_scan_wertekasten_koepfe],
+    "bgdia-2014-en": [_scan_wertekasten_koepfe],
+    "tcoe-2014-en": [_scan_wertekasten_koepfe],
+    "vgtm-2014-en": [_scan_wertekasten_koepfe],
     "dmg-2014-de": [_scan_wertekasten_koepfe, _SCAN_GEGENSTAND_TYPZEILE],
     "errata-phb-2024-en": [_errata_headings],
     "errata-dmg-2024-en": [_errata_headings],
     "errata-mm-2025-en": [_errata_headings],
+    "errata-phb-2014-en": [_errata_headings],
+    "errata-dmg-2014-en": [_errata_headings],
+    "errata-mm-2014-en": [_errata_headings],
+    "errata-xgte-2014-en": [_errata_headings],
+    "errata-tcoe-2014-en": [_errata_headings],
+    "errata-vgtm-2014-en": [_errata_headings],
+    "errata-scag-2014-en": [_errata_headings],
+    "errata-cos-2014-en": [_errata_headings],
+    "sac-2014-en": [_sac_headings],
     # srd-de (SYN-P0-004/P1-010, Synthese 2026-07-12): Strukturreparaturen als Callable,
     # danach Textpolitur. Reihenfolge: Struktur zuerst (Anker enthalten Laufkopf-freie
     # Absaetze nicht zwingend), dann Laufkopf/Risse.

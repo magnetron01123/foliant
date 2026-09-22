@@ -674,3 +674,42 @@ def test_mehr_als_zwei_statbloecke_bleiben_unberuehrt():
             + "".join(f"_Grosses Tier, gesinnungslos_\n\n**RK** 1{i} **TP** {i}0 (2W8)\n\n"
                       for i in range(4)))
     assert _paare(vier) == vier
+
+
+def test_errata_2014_koepfe_in_listen_pg_und_new():
+    """Drei Formen, die erst die 2014er Errata zeigten (20.09.2026): der Kopf hinter einem
+    Aufzaehlungszeichen (12 von 83 im MM-Errata hingen sonst am Vorgaenger), 'pg.' statt
+    'p.' (Tasha's: sonst kein einziger Eintrag) und das Dokument-Kennzeichen '[New]', das
+    kein Teil des Regelnamens ist."""
+    from importer.import_markdown import SPLIT_REGELN, _chunks, _errata_headings
+
+    md = "\n".join([
+        "### Monsters A to Z", "",
+        "- **_Deva (p. 16)._** Skills: Insight +9 [was +7].",
+        "- **_[New] Werewolf (p. 211)._** Bite: the target must be a humanoid.",
+        "**_Languages (pg. 7)._** In the first sentence, the text has been replaced.", "",
+    ])
+    chunks = _chunks(_errata_headings(md), split_regeln=SPLIT_REGELN["errata-mm-2014-en"])
+    namen = [c["name"] for c in chunks]
+    assert namen[-3:] == ["Deva", "Werewolf", "Languages"], namen
+    assert "S. 7 im" in chunks[-1]["body"] and "S. 211 im" in chunks[-2]["body"]
+
+
+def test_sage_advice_fragen_werden_eintraege():
+    """Eine Rubrik des Sage Advice Compendium war EIN Eintrag von 41 kB. Die Frage ist der
+    Eintragsname - auch wenn ein kursiver Zaubername ihre Fettung in mehrere Laeufe
+    zerlegt (98 der 284 Fragen)."""
+    from importer.import_markdown import SPLIT_REGELN, _chunks, _sac_headings
+
+    md = "\n".join([
+        "# **Sage Advice Compendium**", "", "### <u>Spellcasting</u>", "",
+        "**Does the** **_guidance_ spell stack?** No, the effects don't combine.", "",
+        "**Can a shield be a focus?** Only with an emblem.", "",
+        "**Unarmored:** 10 + your Dexterity modifier.", "",
+    ])
+    chunks = _chunks(_sac_headings(md), split_regeln=SPLIT_REGELN["sac-2014-en"])
+    fragen = {c["name"]: c["body"] for c in chunks if c["name"].endswith("?")}
+    assert list(fragen) == ["Does the guidance spell stack?", "Can a shield be a focus?"]
+    assert "effects don't combine" in fragen["Does the guidance spell stack?"]
+    # ein fettes Label ohne Fragezeichen bleibt Text der laufenden Antwort
+    assert "Unarmored" in fragen["Can a shield be a focus?"]

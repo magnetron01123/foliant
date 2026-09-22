@@ -2,15 +2,26 @@
   "_zweck": "Der Basiswert bekannter Datenmängel je Quelle. `admin check` misst dagegen: STEIGT eine Zahl, ist ein NEUES Problem entstanden und der Check schlägt fehl. Sinkt sie, wurde etwas repariert - dann gehört dieser Stand nachgezogen (`admin qualitaet-basis --schreiben`). Bleibt sie gleich, ist alles wie dokumentiert und der Check bleibt still.",
   "_warum": "Bis zum 01.08.2026 gab admin check nur Zahlen aus. Niemand verglich sie mit dem letzten Stand, also fiel weder auf, dass die Zahl von 51 (BACKLOG) auf 91 gewachsen war, noch dass 42 davon gar keine Risse sind, sondern Registerköpfe aus DDB-Büchern. Eine Warnung, die dauerhaft ansteht und deren Zahl niemand nachrechnet, ist keine Warnung mehr, sondern Hintergrundrauschen.",
   "_pflege": "Diese Datei liegt im Git, damit jede Änderung an ihr im Diff sichtbar wird. Wer eine Zahl anhebt, muss das im Commit begründen - genau das ist der Punkt. Quellen, die in der geprüften Datenbank fehlen (das Mac-Subset führt nur vier), werden übersprungen.",
-  "erhoben_am": "2026-08-01",
-  "erhoben_an": "Pi-Vollbestand, 12503 Einträge, 15 Quellen (nach der Titelreparatur)",
+  "erhoben_am": "2026-09-22",
+  "erhoben_an": "Pi-Vollbestand vom 01.08.2026 (12503 Eintraege, 15 Quellen) plus Mac-Import vom 22.09.2026 (15 neue 2014er Quellen); die Pi-Werte sind uebernommen, nicht neu gemessen",
   "ocr_risse_je_quelle": {
+    "bgdia-2014-en": 147,
+    "tcoe-2014-en": 41,
+    "cos-2014-de": 32,
+    "dmg-2014-de": 19,
+    "mm-2014-de": 12,
+    "vgtm-2014-en": 12,
+    "errata-mm-2014-en": 2,
+    "errata-dmg-2014-en": 1,
     "phb-2014-de": 3
   },
   "_ocr_erlaeuterung": "Zerrissene Eintragsnamen aus der OCR der Druckscans. Am 01.08.2026 von 49 auf 3 gesenkt: 46 Kapitel-/Abschnittstitel sind jetzt kuratiert zugeordnet (importer/namensreparatur.KURATIERTE_TITEL), die Reparatur läuft in der Glossar-Kette und überlebt damit einen Re-Import. Die verbleibenden drei ('AURA D', 'MAGISCH R N', 'IJ ER K.A1~v1 PFA BLAU F') bleiben bewusst offen - ihre Zeichen tragen keine eindeutige Lesart, eine Zuordnung wäre geraten (Regel 1).",
   "metadaten_namen_gesamt": 0,
   "_metadaten_erlaeuterung": "Einträge, deren NAME eine Zauberkopf-Zeile ist ('Zeitaufwand: 1 Aktion'). 46 davon standen bis zum 27.07.2026 unbemerkt im Bestand; seit dem KOPF_HEADING-Fix sind es null. Diese Zahl darf nie wieder steigen.",
   "wuerfel_risse_je_quelle": {
+    "mm-2014-de": 4,
+    "cos-2014-de": 1,
+    "vgtm-2014-en": 1,
     "phb-2014-de": 45,
     "scag-2014-de": 1
   },
@@ -25,7 +36,9 @@
   },
   "_verschmolzene_erlaeuterung": "Statblöcke, die Felder eines Nachbarn mittragen (zwei HG-Angaben oder zwei Attributstabellen) — das Spiegelsymptom zu den leeren Sektionen, gleiche Ursache: der Zweispalten-Satz der PDF-Textschicht. Wo Text verloren geht, zählt `leere_sektionen`; wo er beim falschen Eintrag landet, diese Zahl. Am 14.08.2026 an Mac-Subset UND Pi-Vollbestand übereinstimmend gemessen: acht Fälle, alle in srd-de (Ausgewachsener Bronzedrache, Dryade, Ghul, Lemure, Priester, Schreckhahn, Seevettel, Worg). BACKLOG §3 führte bis dahin neun Namen, drei davon falsch (Dschinni, Gruftschrecken, Hobgoblin-Hauptmann sind nicht betroffen) und drei fehlten — genau das passiert mit einer Zahl, die als Prosa dasteht und die niemand nachrechnet. Bewusst nur gezählt, nicht repariert: Eine Textchirurgie müsste entscheiden, wohin das Fremdstück gehört, und der Nachbar in Eintragsreihenfolge ist nicht die Antwort (zwischen Geisternaga und Ghul steht 'Gemeiner'). Die Facetten sind seit dem Fassungsabgleich korrekt; beschädigt ist nur der Fließtext. Behebung erst mit einer spaltenbewussten PDF-Extraktion.",
   "_leere_sektionen_erlaeuterung": "Statblock-Abschnitte mit Überschrift, aber ohne Inhalt — verlorener Regeltext aus dem Zweispalten-Satz der PDF-Textschicht. Am 07.08.2026 an Mac-Subset UND Pi-Vollbestand übereinstimmend gemessen: fünf Fälle, alle in srd-de (Solar/Bonusaktionen, Kriegerinfanterist/Aktionen, Junger Kupferdrache/Aktionen, Lemure/Merkmale, Vampir/Merkmale). Gefunden hat sie der Verhaltens-Eval auf Umwegen: Beim Solar warf der LLM-Richter der ANTWORT vor, der Block 'Bonusaktionen' fehle — er fehlt aber im Bestand, keine Auskunft kann ihn liefern. Gezählt werden nur die zehn kuratierten Statblock-Überschriften (deutsch und englisch); ein generisches Header-Muster zählte auch die rund 20 fehlgeparsten Zeilen der Art '###### **Resistenzen** Kälte' mit. Behebung erst mit einem srd-de-Re-Import (BACKLOG §3).",
-  "attributs_abweichungen_je_quelle": {},
+  "attributs_abweichungen_je_quelle": {
+    "mm-2014-de": 4
+  },
   "_attribut_erlaeuterung": "Attributswerte außerhalb 1-30 oder mit einem Modifikator ≠ ⌊(Wert−10)/2⌋. Der einzige Fall im Bestand - open5e 'Octopus' mit KON 0 (-5) und CHA -3 (-7) - ist ein Datenfehler der API-Quelle, nicht des Imports; er steht mit Beleg in config/quellfehler.py. WICHTIG für den, der die Prüfung anfasst: Der Modifikator allein fängt ihn NICHT (0 → -5 ist formeltreu), nur der Wertebereich tut es. Abdeckung am Vollbestand: 8421 Werte über vier Statblock-Formate (srd-de 1470, ddb-br 2046, ddb-basic-rules 1968, open5e 1986, übrige kleiner). Sinkt diese Zahl deutlich, hat ein Formatwechsel ein Muster stillgelegt.",
   "suchbenchmark": {
     "treffer_at_1": 55,

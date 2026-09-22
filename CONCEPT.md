@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 20.09.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 22.09.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -238,6 +238,10 @@ Monsterhandbuch fehlt vielen Wertekästen der Namenskopf, und im Zweispaltensatz
 Kasten teils in den Nachbareintrag; seine Zwischenköpfe („AKTIONEN") liegen auf der
 Eintragsebene und werden deshalb vor dem Zerlegen zu Body-Zeilen gemacht
 (`_scan_wertekasten_koepfe`).
+
+**Revisionsquellen sind kein B5-Ersatz.** Fehlt die 2024-Fassung, liefert die Detailauswahl
+beim Standard eine ältere — aber nie ein Erratum oder eine Auslegung: das ist eine Aussage
+*über* eine Regel, nicht die Regel. In ihrer eigenen Edition bleiben sie Exakt-Treffer.
 
 **Browser-Druck-PDFs im Detail:** Textschichten sind beschädigt (Kerning-Risse,
 Mojibake-Fonts, fi/fl-Ligaturverlust). Zwei Muster-Piloten: `efota` (Original + kuratierte

@@ -231,6 +231,13 @@ def _waehle_kandidat(con, name: str, kategorie: str, edition: str,
         gewaehlt, unterabschnitt = sub
         return _Auswahl(gewaehlt, unterabschnitt, [], exakt, None)
 
+    # Ein Erratum oder eine Regelauslegung ist eine AUSSAGE UEBER eine Regel, nicht die
+    # Regel - als Ersatz fuer eine fehlende Fassung (B5) taugt es nicht. Sichtbar wurde
+    # das erst mit den 2014er Errata (22.09.2026): 'Zweihaendig' als 'regel' gefragt
+    # lieferte das englische PHB-2014-Erratum 'Two-Handed' statt des Rueckfalls auf die
+    # deutsche 2024-Waffeneigenschaft. In der ZIEL-Edition bleibt es Exakt-Treffer (oben).
+    revision = _db._revisions_kuerzel(con)
+    exakt = [k for k in exakt if k.get("quelle") not in revision]
     if exakt:
         if edition == _db.STANDARD_EDITION:
             return _Auswahl(exakt[0], None, [], exakt, None)   # nur aeltere Fassung (B5)
@@ -261,7 +268,8 @@ def _waehle_kandidat(con, name: str, kategorie: str, edition: str,
     # Nur beim Standard greift der B5-Rueckfall auf eine andere Fassung. Eine
     # AUSDRUECKLICH angefragte Regelversion wird nie still ersetzt (V5) - dieselbe
     # Unterscheidung, die der exakt-Zweig oben schon trifft.
-    if len(relevante) == 1 and edition == _db.STANDARD_EDITION:
+    if (len(relevante) == 1 and edition == _db.STANDARD_EDITION
+            and relevante[0].get("quelle") not in revision):   # dieselbe Grenze wie oben
         return _Auswahl(relevante[0], None, [], exakt, None)
     gezeigt = [_knapp(k, con) for k in (relevante or kandidaten)[:6]]
     absage = {"gefunden": False, "mehrdeutig": True,

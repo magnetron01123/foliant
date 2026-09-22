@@ -21,7 +21,7 @@ ausgefüllten offiziellen deutschen WotC-Bogen 2024, druckbar.
    keine offizielle Übersetzung existiert.
 3. **Version immer:** aktuelle Regeln (2024) als Standard; ältere Stände klar gekennzeichnet.
 
-## Stand (19.09.2026)
+## Stand (22.09.2026)
 
 **Läuft, wird benutzt — der Tisch-Test steht noch aus.** Der Server läuft auf einem
 Raspberry Pi 4: 12 545 Einträge aus 18 Quellen (dt. SRD 5.2.1, drei deutsche 2014-Bücher,
@@ -32,7 +32,9 @@ liegt die IP-Allowlist als WAF-Regel an der Cloudflare-Kante statt im Dienst —
 damit alle MCP-Server des Geräts, ist aber nicht mehr versioniert oder testbar
 ([CONCEPT.md](CONCEPT.md) §9).
 Charakterbogen-Übersetzer und Discord-Bot laufen als eigene Container daneben; der Bot beantwortet seit Ende Juli Fragen der Runde und hat zwei
-Rückmeldungsdurchgänge geliefert. Maßgeblich für den Bestand ist immer `admin status`.
+Rückmeldungsdurchgänge geliefert. Maßgeblich für den Bestand ist immer `admin status`. Weitere 15 Quellen zu den 2014er Büchern (drei
+deutsche Bände, drei englische, acht Errata, Sage Advice) sind vorbereitet, aber noch nicht
+auf dem Pi ([BACKLOG.md](BACKLOG.md), M1).
 
 Was das *nicht* heißt: Eine Spielrunde hat damit noch nicht gearbeitet, und bis ein Off-Site-Ziel
 steht, liegen Bestand und Backup auf derselben SD-Karte. Details und der Rest der offenen
