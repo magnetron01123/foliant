@@ -105,8 +105,7 @@ Mechanik in [CONCEPT.md](CONCEPT.md) §5, die Fallen in §12; die Zahlen im Deta
 (`dmg-2014-de`, `mm-2014-de`, `cos-2014-de`, `bgdia-2014-en`, `tcoe-2014-en`,
 `vgtm-2014-en`, acht Errata, Sage Advice Compendium — 5936 Einträge). Auf dem Pi fehlen
 sie noch: PDFs und Config-Blöcke übertragen, importieren, `admin import --quelle glossar`,
-`make test-golden-pi`. Vorher klären, warum der `srd-de`-Re-Import am Mac drei kuratierte
-Reparaturen als WIRKUNGSLOS meldet (Verdacht: pymupdf 1.28.2 aus `chore/bump-dependencies`).
+`make test-golden-pi`. PR #147, gestapelt auf #146.
 
 **Gate:** dt. Kernbegriffe/Optionen (z. B. Aasimar) kommen **deutsch** aus dem Bestand;
 die deutsche Quelle rankt vor DDB-Englisch. *Die `prioritaet` steht seit dem 31.07.2026 fest:
