@@ -204,3 +204,113 @@ KURATIERTE_TITEL: dict[str, str] = {
     "TOPF DES ERWACH E NS": "TOPF DES ERWACHENS",
     "’ UPPER TAVICK S LANDING": "UPPER TAVICK'S LANDING",   # englischer Ortsname (efota-en)
 }
+
+
+# --- Belegte Leerzeichen-Reparatur (23.09.2026) --------------------------------------
+# Die Kuratierung oben verwirft zwei Heuristiken, weil sie FALSCHE Namen erzeugten
+# ('DIES PIELWERTE'). Beide entschieden aus dem Namen allein. Dieser Schritt entscheidet
+# aus dem BUCH: Ein Leerzeichen wird nur geschlossen, wenn danach jedes Wort des Namens
+# im Fliesstext derselben Quelle mindestens zweimal vorkommt - und wenn genau EINE
+# Schliessung das leistet. 'DIE S PIELWERTE' hat dann nur eine belegte Lesart ('DIE
+# SPIELWERTE'; 'pielwerte' steht in keinem Text), 'GEGE N STÄNDE' zwei ('GEGENSTÄNDE',
+# 'GEGEN STÄNDE') und bleibt deshalb zerrissen.
+#
+# Gegen die Kuratierung gemessen (Pi-Vollbestand, 23.09.2026): 15 der 46 kuratierten
+# Titel entscheidet der Schritt selbst, alle 15 mit derselben Zerlegung wie von Hand; den
+# Rest laesst er offen. Er laeuft NACH der Kuratierung, damit deren zusaetzliche
+# Zeichenkorrekturen ('j ERGAL' -> 'JERGAL', nicht 'jERGAL') Vorrang behalten.
+_BUCHSTABEN = "A-Za-zÄÖÜäöüß"
+_BUCHSTABEN_TOKEN = re.compile(rf"[{_BUCHSTABEN}]+(?:-[{_BUCHSTABEN}]+)*")
+_WORT = re.compile(rf"[{_BUCHSTABEN}]+")
+_MIN_BELEGE = 2
+# Kurze Tokens belegt der Fliesstext nicht: 'h', 'th', 'es' stehen dort als Rissreste
+# ebenso wie als Woerter, und der zweite Lauf am Pi-Bestand liess deshalb 'H IT POINTS'
+# und 'CAN TR I P' stehen. Bis zwei Buchstaben zaehlt nur, was als Wort bekannt ist.
+_KURZWOERTER = frozenset((
+    "a i am an as at be by do go he if in is it me my no of on or so to up us we "
+    "ab da du er es im ja ob um wo zu").split())
+_MAX_TOKENS = 12          # 2^11 Schliessungen - darueber ist ein Name kein Titel mehr
+
+
+_KONTEXTZEILE = re.compile(r"^\*Kontext:.*$", re.M)
+_BINNENMAJUSKEL = re.compile(r"[a-zäöüß][A-ZÄÖÜ]")
+
+
+def wortschatz(texte) -> dict[str, int]:
+    """Wortzaehlung (kleingeschrieben) ueber die Fliesstexte einer Quelle.
+
+    Ohne die '*Kontext: …*'-Zeilen: Sie wiederholen die Eltern-Ueberschriften - samt
+    ihrer Risse - in jedem Kind-Eintrag, und ein Fragment wie 'athhouse' galte sonst
+    allein durch diese Wiederholung als belegt.
+
+    Ohne VERSALIEN-Woerter: Die Scans verkleben in Grossbuchstaben auch im Fliesstext
+    ('FIRENEWTS', 'AURADESWÄCHTERS'), und der erste Lauf am Pi-Bestand machte daraus fuenf
+    falsche Namen. Im Fliesstext in normaler Schreibung steht 'fire newts' getrennt -
+    dort ist die OCR verlaesslich, und nur das zaehlt als Beleg.
+
+    Zaehlt auch WORTPAARE ('fire newts', Schluessel mit Leerzeichen): steht ein Paar im
+    Fliesstext getrennt, ist sein Leerzeichen echt (siehe `belegte_schliessung`)."""
+    zaehler: dict[str, int] = {}
+    for text in texte:
+        vorher = None
+        for w in _WORT.findall(_KONTEXTZEILE.sub("", text or "")):
+            # Versalien und Binnenmajuskeln ('IrisShape') sind die zwei Formen, in denen die
+            # Scans Woerter verkleben - beides zaehlt nicht als Beleg.
+            if (w.isupper() and len(w) > 1) or _BINNENMAJUSKEL.search(w):
+                vorher = None
+                continue
+            w = w.lower()
+            zaehler[w] = zaehler.get(w, 0) + 1
+            if vorher:
+                paar = f"{vorher} {w}"
+                zaehler[paar] = zaehler.get(paar, 0) + 1
+            vorher = w
+    return zaehler
+
+
+def belegte_schliessung(name: str, wortschatz: dict[str, int]) -> str | None:
+    """Der Name mit geschlossenen Riss-Leerzeichen - oder None, wenn nichts zerrissen ist
+    oder keine EINDEUTIGE belegte Lesart existiert.
+
+    Nur reine Buchstaben-Tokens werden verbunden. Ein Token mit Ziffer, Apostroph oder
+    Satzzeichen ('K71.', "L'S", 'Q,UARTIERE') bleibt, wie er ist, und verbindet sich mit
+    nichts: sonst entstand 'WIE DU 8TRAHDSPIELST'."""
+    tokens = name.split(" ")
+    if not 2 <= len(tokens) <= _MAX_TOKENS:
+        return None
+
+    def belegt(t: str) -> bool:
+        return all(teil.lower() in _KURZWOERTER if len(teil) <= 2
+                   else wortschatz.get(teil.lower(), 0) >= _MIN_BELEGE
+                   for teil in t.split("-"))
+
+    def getrennt_belegt(links: str, rechts: str) -> bool:
+        return wortschatz.get(f"{links.split('-')[-1].lower()} "
+                              f"{rechts.split('-')[0].lower()}", 0) > 0
+
+    fest = [not _BUCHSTABEN_TOKEN.fullmatch(t) for t in tokens]
+    riss = [not f and not belegt(t) for t, f in zip(tokens, fest)]
+    if not any(riss):
+        return None                                   # nichts zerrissen
+    lesarten: set[str] = set()
+    for maske in range(1 << (len(tokens) - 1)):       # Bit i gesetzt = Leerzeichen i zu
+        # Geschlossen wird nur, was an ein UNBELEGTES Stueck grenzt: zwei belegte Woerter
+        # ('AURA' 'DES') trennt ein echtes Leerzeichen, auch wenn ihr Verbund zufaellig
+        # ebenfalls irgendwo steht.
+        # Ebenso nie ein Paar, das der Fliesstext GETRENNT fuehrt ('fire newts'): die OCR
+        # verklebt auch dort gelegentlich, aber die getrennte Schreibung ist der Beleg.
+        if any(maske >> i & 1 and (fest[i] or fest[i + 1] or not (riss[i] or riss[i + 1])
+                                   or getrennt_belegt(tokens[i], tokens[i + 1]))
+               for i in range(len(tokens) - 1)):
+            continue
+        teile = [tokens[0]]
+        for i, t in enumerate(tokens[1:]):
+            if maske >> i & 1:
+                teile[-1] += t
+            else:
+                teile.append(t)
+        if all(not _BUCHSTABEN_TOKEN.fullmatch(t) or belegt(t) for t in teile):
+            lesarten.add(" ".join(teile))
+            if len(lesarten) > 1:
+                return None
+    return next(iter(lesarten)) if lesarten else None

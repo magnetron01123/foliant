@@ -125,6 +125,14 @@ def _zerlege_eintrag(eintrag: dict) -> list[dict]:
     Rueckgabe: [{name, body_md}] - mindestens der Originaleintrag."""
     body = eintrag["body_md"]
     kategorie = eintrag["category"]
+    # Ein Datensatz aus den DETAILTABELLEN ('RPGMonster:…', 'RPGRace:…', 'RPGBackground:…')
+    # IST schon ein logischer Eintrag. Seine Unterueberschriften ('### Traits',
+    # '### Actions') sind Abschnitte DIESES Monsters, und der Text davor ist sein
+    # Wertekasten - den warf die Zerlegung als 'Text vor dem ersten Heading' weg. Am
+    # Pi-Bestand 23.09.2026: alle 10 Monster aus ddb-mcv1-en ohne Namen, RK und TP, dazu
+    # Goliath/Genasi (ddb-ee-en) und ein Hintergrund (ddb-cosco-en), ~9.600 Zeichen.
+    if str(eintrag.get("ddb_id", "")).startswith("RPG"):
+        return [{"name": eintrag["title"], "body_md": body}]
     # split_regeln: Headings 1-4 splitten, Kategorie durchreichen (ein Abschnitt = eine
     # Kategorie; DDB hat keine kapitelabhaengige Kategorielogik wie das dt. SRD).
     chunks = _chunks(body, kategorie_standard=kategorie,

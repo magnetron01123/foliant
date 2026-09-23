@@ -28,7 +28,10 @@ from app.glossar import norm_begriff as _n
 _ZAUBERTRICK = re.compile(r"zaubertrick|cantrip", re.IGNORECASE)
 _GRAD_DE = re.compile(r"(\d+)\.\s*Grad")                       # srd-de: "3. Grades"
 _LEVEL_FELD = re.compile(r"level:?\**\s*(\d+)", re.IGNORECASE)  # Open5e: "**Level:** 3"
-_GRAD_EN = re.compile(r"(\d+)\s*(?:st|nd|rd|th)[-\s]*level", re.IGNORECASE)  # DDB: "3rd-level"
+# DDB: "3rd-level" - und "2nd\-level": die 2014er Basic Rules kommen mit Markdown-Escape
+# vor dem Bindestrich, und ohne '\\' im Zeichenkreis blieben 281 ihrer 313 Zauber ohne
+# Grad (Pi-Audit 23.09.2026).
+_GRAD_EN = re.compile(r"(\d+)\s*(?:st|nd|rd|th)[\\\-\s]*level", re.IGNORECASE)
 
 
 def zauber_grad(body: str | None) -> int | None:

@@ -675,6 +675,27 @@ def repariere_kuratierte_titel(con: sqlite3.Connection) -> int:
             geaendert += cur.rowcount
     return geaendert
 
+def repariere_belegte_leerzeichen(con: sqlite3.Connection) -> int:
+    """Zerrissene Eintragsnamen der PDF-Quellen schliessen, wo der Text des Buches genau
+    eine Lesart belegt (`namensreparatur.belegte_schliessung`, dort Herleitung und
+    Messung). Je Quelle ihr eigener Wortschatz: ein Wort gilt nur als belegt, wenn es im
+    Fliesstext DIESES Buches steht. Idempotent - ein reparierter Name ist nicht mehr
+    zerrissen und wird nicht wieder gefunden."""
+    geaendert = 0
+    for (quelle_id,) in con.execute("SELECT id FROM quellen WHERE herkunft = 'pdf'").fetchall():
+        zeilen = con.execute("SELECT id, name_de, name_en, body_md FROM eintraege "
+                             "WHERE quelle_id = ?", (quelle_id,)).fetchall()
+        wortschatz = nr.wortschatz(z[3] for z in zeilen)
+        for eintrag_id, name_de, name_en, _ in zeilen:
+            for spalte, name in (("name_de", name_de), ("name_en", name_en)):
+                neu = nr.belegte_schliessung(name, wortschatz) if name else None
+                if neu and neu != name:
+                    con.execute(f"UPDATE eintraege SET {spalte} = ? WHERE id = ?",
+                                (neu, eintrag_id))
+                    geaendert += 1
+    return geaendert
+
+
 def repariere_2014_namen(con: sqlite3.Connection, mit_netz: bool = True) -> int:
     """Zerrissene Eintragsnamen der deutschen 2014-Scans reparieren - BELEGT, nie geraten.
 
@@ -1281,6 +1302,7 @@ _KETTE = [
     (seed_glossar_de_aus_bestand, "Zeilen aus deutschen Namen"),
     (repariere_2014_namen, "Namen repariert"),         # zerrissene 2014-Scan-Namen (belegt)
     (repariere_kuratierte_titel, "Titel repariert"),   # Kapiteltitel: kuratierte Tabelle
+    (repariere_belegte_leerzeichen, "Leerzeichen belegt geschlossen"),  # NACH der Kuratierung
     # Zweiter Lauf NACH der Reparatur: die eben zusammengefuegten Namen ('D ORNENWAND' ->
     # 'Dornenwand') sind erst jetzt abfragbar. Gleiche Beschriftung -> die Bilanz addiert.
     (seed_glossar_de_aus_bestand, "Zeilen aus deutschen Namen"),
