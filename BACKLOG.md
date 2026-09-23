@@ -100,10 +100,10 @@ Zauber-Abdeckung ist geschlossen (345 von 369 deutschen 2024-Zaubern tragen eine
 Mechanik in [CONCEPT.md](CONCEPT.md) §5, die Fallen in §12; die Zahlen im Detail in
 `git show 83f1eea:BACKLOG.md`.
 
-**Offen seit 22.09.2026:** 15 neue 2014er Quellen sind lokal importiert und im Branch
+**Offen seit 22.09.2026:** 16 neue 2014er Quellen sind lokal importiert und im Branch
 `feat/import-2014-de-core` mit Zerlege-Regeln, Tests und Qualitäts-Basiswert versehen
 (`dmg-2014-de`, `mm-2014-de`, `cos-2014-de`, `bgdia-2014-en`, `tcoe-2014-en`,
-`vgtm-2014-en`, acht Errata, Sage Advice Compendium — 5936 Einträge). Auf dem Pi fehlen
+`vgtm-2014-en`, `cos-2014-en`, acht Errata, Sage Advice Compendium — 6957 Einträge). Auf dem Pi fehlen
 sie noch: PDFs und Config-Blöcke übertragen, importieren, `admin import --quelle glossar`,
 `make test-golden-pi`. PR #147, gestapelt auf #146.
 

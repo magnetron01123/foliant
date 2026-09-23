@@ -62,6 +62,7 @@ SKIP_NAMEN: dict[str, "re.Pattern[str]"] = {
     # Inhaltsverzeichnisse und Statblock-Register der uebrigen Scans: 9-17 kB Seitenzahlen.
     "cos-2014-de": re.compile(r"^INHALT$"),
     "bgdia-2014-en": re.compile(r"^CONTENTS$"),
+    "cos-2014-en": re.compile(r"^CONTENTS$"),
     "tcoe-2014-en": re.compile(r"^CONTENTS$"),
     "vgtm-2014-en": re.compile(r"^CONTENTS$|^STAT BLOCKS BY CREATURE TYPE$"
                                r"|^INDEX OF MONSTER STAT BLOCKS$"),
@@ -181,6 +182,7 @@ SPLIT_REGELN: dict[str, list[tuple[str, int, str | None]]] = {
     # von je rund 1000 Ueberschriften auf H6.
     "cos-2014-de": [(r"", 6, "regel")],
     "bgdia-2014-en": [(r"", 6, "regel")],
+    "cos-2014-en": [(r"", 6, "regel")],
     "tcoe-2014-en": [(r"", 6, "regel")],
     "vgtm-2014-en": [(r"", 6, "regel")],
     # Errata-PDFs (WotC, offizielle Korrekturen). Ihre Eintragsebene entsteht erst durch
@@ -733,6 +735,7 @@ BEREINIGUNG: dict[str, list] = {
     "mm-2014-de": [_scan_wertekasten_koepfe],
     "cos-2014-de": [_scan_wertekasten_koepfe],
     "bgdia-2014-en": [_scan_wertekasten_koepfe],
+    "cos-2014-en": [_scan_wertekasten_koepfe],
     "tcoe-2014-en": [_scan_wertekasten_koepfe],
     "vgtm-2014-en": [_scan_wertekasten_koepfe],
     "dmg-2014-de": [_scan_wertekasten_koepfe, _SCAN_GEGENSTAND_TYPZEILE],

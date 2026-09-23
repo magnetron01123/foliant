@@ -278,7 +278,7 @@ def test_2014_scans_splitten_auf_eintragsebene():
         "###### **KAVALIER**", "", "Ein Kavalier ist ein Kaempfer-Archetyp.", "",
         "###### **SAMURAI**", "", "Der Samurai kaempft mit Kampfgeist.", "",
     ])
-    for kuerzel in ("phb-2014-de", "xgte-2014-de", "scag-2014-de",
+    for kuerzel in ("phb-2014-de", "xgte-2014-de", "scag-2014-de", "cos-2014-en",
                     "dmg-2014-de", "mm-2014-de"):
         regeln = SPLIT_REGELN.get(kuerzel)
         assert regeln, f"{kuerzel} braucht Split-Regeln"

@@ -32,8 +32,8 @@ liegt die IP-Allowlist als WAF-Regel an der Cloudflare-Kante statt im Dienst —
 damit alle MCP-Server des Geräts, ist aber nicht mehr versioniert oder testbar
 ([CONCEPT.md](CONCEPT.md) §9).
 Charakterbogen-Übersetzer und Discord-Bot laufen als eigene Container daneben; der Bot beantwortet seit Ende Juli Fragen der Runde und hat zwei
-Rückmeldungsdurchgänge geliefert. Maßgeblich für den Bestand ist immer `admin status`. Weitere 15 Quellen zu den 2014er Büchern (drei
-deutsche Bände, drei englische, acht Errata, Sage Advice) sind vorbereitet, aber noch nicht
+Rückmeldungsdurchgänge geliefert. Maßgeblich für den Bestand ist immer `admin status`. Weitere 16 Quellen zu den 2014er Büchern (drei
+deutsche Bände, vier englische, acht Errata, Sage Advice) sind vorbereitet, aber noch nicht
 auf dem Pi ([BACKLOG.md](BACKLOG.md), M1).
 
 Was das *nicht* heißt: Eine Spielrunde hat damit noch nicht gearbeitet, und bis ein Off-Site-Ziel
