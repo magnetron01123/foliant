@@ -471,22 +471,22 @@ def _srd_de_reparatur(markdown: str) -> str:
     markdown = re.sub(r"###### \*\*Schild\*\*\s*\n+(Du erhältst den Vorzug Rüstungsklasse)",
                       r"**Schild:** \1", markdown, count=1)
     # (b1) Eissturm: Fortsetzung (Reichweite/Komponenten/Hagel-Text) stand hinter dem
-    # kompletten 'Einswerden mit der Natur'.
+    # kompletten 'Einswerden mit der Natur'. Seit pymupdf4llm 1.28.2 traegt auch die
+    # Komponenten-Zeile ein Heading-Praefix - der Anker laesst es offen (23.09.2026).
     markdown = _verschiebe(
         markdown,
-        r"###### \*\*Reichweite:\*\* 90 Meter\s*\n+\*\*Komponenten:\*\* V, G, M \(ein Fausthandschuh\)",
+        r"###### \*\*Reichweite:\*\* 90 Meter\s*\n+(?:#{6} )?\*\*Komponenten:\*\* V, G, M \(ein Fausthandschuh\)",
         r"\n###### \*\*", r"###### \*\*Einswerden mit der Natur\*\*")
-    # (b2) Symbol: Fortsetzung (Beruehrung/Diamantpulver/Glyphen-Text) stand hinter
-    # 'Strahlendes Niederstrecken' und 'Sturm der Vergeltung'.
-    markdown = _verschiebe(
-        markdown,
-        r"###### \*\*Reichweite:\*\* Berührung\s*\n+\*\*Komponenten:\*\* V, G, M \(Diamantpulver im Wert von mindestens 1\.000 GM",
-        r"\n###### \*\*", r"###### \*\*Strahlendes Niederstrecken\*\*")
+    # (b2) Symbol stand hier bis zum 23.09.2026: seine Fortsetzung lag hinter 'Sturm der
+    # Vergeltung'. Seit pymupdf4llm 1.28.2 liest der Konverter die Spalte richtig, der
+    # Block steht unter seinem Heading - eine Reparatur ohne Schaden meldete sich nur
+    # noch als WIRKUNGSLOS. Kommt die Verschraenkung mit einer anderen Version zurueck,
+    # zeigt sie der Import-Vergleich (test_golden_bestand).
     # (b3) Windwall: Typzeile + Hauptteil standen hinter 'Windwandeln'; unter dem
     # Windwall-Heading lag nur der Schluss-Satz ('Belagerungsmaschinen ...').
     markdown = _verschiebe(
         markdown,
-        r"_Hervorrufungszauber 3\. Grades \(Druide, Waldläufer\)_\s*\n+\*\*Zeitaufwand:\*\* Aktion \*\*Reichweite:\*\* 36 Meter",
+        r"_Hervorrufungszauber 3\. Grades \(Druide, Waldläufer\)_\s*\n+(?:#{6} )?\*\*Zeitaufwand:\*\* Aktion\s*\n*(?:#{6} )?\*\*Reichweite:\*\* 36 Meter",
         r"\n###### \*\*", r"Belagerungsmaschinen geschleudert werden")
     # (b4) Göttliche Gunst / Göttliches Wort: der Schlusssatz + die Effekt-Tabelle von
     # 'Göttliches Wort' standen direkt hinter dem Gunst-Heading (Gunst = 124-Zeichen-
