@@ -423,6 +423,113 @@ def _familienkoepfe(markdown: str) -> str:
     return markdown
 
 
+# Kuratierte Statblock-Verschiebungen (Pi-Audit 23.09.2026). Die Reste, die
+# `_srd_de_statblock_paare` bewusst nicht anfasst, weil sie nicht der regelmaessigen
+# 0-und-2-Form folgen. Jeder Eintrag ist EIN Fall: (Anfang, Ende exklusiv, Ziel, Ziel-danach)
+# fuer `_verschiebe`. Gefunden ueber die Gegenprobe gegen open5e-srd-2024: 22 deutsche
+# Monster wichen in HG/RK/TP vom englischen Wertekasten ab, und die Abweichungen gingen
+# paarweise auf - was dem einen fehlte, trug der andere. Nach der Verschiebung stimmen
+# alle 309 zuordenbaren Monster mit ihrer englischen Fassung ueberein.
+# Die Reihenfolge ist wesentlich, wo sich drei Eintraege gegenseitig beliehen haben
+# (Riesendachs/-eidechse/-eber, die drei Kupferdrachen).
+_SRD_DE_STATBLOCK_FAELLE: list[tuple[str, str, str, str | None]] = [
+    # Worg trug Attribute und HG 9 des Wolkenriesen.
+    # Der Anfang braucht den Kontext bis zur Fertigkeitenzeile: 'Stä 27 +8 +8' allein trifft
+    # schon einen Kasten 300.000 Zeichen frueher.
+    (r"<u>MOD RW MOD RW MOD RW</u> \*\*<mark>S</mark> tä\*\* <mark>27 \+8 \+8</mark>"
+     r"(?=[^\n]*\n+\*\*Fertigkeiten\*\* Motiv erkennen \+7, Wahrnehmung \+11)",
+     r"\*\*389\*\* Systemreferenzdokument",
+     r"###### <u>Aktionen</u>\s*\n+\*\*_Mehrfachangriff:_\*\* Der Riese führt zwei Angriffe "
+     r"mit Donnernder Streitkolben", None),
+    # Hobgoblin-Hauptmann trug Attribute, Ausruestung und HG 1/2 des Hobgoblin-Kriegers.
+    (r"\|\|MOD\|RW\|\|MOD\|RW\|\|\|MO\|D RW\|(?=\s*\n\|[-|]+\|\s*\n\|\*\*Stä\*\*13\|)",
+     r"\*\*332\*\* Systemreferenzdokument",
+     r"###### <u>Merkmale</u>\s*\n+\*\*_Rudeltaktik:_\*\* Der Hobgoblin", None),
+    # Schatten trug Fertigkeiten, Sprachen und HG des Satyrs.
+    (r"\*\*Fertigkeiten\*\* Auftreten \+6, Heimlichkeit \+5, Wahrnehmung \+2",
+     r"\*\*_Heimlicher Schatten:_\*\*",
+     r"###### <u>Merkmale</u>\s*\n+\*\*_Magieresistenz:_\*\* Der Satyr", None),
+    # Seevettel trug Sinne, Sprachen und HG des Seeogers.
+    (r"\*\*Sinne\*\* Dunkelsicht 18 m; Passive Wahrnehmung 10 \*\*Sprachen\*\* Abyssisch, "
+     r"Urtümlich \(Aqual\)", r"\*\*369\*\* Systemreferenzdokument",
+     r"###### <u>Merkmale</u>\s*\n+\*\*_Amphibisch:_\*\* Der Seeoger", None),
+    # Dryade: Kopf hinter dem Dschinni, Aktionen davor - dieselbe Form wie der
+    # Gruftschrecken, den `_srd_de_reparatur` (b6) schon behandelt.
+    (r"#### \*\*<mark>Dryade</mark>\*\*",
+     r"\*\*Immunitäten\*\* Blitz, Schall \*\*Sinne\*\* Dunkelsicht 36 m",
+     r"###### <u>Aktionen</u>\s*\n+\*\*_Mehrfachangriff:_\*\* Die Dryade", None),
+    # Ghul trug Immunitaeten, Merkmale und Mehrfachangriff der Geisternaga.
+    (r"\*\*Immunitäten\*\* Gift; Bezaubert, Vergiftet \*\*Sinne\*\* Dunkelsicht 18 m; Passive "
+     r"Wahrnehmung 12 \*\*Sprachen\*\* Abyssisch",
+     r"\*\*RK\*\* 12 \*\*Initiative\*\* \+2 \(12\) \*\*TP\*\* 22 \(5W8\)",
+     r"\*\*_Biss:_\*\* _Nahkampfangriffswurf:_ \+7, Reichweite 3 m\. _Treffer:_ 7 \(1W6\+4\)",
+     None),
+    # Ausgewachsener Bronzedrache trug die zweite Haelfte des Jungen Bronzedrachen.
+    (r"\*\*Fertigkeiten\*\* Heimlichkeit \+3, Motiv erkennen \+4, Wahrnehmung \+7\s*\n+"
+     r"\*\*Immunitäten\*\* Blitz",
+     r"\*\*_Mehrfachangriff:_\*\* Der Drache führt drei ZerfetzenAngriffe aus\. Er kann einen "
+     r"Angriff durch einen Einsatz von \(A\) Odem der Abstoßung",
+     r"#### \*\*<mark>Ausgewachsener Bronzedrache</mark>\*\*", None),
+    # Lemure trug Resistenzen, HG 9, Merkmale und Aktionen des Lehmgolems.
+    (r"\*\*Resistenzen\*\* Hieb, Stich, Wucht \*\*Immunitäten\*\* Gift, Psychisch, Säure",
+     r"\*\*_Höllische Genesung:_\*\*",
+     r"###### <u>Bonusaktionen</u>\s*\n+\*\*_Hast \(Aufladung 5–6\):_\*\* Der Golem", None),
+    # Solar: Kopf hinter den eigenen Aktionen. Danach steht 'Goettlicher Beistand' unter den
+    # Bonusaktionen, wo die englische Fassung ihn fuehrt.
+    (r"#### \*\*<mark>Solar</mark>\*\*", r"\*\*_Göttlicher Beistand \(3-mal täglich\):_\*\*",
+     r"\*\*_Magieresistenz:_\*\* Der Solar ist", None),
+    # Riesengeier trug die zweite Haelfte des Riesenhais.
+    (r"\*\*Fertigkeiten\*\* Wahrnehmung \+3 \*\*Sinne\*\* Blindsicht 18 m",
+     r"###### <u>Merkmale</u>\s*\n+\*\*_Rudeltaktik:_\*\* Der Geier",
+     r"\*\*Initiative\*\* \+2 \(12\)\s*\n+#### \*\*<mark>Riesenhyäne</mark>", None),
+    # Dreieck Riesendachs / Rieseneidechse / Rieseneber - in dieser Reihenfolge:
+    # (a) Fertigkeiten und Biss des Dachses aus der Eidechse zurueck zum Dachs,
+    (r"\*\*Fertigkeiten\*\* Wahrnehmung \+3 \*\*Resistenzen\*\* Gift \*\*Sinne\*\* Dunkelsicht "
+     r"18 m; Passive Wahrnehmung 13", r"#### \*\*<mark>Rieseneber</mark>\*\*",
+     r"###### <u>Aktionen</u>\s*\n+\*\*_Zerfleischen:_\*\* _Nahkampfangriffswurf:_ \+5, "
+     r"Reichweite 1,5 m\. _Treffer:_ 10 \(2W6\+4\)", None),
+    # (b) der Biss der Eidechse aus dem Eber zurueck zur Eidechse,
+    (r"\*\*_Biss:_\*\* _Nahkampfangriffswurf:_ \+4, Reichweite 1,5 m\. _Treffer:_ 6 \(1W8\+2\) "
+     r"Stichschaden\.\s*\n+(?=#### \*\*<mark>Riesenelch)", r"#### \*\*<mark>Riesenelch</mark>\*\*",
+     r"#### \*\*<mark>Rieseneber</mark>\*\*", None),
+    # (c) das Zerfleischen des Ebers aus dem Dachs zurueck zum Eber.
+    (r"###### <u>Aktionen</u>\s*\n+\*\*_Zerfleischen:_\*\* _Nahkampfangriffswurf:_ \+5, "
+     r"Reichweite 1,5 m\. _Treffer:_ 10 \(2W6\+4\)", r"#### \*\*<mark>Rieseneidechse</mark>\*\*",
+     r"#### \*\*<mark>Riesenelch</mark>\*\*", None),
+    # Dreieck der Kupferdrachen: (a) Aktionen des Jungen aus dem Nestling zum Jungen,
+    (r"\*\*_Mehrfachangriff:_\*\* Der Drache führt drei ZerfetzenAngriffe aus\. Er kann einen "
+     r"Angriff durch einen Einsatz von Bremsender Odem[^\n]*\n+\*\*_Zerfetzen:_\*\* "
+     r"_Nahkampfangriffswurf:_ \+7", r"\*\*340\*\* Systemreferenzdokument",
+     r"### \*\*Kupferdrachen\*\*", None),
+    # (b) Aktionen des Nestlings aus dem Kultistenfanatiker zum Nestling.
+    (r"###### <u>Aktionen</u>\s*\n+\*\*_Zerfetzen:_\*\* _Nahkampfangriffswurf:_ \+4, "
+     r"Reichweite 1,5 m\. _Treffer:_ 7 \(1W10\+2\)",
+     r"#### \*\*<u><mark>Junger Kupferdrache</mark></u>\*\*",
+     r"\*\*340\*\* Systemreferenzdokument", None),
+    # Der Speer des Kriegerinfanteristen stand beim Kultisten (2024 fuehrt der nur die Sichel).
+    (r"\*\*_Speer:_\*\* _Nah\S* oder Fernkampfangriffswurf:_ \+3, Reichweite 1,5 m oder "
+     r"Reichweite 6/18 m\. _Treffer:_ 4 \(1W6\+1\) Stichschaden\.\s*\n+(?=\*\*339\*\*)",
+     r"\*\*339\*\* Systemreferenzdokument",
+     r"#### \*\*<mark>Kriegerinfanterist</mark>\*\*", r"\n#{3,4} "),
+]
+
+
+def _srd_de_statblock_faelle(markdown: str) -> str:
+    """Die kuratierten Einzelfaelle oben anwenden - nach der Paar-Reparatur."""
+    for anfang, ende, ziel, danach in _SRD_DE_STATBLOCK_FAELLE:
+        markdown = _verschiebe(markdown, anfang, ende, ziel, danach)
+    # Die Initiative der Riesenhyaene stand als eigene Zeile beim Riesenhai; ihre
+    # RK-Zeile trug keine. Kein Block, deshalb kein `_verschiebe`.
+    vorher = markdown
+    markdown = re.sub(r"\*\*Initiative\*\* \+2 \(12\)\s*\n+(#### \*\*<mark>Riesenhyäne</mark>\*\*)",
+                      r"\1", markdown, count=1)
+    markdown = re.sub(r"(\*\*RK\*\* 12) (\*\*TP\*\* 45 \(6W10\+12\))",
+                      r"\1 **Initiative** +2 (12) \2", markdown, count=1)
+    if markdown.count("**Initiative** +2 (12)") != vorher.count("**Initiative** +2 (12)"):
+        _BILANZ.greift_nicht("_srd_de_statblock_faelle (Riesenhyaene-Initiative)")
+    return markdown
+
+
 def _srd_de_reparatur(markdown: str) -> str:
     """Kuratierte Strukturreparaturen des dt. SRD 5.2.1 (Review-/Synthese-Funde
     2026-07-12, alle am gerenderten PDF bzw. am englischen SRD 5.2 gegengeprueft).
@@ -852,6 +959,7 @@ BEREINIGUNG: dict[str, list] = {
         # VOR _srd_de_reparatur: Der Statblock-Zuschnitt muss stimmen, bevor die
         # kuratierten Einzelverschiebungen ihre Anker suchen.
         _srd_de_statblock_paare,
+        _srd_de_statblock_faelle,     # die unregelmaessigen Reste, kuratiert
         _srd_de_reparatur,
         # NACH den kuratierten Reparaturen: Der Gruftschrecken/Grul-Fall wird dort
         # aufgeloest, und eine Familien-Ueberschrift, die vorher noch fremden Text trug,

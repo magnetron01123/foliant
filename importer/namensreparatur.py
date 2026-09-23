@@ -202,6 +202,10 @@ KURATIERTE_TITEL: dict[str, str] = {
     "SCHMIEDEVATER UND VEREHRTE M UTIER": "SCHMIEDEVATER UND VEREHRTE MUTTER",
     "SEI.BSTVERSO RG U N G": "SELBSTVERSORGUNG",   # '.' statt 'L' gelesen
     "TOPF DES ERWACH E NS": "TOPF DES ERWACHENS",
+    # srd-de, Statblock-Kopf unter der Ebenholz-Fliege: die fl-Ligatur zerfiel. Seit
+    # pymupdf 1.28.2 ohne trennende Fettmarken und damit sichtbar (23.09.2026);
+    # 'Riesenfliege' steht zweimal im Bestand.
+    "Riesenf l iege": "Riesenfliege",
     "’ UPPER TAVICK S LANDING": "UPPER TAVICK'S LANDING",   # englischer Ortsname (efota-en)
 }
 

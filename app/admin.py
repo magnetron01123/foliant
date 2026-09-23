@@ -720,13 +720,12 @@ def messe_verschmolzene_statbloecke(c: sqlite3.Connection) -> tuple[dict, list[s
     ein zweiter Kasten mit hineingeraten ist. Der Ghul trug so das `**HG** 8` und das
     Regenerations-Merkmal der Geisternaga - und die Naga trug es nicht mehr.
 
-    BEWUSST NUR GEZAEHLT, NICHT REPARIERT: Eine Textchirurgie muesste entscheiden, WOHIN
-    das Fremdstueck gehoert, und der Nachbar in Eintragsreihenfolge ist nicht die Antwort
-    (zwischen Geisternaga und Ghul steht 'Gemeiner'). Eine inhaltsgebundene Regel dafuer
-    ist genau die Bauform, die am 30.07.2026 fuenfzehn Ueberschriften verschoben und 5093
-    Zeichen gekostet hat (CONCEPT.md par. 12). Die Facetten sind seit dem Fassungsabgleich
-    korrekt; beschaedigt ist nur der Fliesstext, und den haelt das Modell beim Vorlesen
-    auseinander. Die saubere Loesung sitzt in der PDF-Textschicht, nicht hier.
+    Repariert wird NICHT hier, sondern beim Import - und nie per Regel: Eine
+    inhaltsgebundene Regel ist die Bauform, die am 30.07.2026 fuenfzehn Ueberschriften
+    verschoben und 5093 Zeichen gekostet hat. Seit dem 23.09.2026 stellen kuratierte
+    Einzelfaelle (`import_markdown._SRD_DE_STATBLOCK_FAELLE`) jeden bekannten Fall zurueck;
+    diese Zaehlung bleibt als Wache, falls ein Konverter-Update neue Verschraenkungen
+    bringt.
 
     Rueckgabe: (Anzahl je Quellenkuerzel, bis zu drei Beispielnamen)."""
     from collections import Counter

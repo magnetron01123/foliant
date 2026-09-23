@@ -96,6 +96,37 @@ BEKANNTE_QUELLFEHLER: tuple[Quellfehler, ...] = (
         wirkung="Wie beim Balor: ausgewuerfelte Trefferpunkte fallen im Schnitt 10 TP zu "
                 "hoch aus.",
     ),
+    # Die D&D-Beyond-Auslieferung der Basic Rules 2024 setzt bei zwei Zaubern die Kopfzeile
+    # eines Zaubertricks. Am Export-Artefakt geprueft (23.09.2026): der Fehler steht schon
+    # im gelieferten Text, der Import gibt ihn treu wieder - also Quellfehler, nicht
+    # BEREINIGUNG. Die Facette (Grad 0) folgt dem Text; `fassungsabgleich` korrigiert
+    # bewusst nur Mehrdeutigkeiten, keinen eindeutigen Wert.
+    Quellfehler(
+        quelle="ddb-br-2024-en",
+        name="Mind Spike",
+        seite=None,
+        wortlaute=("*Evocation Cantrip (Sorcerer, Warlock, Wizard)*",),
+        richtig="Level 2 Divination (Sorcerer, Warlock, Wizard); Duration: Concentration, "
+                "up to 1 hour",
+        beleg="Das Spielerhandbuch 2024 im Bestand (ddb-phb-2024-en, 'Mind Spike') fuehrt "
+              "'Level 2 Divination (Sorcerer, Warlock, Wizard)', open5e-srd-2024 "
+              "'Level: 2 · School: Divination'. Zwei unabhaengige Fassungen gegen eine.",
+        wirkung="Die Auskunft nennte Mind Spike einen Zaubertrick der Hervorrufung, der "
+                "beliebig oft und ohne Zauberplatz wirkbar waere.",
+    ),
+    Quellfehler(
+        quelle="ddb-br-2024-en",
+        name="Tasha’s Hideous Laughter",
+        seite=None,
+        wortlaute=("*Evocation Cantrip (Bard, Paladin, Warlock, Wizard)*",),
+        richtig="Level 1 Enchantment (Bard, Warlock, Wizard)",
+        beleg="Das Spielerhandbuch 2024 im Bestand (ddb-phb-2024-en, 'Tasha’s Hideous "
+              "Laughter') fuehrt 'Level 1 Enchantment (Bard, Warlock, Wizard)', "
+              "open5e-srd-2024 ('Hideous Laughter') 'Level: 1 · School: Enchantment · "
+              "Classes: Bard, Warlock, Wizard' - auch der Paladin gehoert nicht dazu.",
+        wirkung="Die Auskunft nennte den Zauber einen Zaubertrick und fuehrte ihn in der "
+                "Paladin-Liste.",
+    ),
 )
 
 # NICHT MEHR HIER, und der Grund gehoert festgehalten: Der Open5e-Datensatz des 'Octopus'
