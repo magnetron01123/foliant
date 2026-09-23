@@ -7,7 +7,7 @@
 # Erneuern nach einem beabsichtigten Import:  make register-vom-pi
 # Buchtitel fehlen bewusst; beim Wiederherstellen von Hand nachtragen.
 #
-# Stand: 2026-08-14
+# Stand: 2026-09-23
 
 [[quelle]]
 kuerzel = "srd-de"
@@ -121,6 +121,50 @@ dateipfad = "quellen/md/frhof-en.md"
 inhaltsart = "abenteuer_setting"
 
 [[quelle]]
+kuerzel = "bgdia-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 47
+dateipfad = "quellen/bgdia-2014-en.pdf"
+inhaltsart = "abenteuer_setting"
+quell_hash = "79323bc63db6609f5a42a49fda886d6036f28621b99f43d09d7ac2a75daf0521"
+
+[[quelle]]
+kuerzel = "cos-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 47
+dateipfad = "quellen/cos-2014-en.pdf"
+inhaltsart = "abenteuer_setting"
+quell_hash = "1f898791a2817634848bd194859275e7e6be9fa7bfc0a15b357d61bfda049563"
+
+[[quelle]]
+kuerzel = "tcoe-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 47
+dateipfad = "quellen/tcoe-2014-en.pdf"
+inhaltsart = "regelwerk"
+quell_hash = "9bcda457ad45405aa9a4ceb7d56e2833a6b9808c6d9c473fd18a702d3ec49c0f"
+
+[[quelle]]
+kuerzel = "vgtm-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 47
+dateipfad = "quellen/vgtm-2014-en.pdf"
+inhaltsart = "regelwerk"
+quell_hash = "4a8151c20c9501d6c9af69fb29827a14dbad58d00059d3b2c54b253b7663ff91"
+
+[[quelle]]
 kuerzel = "open5e-srd-2024"
 sprache = "en"
 edition = "2024"
@@ -128,6 +172,32 @@ herkunft = "open5e"
 lizenz = "CC-BY-4.0"
 prioritaet = 60
 inhaltsart = "regelwerk"
+
+[[quelle]]
+kuerzel = "errata-cos-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/CoS-Errata.pdf"
+inhaltsart = "errata"
+versions_stand = "Errata Version 1.1"
+quell_url = "https://media.wizards.com/2021/dnd/downloads/CoS-Errata.pdf"
+quell_hash = "42fa2f4037d662d7f6ac2091c06c4196b1495d70b158d8e25fc291d7b6f388b4"
+
+[[quelle]]
+kuerzel = "errata-dmg-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/DMG-Errata.pdf"
+inhaltsart = "errata"
+versions_stand = "Errata Version 3.0"
+quell_url = "https://media.wizards.com/2021/dnd/downloads/DMG-Errata.pdf"
+quell_hash = "257679dba5ab5f1d6656b9bc508ad82a5a053ea49d57dbeee6e88a5fe01d6afb"
 
 [[quelle]]
 kuerzel = "errata-dmg-2024-en"
@@ -143,6 +213,19 @@ quell_url = "https://media.dndbeyond.com/compendium-images/errata/DMG-24/DMG-24_
 quell_hash = "53b6d32fa6ca3a0eb8105a95c0b02a1d46853fffaf31ab1c5ebf41a4167ac073"
 
 [[quelle]]
+kuerzel = "errata-mm-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/MM-Errata.pdf"
+inhaltsart = "errata"
+versions_stand = "Errata Version 2.0"
+quell_url = "https://media.wizards.com/2018/dnd/downloads/MM-Errata.pdf"
+quell_hash = "94b0049fb762872fba6510f1d6c234de946d962a5ce3f1c15e18e050266410fb"
+
+[[quelle]]
 kuerzel = "errata-mm-2025-en"
 sprache = "en"
 edition = "2024"
@@ -154,6 +237,19 @@ inhaltsart = "errata"
 versions_stand = "Errata Version 1.0"
 quell_url = "https://media.dndbeyond.com/compendium-images/errata/MM-25/MM-2025_v1.pdf"
 quell_hash = "3d8951d4c7a596d73a6b4579e7dec7634b1cab84e82d1f76e13f75f42ce27a18"
+
+[[quelle]]
+kuerzel = "errata-phb-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/PH-Errata.pdf"
+inhaltsart = "errata"
+versions_stand = "Errata Version 3.0"
+quell_url = "https://media.wizards.com/2021/dnd/downloads/PH-Errata.pdf"
+quell_hash = "0c49e2c9c90c9dede38346874c8fda9ff39ce8a715d71aedc5bd1d1e4321014e"
 
 [[quelle]]
 kuerzel = "errata-phb-2024-en"
@@ -169,6 +265,71 @@ quell_url = "https://media.dndbeyond.com/compendium-images/errata/PHB-24/PHB-202
 quell_hash = "82805de932a57cecdfa81e81ea77a2b9e479913cae47df79aae00bb62a992d30"
 
 [[quelle]]
+kuerzel = "errata-scag-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/SCAG-Errata.pdf"
+inhaltsart = "errata"
+versions_stand = "Errata Version 2.2"
+quell_url = "https://media.wizards.com/2021/dnd/downloads/SCAG-Errata.pdf"
+quell_hash = "b208ec526a8e95752786e16464127da646e2702bff80f6ea7051bf79f63bee55"
+
+[[quelle]]
+kuerzel = "errata-tcoe-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/TCE-Errata.pdf"
+inhaltsart = "errata"
+versions_stand = "Errata Version 1.0"
+quell_url = "https://media.wizards.com/2021/dnd/downloads/TCE-Errata.pdf"
+quell_hash = "471b401d7c44c23c3f880fa2ca5d1e9b26abd87cc673a27ba614c9fea371dbd9"
+
+[[quelle]]
+kuerzel = "errata-vgtm-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/VGtM-Errata.pdf"
+inhaltsart = "errata"
+versions_stand = "Errata Version 3.0"
+quell_url = "https://media.wizards.com/2021/dnd/downloads/VGtM-Errata.pdf"
+quell_hash = "5772849a279cafec73e30804f140592948e2ac01c0824b8160115285cec8a06a"
+
+[[quelle]]
+kuerzel = "errata-xgte-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/XGtE-Errata.pdf"
+inhaltsart = "errata"
+versions_stand = "Errata Version 1.0"
+quell_url = "https://media.wizards.com/2020/dnd/downloads/XGtE-Errata.pdf"
+quell_hash = "7f7a8bcef28bed0c7ba1ccb04fb8068ff0b5a2c38f87aeb808793424af421923"
+
+[[quelle]]
+kuerzel = "sac-2014-en"
+sprache = "en"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "WotC (frei verteilt, keine offene Lizenz)"
+prioritaet = 70
+dateipfad = "quellen/errata/SA-Compendium.pdf"
+inhaltsart = "regelauslegung"
+versions_stand = "Version 2.7"
+quell_url = "https://media.wizards.com/2021/dnd/downloads/SA-Compendium.pdf"
+quell_hash = "6f2d092682e627a92dff0412df1c88739669a1b55d4f5aef8daaa53ccc2b4736"
+
+[[quelle]]
 kuerzel = "phb-2014-de"
 sprache = "de"
 edition = "2014"
@@ -177,6 +338,28 @@ lizenz = "privat"
 prioritaet = 80
 dateipfad = "quellen/phb-2014-de.pdf"
 inhaltsart = "regelwerk"
+
+[[quelle]]
+kuerzel = "dmg-2014-de"
+sprache = "de"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 82
+dateipfad = "quellen/dmg-2014-de.pdf"
+inhaltsart = "regelwerk"
+quell_hash = "b856e51c04fee2c2758b0f39b3164881a18a20963c907058ebeb26e8d3812c36"
+
+[[quelle]]
+kuerzel = "mm-2014-de"
+sprache = "de"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 83
+dateipfad = "quellen/mm-2014-de.pdf"
+inhaltsart = "regelwerk"
+quell_hash = "a9c6f01b4e628f4a0e9909e2db01549fee1f31f6e3c3ff36df9c70e92f06fbe8"
 
 [[quelle]]
 kuerzel = "xgte-2014-de"
@@ -197,3 +380,14 @@ lizenz = "privat"
 prioritaet = 90
 dateipfad = "quellen/scag-2014-de.pdf"
 inhaltsart = "abenteuer_setting"
+
+[[quelle]]
+kuerzel = "cos-2014-de"
+sprache = "de"
+edition = "2014"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 92
+dateipfad = "quellen/cos-2014-de.pdf"
+inhaltsart = "abenteuer_setting"
+quell_hash = "a00bce6ca6e8ff4cbd835663a8ac1f5dad318a52832bd76b23bdcb14473bce21"
