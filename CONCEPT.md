@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 19.09.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 22.09.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -225,6 +225,23 @@ anderer Inhalt — dann bricht der Import ab, statt `versions_stand` zu einer fa
 | **DDB-Bücher** | kurzlebiger Exporter (Netz + Cobalt) → Artefakt → offline `admin ddb-import-all` |
 | **Open5e** | `admin import --quelle open5e-srd-2024` (API, einmalig) |
 | **Glossar** | `admin import --quelle glossar` (dnddeutsch.de; offiziell = `name_de_ulisses`) |
+
+**Ablage in `quellen/`:** Eine Kaufbuch-Datei heißt wie ihr Kürzel (`<buch>-<edition>-<sprache>.pdf`,
+Buch = gängige Abkürzung wie `phb`, `dmg`, `mm`); frei herunterladbare Dateien behalten in
+`quellen/errata/` den Namen des Herausgebers, weil er zu `quell_url` und `quell_hash` passt.
+Weitere Ordner gibt es nur für die Verarbeitungsstufe (`quellen/md/`, OCR-Ausgaben in
+`data/ocr/`) — Edition, Sprache und `inhaltsart` stehen in der Config, ein Ordner dafür wäre
+eine zweite Angabe, die auseinanderlaufen kann.
+
+**Deutsche 2014-Scans sind Begriffs- und Beschreibungsquelle, kein Werte-Katalog.** Im
+Monsterhandbuch fehlt vielen Wertekästen der Namenskopf, und im Zweispaltensatz rutscht ein
+Kasten teils in den Nachbareintrag; seine Zwischenköpfe („AKTIONEN") liegen auf der
+Eintragsebene und werden deshalb vor dem Zerlegen zu Body-Zeilen gemacht
+(`_scan_wertekasten_koepfe`).
+
+**Revisionsquellen sind kein B5-Ersatz.** Fehlt die 2024-Fassung, liefert die Detailauswahl
+beim Standard eine ältere — aber nie ein Erratum oder eine Auslegung: das ist eine Aussage
+*über* eine Regel, nicht die Regel. In ihrer eigenen Edition bleiben sie Exakt-Treffer.
 
 **Browser-Druck-PDFs im Detail:** Textschichten sind beschädigt (Kerning-Risse,
 Mojibake-Fonts, fi/fl-Ligaturverlust). Zwei Muster-Piloten: `efota` (Original + kuratierte

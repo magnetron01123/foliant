@@ -423,3 +423,28 @@ def test_eckiges_klammer_suffix_verhindert_die_bruecke_nicht(tmp_path, monkeypat
     monkeypatch.setattr(adb, "standard_pfad", lambda: pfad)
     d = ns.foliant_hol_eintrag("regel", "Verstecken (Aktion)")
     assert [r["quelle_kuerzel"] for r in d.get("revisionen", [])] == ["errata-phb-2024-en"]
+
+
+def test_erratum_ist_kein_ersatz_fuer_eine_fehlende_fassung(bestand, monkeypatch):
+    """B5 liefert beim Standard eine aeltere Fassung, wenn 2024 fehlt. Ein Erratum oder
+    eine Auslegung ist aber eine Aussage UEBER die Regel, nicht die Regel - als Ersatz
+    taugt es nicht. Sichtbar wurde das mit den 2014er Errata (22.09.2026): 'Zweihaendig'
+    als 'regel' lieferte das englische PHB-2014-Erratum statt des Rueckfalls auf die
+    deutsche 2024-Waffeneigenschaft."""
+    con = sqlite3.connect(bestand)
+    con.executemany(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (?,?,?,?,?,?,?,?)",
+        [(1, "gegenstand", "Zweihändig", None, "de", "2024", "214",
+          "Diese Waffe muss mit beiden Händen geführt werden."),
+         (3, "regel", None, "Two-Handed", "en", "2014", "3",
+          "**Offizielle Korrektur zu S. 147 im Grundbuch.** Only matters when you attack.")])
+    con.execute("INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle,seite)"
+                " VALUES ('Two-Handed','Zweihändig',1,'SRD 5.2.1','2024','214')")
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit(); con.close()
+    d = ns.foliant_hol_eintrag("regel", "Zweihändig")
+    assert not d.get("gefunden"), d
+    anders = d.get("treffer_andere_kategorie")
+    assert anders and anders[0]["kategorie"] == "gegenstand", d
