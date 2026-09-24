@@ -2,10 +2,10 @@
   "_zweck": "Erwarteter Korpus-Sollstand des Produktionsbestands. Vergleichsgrundlage fuer `admin check --vollbestand`: Eine fehlende Quelle oder ein Einbruch der Eintragszahl faellt damit auf, statt als neuer Basiswert durchzugehen.",
   "_pflege": "Nach einem beabsichtigten Import neu erheben: make soll-vom-pi (schreibt diese Datei).",
   "_ohne_titel": "Buchtitel stehen bewusst NICHT hier - ob DDB-Titel oeffentlich stehen duerfen, ist offen (BACKLOG M9). Die Kuerzel stehen ohnehin schon im Repo.",
-  "erhoben_an": "2026-09-23",
+  "erhoben_an": "2026-09-24",
   "schema_version": 3,
-  "eintraege_gesamt": 19502,
-  "glossar_zeilen": 3853,
+  "eintraege_gesamt": 19288,
+  "glossar_zeilen": 3849,
   "quellen": [
     {
       "kuerzel": "srd-de",
@@ -33,21 +33,21 @@
       "edition": "2014",
       "sprache": "en",
       "inhaltsart": "abenteuer_setting",
-      "eintraege": 3
+      "eintraege": 1
     },
     {
       "kuerzel": "ddb-ee-en",
       "edition": "2014",
       "sprache": "en",
       "inhaltsart": "regelwerk",
-      "eintraege": 96
+      "eintraege": 52
     },
     {
       "kuerzel": "ddb-mcv1-en",
       "edition": "2014",
       "sprache": "en",
       "inhaltsart": "regelwerk",
-      "eintraege": 40
+      "eintraege": 10
     },
     {
       "kuerzel": "ddb-phb-2024-en",
@@ -89,14 +89,14 @@
       "edition": "2014",
       "sprache": "en",
       "inhaltsart": "abenteuer_setting",
-      "eintraege": 825
+      "eintraege": 823
     },
     {
       "kuerzel": "cos-2014-en",
       "edition": "2014",
       "sprache": "en",
       "inhaltsart": "abenteuer_setting",
-      "eintraege": 1021
+      "eintraege": 1019
     },
     {
       "kuerzel": "tcoe-2014-en",
@@ -208,7 +208,7 @@
       "edition": "2014",
       "sprache": "de",
       "inhaltsart": "regelwerk",
-      "eintraege": 1539
+      "eintraege": 1469
     },
     {
       "kuerzel": "dmg-2014-de",
@@ -222,28 +222,28 @@
       "edition": "2014",
       "sprache": "de",
       "inhaltsart": "regelwerk",
-      "eintraege": 726
+      "eintraege": 725
     },
     {
       "kuerzel": "xgte-2014-de",
       "edition": "2014",
       "sprache": "de",
       "inhaltsart": "regelwerk",
-      "eintraege": 929
+      "eintraege": 879
     },
     {
       "kuerzel": "scag-2014-de",
       "edition": "2014",
       "sprache": "de",
       "inhaltsart": "abenteuer_setting",
-      "eintraege": 550
+      "eintraege": 540
     },
     {
       "kuerzel": "cos-2014-de",
       "edition": "2014",
       "sprache": "de",
       "inhaltsart": "abenteuer_setting",
-      "eintraege": 995
+      "eintraege": 992
     }
   ]
 }

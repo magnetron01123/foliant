@@ -7,7 +7,7 @@
 # Erneuern nach einem beabsichtigten Import:  make register-vom-pi
 # Buchtitel fehlen bewusst; beim Wiederherstellen von Hand nachtragen.
 #
-# Stand: 2026-09-23
+# Stand: 2026-09-24
 
 [[quelle]]
 kuerzel = "srd-de"
@@ -47,7 +47,7 @@ edition = "2014"
 herkunft = "ddb"
 lizenz = "privat"
 prioritaet = 40
-dateipfad = "/app/data/private/ddb-artifacts/ddb-cosco-en/20260711T084210Z"
+dateipfad = "/app/data/private/ddb-artifacts/ddb-cosco-en/20260711T084210Z/"
 inhaltsart = "abenteuer_setting"
 
 [[quelle]]
@@ -57,7 +57,7 @@ edition = "2014"
 herkunft = "ddb"
 lizenz = "privat"
 prioritaet = 40
-dateipfad = "/app/data/private/ddb-artifacts/ddb-ee-en/20260711T084209Z"
+dateipfad = "/app/data/private/ddb-artifacts/ddb-ee-en/20260711T084209Z/"
 inhaltsart = "regelwerk"
 
 [[quelle]]
@@ -67,7 +67,7 @@ edition = "2014"
 herkunft = "ddb"
 lizenz = "privat"
 prioritaet = 40
-dateipfad = "/app/data/private/ddb-artifacts/ddb-mcv1-en/20260711T084213Z"
+dateipfad = "/app/data/private/ddb-artifacts/ddb-mcv1-en/20260711T084213Z/"
 inhaltsart = "regelwerk"
 
 [[quelle]]
@@ -338,6 +338,7 @@ lizenz = "privat"
 prioritaet = 80
 dateipfad = "quellen/phb-2014-de.pdf"
 inhaltsart = "regelwerk"
+quell_hash = "76f300369931887691101c988d3c049293d851c0cd73f51609327c4db4520c2e"
 
 [[quelle]]
 kuerzel = "dmg-2014-de"
@@ -370,6 +371,7 @@ lizenz = "privat"
 prioritaet = 85
 dateipfad = "quellen/xgte-2014-de.pdf"
 inhaltsart = "regelwerk"
+quell_hash = "9a226b6f6d8c4b3eb9ec0705e466c8aa703c89ad3f19b12e16ce524df8d6ebeb"
 
 [[quelle]]
 kuerzel = "scag-2014-de"
@@ -380,6 +382,7 @@ lizenz = "privat"
 prioritaet = 90
 dateipfad = "quellen/scag-2014-de.pdf"
 inhaltsart = "abenteuer_setting"
+quell_hash = "a82c910cce11f6f4ebc5e0b3774c038b43bf670cff2d502a27e67876b4f94049"
 
 [[quelle]]
 kuerzel = "cos-2014-de"
