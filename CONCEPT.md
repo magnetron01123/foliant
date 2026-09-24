@@ -1472,6 +1472,37 @@ Nachgezogen wird der Sollstand nach einem *beabsichtigten* Import mit `make soll
 (liest den Pi, schreibt lokal, gehört in den Commit). Buchtitel stehen bewusst nicht in
 der Datei, solange offen ist, ob DDB-Titel öffentlich stehen dürfen (BACKLOG M9).
 
+### Entscheidung: Datenaudit 09/2026 — repariert wird, was eindeutig ist (23.09.2026)
+
+Ein Vollaudit des Pi-Bestands (19.502 Einträge, 34 Quellen) fand neben den bekannten
+Scan-Mängeln echte Importfehler. Die Linie blieb die des Audits vom 03.08.2026: **Wo der
+Schaden beim Einlesen entstand, wird repariert; wo die Quelle irrt, wird gekennzeichnet.**
+Neu ist die Messlatte für „eindeutig":
+
+- **Deutsche SRD-Wertekästen gegen die englische Fassung.** 20 Monster trugen Felder eines
+  Nachbarn (Worg → Wolkenriese, Riesengeier → Riesenhai, Lemure → Lehmgolem …). Die
+  Abweichungen gingen paarweise auf; 17 kuratierte Verschiebungen
+  (`_SRD_DE_STATBLOCK_FAELLE`) stellen sie zurück. Beleg ist der Gegencheck: alle 310
+  zuordenbaren Monster tragen danach genau den HG, die RK und die TP ihrer open5e-Fassung
+  (Golden-Test). Eine *Regel* dafür gibt es weiterhin nicht — nur Einzelfälle mit Ankern.
+- **DDB-Detaildatensätze bleiben ganz.** Monster, Völker und Hintergründe aus den
+  Detailtabellen verloren beim Zerlegen ihren Wertekasten (16 Datensätze).
+- **OCR-Korrekturen nur mit Gegenprobe.** `W1O` → `W10` ist eindeutig; `7` → `1` in
+  Trefferpunkten und Attributen nur, wenn die gedruckte Formel bzw. der Modifikator genau
+  eine Lesart zulässt.
+- **Zerrissene Namen: nur mit Beleg aus dem Buch selbst** (`belegte_schliessung`). Zwei
+  Heuristiken waren am 01.08.2026 an falschen Namen gescheitert; der Unterschied ist die
+  Evidenz — jedes Wort muss im Fließtext derselben Quelle stehen, und genau eine Lesart
+  darf übrig bleiben. Gegen die 46 kuratierten Titel: 15 selbst entschieden, alle wie von
+  Hand. Der erste Lauf erzeugte trotzdem fünf falsche Namen (`FIRENEWTS`,
+  `AURADESWÄCHTERS`); die Scans verkleben auch im Fließtext, deshalb zählen Versalien und
+  Binnenmajuskeln nicht als Beleg.
+- **Neu-OCR der Scans verworfen.** Tesseract las auf den schlechtesten Seiten bis zu
+  16 Prozentpunkte mehr Wörter richtig, verlor aber die Fettschrift — und an ihr hängt die
+  Eintragserkennung (Monsterhandbuch: „Rüstungsklasse 13" wurde Überschrift).
+- **Zwei Zauberköpfe der DDB-Basic-Rules sind Quellfehler**, kein Exportschaden: Das
+  Artefakt trägt „Evocation Cantrip" schon so (`config/quellfehler.py`).
+
 ### Entscheidung: Der Discord-Bot bleibt Nachschlagewerk im Gespräch (30.07.–02.08.2026)
 
 Der Bot wird **kein zweites Avrae**. Die Abgrenzung ist inhaltlich, nicht technisch: Avrae
@@ -1622,6 +1653,15 @@ Kuratiert. Quellen-spezifische Eigenheiten stehen im Modul-Docstring des jeweili
 Importers (`importer/import_open5e.py` für die Open5e-API, `importer/import_markdown.py`
 für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de).
 
+- **Eine Reparatur am Zwischenstand prüfen reicht nicht.** Die srd-de-Kette hat 18
+  Schritte; eine Verschiebung, die direkt nach der Paar-Reparatur richtig aussieht, kann mit
+  einer späteren kollidieren. Am 23.09.2026 reparierten zwei Schritte denselben
+  Gruftschrecken, und der zweite schnitt danach falsch. Gemessen wird am Ergebnis des
+  vollen Imports (Golden-Test gegen die englische Fassung).
+- **Eine neue pymupdf-Version verschiebt die Spaltenverschränkung.** Mit 1.28.2 lagen andere
+  srd-de-Monster verschränkt als mit 1.28.0, drei kuratierte Anker trafen nicht mehr, einer
+  war überflüssig. Nach jedem Versionssprung: srd-de lokal neu importieren und auf
+  `WIRKUNGSLOS` in der Bilanz achten, bevor der Pi neu importiert.
 - **Ein einseitiges PDF hat keine falsche Seitenzahl.** Die drei Errata-Quellen tragen
   durchgehend `seite = '1'`, und das sieht nach einem nicht gefüllten Feld aus. Es ist
   aber die richtige Angabe: Die Errata-PDFs sind einseitig. Beim DB-Audit vom 03.08.2026

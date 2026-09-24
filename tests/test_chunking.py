@@ -713,3 +713,38 @@ def test_sage_advice_fragen_werden_eintraege():
     assert "effects don't combine" in fragen["Does the guidance spell stack?"]
     # ein fettes Label ohne Fragezeichen bleibt Text der laufenden Antwort
     assert "Unarmored" in fragen["Can a shield be a focus?"]
+
+
+def test_scan_ocr_bereinigung_korrigiert_nur_eindeutiges():
+    """Pi-Audit 23.09.2026: 38x '1W1O' im Spielerhandbuch, Attribute wie 'CHA 74 (+2)'
+    im Monsterhandbuch. Korrigiert wird nur, was genau eine gueltige Lesart hat - und bei
+    Trefferpunkten und Attributen nur, wenn die gedruckte Gegenprobe aufgeht."""
+    from importer.import_markdown import _scan_ocr_bereinigung as bereinige
+
+    assert bereinige("Schaden 1W1O und 2W1 2, dazu 17W1 0.") == \
+        "Schaden 1W10 und 2W12, dazu 17W10."
+    assert bereinige("**Trefferpunkte** 138 (72W72+60)") == "**Trefferpunkte** 138 (12W12+60)"
+    assert bereinige("21 (6W7)") == "21 (6W7)"             # W1 gibt es nicht: bleibt
+    assert bereinige("CHA 74 (+2) WEI 77 (+0)") == "CHA 14 (+2) WEI 11 (+0)"
+    assert bereinige("KON 47 (+9) STR 16 (+3)") == "KON 47 (+9) STR 16 (+3)"
+
+
+def test_scan_ocr_bereinigung_ueberschriften():
+    """'7,' stand als Spielerhandbuch-Ueberschrift ueber 776 Eintraegen, das '�' am Ende
+    des Tasha-Buchtitels in 877 Kontextzeilen."""
+    from importer.import_markdown import _scan_ocr_bereinigung as bereinige
+
+    md = "# TASHA'S CAULDRON OF EVERYTHING�\n# 7,\n###### --- ------\n###### **LICH**"
+    assert bereinige(md).split("\n") == [
+        "# TASHA'S CAULDRON OF EVERYTHING", "7,", "--- ------", "###### **LICH**"]
+
+
+def test_scan_ocr_bereinigung_laesst_kuratierte_titel_stehen():
+    """Die kuratierte Titeltabelle greift NACH dem Import auf den rohen Namen. Wuerde die
+    Bereinigung einen ihrer Schluessel veraendern oder zur Textzeile machen, fiele die
+    Kuratierung still aus."""
+    from importer.import_markdown import _scan_ocr_bereinigung as bereinige
+    from importer.namensreparatur import KURATIERTE_TITEL
+
+    for roh in KURATIERTE_TITEL:
+        assert bereinige(f"###### {roh}") == f"###### {roh.strip()}", roh

@@ -531,3 +531,49 @@ def test_golden_verwandte_abschnitte_bleiben_signal():
               if (ns.foliant_hol_eintrag("regel", name).get("verwandte_abschnitte")))
     anteil = mit * 100 / max(len(namen), 1)
     assert anteil < 25, f"verwandte_abschnitte bei {anteil:.0f} % der Regeln - Rauschen"
+
+
+def test_golden_srd_de_statbloecke_stimmen_mit_der_englischen_fassung():
+    """Pi-Audit 23.09.2026: 20 deutsche SRD-Monster trugen HG, Attribute oder Aktionen
+    eines NACHBARN - der Worg den Wolkenriesen, der Riesengeier den Riesenhai, der
+    Lemure den Lehmgolem. Die Gegenprobe ist die englische Fassung im Bestand: Jedes
+    deutsche Monster, das ueber das Glossar eindeutig einem open5e-Monster zugeordnet
+    ist, muss GENAU EINEN Herausforderungsgrad, EINE Ruestungsklasse und EINE
+    Trefferpunktzahl tragen, und zwar dieselben."""
+    import re
+
+    import sqlite3
+
+    bruch = {"0.125": "1/8", "0.25": "1/4", "0.5": "1/2"}
+    con = sqlite3.connect(f"file:{adb.standard_pfad()}?mode=ro", uri=True)
+    quellen = {r[0] for r in con.execute("SELECT kuerzel FROM quellen")}
+    if not {"srd-de", "open5e-srd-2024"} <= quellen:
+        pytest.skip("braucht srd-de und open5e-srd-2024 im Bestand")
+    englisch = {}
+    for name, body in con.execute(
+            "SELECT e.name_en, e.body_md FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "WHERE q.kuerzel = 'open5e-srd-2024' AND e.kategorie = 'monster'"):
+        hg = re.search(r"\*\*(?:Challenge|CR):?\*\*:?\s*([\d./]+)", body)
+        rk = re.search(r"\*\*(?:Armor Class|AC):?\*\*:?\s*(\d+)", body)
+        tp = re.search(r"\*\*(?:Hit Points|HP):?\*\*:?\s*(\d+)", body)
+        if hg and rk and tp:
+            h = re.sub(r"\.0$", "", hg.group(1).rstrip("."))
+            englisch[name.lower()] = (bruch.get(h, h), rk.group(1), tp.group(1))
+    de_en = {}
+    for en, de in con.execute("SELECT term_en, term_de FROM glossar WHERE offiziell = 1"):
+        de_en.setdefault(de.lower(), en.lower())
+    abweichend, geprueft = [], 0
+    for name, body in con.execute(
+            "SELECT e.name_de, e.body_md FROM eintraege e JOIN quellen q ON q.id = e.quelle_id "
+            "WHERE q.kuerzel = 'srd-de' AND e.kategorie = 'monster'"):
+        soll = englisch.get(de_en.get((name or "").lower(), ""))
+        if not soll or "**RK**" not in body:
+            continue
+        geprueft += 1
+        text = re.sub(r"\n\s*", " ", body)
+        ist = (re.findall(r"\*\*HG\*\*\s*([\d/]+)", text), re.findall(r"\*\*RK\*\*\s*(\d+)", text),
+               re.findall(r"\*\*TP\*\*\s*(\d+)", text))
+        if ist[0] != [soll[0]] or ist[1] != [soll[1]] or ist[2] not in ([soll[2]], []):
+            abweichend.append((name, ist, soll))
+    assert geprueft > 250, geprueft
+    assert not abweichend, abweichend

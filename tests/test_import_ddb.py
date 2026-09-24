@@ -460,3 +460,27 @@ def test_ddb_import_zieht_die_facetten_nach(tmp_path, dbs):
             [("1/4", 15, 7)], "Monster-Facetten nach dem DDB-Import nicht geseedet"
     finally:
         con.close()
+
+
+def test_detailtabellen_datensatz_bleibt_ganz():
+    """Ein Monster aus den DDB-Detailtabellen ist EIN Eintrag. Die Zerlegung an '### Traits'
+    warf seinen Wertekasten (Text vor der ersten Unterueberschrift) weg und liess namenlose
+    'Traits'/'Actions'-Eintraege zurueck - alle 10 Monster aus ddb-mcv1-en (23.09.2026)."""
+    from importer.import_ddb import _zerlege_eintrag
+
+    body = ("Asteroid Spider\n\nGargantuan Monstrosity\n\n**Armor Class** 17\n\n"
+            "**Hit Points** 348 (24d20 + 96)\n\n### Traits\n\n***False Appearance.*** Still.\n\n"
+            "### Actions\n\n***Multiattack.*** Two attacks.\n")
+    teile = _zerlege_eintrag({"ddb_id": "RPGMonster:2506147", "title": "Asteroid Spider",
+                              "category": "monster", "body_md": body})
+    assert teile == [{"name": "Asteroid Spider", "body_md": body}]
+
+
+def test_fliesstext_abschnitt_wird_weiter_zerlegt():
+    """Gegenprobe: Buchkapitel (numerische ddb_id) tragen viele Eintraege je Abschnitt."""
+    from importer.import_ddb import _zerlege_eintrag
+
+    body = "## Fireball\n\nA bright streak flashes.\n\n## Fly\n\nYou touch a creature.\n"
+    teile = _zerlege_eintrag({"ddb_id": "42", "title": "F Spells", "category": "zauber",
+                              "body_md": body})
+    assert [t["name"] for t in teile] == ["Fireball", "Fly"]

@@ -90,3 +90,79 @@ def test_die_faelle_die_der_automatik_misslangen(kaputt, korrekt):
     """Genau die Zuordnungen, an denen beide Heuristik-Anläufe scheiterten - hier stehen
     sie als geprüfte Festlegung."""
     assert KURATIERTE_TITEL[kaputt] == korrekt
+
+
+# --- belegte Leerzeichen-Reparatur (23.09.2026) ---------------------------------------
+
+def _ws(*texte):
+    from importer.namensreparatur import wortschatz
+    return wortschatz(texte)
+
+
+def test_belegte_schliessung_waehlt_die_einzige_belegte_lesart():
+    """'DIE S PIELWERTE' war das Gegenbeispiel, an dem die Heuristiken scheiterten
+    ('DIES PIELWERTE'). Mit dem Buchtext als Beleg bleibt nur eine Lesart."""
+    from importer.namensreparatur import belegte_schliessung
+
+    ws = _ws("Die Spielwerte stehen hier. Die Spielwerte gelten.")
+    assert belegte_schliessung("DIE S PIELWERTE", ws) == "DIE SPIELWERTE"
+
+
+def test_belegte_schliessung_laesst_mehrdeutiges_stehen():
+    """'GEGE N STÄNDE': 'GEGENSTÄNDE' und 'GEGEN STÄNDE' sind beide belegbar - also
+    bleibt der Name zerrissen, statt einen der beiden zu raten."""
+    from importer.namensreparatur import belegte_schliessung
+
+    ws = _ws("Gegenstände und Gegenstände. Gegen die Stände, gegen die Stände.")
+    assert belegte_schliessung("GEGE N STÄNDE", ws) is None
+
+
+def test_belegte_schliessung_verbindet_keine_tokens_mit_ziffern_oder_satzzeichen():
+    """Ohne diese Grenze entstand am echten Bestand 'WIE DU 8TRAHDSPIELST'."""
+    from importer.namensreparatur import belegte_schliessung
+
+    ws = _ws("wie du spielst, wie du spielst")
+    assert belegte_schliessung("WIE DU 8TRAHD SPIELST", ws) is None
+    assert belegte_schliessung("K71. GEFREITEN Q,UARTIERE", _ws("gefreiten gefreiten")) is None
+
+
+def test_belegte_schliessung_fasst_saubere_namen_nicht_an():
+    from importer.namensreparatur import belegte_schliessung
+
+    ws = _ws("Kurze Rasten sind kurze Rasten.")
+    assert belegte_schliessung("KURZE RASTEN", ws) is None
+    assert belegte_schliessung("K URZE R ASTEN", ws) == "KURZE RASTEN"
+
+
+def test_wortschatz_ignoriert_kontextzeilen():
+    """Die Kontextzeile wiederholt zerrissene Eltern-Ueberschriften in jedem Kind - ein
+    Fragment darf dadurch nicht als belegtes Wort gelten."""
+    from importer.namensreparatur import belegte_schliessung
+
+    ws = _ws("*Kontext: B ATHHOUSE*\n\nThe bathhouse is quiet.",
+             "*Kontext: B ATHHOUSE*\n\nThe bathhouse is warm.")
+    assert "athhouse" not in ws
+    assert belegte_schliessung("B ATHHOUSE", ws) == "BATHHOUSE"
+
+
+def test_belegte_schliessung_verklebt_keine_echten_woerter():
+    """Erster Lauf am Pi-Bestand: 'FIRE NEWTS' -> 'FIRENEWTS', 'AURA DES WÄCHTERS' ->
+    'AURADESWÄCHTERS'. Die OCR verklebt Versalien auch im Fliesstext - das ist kein Beleg,
+    und zwei belegte Woerter trennt ein echtes Leerzeichen."""
+    from importer.namensreparatur import belegte_schliessung
+
+    ws = _ws("IrisShape IrisShape. The iris of a beholder has a shape.")
+    assert belegte_schliessung("BEHOLDER IRIS SHAPE", ws) is None
+    ws = _ws("Firenewts firenewts gibt es auch. The fire newts hunt.")
+    assert belegte_schliessung("FIRE NEWTS", ws) is None
+    ws = _ws("AURADESWÄCHTERS AURADESWÄCHTERS. Die Aura des Wächters, die Aura des Paladins.")
+    assert belegte_schliessung("AURA DES WÄCHTERS", ws) is None
+
+
+def test_belegte_schliessung_laesst_keine_rissreste_stehen():
+    """'H IT POI NTS' wurde im zweiten Lauf zu 'H IT POINTS': der Fliesstext fuehrt 'h'
+    als Rissrest. Kurze Tokens zaehlen nur als bekannte Kurzwoerter."""
+    from importer.namensreparatur import belegte_schliessung
+
+    ws = _ws("Hit points drop. Hit points rise.")
+    assert belegte_schliessung("H IT POI NTS", ws) == "HIT POINTS"

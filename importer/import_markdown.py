@@ -423,6 +423,113 @@ def _familienkoepfe(markdown: str) -> str:
     return markdown
 
 
+# Kuratierte Statblock-Verschiebungen (Pi-Audit 23.09.2026). Die Reste, die
+# `_srd_de_statblock_paare` bewusst nicht anfasst, weil sie nicht der regelmaessigen
+# 0-und-2-Form folgen. Jeder Eintrag ist EIN Fall: (Anfang, Ende exklusiv, Ziel, Ziel-danach)
+# fuer `_verschiebe`. Gefunden ueber die Gegenprobe gegen open5e-srd-2024: 22 deutsche
+# Monster wichen in HG/RK/TP vom englischen Wertekasten ab, und die Abweichungen gingen
+# paarweise auf - was dem einen fehlte, trug der andere. Nach der Verschiebung stimmen
+# alle 309 zuordenbaren Monster mit ihrer englischen Fassung ueberein.
+# Die Reihenfolge ist wesentlich, wo sich drei Eintraege gegenseitig beliehen haben
+# (Riesendachs/-eidechse/-eber, die drei Kupferdrachen).
+_SRD_DE_STATBLOCK_FAELLE: list[tuple[str, str, str, str | None]] = [
+    # Worg trug Attribute und HG 9 des Wolkenriesen.
+    # Der Anfang braucht den Kontext bis zur Fertigkeitenzeile: 'Stä 27 +8 +8' allein trifft
+    # schon einen Kasten 300.000 Zeichen frueher.
+    (r"<u>MOD RW MOD RW MOD RW</u> \*\*<mark>S</mark> tä\*\* <mark>27 \+8 \+8</mark>"
+     r"(?=[^\n]*\n+\*\*Fertigkeiten\*\* Motiv erkennen \+7, Wahrnehmung \+11)",
+     r"\*\*389\*\* Systemreferenzdokument",
+     r"###### <u>Aktionen</u>\s*\n+\*\*_Mehrfachangriff:_\*\* Der Riese führt zwei Angriffe "
+     r"mit Donnernder Streitkolben", None),
+    # Hobgoblin-Hauptmann trug Attribute, Ausruestung und HG 1/2 des Hobgoblin-Kriegers.
+    (r"\|\|MOD\|RW\|\|MOD\|RW\|\|\|MO\|D RW\|(?=\s*\n\|[-|]+\|\s*\n\|\*\*Stä\*\*13\|)",
+     r"\*\*332\*\* Systemreferenzdokument",
+     r"###### <u>Merkmale</u>\s*\n+\*\*_Rudeltaktik:_\*\* Der Hobgoblin", None),
+    # Schatten trug Fertigkeiten, Sprachen und HG des Satyrs.
+    (r"\*\*Fertigkeiten\*\* Auftreten \+6, Heimlichkeit \+5, Wahrnehmung \+2",
+     r"\*\*_Heimlicher Schatten:_\*\*",
+     r"###### <u>Merkmale</u>\s*\n+\*\*_Magieresistenz:_\*\* Der Satyr", None),
+    # Seevettel trug Sinne, Sprachen und HG des Seeogers.
+    (r"\*\*Sinne\*\* Dunkelsicht 18 m; Passive Wahrnehmung 10 \*\*Sprachen\*\* Abyssisch, "
+     r"Urtümlich \(Aqual\)", r"\*\*369\*\* Systemreferenzdokument",
+     r"###### <u>Merkmale</u>\s*\n+\*\*_Amphibisch:_\*\* Der Seeoger", None),
+    # Dryade: Kopf hinter dem Dschinni, Aktionen davor - dieselbe Form wie der
+    # Gruftschrecken, den `_srd_de_reparatur` (b6) schon behandelt.
+    (r"#### \*\*<mark>Dryade</mark>\*\*",
+     r"\*\*Immunitäten\*\* Blitz, Schall \*\*Sinne\*\* Dunkelsicht 36 m",
+     r"###### <u>Aktionen</u>\s*\n+\*\*_Mehrfachangriff:_\*\* Die Dryade", None),
+    # Ghul trug Immunitaeten, Merkmale und Mehrfachangriff der Geisternaga.
+    (r"\*\*Immunitäten\*\* Gift; Bezaubert, Vergiftet \*\*Sinne\*\* Dunkelsicht 18 m; Passive "
+     r"Wahrnehmung 12 \*\*Sprachen\*\* Abyssisch",
+     r"\*\*RK\*\* 12 \*\*Initiative\*\* \+2 \(12\) \*\*TP\*\* 22 \(5W8\)",
+     r"\*\*_Biss:_\*\* _Nahkampfangriffswurf:_ \+7, Reichweite 3 m\. _Treffer:_ 7 \(1W6\+4\)",
+     None),
+    # Ausgewachsener Bronzedrache trug die zweite Haelfte des Jungen Bronzedrachen.
+    (r"\*\*Fertigkeiten\*\* Heimlichkeit \+3, Motiv erkennen \+4, Wahrnehmung \+7\s*\n+"
+     r"\*\*Immunitäten\*\* Blitz",
+     r"\*\*_Mehrfachangriff:_\*\* Der Drache führt drei ZerfetzenAngriffe aus\. Er kann einen "
+     r"Angriff durch einen Einsatz von \(A\) Odem der Abstoßung",
+     r"#### \*\*<mark>Ausgewachsener Bronzedrache</mark>\*\*", None),
+    # Lemure trug Resistenzen, HG 9, Merkmale und Aktionen des Lehmgolems.
+    (r"\*\*Resistenzen\*\* Hieb, Stich, Wucht \*\*Immunitäten\*\* Gift, Psychisch, Säure",
+     r"\*\*_Höllische Genesung:_\*\*",
+     r"###### <u>Bonusaktionen</u>\s*\n+\*\*_Hast \(Aufladung 5–6\):_\*\* Der Golem", None),
+    # Solar: Kopf hinter den eigenen Aktionen. Danach steht 'Goettlicher Beistand' unter den
+    # Bonusaktionen, wo die englische Fassung ihn fuehrt.
+    (r"#### \*\*<mark>Solar</mark>\*\*", r"\*\*_Göttlicher Beistand \(3-mal täglich\):_\*\*",
+     r"\*\*_Magieresistenz:_\*\* Der Solar ist", None),
+    # Riesengeier trug die zweite Haelfte des Riesenhais.
+    (r"\*\*Fertigkeiten\*\* Wahrnehmung \+3 \*\*Sinne\*\* Blindsicht 18 m",
+     r"###### <u>Merkmale</u>\s*\n+\*\*_Rudeltaktik:_\*\* Der Geier",
+     r"\*\*Initiative\*\* \+2 \(12\)\s*\n+#### \*\*<mark>Riesenhyäne</mark>", None),
+    # Dreieck Riesendachs / Rieseneidechse / Rieseneber - in dieser Reihenfolge:
+    # (a) Fertigkeiten und Biss des Dachses aus der Eidechse zurueck zum Dachs,
+    (r"\*\*Fertigkeiten\*\* Wahrnehmung \+3 \*\*Resistenzen\*\* Gift \*\*Sinne\*\* Dunkelsicht "
+     r"18 m; Passive Wahrnehmung 13", r"#### \*\*<mark>Rieseneber</mark>\*\*",
+     r"###### <u>Aktionen</u>\s*\n+\*\*_Zerfleischen:_\*\* _Nahkampfangriffswurf:_ \+5, "
+     r"Reichweite 1,5 m\. _Treffer:_ 10 \(2W6\+4\)", None),
+    # (b) der Biss der Eidechse aus dem Eber zurueck zur Eidechse,
+    (r"\*\*_Biss:_\*\* _Nahkampfangriffswurf:_ \+4, Reichweite 1,5 m\. _Treffer:_ 6 \(1W8\+2\) "
+     r"Stichschaden\.\s*\n+(?=#### \*\*<mark>Riesenelch)", r"#### \*\*<mark>Riesenelch</mark>\*\*",
+     r"#### \*\*<mark>Rieseneber</mark>\*\*", None),
+    # (c) das Zerfleischen des Ebers aus dem Dachs zurueck zum Eber.
+    (r"###### <u>Aktionen</u>\s*\n+\*\*_Zerfleischen:_\*\* _Nahkampfangriffswurf:_ \+5, "
+     r"Reichweite 1,5 m\. _Treffer:_ 10 \(2W6\+4\)", r"#### \*\*<mark>Rieseneidechse</mark>\*\*",
+     r"#### \*\*<mark>Riesenelch</mark>\*\*", None),
+    # Dreieck der Kupferdrachen: (a) Aktionen des Jungen aus dem Nestling zum Jungen,
+    (r"\*\*_Mehrfachangriff:_\*\* Der Drache führt drei ZerfetzenAngriffe aus\. Er kann einen "
+     r"Angriff durch einen Einsatz von Bremsender Odem[^\n]*\n+\*\*_Zerfetzen:_\*\* "
+     r"_Nahkampfangriffswurf:_ \+7", r"\*\*340\*\* Systemreferenzdokument",
+     r"### \*\*Kupferdrachen\*\*", None),
+    # (b) Aktionen des Nestlings aus dem Kultistenfanatiker zum Nestling.
+    (r"###### <u>Aktionen</u>\s*\n+\*\*_Zerfetzen:_\*\* _Nahkampfangriffswurf:_ \+4, "
+     r"Reichweite 1,5 m\. _Treffer:_ 7 \(1W10\+2\)",
+     r"#### \*\*<u><mark>Junger Kupferdrache</mark></u>\*\*",
+     r"\*\*340\*\* Systemreferenzdokument", None),
+    # Der Speer des Kriegerinfanteristen stand beim Kultisten (2024 fuehrt der nur die Sichel).
+    (r"\*\*_Speer:_\*\* _Nah\S* oder Fernkampfangriffswurf:_ \+3, Reichweite 1,5 m oder "
+     r"Reichweite 6/18 m\. _Treffer:_ 4 \(1W6\+1\) Stichschaden\.\s*\n+(?=\*\*339\*\*)",
+     r"\*\*339\*\* Systemreferenzdokument",
+     r"#### \*\*<mark>Kriegerinfanterist</mark>\*\*", r"\n#{3,4} "),
+]
+
+
+def _srd_de_statblock_faelle(markdown: str) -> str:
+    """Die kuratierten Einzelfaelle oben anwenden - nach der Paar-Reparatur."""
+    for anfang, ende, ziel, danach in _SRD_DE_STATBLOCK_FAELLE:
+        markdown = _verschiebe(markdown, anfang, ende, ziel, danach)
+    # Die Initiative der Riesenhyaene stand als eigene Zeile beim Riesenhai; ihre
+    # RK-Zeile trug keine. Kein Block, deshalb kein `_verschiebe`.
+    vorher = markdown
+    markdown = re.sub(r"\*\*Initiative\*\* \+2 \(12\)\s*\n+(#### \*\*<mark>Riesenhyäne</mark>\*\*)",
+                      r"\1", markdown, count=1)
+    markdown = re.sub(r"(\*\*RK\*\* 12) (\*\*TP\*\* 45 \(6W10\+12\))",
+                      r"\1 **Initiative** +2 (12) \2", markdown, count=1)
+    if markdown.count("**Initiative** +2 (12)") != vorher.count("**Initiative** +2 (12)"):
+        _BILANZ.greift_nicht("_srd_de_statblock_faelle (Riesenhyaene-Initiative)")
+    return markdown
+
+
 def _srd_de_reparatur(markdown: str) -> str:
     """Kuratierte Strukturreparaturen des dt. SRD 5.2.1 (Review-/Synthese-Funde
     2026-07-12, alle am gerenderten PDF bzw. am englischen SRD 5.2 gegengeprueft).
@@ -731,14 +838,108 @@ _SCAN_GEGENSTAND_TYPZEILE = (
     r"|sehr selten|legendär|Seltenheit)[^\n]*?)\s*\**\s*$",
     r"_\1_")
 
+# --- OCR-Bereinigung der Scans (Pi-Audit 23.09.2026) -----------------------------------
+# Nur was EINDEUTIG ist: jede Korrektur hier hat genau eine gueltige Lesart, und die
+# pruefbaren (Trefferpunkte, Attribute) muessen gegen die im Buch gedruckte Gegenprobe
+# aufgehen. Mehrdeutiges ('6W7', '1W61') bleibt stehen und in der Logikpruefung sichtbar.
+_SCANS = ("phb-2014-de", "xgte-2014-de", "scag-2014-de", "dmg-2014-de", "mm-2014-de",
+          "cos-2014-de", "cos-2014-en", "bgdia-2014-en", "tcoe-2014-en", "vgtm-2014-en")
+_WUERFELGROESSEN = {2, 3, 4, 6, 8, 10, 12, 20, 100}
+# 'W1O': Buchstabe O statt Null - 38-mal allein im Spielerhandbuch.
+_W1O = re.compile(r"(\d+)\s*([WwDd])1[Oo]\b")
+# 'W1 2' / 'W1 0': ein Riss in der Wuerfelgroesse. W1 gibt es nicht, W12/W10 schon.
+_W1_RISS = re.compile(r"(\d+)\s*([WwDd])1 ([02])(?!\d)")
+# Trefferpunkte mit Formel, deutsch und englisch, wie die Scans sie setzen.
+_TP_SCAN = re.compile(
+    r"(\d+)(\s*\**\s*\(\s*)(\d+)([WwDd])(\d+)(\s*(?:([+\-−–])\s*(\d+))?\s*\\?\))")
+# Ein Attributswert mit Modifikator: '14 (+2)'.
+_ATTR_SCAN = re.compile(r"(?<![\d,.])(\d{2})(\s*\(\s*)([+\-−–])(\s*)(\d+)(\s*\))")
+
+
+def _sieben_eins_varianten(zahl: str) -> list[str]:
+    """Alle Lesarten, in denen eine oder mehrere '7' eigentlich '1' sind - die
+    haeufigste Ziffernverwechslung der Scans ('CHA 74 (+2)' statt 14)."""
+    stellen = [i for i, z in enumerate(zahl) if z == "7"]
+    varianten = []
+    for maske in range(1, 1 << len(stellen)):
+        z = list(zahl)
+        for bit, i in enumerate(stellen):
+            if maske >> bit & 1:
+                z[i] = "1"
+        varianten.append("".join(z))
+    return varianten
+
+
+def _scan_tp_formel(m: re.Match) -> str:
+    gesamt, anzahl, groesse = m.group(1), m.group(3), m.group(5)
+    if int(groesse) in _WUERFELGROESSEN:
+        return m.group(0)
+    bonus = int(m.group(8) or 0) * (-1 if (m.group(7) or "+") in "-−–" else 1)
+    treffer = set()
+    for a in [anzahl] + _sieben_eins_varianten(anzahl):
+        for g in _sieben_eins_varianten(groesse):
+            if int(g) in _WUERFELGROESSEN and int(a) > 0 and \
+                    abs(int(a) * (int(g) + 1) / 2 + bonus - int(gesamt)) <= 1:
+                treffer.add((a, g))
+    if len(treffer) != 1:
+        return m.group(0)
+    a, g = treffer.pop()
+    return f"{gesamt}{m.group(2)}{a}{m.group(4)}{g}{m.group(6)}"
+
+
+def _scan_attribut(m: re.Match) -> str:
+    wert = m.group(1)
+    if int(wert) <= 30:
+        return m.group(0)                       # moeglich - nichts zu entscheiden
+    mod = int(m.group(5)) * (-1 if m.group(3) in "-−–" else 1)
+    passend = {v for v in _sieben_eins_varianten(wert)
+               if 1 <= int(v) <= 30 and (int(v) - 10) // 2 == mod}
+    if len(passend) != 1:
+        return m.group(0)
+    return passend.pop() + m.group(0)[len(wert):]
+
+
+def _scan_ocr_bereinigung(markdown: str) -> str:
+    """Eindeutige OCR-Schaeden der Scans: Muell-Ueberschriften, Ersatzzeichen am Namensrand,
+    Wuerfel mit Buchstabe O oder Riss, 7-statt-1 in Trefferpunkten und Attributen.
+
+    Muell-Ueberschrift heisst: weniger als die Haelfte der Zeichen sind Buchstaben ('7,',
+    '--- ------', '. Roe OF MOUNT d�.;'). Als Eintragsgrenze erzeugten sie namenlose
+    Eintraege, und das Spielerhandbuch-'7,' stand als Kontext ueber 776 Eintraegen. Sie
+    werden zu gewoehnlichen Textzeilen. Das '�' am NAMENSRAND ist reines Rauschen - der
+    Buchtitel 'TASHA'S CAULDRON OF EVERYTHING�' trug es in alle 877 Kontextzeilen. Im
+    Wortinneren bleibt es stehen: dort fehlt ein Buchstabe, und welcher, steht nicht da."""
+    zeilen = markdown.split("\n")
+    for i, zeile in enumerate(zeilen):
+        m = re.match(r"^(#{1,6})\s+(.*?)\s*$", zeile)
+        if not m:
+            continue
+        text = m.group(2).strip().strip("�").strip()
+        kern = re.sub(r"[\s*_]", "", text)
+        buchstaben = sum(ch.isalpha() for ch in kern)
+        if not kern or buchstaben * 2 < len(kern):
+            zeilen[i] = re.sub(r"[*_]", "", text)
+        else:
+            zeilen[i] = f"{m.group(1)} {text}"
+    markdown = "\n".join(zeilen)
+    markdown = _W1O.sub(lambda m: f"{m.group(1)}{m.group(2)}10", markdown)
+    markdown = _W1_RISS.sub(lambda m: f"{m.group(1)}{m.group(2)}1{m.group(3)}", markdown)
+    markdown = _TP_SCAN.sub(_scan_tp_formel, markdown)
+    return _ATTR_SCAN.sub(_scan_attribut, markdown)
+
+
 BEREINIGUNG: dict[str, list] = {
-    "mm-2014-de": [_scan_wertekasten_koepfe],
-    "cos-2014-de": [_scan_wertekasten_koepfe],
-    "bgdia-2014-en": [_scan_wertekasten_koepfe],
-    "cos-2014-en": [_scan_wertekasten_koepfe],
-    "tcoe-2014-en": [_scan_wertekasten_koepfe],
-    "vgtm-2014-en": [_scan_wertekasten_koepfe],
-    "dmg-2014-de": [_scan_wertekasten_koepfe, _SCAN_GEGENSTAND_TYPZEILE],
+    "mm-2014-de": [_scan_ocr_bereinigung, _scan_wertekasten_koepfe],
+    "cos-2014-de": [_scan_ocr_bereinigung, _scan_wertekasten_koepfe],
+    "bgdia-2014-en": [_scan_ocr_bereinigung, _scan_wertekasten_koepfe],
+    "cos-2014-en": [_scan_ocr_bereinigung, _scan_wertekasten_koepfe],
+    "tcoe-2014-en": [_scan_ocr_bereinigung, _scan_wertekasten_koepfe],
+    "vgtm-2014-en": [_scan_ocr_bereinigung, _scan_wertekasten_koepfe],
+    "dmg-2014-de": [_scan_ocr_bereinigung, _scan_wertekasten_koepfe,
+                    _SCAN_GEGENSTAND_TYPZEILE],
+    "phb-2014-de": [_scan_ocr_bereinigung, _scan_wertekasten_koepfe],
+    "xgte-2014-de": [_scan_ocr_bereinigung, _scan_wertekasten_koepfe],
+    "scag-2014-de": [_scan_ocr_bereinigung, _scan_wertekasten_koepfe],
     "errata-phb-2024-en": [_errata_headings],
     "errata-dmg-2024-en": [_errata_headings],
     "errata-mm-2025-en": [_errata_headings],
@@ -758,6 +959,7 @@ BEREINIGUNG: dict[str, list] = {
         # VOR _srd_de_reparatur: Der Statblock-Zuschnitt muss stimmen, bevor die
         # kuratierten Einzelverschiebungen ihre Anker suchen.
         _srd_de_statblock_paare,
+        _srd_de_statblock_faelle,     # die unregelmaessigen Reste, kuratiert
         _srd_de_reparatur,
         # NACH den kuratierten Reparaturen: Der Gruftschrecken/Grul-Fall wird dort
         # aufgeloest, und eine Familien-Ueberschrift, die vorher noch fremden Text trug,

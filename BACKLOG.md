@@ -375,52 +375,6 @@ Was von einem Lauf dauerhaft gilt, gehört als Aussage in §1 (offene Arbeit), �
   Eintragsbeleg", hielt der Prüfung nicht stand: Das Erratum `Grappling` belegt die
   Zuordnung wörtlich, und das Glossar führte `Gepackt halten ↔ Grappling` über
   `seed_regelglossar` längst. Es fehlte allein die Suchvariante `grapple`.
-- ⬜ **2 verbleibende Facetten-Widersprüche** (ursprünglich 8; am 14.08.2026 einzeln
-  geprüft, drei aufgelöst, drei waren gar keine — siehe unten):
-  - `Tasha's Hideous Laughter` / `Mind Spike` in `ddb-br-2024-en`: dort Grad 0 und Schule
-    „Hervorrufung", während `ddb-phb-2024-en` **und** `open5e-srd-2024` übereinstimmend
-    Grad 1/Verzauberung bzw. 2/Erkenntnis nennen. Zwei unabhängige Quellen gegen eine →
-    Extraktionsschaden in `ddb-br-2024-en` (die Kopfzeile eines Zaubertricks aus dem
-    Nachbarblock). Offen ist nur noch die Form der Behebung: Re-Import dieser Quelle oder
-    Eintrag ins Quellfehler-Register.
-  - `Krabbe`: srd-de nennt HG 2, `open5e-srd-2024` für `Crab` HG 0. Am PDF nachgesehen —
-    die deutsche Textschicht liefert `**Sprachen HG** 2 (EP 450; ÜB +2)` mit verschmolzenen
-    Labels, und direkt daneben steht „Der **Hai** kann nur unter Wasser atmen". Der HG 2
-    gehört dem Hai; Krabbes eigener Wert fehlt in der deutschen Fassung ganz. Ihn aus der
-    englischen zu übernehmen wäre quellenübergreifendes Raten — die ehrliche Behebung ist
-    NULL statt 2 (dieselbe Doktrin wie bei `seltenheit`).
-  - *Aufgelöst:* `Summon Celestial/Elemental/Fey` waren **kein** Datenfehler. Die drei
-    deutschen Namen trugen je zwei offizielle englische Partner; die Grade des deutschen
-    SRD (7/5/6) gehören zu *Conjure* Celestial/Elemental/Fey, nicht zu *Summon* (5/4/3).
-    Der Fassungsabgleich verglich zwei verschiedene Zauber. Die Brücke ist seit dem
-    14.08.2026 nach Grad kanonisiert ([CONCEPT.md](CONCEPT.md) §10).
-- ⬜ **8 verschmolzene Statblöcke im `srd-de`-Import** (Ausgewachsener Bronzedrache,
-  Dryade, Ghul, Lemure, Priester, Schreckhahn, Seevettel, Worg): Der Text enthält jeweils
-  Felder des Nachbareintrags. Die **Facetten** sind seit dem Fassungsabgleich richtig (er
-  hat am 11.08.2026 den Ghul von HG 8 auf 1 gezogen — der Wert stammte vom Geisternaga-Kopf
-  im selben Chunk), der **Text** bleibt beschädigt; das Modell hält ihn beim Vorlesen
-  auseinander (im Simulationslauf hat es das getan und dazugesagt).
-
-  *Am 14.08.2026 nachgemessen und korrigiert:* Es sind acht, nicht neun. Dschinni,
-  Gruftschrecken und Hobgoblin-Hauptmann sind nicht betroffen, dafür fehlten drei andere —
-  eine Zahl, die als Prosa dasteht, rechnet niemand nach. Seither zählt sie
-  `admin check` gegen einen Basiswert (`config/qualitaet_basis.json`).
-
-  Die Ursache ist **nicht** das Chunking, sondern die **Zweispalten-Textschicht des PDF**:
-  Schon im Roh-Markdown steht der Schwanz der Geisternaga zwischen Ghuls Typzeile und
-  Ghuls eigener `**RK**`-Zeile. Dieselbe Ursache wie die fünf leeren Sektionen — dort geht
-  Text verloren, hier landet er beim Falschen. Eine nachträgliche Textchirurgie ist bewusst
-  **verworfen**: Sie müsste entscheiden, wohin das Fremdstück gehört, und der Nachbar in
-  Eintragsreihenfolge ist nicht die Antwort (zwischen Geisternaga und Ghul steht
-  „Gemeiner"). Die Behebung sitzt in einer spaltenbewussten Extraktion.
-
-Aus der abgeschlossenen Datenbank-QS und dem Tiefen-Audit der DDB-Druck-Bücher. Alles
-dokumentiert, nichts blockiert die Runde.
-
-**Diese Liste führt nur OFFENES.** Behobenes und Gemessen-und-verworfenes wandert ins
-Entscheidungsregister ([CONCEPT.md](CONCEPT.md) §10) oder zu den Gotchas (§12) — dort wird es
-gelesen, wenn jemand die Stelle anfasst, statt hier als Dauer-Eintrag mitzuwachsen.
-
 | Fund | Schwere | Warum offen gelassen |
 |---|---|---|
 | `fingerabdruck` erkennt **Komponenten nie** und liest `Range` aus `Ranger` | niedrig | Bleibt roh: der Abdruck ist die Beweisgrundlage der 106 Zauber-Brücken, eine „Reparatur" verschiebt Glossar-Paare. Volle Begründung und der Umweg über `kopf_felder()`: [CONCEPT.md](CONCEPT.md) §12 |
@@ -437,9 +391,7 @@ gelesen, wenn jemand die Stelle anfasst, statt hier als Dauer-Eintrag mitzuwachs
 | 24 Abschnitte des Zauberkapitels tragen `kategorie = "zauber"` (`Dauer`, `Effekte`, `Verbalkomponente (V)`) | niedrig | Der Breadcrumb (`*Kontext: Zauber > Zauber wirken*`) weist sie im Antworttext bereits als Regelabschnitt aus. Ein automatischer Korrektor über den Zauberkopf-Detektor wurde **gemessen und verworfen**: er stufte 134 statt 24 Einträge herab, hätte also echte Zauber verborgen — schlimmer als der Befund |
 | `ddb-br-2024-en` ist ein Vor-Errata-Snapshot: drei Conjure-Zauber mit alter Skalierung (2d8/2d12), „Mind Spike"/„Tashas Gelächter" mit falscher Kopfzeile („Evocation Cantrip") | niedrig | Audit 03.08.2026: nur als explizit ladbare Fremdfassung erreichbar — kanonisch gewinnt überall srd-de mit korrekten Werten. Fix wäre ein DDB-Re-Export; lohnt erst, wenn DDB die Free Rules selbst aktualisiert |
 | open5e „Axe Beak" mit 1W6-Schnabel, wo srd-de UND DDB 1W8 führen | niedrig | SRD-5.2-Altstand der API-Quelle; die Präzedenz (Band 20 vor 60) serviert den richtigen Wert |
-| `phb-2014-de` quantifiziert: 45 Würfel-OCR-Risse („1W1O", „2W1 2"), 27 Anhang-D-Statblöcke als namenlose „AKTIONEN"-Chunks, 776 Breadcrumbs „7," | niedrig | bekannter Scan-Qualitätsstand des 2014-Bandes (Band 80, dient Begriffen und Altregeln); Nacharbeit lohnt erst mit dem echten dt. PHB 2024 (M1) |
 | **Rest-Streuung im Antwortgerüst** | niedrig | Nicht geschlossen. Der Volllauf am Pi-Vollbestand (09.08.2026, 25 Fälle) endete mit fünf Fehlschlägen (B3, D1, DC3, DC4, F2), vier davon weich. Gezielte Wiederholungsläufe derselben Fälle beanstandeten jedes Mal etwas **anderes** — D1 einmal „Regeltext mit Ableitung vermischt", beim zweiten Lauf die fehlende Kopfzeile; F2 einmal ein fehlendes Pflicht-Fragment, dann die fehlende Belegzeile. Es streut also die Antwort UND das Urteil, weshalb ein einzelner Lauf hier nichts beweist. DC3/DC4 fielen schon am 08.08.2026 durch, B3 hängt am bekannten Datenposten eine Zeile weiter (leere Statblock-Abschnitte). Nächster Schritt: über mehrere Läufe je Fall aggregieren, bevor an einem Prompt-Kanal etwas geändert wird — die Erfahrung ist, dass zuerst das Prüfmuster verdächtig ist, nicht das Verhalten |
-| **srd-de: fünf Statblock-Abschnitte tragen eine Überschrift ohne Inhalt** (Solar/Bonusaktionen, Kriegerinfanterist/Aktionen, Junger Kupferdrache/Aktionen, Lemure/Merkmale, Vampir/Merkmale) | niedrig | Zweispalten-Riss der PDF-Textschicht: Der Inhalt ist beim Import in den Nachbarblock gerutscht. `admin check` zählt sie seit 07.08.2026 gegen den Basiswert, ein Anstieg bricht den Deploy. Behebung erst mit einem srd-de-Re-Import — mit den bekannten Re-Import-Fallen (Facetten, Namensreparatur) |
 | DDB-Einträge tragen Buch-Layout im Regeltext: Werbe-Taglines und Illustratoren-Credits („Ignatius Budi" beim Undead Patron, Befund 06.08.2026) | niedrig | Der DDB-Import filtert bisher nur Kapitelköpfe über den Namen, keine Artefakte im Text; die Verhaltensregel B14 hält sie aus den Antworten. Ein Import-Filter braucht einen eigenen Durchgang samt Re-Import — mit den bekannten Re-Import-Fallen (Facetten, Namensreparatur) |
 
 ---

@@ -194,3 +194,12 @@ def test_echte_toleranz_bleibt_erhalten():
     assert f.schule_schluessel("Evocation") == "hervorrufung"
     assert f.schadensart_schluessel("fire") == "feuer"
     assert f.schadensart_schluessel("Feuer") == "feuer"
+
+
+def test_zaubergrad_mit_markdown_escape_aus_ddb():
+    """Die 2014er Basic Rules aus D&D Beyond setzen '2nd\\-level' - ohne den Backslash im
+    Muster blieben 281 von 313 Zaubern ohne Grad und fielen aus jedem Gradfilter."""
+    from app.facetten import zauber_grad
+
+    assert zauber_grad("*Kontext: A Spells*\n\n2nd\\-level abjuration\n\nCasting Time") == 2
+    assert zauber_grad("3rd-level evocation") == 3
