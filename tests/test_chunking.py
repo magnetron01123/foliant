@@ -748,3 +748,12 @@ def test_scan_ocr_bereinigung_laesst_kuratierte_titel_stehen():
 
     for roh in KURATIERTE_TITEL:
         assert bereinige(f"###### {roh}") == f"###### {roh.strip()}", roh
+
+
+def test_scan_ocr_bereinigung_einzelnes_kleines_zeichen_ist_keine_ueberschrift():
+    """'r' stand im Spielerhandbuch als oberste Ueberschrift ueber hunderten Eintraegen.
+    Grosse Einzelbuchstaben bleiben - sie sind Registerkoepfe und werden ueber
+    SKIP_NAMEN behandelt, nicht hier."""
+    from importer.import_markdown import _scan_ocr_bereinigung as bereinige
+
+    assert bereinige("# r\n###### Q") == "r\n###### Q"
