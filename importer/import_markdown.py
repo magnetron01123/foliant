@@ -52,7 +52,9 @@ SKIP_NAMEN: dict[str, "re.Pattern[str]"] = {
     # 2014-Scans: am Buchende versagt die Heading-Erkennung, der letzte Abschnitt
     # sammelt alles bis zum Dokumentende ein (im PHB 130 kB: Leseliste + Register).
     # Reiner Ballast im Volltextindex - der Regelinhalt der Baende steht davor.
-    "phb-2014-de": re.compile(r"^ANHANG E\b|^INHALTSVERZEICHNIS$"),
+    # Die Registerbuchstaben ('Q', 'U') tragen nur Stichwortverzeichnis - seit pymupdf
+    # 1.28.2 als eigene Ueberschriften (23.09.2026), wie in DMG und MM.
+    "phb-2014-de": re.compile(r"^ANHANG E\b|^INHALTSVERZEICHNIS$|^[A-ZÄÖÜ]$"),
     "xgte-2014-de": re.compile(r"^INHALTSVERZEICHNIS$"),
     "scag-2014-de": re.compile(r"^INHALT$"),
     # Das Register am Buchende zerfaellt in Buchstaben- und Stichwort-"Eintraege"
@@ -917,7 +919,9 @@ def _scan_ocr_bereinigung(markdown: str) -> str:
         text = m.group(2).strip().strip("�").strip()
         kern = re.sub(r"[\s*_]", "", text)
         buchstaben = sum(ch.isalpha() for ch in kern)
-        if not kern or buchstaben * 2 < len(kern):
+        # Ein einzelnes kleines Zeichen ('r') ist ebenfalls Muell: im Spielerhandbuch stand
+        # es als oberste Ueberschrift ueber hunderten Eintraegen, wie zuvor '7,'.
+        if not kern or buchstaben * 2 < len(kern) or (len(kern) <= 2 and kern.islower()):
             zeilen[i] = re.sub(r"[*_]", "", text)
         else:
             zeilen[i] = f"{m.group(1)} {text}"

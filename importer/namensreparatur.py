@@ -206,6 +206,14 @@ KURATIERTE_TITEL: dict[str, str] = {
     # pymupdf 1.28.2 ohne trennende Fettmarken und damit sichtbar (23.09.2026);
     # 'Riesenfliege' steht zweimal im Bestand.
     "Riesenf l iege": "Riesenfliege",
+    # Seit pymupdf 1.28.2 liest der Konverter die OCR-Ueberschriften der 2014-Scans leicht
+    # anders; die kuratierten Schluessel darueber trafen die neuen Rohformen nicht mehr
+    # (23.09.2026). Jede Lesart ist am Eintragstext belegt:
+    "So Z Z TALE INTERAKTION": "SOZIALE INTERAKTION",
+    "ESSEN UND TRI NK~ N": "ESSEN UND TRINKEN",              # Text: 'nicht essen und trinken'
+    "B~U NO SB 0 N US": "ÜBUNGSBONUS",                       # Text: 'besitzen einen Übungsbonus'
+    "ATTR 1 BUTS4WE RTE UND MODi Fl KATO I~E N": "ATTRIBUTSWERTE UND MODIFIKATOREN",  # Tabelle Wert/Modifikator
+    "SPANISCH, M Ä NNLICH": "SPANISCH, MÄNNLICH",            # Namenstabelle, xgte-2014-de
     "’ UPPER TAVICK S LANDING": "UPPER TAVICK'S LANDING",   # englischer Ortsname (efota-en)
 }
 
