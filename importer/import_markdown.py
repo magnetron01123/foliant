@@ -173,7 +173,10 @@ SPLIT_REGELN: dict[str, list[tuple[str, int, str | None]]] = {
     # BEGRIFFSQUELLE (S7/S8), nicht als strukturierter Zauber-/Monsterkatalog - eine
     # feinere Zuordnung waere an den OCR-verstuemmelten Kapitelnamen ('ANPASSUNOS-
     # MOEGLICHKEITEN') geraten, und geraten wird hier nichts.
-    "phb-2014-de": [(r"", 6, "regel")],
+    # Unter 'ANHANG E' stehen nur Leseliste und Stichwortverzeichnis. Seit die
+    # Registerbuchstaben uebersprungen werden, sammelte sonst ein zufaelliges Registerwort
+    # ('urchetypen') 29.000 Zeichen Seitenzahlen ein (24.09.2026).
+    "phb-2014-de": [(r"ANHANG E\b", 6, None), (r"", 6, "regel")],
     "xgte-2014-de": [(r"", 6, "regel")],
     "scag-2014-de": [(r"", 6, "regel")],
     # Spielleiter- und Monsterhandbuch 2014: derselbe Aufbau, am 20.09.2026 ausgezaehlt
