@@ -24,7 +24,7 @@ ausgefüllten offiziellen deutschen WotC-Bogen 2024, druckbar.
 ## Stand (23.09.2026)
 
 **Läuft, wird benutzt — der Tisch-Test steht noch aus.** Der Server läuft auf einem
-Raspberry Pi 4: 19 288 Einträge aus 34 Quellen (dt. SRD 5.2.1, sechs deutsche 2014-Bücher,
+Raspberry Pi 4: 19 286 Einträge aus 34 Quellen (dt. SRD 5.2.1, sechs deutsche 2014-Bücher,
 Open5e, D&D-Beyond-Bücher, englische 2014-Bände, elf Errata-Bände, Sage Advice), 6 Tools, Zugang über geheimen Pfad +
 IP-Allowlist. Seit dem 26.08.2026 hängt der MCP am geteilten Router des Geräts
 (`mcp.magnetron.me`), `dnd.magnetron.me` trägt nur noch die Website; seit dem 02.09.2026
