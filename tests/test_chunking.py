@@ -757,3 +757,15 @@ def test_scan_ocr_bereinigung_einzelnes_kleines_zeichen_ist_keine_ueberschrift()
     from importer.import_markdown import _scan_ocr_bereinigung as bereinige
 
     assert bereinige("# r\n###### Q") == "r\n###### Q"
+
+
+def test_phb_2014_ueberspringt_alles_unter_anhang_e():
+    """Leseliste und Register: Unter 'ANHANG E' steht kein Regeltext mehr."""
+    from importer.import_markdown import SKIP_NAMEN, SPLIT_REGELN, _chunks
+
+    md = "\n".join(["# 7", "###### **KAVALIER**", "Regeltext.",
+                    "##### **ANHANG E: LEKTÜRE ZUR INSPIRATION**", "Leseliste.",
+                    "###### urchetypen", "Abenteuer, 3 Aktionen, 189 " * 50])
+    namen = [c["name"] for c in _chunks(md, split_regeln=SPLIT_REGELN["phb-2014-de"],
+                                        skip_namen=SKIP_NAMEN["phb-2014-de"])]
+    assert namen == ["KAVALIER"], namen
