@@ -2,10 +2,10 @@
   "_zweck": "Erwarteter Korpus-Sollstand des Produktionsbestands. Vergleichsgrundlage fuer `admin check --vollbestand`: Eine fehlende Quelle oder ein Einbruch der Eintragszahl faellt damit auf, statt als neuer Basiswert durchzugehen.",
   "_pflege": "Nach einem beabsichtigten Import neu erheben: make soll-vom-pi (schreibt diese Datei).",
   "_ohne_titel": "Buchtitel stehen bewusst NICHT hier - ob DDB-Titel oeffentlich stehen duerfen, ist offen (BACKLOG M9). Die Kuerzel stehen ohnehin schon im Repo.",
-  "erhoben_an": "2026-09-24",
+  "erhoben_an": "2026-09-25",
   "schema_version": 3,
-  "eintraege_gesamt": 19288,
-  "glossar_zeilen": 3849,
+  "eintraege_gesamt": 19286,
+  "glossar_zeilen": 3856,
   "quellen": [
     {
       "kuerzel": "srd-de",
@@ -208,7 +208,7 @@
       "edition": "2014",
       "sprache": "de",
       "inhaltsart": "regelwerk",
-      "eintraege": 1469
+      "eintraege": 1467
     },
     {
       "kuerzel": "dmg-2014-de",

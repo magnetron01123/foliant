@@ -7,7 +7,7 @@
 # Erneuern nach einem beabsichtigten Import:  make register-vom-pi
 # Buchtitel fehlen bewusst; beim Wiederherstellen von Hand nachtragen.
 #
-# Stand: 2026-09-24
+# Stand: 2026-09-25
 
 [[quelle]]
 kuerzel = "srd-de"
