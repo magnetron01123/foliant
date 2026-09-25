@@ -250,7 +250,7 @@ def test_zauberlisten_abschnitt_ist_keine_unterklasse(bestand):
 
 
 def test_waisen_hinweis_ist_handlungsanweisung(bestand):
-    """Der Hinweis einer echten Waise muss dem Modell sagen, was es TUN soll (Option
+    """Der Hinweis zu einer fehlenden Klasse muss dem Modell sagen, was es TUN soll (Option
     anbieten), nicht wie die Datenlage aussieht. Aus 'Zugehoerige Klasse nicht im
     Bestand.' hat der Bot 'kann keinen Steckbrief liefern' gemacht - dabei ist die
     Unterklasse selbst vollstaendig abrufbar."""
@@ -258,27 +258,63 @@ def test_waisen_hinweis_ist_handlungsanweisung(bestand):
     waisen = [k for k in r["klassen"] if k.get("hinweis")]
     assert waisen, "Waisen-Fall nicht erzeugt - Fixture pruefen"
     for w in waisen:
-        assert "Waehlbare Unterklasse" in w["hinweis"]
+        assert "waehlbar" in w["hinweis"]
         assert "Option anbieten" in w["hinweis"]
 
 
-def test_zwei_waisen_derselben_fehlenden_klasse_stuerzen_nicht_ab(bestand):
-    """L4 - 'ALCHEMIST (ARTIFICER)' wird zur Waisen-Zeile, weil der Artificer keine
-    Klassen-Zeile im Bestand hat. Die zweite Artificer-Unterklasse findet diese Zeile
-    dann als Ziel wieder - und griff auf ein Feld zu, das nur echte Klassen-Zeilen
-    tragen. Ergebnis war ein KeyError: das ganze Werkzeug fiel aus, statt eine
-    unvollstaendige Liste zu liefern.
+def test_waisen_haengen_unter_einem_platzhalter_ihrer_klasse(bestand):
+    """L4 und Nutzertest 25.09.2026 - drei Unterklassen einer Klasse, die es im Bestand
+    NICHT gibt. Frueher wurde die erste Waise selbst zur Gruppenzeile ('ALCHEMIST' als
+    Klasse, die anderen darunter) - je nach Quellenprioritaet stand so 'Reanimator' in der
+    Klassenliste. Jetzt fuehrt eine Platzhalterzeile mit dem Klassennamen, ohne eintrag_id,
+    weil es keinen Grundeintrag gibt.
 
-    Der Absturz war schon vor L3 erreichbar - ueber zwei Open5e-Unterklassen mit
-    '*Subclass of: X*' zu einem nicht importierten X. Ueber die Druckquellen wurde er
-    erst durch L3 erreichbar, weil deren Unterklassen vorher gar nicht erst in der
-    Zuordnungsschleife ankamen. Verifiziert am 30.07.2026: mit L3 und ohne setdefault
-    wirft dieser Fall KeyError: 'unterklassen'."""
+    Die zweite Waise findet die erste Zeile als Ziel wieder; ohne setdefault war das ein
+    KeyError: 'unterklassen' (verifiziert am 30.07.2026)."""
     r = ch.foliant_liste_optionen("klasse")                      # darf schlicht nicht werfen
     waisen = [k for k in r["klassen"] if k.get("hinweis")]
-    assert waisen, "Waisen-Fall nicht erzeugt - Fixture pruefen"
-    assert all("nicht im Bestand" in w["hinweis"] for w in waisen), \
-        "Waise ohne ehrlichen Hinweis - sie saehe wie eine waehlbare Klasse aus (B2)"
+    assert len(waisen) == 1, [w["anzeige"] for w in waisen]
+    platzhalter = waisen[0]
+    assert platzhalter["name_en"] == "Artificer"
+    assert "eintrag_id" not in platzhalter
+    assert "nicht im Bestand" in platzhalter["hinweis"], \
+        "Platzhalter ohne ehrlichen Hinweis - er saehe wie eine waehlbare Klasse aus (B2)"
+    namen = {u["name_en"] for u in platzhalter["unterklassen"]}
+    assert namen == {"ALCHEMIST", "ARMORER", "Cartographer"}
+
+
+def test_klassenkapitel_mit_kernmerkmalen_ist_klassenzeile(bestand):
+    """efota hat keinen Eintrag, der wie die Klasse heisst - die Merkmalstabelle 'CORE
+    ARTIFICER TRAITS' direkt unter 'THE ARTIFICER' ist der Grundeintrag. Ohne diese
+    Erkennung stand der Artificer nur als Platzhalter in der Liste (Nutzertest 25.09.2026)."""
+    con = sqlite3.connect(bestand)
+    con.execute(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (2,'klasse',NULL,'CORE ARTIFICER TRAITS','en','2024','10',"
+        "'*Kontext: THE ARTIFICER*\n\n|**Primary Ability**|Intelligence|')")
+    con.commit()
+    con.close()
+    klassen = ch.foliant_liste_optionen("klasse")["klassen"]
+    artificer = next(k for k in klassen if k["name_en"] == "Artificer")
+    assert not artificer.get("hinweis")
+    assert artificer.get("eintrag_id")
+    assert {u["name_en"] for u in artificer["unterklassen"]} == {
+        "ALCHEMIST", "ARMORER", "Cartographer"}
+    assert "CORE ARTIFICER TRAITS" not in {k["name_en"] for k in klassen}
+
+
+def test_klassen_abschnitt_unter_klassen_ist_keine_klasse(bestand):
+    """Im srd-de-Druck (S. 33) steht 'Ein Barbar werden ...' durch eine vertauschte
+    Ueberschrift direkt unter 'Klassen' - und kam so als eigene Klasse in die Liste."""
+    con = sqlite3.connect(bestand)
+    con.execute(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (1,'klasse','Ein Barbar werden ...',NULL,'de','2024','33',"
+        "'*Kontext: Klassen*\n\nAls Charakter der 1. Stufe ...')")
+    con.commit()
+    con.close()
+    klassen = ch.foliant_liste_optionen("klasse")["klassen"]
+    assert "Ein Barbar werden ..." not in {k["name_de"] for k in klassen}
 
 
 def test_unterabschnitte_bleiben_aus_beiden_listen_draussen(bestand):

@@ -494,6 +494,8 @@ def test_golden_waffeneigenschaft_als_regel_gefragt_ist_kein_leerbefund():
         assert anders, f"{begriff}: kein Rueckfall ({d.get('hinweis')})"
         assert anders[0]["kategorie"] == "gegenstand", anders[0]
         assert "Nichts im Bestand" not in d.get("hinweis", "")
+        # Nutzertest 25.09.2026: Der einzige Rueckfrage-Kandidat war das PHB-2014-Erratum.
+        assert not d.get("mehrdeutig"), f"{begriff}: {d.get('kandidaten')}"
 
 
 def test_golden_kapitelverweis_fuehrt_zur_vollen_regel():
@@ -577,3 +579,14 @@ def test_golden_srd_de_statbloecke_stimmen_mit_der_englischen_fassung():
             abweichend.append((name, ist, soll))
     assert geprueft > 250, geprueft
     assert not abweichend, abweichend
+
+
+def test_golden_klassenliste_ohne_abschnitte_mit_magieschmied():
+    """Nutzertest 25.09.2026: 'Ein Barbar werden ...' stand als Klasse in der Liste (vertauschte
+    Ueberschrift im srd-de-Druck), und der Artificer fehlte - an seiner Stelle fuehrte die
+    Unterklasse einer anderen Quelle die Gruppe an."""
+    from app.tools import charakter as ch
+    klassen = ch.foliant_liste_optionen("klasse")["klassen"]
+    namen = {k["name_de"] or k["name_en"] for k in klassen}
+    assert not any("werden" in n for n in namen), namen
+    assert any(k["anzeige"].startswith("Magieschmied") for k in klassen), namen

@@ -197,6 +197,40 @@ def test_t7_zweisprachig_tolerant(bestand):
         assert s["treffer"][0]["name_de"] == erwartet, f"'{eingabe}' -> {s['treffer'][0]}"
 
 
+def test_t7_abkuerzung_wird_nicht_rueckwaerts_gesucht(bestand):
+    """'Gelegenheitsangriff' suchte frueher auch '"AoO"*' mit - der Praefix-Stern traf
+    OCR-Reste wie 'Aoor' in den 2014er Scans (Nutzertest 25.09.2026). Die Abkuerzung
+    selbst gehoert nur in die Suche, wenn nach ihr gefragt wurde."""
+    con = adb.connect_readonly(str(bestand))
+    try:
+        assert "AoO" not in adb._glossar_alternativen(con, "Gelegenheitsangriff")
+        assert "Gelegenheitsangriff" in adb._glossar_alternativen(con, "AoO")
+    finally:
+        con.close()
+
+
+def test_deutsche_frage_erreicht_englischen_eintrag(bestand):
+    """Das Glossar kennt nur ganze Begriffe, die Volltextsuche verlangt jedes Wort - eine
+    Frage wie diese fand deshalb nichts, obwohl die englische Antwort im Bestand steht
+    (Nutzertest 25.09.2026). Wortweise uebersetzt: 'Shield Spellcasting Focus'."""
+    con = sqlite3.connect(bestand)
+    con.execute(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (2,'regel',NULL,'Can a shield bear a spellcasting focus?','en',"
+        "'2024',NULL,'A cleric can use a holy symbol emblazoned on a shield.')")
+    con.execute("INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle,seite)"
+                " VALUES ('Spellcasting Focus','Zauberfokus',1,'SRD 5.2.1','2024','180')")
+    con.execute("INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle,seite)"
+                " VALUES ('Shield','Schild',1,'SRD 5.2.1','2024','221')")
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+    s = su.foliant_suche_bestand("Kann ich einen Schild als Zauberfokus benutzen?")
+    namen = [t.get("name_en") for t in s["treffer"]]
+    assert "Can a shield bear a spellcasting focus?" in namen, s
+
+
 def test_t7b_bruecke_deutscher_begriff_englischer_bestand(bestand):
     """Verschaerfung von T7 (Regressionsfall vom 10.07.2026): Der reale Bestand ist rein
     englisch, das Glossar liefert teils PLURALFORMEN. Ein deutscher Singular-Suchbegriff

@@ -448,3 +448,28 @@ def test_erratum_ist_kein_ersatz_fuer_eine_fehlende_fassung(bestand, monkeypatch
     assert not d.get("gefunden"), d
     anders = d.get("treffer_andere_kategorie")
     assert anders and anders[0]["kategorie"] == "gegenstand", d
+    # Der Umweg traegt den gesuchten Namen - eine Rueckfrage, deren einziger Kandidat
+    # das Erratum ist, hat den Spieler im Nutzertest 25.09.2026 nur aufgehalten.
+    assert not d.get("mehrdeutig") and "kandidaten" not in d, d
+
+
+def test_umweg_findet_aeltere_fassung_anderer_kategorie(bestand):
+    """Der 2014er Monsterband fuehrt den Betrachter als 'regel' (Scan = Begriffsquelle).
+    Der Kategorie-Umweg las beim Standard 2024 nur die 2024-Treffer - der einzige Eintrag
+    dieses Namens ging verloren und der Spieler bekam eine Rueckfrage mit Fliesstext-
+    Erwaehnungen (Nutzertest 25.09.2026)."""
+    con = sqlite3.connect(bestand)
+    con.execute("INSERT INTO quellen (kuerzel,titel,sprache,edition,herkunft,lizenz,"
+                "prioritaet,inhaltsart) VALUES ('mm-2014-de','Monsterhandbuch (2014)','de',"
+                "'2014','pdf','privat',40,'regelwerk')")
+    con.execute("INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,"
+                "seite,body_md) VALUES (4,'regel','Betrachter',NULL,'de','2014','26',"
+                "'Ein Betrachter ist eine schwebende Kugel mit Augenstielen.')")
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit(); con.close()
+    d = ns.foliant_hol_eintrag("monster", "Betrachter")
+    assert not d.get("gefunden"), d
+    anders = d.get("treffer_andere_kategorie") or []
+    assert any(t["edition"] == "2014" and t["kategorie"] == "regel" for t in anders), d
+    assert not d.get("mehrdeutig"), d

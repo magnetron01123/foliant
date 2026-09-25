@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 23.09.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 25.09.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -1140,6 +1140,31 @@ nach dem Begriff. `zweihändig` und `vielseitig` standen in der Nulltreffer-List
 aus wie Vokabellücken — der dort angebotene Kur-Weg („Glossar-Paar ergänzen") ist für sie
 der falsche. Seither trägt jede Signalzeile ihre `kategorie`, und die Fälle haben einen
 eigenen Abschnitt.
+
+### Entscheidung: Befunde aus dem Nutzertest werkzeugseitig beheben (25.09.2026)
+
+Zwanzig Spielerfragen gegen den Pi-Bestand, sechs mit Schwächen — fast alle an den 2014er
+Büchern. Behoben ohne Neuimport, nur in `app/`:
+
+1. **Der Kategorie-Umweg liest auch ältere Fassungen.** Der Betrachter steht nur im 2014er
+   Monsterband, und zwar als `regel`; der Umweg las beim Standard 2024 nur die 2024-Treffer.
+2. **Keine Rückfrage, wenn der Umweg den Namen trägt** und kein Kandidat außer Errata das
+   tut. Die Rückfrage zu `Zweihändig` bot nur das PHB-2014-Erratum an.
+3. **Wortweise Glossar-Übersetzung als Ersatz-Alternative.** Das ist *nicht* der verworfene
+   ODER-Rückfall (unten): Die Wörter bleiben mit UND verknüpft, übersetzt wird nur exakt, und
+   erst ab zwei Glossarbegriffen. Der Benchmark stieg von 55 auf 56, der Kontrollfall
+   `quatschbegriff ohne bestand` bleibt leer.
+4. **Abkürzungen nur vorwärts.** `Gelegenheitsangriff` suchte `"AoO"*` mit, und der
+   Präfix-Stern traf OCR-Reste wie `Aoor`.
+5. **Klassenliste:** Abschnitte wie „Ein Barbar werden …" sind keine Klasse; das
+   efota-Kapitel gilt über seine Kernmerkmale als Klassenzeile; Unterklassen ohne Klasse
+   hängen unter einem Platzhalter statt unter der ersten Waise.
+
+**Verworfen: 2014er MM-Einträge als `monster` einsortieren.** Der Betrachter-Wertekasten
+steht dort gar nicht unter „BETRACHTER", 42 Einträge tragen mehrere Kästen, und die
+Monster-Brücke im Glossar-Import liest `kategorie='monster'` ohne Quellenfilter — neue
+2014-Monster könnten bestehende srd-de↔open5e-Paare still verdrängen. Die Scans bleiben
+Begriffsquelle.
 
 ### Gemessen und verworfen: der ODER-Rückfall für Mehrwort-Anfragen (19.09.2026)
 

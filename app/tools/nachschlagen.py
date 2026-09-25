@@ -364,6 +364,21 @@ def _quellabweichungen(con, voll: dict, gewaehlt: dict, exakt: list[dict],
     return konflikte, fremdsprachige
 
 
+def _umweg_traegt_den_namen(con, name: str, absage: dict, umweg: list[dict]) -> bool:
+    """Hat der Kategorie-Umweg einen Eintrag mit GENAU diesem Namen, und kein Kandidat der
+    Rueckfrage ist ein solcher Namenstreffer ausser Errata/Auslegungen?"""
+    varianten = _db.anfrage_varianten(con, name)
+    revision = _db._revisions_kuerzel(con)
+
+    def exakt(k: dict) -> bool:
+        return bool(_glossar._eintrag_namen(k) & varianten)
+
+    if not any(exakt(k) for k in umweg):
+        return False
+    return not any(exakt(k) and k.get("quelle_kuerzel") not in revision
+                   for k in absage.get("kandidaten") or [])
+
+
 def _mit_anderer_kategorie(con, absage: dict, name: str, kategorie: str,
                            edition: str | None) -> dict:
     """Eine Absage des Detailpfads um den Kategorie-Rueckfall ergaenzen (R02).
@@ -383,6 +398,14 @@ def _mit_anderer_kategorie(con, absage: dict, name: str, kategorie: str,
     anders = andere_kategorie_treffer(con, name, kategorie, edition)
     if not anders:
         return absage
+    if absage.get("mehrdeutig") and _umweg_traegt_den_namen(con, name, absage, anders):
+        # Die Rueckfrage bot nur Fliesstext-Erwaehnungen oder Errata an ('Zweihaendig' ->
+        # allein das PHB-2014-Erratum), waehrend der Umweg den Eintrag mit genau diesem
+        # Namen kennt. Eine Rueckfrage nach etwas, das niemand gemeint hat, ist die
+        # teurere Antwort (Nutzertest 25.09.2026).
+        for feld in ("mehrdeutig", "kandidaten", "hinweis_inhaltsart"):
+            absage.pop(feld, None)
+        absage["hinweis"] = HINWEIS_LEER
     absage["treffer_andere_kategorie"] = anders
     # Der Kategorie-Hinweis kommt ZUERST: Er traegt die Aussage, die den Unterschied
     # zwischen Auskunft und Fehlanzeige macht. Ein vorhandener Mehrdeutigkeits-Hinweis

@@ -455,7 +455,13 @@ def _glossar_alternativen(con: sqlite3.Connection, begriff: str,
             for z in zeilen:
                 if nur_exakt and z["match"] != "exakt":
                     continue
-                for kandidat in (z["term_en"], z["term_de"]):
+                kandidaten = (z["term_en"], z["term_de"])
+                # Die Abkuerzung selbst nur, wenn danach gesucht wurde: 'Gelegenheitsangriff'
+                # suchte sonst '"AoO"*' mit und traf per Praefix OCR-Reste wie 'Aoor'
+                # (Nutzertest 25.09.2026).
+                if z["quelle"] == "abkuerzung" and _norm(suchwort) != _norm(z["term_en"]):
+                    kandidaten = (z["term_de"],)
+                for kandidat in kandidaten:
                     if kandidat and _norm(kandidat) not in gesehen:
                         gesehen.add(_norm(kandidat))
                         gefunden.append(kandidat)
@@ -470,6 +476,51 @@ def _glossar_alternativen(con: sqlite3.Connection, begriff: str,
     for zwischenbegriff in erste:
         zweite += sammle(zwischenbegriff, gesehen)
     return (erste + zweite)[:8]
+
+
+_STOPPWOERTER = frozenset(_norm(w) for w in (
+    "der die das den dem des ein eine einen einem einer eines ich du er sie es wir ihr man "
+    "mich mir dich dir sich mein meine meinen meinem kann kannst koennen können darf darfst "
+    "duerfen dürfen muss musst muessen müssen soll sollte will wie was wer wann wo warum wieso "
+    "ob und oder aber mit als auf in im an am zu zum zur von vom für fuer bei nach aus über "
+    "ueber unter um ist sind bin bist hat habe haben wird werden nicht kein keine auch noch nur "
+    "so gibt es "
+    "the a an i you he she it we they my your can could may might do does is are be how what "
+    "who when where why with as to of in on at for by from and or not"
+).split())
+
+
+def _wortweise_alternativen(con: sqlite3.Connection, begriff: str) -> list[str]:
+    """Uebersetzt eine Frage Wortgruppe fuer Wortgruppe statt als ganze Phrase: 'Kann ich einen
+    Schild als Zauberfokus benutzen?' -> 'Shield Spellcasting Focus' und 'Schild Zauberfokus'.
+    Noetig, weil die FTS jedes Wort verlangt ('kann', 'ich') und das Glossar nur ganze Begriffe
+    kennt - eine deutsche Frage erreichte so keinen englischen Eintrag (Nutzertest 25.09.2026).
+
+    Nur EXAKTE Glossarzeilen, laengste Gruppe (bis 3 Woerter) zuerst; Woerter ohne Uebersetzung
+    fallen weg. Erst ab zwei uebersetzten Begriffen - ein einzelnes 'Shield' waere so breit, dass
+    es jeden Tippfehler-Rueckfall auf die Fuzzy-Suche verdraengte."""
+    from app import glossar as _gl
+
+    woerter = [w for w in re.findall(r"[^\W_]+", begriff, re.UNICODE)
+               if _norm(w) not in _STOPPWOERTER]
+    englisch: list[str] = []
+    deutsch: list[str] = []
+    i = 0
+    while i < len(woerter):
+        for laenge in range(min(3, len(woerter) - i), 0, -1):
+            gruppe = " ".join(woerter[i:i + laenge])
+            zeilen = [z for z in _gl.nachschlagen_exakt(con, gruppe, richtung="de_en")
+                      if z["quelle"] != "abkuerzung"]
+            if zeilen:
+                englisch.append(zeilen[0]["term_en"])
+                deutsch.append(gruppe)
+                i += laenge
+                break
+        else:
+            i += 1
+    if len(englisch) < 2:
+        return []
+    return [" ".join(englisch), " ".join(deutsch)]
 
 
 def anfrage_varianten(con: sqlite3.Connection, begriff: str) -> set[str]:
@@ -845,6 +896,10 @@ def fts_suche(con: sqlite3.Connection, query: str, kategorie: str | None = None,
     # Glossar-Aufloesungen IMMER mitsuchen (nicht nur bei Null Treffern): 'Fireball' soll
     # auch den deutschen 'Feuerball'-Eintrag liefern - deutscher Regeltext primaer (S10).
     alternativen = _glossar_alternativen(con, query)
+    # Nur als Ersatz, nie zusaetzlich: kennt das Glossar die ganze Phrase, ist das die
+    # genauere Bruecke. Bewusst NICHT in `begriffe` - sonst hoebe der Exakt-Boost jeden
+    # 'Shield'-Eintrag nach vorn.
+    alternativen = alternativen or _wortweise_alternativen(con, query)
     # Exakt-Boost NUR aus exakten Beziehungen: eine Fuzzy-Alternative darf einen fremden
     # Begriff nie als exakten Treffer nach vorn heben (SYN-P0-001, 'Aktionen'~'Reaktionen').
     begriffe = {query, *_glossar_alternativen(con, query, nur_exakt=True)}

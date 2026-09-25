@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 23.09.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 25.09.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
