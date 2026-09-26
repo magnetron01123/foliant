@@ -1152,8 +1152,8 @@ Büchern. Behoben ohne Neuimport, nur in `app/`:
    tut. Die Rückfrage zu `Zweihändig` bot nur das PHB-2014-Erratum an.
 3. **Wortweise Glossar-Übersetzung als Ersatz-Alternative.** Das ist *nicht* der verworfene
    ODER-Rückfall (unten): Die Wörter bleiben mit UND verknüpft, übersetzt wird nur exakt, und
-   erst ab zwei Glossarbegriffen. Der Benchmark stieg von 55 auf 56, der Kontrollfall
-   `quatschbegriff ohne bestand` bleibt leer.
+   erst ab zwei Glossarbegriffen. Der Benchmark stieg am Vollbestand von 55 auf 57,
+   der Kontrollfall `quatschbegriff ohne bestand` bleibt leer.
 4. **Abkürzungen nur vorwärts.** `Gelegenheitsangriff` suchte `"AoO"*` mit, und der
    Präfix-Stern traf OCR-Reste wie `Aoor`.
 5. **Klassenliste:** Abschnitte wie „Ein Barbar werden …" sind keine Klasse; das
@@ -1629,8 +1629,8 @@ liefert Treffer@1, Treffer@3 und MRR. Drei Entwurfsregeln:
 - **Soll-Nulltreffer sind die wertvollsten Fälle.** Ein Benchmark, der nur Treffer belohnt,
   treibt geradewegs in die Halluzination, gegen die Kernregel 1 steht.
 - **Fehlende Ziele werden übersprungen, nicht als Verfehlung gezählt** — dieselbe Regel,
-  mit der `_vergleiche_je_quelle` fehlende Quellen auslässt. Deshalb messen Mac-Subset und
-  Pi-Vollbestand heute dasselbe (55/65, MRR 0,846), und *ein* Basiswert trägt für beide.
+  mit der `_vergleiche_je_quelle` fehlende Quellen auslässt. Deshalb liegen Mac-Subset und
+  Pi-Vollbestand nah beieinander (56 und 57 von 65); der Basiswert gilt dem Vollbestand.
 
 Der Basiswert steht in `config/qualitaet_basis.json` und wird von `admin check
 --vollbestand` geprüft — mit **umgekehrtem Vorzeichen** zu den Mangel-Zahlen daneben: Diese
