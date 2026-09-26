@@ -316,7 +316,14 @@ def andere_kategorie_treffer(con: sqlite3.Connection, suchbegriff: str,
     Detail-Auswahl und im Relevanz-Ausweis der Suche.
 
     Die angefragte Kategorie selbst faellt heraus: Treffer daraus haette der Aufrufer
-    schon."""
+    schon.
+
+    AUCH AELTERE FASSUNGEN (Nutzertest 25.09.2026): Die 2014er Scans fuehren alles unter
+    'regel'. `foliant_hol_eintrag('klasse', 'Arkaner Bogenschuetze')` fand deshalb weder
+    in der Kategorie noch im Rueckfall etwas - der suchte nur in der Standard-Edition,
+    und der 2014er Eintrag stand ungelesen in `andere_editionen`. Die Treffer der
+    angefragten Edition kommen zuerst; eine aeltere Fassung traegt ihre `edition` sichtbar,
+    und beim Nachladen greift der B5-Hinweis auf den aelteren Stand."""
     try:
         ergebnis = _db.fts_suche(con, suchbegriff, kategorie=None, edition=edition,
                                  limit=_db.MAX_LIMIT)
@@ -324,7 +331,7 @@ def andere_kategorie_treffer(con: sqlite3.Connection, suchbegriff: str,
         return []                                  # Parameterfehler meldet der Aufrufer
     varianten = _db.anfrage_varianten(con, suchbegriff)
     treffer = []
-    for t in ergebnis["treffer"]:
+    for t in ergebnis["treffer"] + ergebnis.get("andere_editionen", []):
         if t["kategorie"] == kategorie:
             continue
         if _glossar._name_score(t, varianten) < _glossar._NAME_MIN:

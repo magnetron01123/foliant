@@ -44,6 +44,12 @@ _UNTERKLASSE_DE = _glossar.UNTERKLASSE_SCHEMA   # kanonisch in app/glossar.py
 # obwohl foliant_hol_eintrag sie sehr wohl liefert. IGNORECASE, weil Druck-PDFs ihre
 # Kapitel-Header in Grossbuchstaben liefern. Fuer neue Quellen hier ergaenzen.
 _KLASSEN_KONTEXT = re.compile(r"^(?:Klassen|Classes)$", re.IGNORECASE)
+# 'Ein Barbar werden ...' ist ein Unterabschnitt. Im srd-de-Druck (S. 33) steht er durch eine
+# vertauschte Ueberschrift direkt unter 'Klassen' und kam so als eigene Klasse in die Liste.
+_KLASSEN_ABSCHNITT = re.compile(r"^(?:Eine?\s+.+\s+werden\b|Becoming\b)", re.IGNORECASE)
+# Ein eigenstaendiges Klassenkapitel (efota) hat keinen Eintrag, der wie die Klasse heisst:
+# 'THE ARTIFICER > CORE ARTIFICER TRAITS'. Die Merkmalstabelle IST der Grundeintrag.
+_KERNMERKMALE = re.compile(r"^CORE\s+(.+?)\s+TRAITS$", re.IGNORECASE)
 _UNTERKLASSEN_KONTEXT = re.compile(r"^(?:\S+\s+)*(?:Unterklassen|Subclasses)$", re.IGNORECASE)
 _UNTERKLASSE_KLAMMER = re.compile(r"^(.+?)\s*\(([^)]+)\)\s*$")
 _HG_ATTRIBUTE = re.compile(r"\*\*Attributswerte:\*\*\s*([^\n*]+)")
@@ -516,10 +522,16 @@ def _liste_klassen() -> dict:
         alle = _eintraege(con, "klasse")
         klassen_eintraege, unterklassen_eintraege = [], []
         for e in alle:
+            if _KLASSEN_ABSCHNITT.match(e["name_de"] or e["name_en"] or ""):
+                continue
             kontext = _kontext(e)
             if kontext:
                 letztes_segment = kontext.split(" > ")[-1].strip()
-                if _KLASSEN_KONTEXT.match(letztes_segment):
+                kern = _KERNMERKMALE.match(e["name_en"] or "")
+                if kern and re.fullmatch(rf"(?:THE\s+)?{re.escape(kern.group(1))}",
+                                         letztes_segment, re.IGNORECASE):
+                    klassen_eintraege.append({**e, "name_en": kern.group(1).title()})
+                elif _KLASSEN_KONTEXT.match(letztes_segment):
                     klassen_eintraege.append(e)
                 elif (_UNTERKLASSEN_KONTEXT.match(letztes_segment)
                       or _UNTERKLASSE_DE.match(e["name_de"] or "")):
@@ -600,21 +612,27 @@ def _liste_klassen() -> dict:
                 uz["name_en"] = km.group(1).strip()
                 uz["anzeige"] = uz["name_en"]
             ziel = next((z for g, z in zeilen if g["varianten"] & referenzen), None)
+            if ziel is None and referenzen:
+                # Platzhalter fuer die fehlende Klasse statt die erste Waise zum Gruppenkopf
+                # zu machen: sonst stand 'Reanimator' als Klasse in der Liste und der
+                # Artificer darunter, je nachdem, welche Quelle zuerst kam (Nutzertest
+                # 25.09.2026). Handlungsanweisung statt Datenbank-Diagnose - der Discord-Bot
+                # hat aus 'Zugehoerige Klasse nicht im Bestand.' einmal 'kann keinen
+                # Steckbrief liefern' gemacht, obwohl die Unterklasse vollstaendig da war.
+                name_en = sorted(referenzen)[0].title()
+                platzhalter = {"varianten": referenzen | _varianten(
+                    con, {"name_de": None, "name_en": name_en})}
+                ziel = {"anzeige": _aus._anzeige_name(con, {"name_de": None, "name_en": name_en,
+                                                             "sprache": "en"}),
+                        "name_de": None, "name_en": name_en,
+                        "hinweis": "Nur der Grundeintrag dieser Klasse ist nicht im Bestand. "
+                        "Ihre Unterklassen sind waehlbar und vollstaendig abrufbar - als "
+                        "Option anbieten, nicht als Mangel ausgeben; Details liefert "
+                        "foliant_hol_eintrag."}
+                zeilen.append((platzhalter, ziel))
             if ziel is not None:
-                # setdefault: eine Waisen-Zeile (unten, ohne 'unterklassen') kann selbst
-                # zum Ziel einer spaeteren Unterklasse werden - das war ein KeyError.
+                # setdefault: Klassen- und Platzhalterzeilen starten ohne 'unterklassen'.
                 ziel.setdefault("unterklassen", []).append(uz)
-            else:
-                # Handlungsanweisung statt Datenbank-Diagnose: die Unterklasse SELBST ist
-                # vollstaendig im Bestand und waehlbar - nur der Grundeintrag ihrer
-                # Klasse fehlt. Der alte Text ('Zugehoerige Klasse nicht im Bestand.')
-                # las sich wie ein Mangel der Unterklasse; der Discord-Bot hat daraus
-                # 'kann keinen Steckbrief liefern' gemacht, obwohl der Steckbrief da war.
-                zeilen.append(({"varianten": referenzen},
-                               {**uz, "hinweis": "Waehlbare Unterklasse - nur der "
-                                "Grundeintrag ihrer Klasse ist nicht im Bestand. Als "
-                                "Option anbieten, nicht als Mangel ausgeben; Details "
-                                "liefert foliant_hol_eintrag."}))
 
         # Deutsche Alphabetisierung wie in `_liste` (s. dort).
         klassen = sorted((z for _g, z in zeilen),
