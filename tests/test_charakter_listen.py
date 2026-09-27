@@ -291,12 +291,16 @@ def test_klassenkapitel_mit_kernmerkmalen_ist_klassenzeile(bestand):
     con.execute(
         "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
         "body_md) VALUES (2,'klasse',NULL,'CORE ARTIFICER TRAITS','en','2024','10',"
-        "'*Kontext: THE ARTIFICER*\n\n|**Primary Ability**|Intelligence|')")
+        "'*Kontext: THE ARTIFICER*\n\nPrimary Ability Intelligence Hit Point Die D8 per "
+        "Artificer level\n\nM A S T E R S O F I N V E NT I O N , A RT I F I C E R S "
+        "U S E M AG I C . Artificers are inventors.')")
     con.commit()
     con.close()
     klassen = ch.foliant_liste_optionen("klasse")["klassen"]
     artificer = next(k for k in klassen if k["name_en"] == "Artificer")
     assert not artificer.get("hinweis")
+    # Die Merkmalstabelle steht dort als Fliesstext; der gesperrte Titel ist kein Satz.
+    assert artificer.get("kurz") == "Hauptattribut: Intelligence", artificer.get("kurz")
     assert artificer.get("eintrag_id")
     assert {u["name_en"] for u in artificer["unterklassen"]} == {
         "ALCHEMIST", "ARMORER", "Cartographer"}

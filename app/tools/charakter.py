@@ -271,8 +271,12 @@ def _gruppiere(con, eintraege: list[dict]) -> list[dict]:
 # Klassen-Steckbriefe haben keine, dort steht das Hauptattribut in der Merkmalstabelle -
 # fuer die Klassenwahl ohnehin die nuetzlichere Angabe.
 _ZIER = re.compile(r"[*_`]+")
+# Zweite Form: efota setzt die Merkmalstabelle als Fliesstext ('Primary Ability Intelligence
+# Hit Point Die ...'). Ohne sie rutschte der gesperrt gedruckte Kapiteltitel
+# ('M A S T E R S O F ...') als Kurzzeile nach (Nutzertest 25.09.2026).
 _HAUPTATTRIBUT = re.compile(
-    r"\|\s*\*\*(?:Hauptattribut|Primary Ability)\*\*\s*\|\s*([^|]+?)\s*\|", re.IGNORECASE)
+    r"\|\s*\*\*(?:Hauptattribut|Primary Ability)\*\*\s*\|\s*([^|]+?)\s*\|"
+    r"|^Primary Ability\s+(.+?)\s+Hit Point Die\b", re.IGNORECASE | re.MULTILINE)
 # Die Huerden stammen aus einem Probelauf gegen den VOLLBESTAND (01.08.2026) - am
 # Fixture war keine davon zu sehen. Die Druckquellen streuen Bildnachweise als eigene
 # Zeile in den Text: 'ERION MAKUO', 'Ignatius Budi', 'Helge C. Balzer',
@@ -333,13 +337,14 @@ def _kurzzeile(body: str | None) -> str | None:
         return None
     schlagzeile = sauber(zeilen[0])
     if (not zeilen[0].startswith("#") and "|" not in zeilen[0]
+            and not _HAUPTATTRIBUT.match(zeilen[0])
             and not schlagzeile.endswith(".")
             and len(schlagzeile) <= 120
             and len(schlagzeile.split()) >= _KURZ_MIN_WOERTER):
         return schlagzeile
     m = _HAUPTATTRIBUT.search(body or "")
     if m:
-        return f"Hauptattribut: {sauber(m.group(1))}"
+        return f"Hauptattribut: {sauber(m.group(1) or m.group(2))}"
     for zeile in zeilen:                      # sonst der erste ganze Fliesstext-SATZ
         if zeile.startswith("#") or "|" in zeile:
             continue
@@ -347,8 +352,11 @@ def _kurzzeile(body: str | None) -> str | None:
         punkt = satz.find(". ")
         if punkt > 0:
             satz = satz[:punkt + 1]
-        if not satz.endswith(".") or len(satz.split()) < _KURZ_SATZ_MIN_WOERTER:
+        woerter = satz.split()
+        if not satz.endswith(".") or len(woerter) < _KURZ_SATZ_MIN_WOERTER:
             continue
+        if sum(len(w) <= 2 for w in woerter) > len(woerter) / 2:
+            continue                          # gesperrter Druck, kein Satz
         return (satz[:_KURZ_MAX_ZEICHEN].rstrip() + "…"
                 if len(satz) > _KURZ_MAX_ZEICHEN else satz)
     return None
