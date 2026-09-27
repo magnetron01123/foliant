@@ -542,7 +542,7 @@ python -m app.admin manifest > korpus-manifest.json
 
 ### 4. Connector eintragen
 Volle URL inkl. Geheimpfad: `https://mcp.magnetron.me/<MCP_PFAD_TOKEN>/foliant` — kein
-OAuth; `make url SERVICE=foliant` im Projekt „Cloudflare Tunnel“ druckt sie. Das abschließende
+OAuth; `make url SERVICE=foliant` im Projekt „Homelab/cloudflare-tunnel“ druckt sie. Das abschließende
 `/mcp` trägt der Router selbst nach (seit 26.08.2026): der Upstream-Pfad steht im Vertrag
 fest, in der öffentlichen URL wiederholte er nur, was schon im Hostnamen steht. Die längere
 Form bleibt gültig. Dieselbe URL gehört
@@ -949,7 +949,7 @@ Seit dem DDB-Import serviert der MCP **private Buchinhalte** → der Endpoint is
 
    Geheimer **Pfad**, nicht geheime Subdomain — Subdomains leaken über
    Zertifikats-Transparenz-Logs. Rotation im Router-Modus: `MCP_PFAD_TOKEN` im Projekt
-   „Cloudflare Tunnel“ — das betrifft dann **alle** MCP-Server des Geräts.
+   „Homelab/cloudflare-tunnel“ — das betrifft dann **alle** MCP-Server des Geräts.
 
 2. **IP-Allowlist an der Cloudflare-Kante** — nur Anthropics veröffentlichter ausgehender
    Bereich `160.79.104.0/21` und dessen IPv6-Adressraum `2607:6bc0::/48` kommen durch; alles
@@ -1760,11 +1760,11 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   `/<token>/<name>/mcp` allein nach Namenskonvention an `http://<name>-mcp:8000/mcp` weiter —
   es gibt keinen Konfigurationseintrag, der beim Umbenennen mit auffiele. Ein umbenannter
   Container ist **still offline**: `docker ps` zeigt „Up", der Connector bekommt 404. Was der
-  Router tatsächlich erreicht, zeigt `make services` im Projekt „Cloudflare Tunnel".
+  Router tatsächlich erreicht, zeigt `make services` im Projekt „Homelab/cloudflare-tunnel".
 - **Die externen Netze müssen VOR dem Stack existieren.** `mcp-net` und `web-edge` sind
   `external: true` — fehlt eines, verweigert compose den Start. Das ist gewollt: die
   Alternative wäre ein leeres Ersatznetz, in dem der Dienst läuft und niemand ihn erreicht.
-  Angelegt werden sie mit `make net` im Projekt „Cloudflare Tunnel".
+  Angelegt werden sie mit `make net` im Projekt „Homelab/cloudflare-tunnel".
 - **Solange der Router an einem Foliant-Netz hängt, scheitert `docker compose down`** an der
   Netzentfernung und sagt das auch. Foliants Container stoppen trotzdem normal.
 - **Die glossar-nur-DB muss existieren, BEVOR `web` startet** — sonst legt Docker ein
