@@ -74,7 +74,7 @@ herkunft = "pdf"
 lizenz = "CC-BY-4.0"
 prioritaet = 20          # Band 20: deutsches SRD (frei lizenziert)
 inhaltsart = "regelwerk"
-dateipfad = "quellen/SRD_5.2.1_DE.pdf"
+dateipfad = "quellen/srd-de.pdf"
 
 [[quelle]]
 # GESCANNTE PDFs: erst die OCR-Vorstufe fahren (admin pdf-triage -> admin ocr-pdf),
@@ -87,7 +87,7 @@ herkunft = "pdf"
 lizenz = "privat"
 prioritaet = 10          # Band 10: deutsches Kernregelwerk (Kaufbuch)
 inhaltsart = "regelwerk"
-dateipfad = "quellen/PHB_2024_DE.pdf"   # bei Scan: "data/ocr/PHB_2024_DE.ocr.pdf"
+dateipfad = "quellen/phb-2024-de.pdf"   # bei Scan: "data/ocr/phb-2024-de.ocr.pdf"
 
 [[quelle]]
 # Kuerzel-Schema des Importers: "open5e-<dokument-key>" (Quelle wird beim Import angelegt)
@@ -129,7 +129,7 @@ lizenz = "WotC (frei verteilt, keine offene Lizenz)"
 prioritaet = 70          # Band 70: hinter jedem Regelwerk (importer/quellen.band_fuer)
 inhaltsart = "errata"
 versions_stand = "Errata Version 1.0"
-dateipfad = "quellen/errata/PHB-2024_v1.pdf"
+dateipfad = "quellen/errata/errata-phb-2024-en.pdf"
 quell_url = "https://media.dndbeyond.com/compendium-images/errata/PHB-24/PHB-2024_v1.pdf"
 quell_hash = "82805de932a57cecdfa81e81ea77a2b9e479913cae47df79aae00bb62a992d30"
 
@@ -143,7 +143,7 @@ lizenz = "WotC (frei verteilt, keine offene Lizenz)"
 prioritaet = 70
 inhaltsart = "errata"
 versions_stand = "Errata Version 1.0"
-dateipfad = "quellen/errata/DMG-24_v1.pdf"
+dateipfad = "quellen/errata/errata-dmg-2024-en.pdf"
 quell_url = "https://media.dndbeyond.com/compendium-images/errata/DMG-24/DMG-24_v1.pdf"
 quell_hash = "53b6d32fa6ca3a0eb8105a95c0b02a1d46853fffaf31ab1c5ebf41a4167ac073"
 
@@ -160,7 +160,7 @@ lizenz = "WotC (frei verteilt, keine offene Lizenz)"
 prioritaet = 70
 inhaltsart = "errata"
 versions_stand = "Errata Version 1.0"
-dateipfad = "quellen/errata/MM-2025_v1.pdf"
+dateipfad = "quellen/errata/errata-mm-2025-en.pdf"
 quell_url = "https://media.dndbeyond.com/compendium-images/errata/MM-25/MM-2025_v1.pdf"
 quell_hash = "3d8951d4c7a596d73a6b4579e7dec7634b1cab84e82d1f76e13f75f42ce27a18"
 # -------------------------------------------------------------------------------------

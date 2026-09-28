@@ -226,9 +226,10 @@ anderer Inhalt — dann bricht der Import ab, statt `versions_stand` zu einer fa
 | **Open5e** | `admin import --quelle open5e-srd-2024` (API, einmalig) |
 | **Glossar** | `admin import --quelle glossar` (dnddeutsch.de; offiziell = `name_de_ulisses`) |
 
-**Ablage in `quellen/`:** Eine Kaufbuch-Datei heißt wie ihr Kürzel (`<buch>-<edition>-<sprache>.pdf`,
-Buch = gängige Abkürzung wie `phb`, `dmg`, `mm`); frei herunterladbare Dateien behalten in
-`quellen/errata/` den Namen des Herausgebers, weil er zu `quell_url` und `quell_hash` passt.
+**Ablage in `quellen/`:** Jede Datei heißt wie ihr Kürzel (`<buch>-<edition>-<sprache>.pdf`,
+Buch = gängige Abkürzung wie `phb`, `dmg`, `mm`; Errata und Sage Advice unter `quellen/errata/`),
+ohne Ausnahme — die Herkunft freier Downloads belegen `quell_url` und `quell_hash`, nicht der
+Dateiname. Umbenennen braucht keinen Neuimport: Config anpassen, `admin quellen-auffrischen`.
 Weitere Ordner gibt es nur für die Verarbeitungsstufe (`quellen/md/`, OCR-Ausgaben in
 `data/ocr/`) — Edition, Sprache und `inhaltsart` stehen in der Config, ein Ordner dafür wäre
 eine zweite Angabe, die auseinanderlaufen kann.
@@ -696,8 +697,8 @@ dem Host holen, Import im Container.**
 
 ```sh
 # auf dem Pi, im Host-Verzeichnis ~/foliant/quellen/errata/
-curl -fsSL -o PHB-2024_v1.pdf <quell_url aus der config>
-sha256sum PHB-2024_v1.pdf          # MUSS dem quell_hash der config entsprechen
+curl -fsSL -o errata-phb-2024-en.pdf <quell_url aus der config>
+sha256sum errata-phb-2024-en.pdf   # MUSS dem quell_hash der config entsprechen
 docker compose exec -T foliant python -m app.admin import --quelle errata-phb-2024-en
 ```
 
