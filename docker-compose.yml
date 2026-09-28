@@ -1,7 +1,7 @@
 services:
-  # MCP-Server. Haengt seit dem 26.08.2026 am GETEILTEN Router (Projekt "Cloudflare Tunnel",
+  # MCP-Server. Haengt seit dem 26.08.2026 am GETEILTEN Router (Projekt "Homelab/cloudflare-tunnel",
   # auf dem Pi ~/cloudflare-tunnel), der alle MCP-Server des Geraets unter mcp.magnetron.me
-  # bedient. Dessen Vertrag ist reine Namenskonvention und steht in dessen README ("The contract"): der
+  # bedient. Dessen Vertrag ist reine Namenskonvention und steht in dessen README ("Der Vertrag fuer MCP-Dienste"): der
   # Container heisst `<name>-mcp`, lauscht auf 8000, serviert MCP unter `/mcp` und haengt
   # im Netz `mcp-net`. Alle vier Punkte sind unten verdrahtet - der CONTAINERNAME IST die
   # Route (/<router-token>/foliant/mcp), ein Umbenennen nimmt den Dienst still vom Netz.
@@ -13,7 +13,7 @@ services:
     # Endpoint unter dem nackten /mcp - ein veroeffentlichter Port waere damit genau der
     # direkte Weg am Router vorbei, den der Geheimpfad frueher zugehalten hat. Lokal
     # nachsehen geht ueber `docker compose exec` (CONCEPT.md §9), von aussen ueber den
-    # Router (`make smoke-pi SERVICE=foliant` im Projekt "Cloudflare Tunnel").
+    # Router (`make smoke-pi SERVICE=foliant` im Projekt "Homelab/cloudflare-tunnel").
     networks:
       - mcp-net
     volumes:
@@ -299,7 +299,7 @@ services:
       - no-new-privileges:true
 
 # Beide Netze gehoeren KEINEM Stack: sie werden ausserhalb jedes Compose-Projekts
-# angelegt (`make net` im Projekt "Cloudflare Tunnel"), damit ein
+# angelegt (`make net` im Projekt "Homelab/cloudflare-tunnel"), damit ein
 # `docker compose down` hier niemandem sonst das Netz wegnimmt. `external: true` heisst
 # ausserdem: fehlt eines, verweigert compose den Start, statt ein leeres Ersatznetz zu
 # bauen, in dem der Dienst still unerreichbar waere.
