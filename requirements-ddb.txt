@@ -5,7 +5,7 @@
 # bs4 ist eine DIREKTE Abhaengigkeit von ddb_exporter/html_to_markdown.py - markdownify
 # zieht es zwar mit, aber die Regel aus requirements.txt gilt auch hier: was importiert
 # wird, steht drin.
-apsw-sqlite3mc==3.53.2.0
+apsw-sqlite3mc==3.53.4.0
 beautifulsoup4==4.15.0
 httpx==0.28.1
 markdownify==0.14.1    # 19.09.2026 von 0.13.1 angehoben: PYSEC-2026-1604 (Speicherfrass
