@@ -2,10 +2,10 @@
 # baut das Image neu - offene Ranges zogen bei jedem Rebuild potenziell andere Versionen,
 # ausgerechnet pymupdf4llm ist als umgebungsempfindlich dokumentiert (CONCEPT.md §4).
 # Update = bewusst Pin anheben + `make test` + Import-Stichprobe, nie beilaeufig.
-fastmcp==4.0.5           # MCP-Server. Bringt das MCP-SDK 2.x mit; `get_tools()` heisst
+fastmcp==4.1.0          # MCP-Server. Bringt das MCP-SDK 2.x mit; `get_tools()` heisst
                          # seit 3.0 `list_tools()` und liefert eine Liste (nur Tests betroffen).
-uvicorn[standard]==0.53.0  # ASGI-Server fuer den HTTP-Endpunkt (Deployment)
-starlette==1.6.0         # Charakterbogen-Web-App (app/charakterbogen/web.py) - DIREKT genutzt
+uvicorn[standard]==0.54.0  # ASGI-Server fuer den HTTP-Endpunkt (Deployment)
+starlette==1.7.0         # Charakterbogen-Web-App (app/charakterbogen/web.py) - DIREKT genutzt
                          # (bislang transitiv via fastmcp), deshalb explizit gepinnt (Auftrag §12).
 python-multipart==0.0.32 # Multipart-Upload fuer POST /bogen (starlette braucht es fuer Forms).
 httpx==0.28.1            # dnddeutsch.de-API, Open5e (nur Import)
