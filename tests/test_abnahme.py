@@ -231,6 +231,46 @@ def test_deutsche_frage_erreicht_englischen_eintrag(bestand):
     assert "Can a shield bear a spellcasting focus?" in namen, s
 
 
+def _mit_nekromant(bestand):
+    """Englische Unterklasse mit Klammer-Suffix wie in den Druckbaenden, dazu ihr Glossarpaar."""
+    con = sqlite3.connect(bestand)
+    con.execute(
+        "INSERT INTO eintraege (quelle_id,kategorie,name_de,name_en,sprache,edition,seite,"
+        "body_md) VALUES (2,'klasse',NULL,'Necromancer (Wizard)','en','2024',NULL,"
+        "'*Kontext: Subclasses*\n\nYou explore the forces of life and death in this class.')")
+    con.execute("INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle,seite)"
+                " VALUES ('Necromancer','Nekromant',1,'Ulisses-Glossar','2014',NULL)")
+    con.commit()
+    con.execute("INSERT INTO eintraege_fts(eintraege_fts) VALUES('rebuild')")
+    con.commit()
+    con.close()
+
+
+def test_gebeugte_form_findet_den_eintrag(bestand):
+    """'die Nekromanten-Klasse': Die gebeugte Form steht nicht im Glossar. Ohne den
+    Grundform-Rueckfall stellte der Detailabruf eine Rueckfrage und die Suche setzte
+    Zauberlisten mit 'Nekromantie' nach vorn (Nutzerfrage 14.10.2026)."""
+    _mit_nekromant(bestand)
+    d = ns.foliant_hol_eintrag("klasse", "Nekromanten")
+    assert d.get("gefunden") and d["name_en"] == "Necromancer (Wizard)", d
+    con = adb.connect_readonly(str(bestand))
+    try:
+        assert "Nekromant" in adb._glossar_alternativen(con, "Nekromanten", nur_exakt=True)
+        # Nur die Grundform, die EXAKT im Glossar steht - keine geratenen Stammformen.
+        assert adb._glossar_alternativen(con, "Quatschworten", nur_exakt=True) == []
+    finally:
+        con.close()
+
+
+def test_begriff_mit_kategoriewort_ist_ein_begriff(bestand):
+    """'Nekromanten Klasse' verlangte beide Woerter im Text und fand nichts. Das
+    Kategoriewort ist Fuellwort; der eine uebersetzte Begriff fuehrt die Trefferliste an."""
+    _mit_nekromant(bestand)
+    for frage in ("Nekromanten Klasse", "Nekromant Klasse"):
+        s = su.foliant_suche_bestand(frage)
+        assert s["treffer"] and s["treffer"][0]["name_en"] == "Necromancer (Wizard)", frage
+
+
 def test_t7b_bruecke_deutscher_begriff_englischer_bestand(bestand):
     """Verschaerfung von T7 (Regressionsfall vom 10.07.2026): Der reale Bestand ist rein
     englisch, das Glossar liefert teils PLURALFORMEN. Ein deutscher Singular-Suchbegriff

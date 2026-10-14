@@ -472,10 +472,29 @@ def _glossar_alternativen(con: sqlite3.Connection, begriff: str,
     # aber englisch sein kann.
     gesehen = {n}
     erste = sammle(begriff, gesehen)
+    if not erste:
+        # Gebeugte Form ('die Nekromanten-Klasse'): ohne exakten Treffer die Grundform
+        # versuchen. Nur exakte Glossarzeilen der Grundform zaehlen - geraten wird nichts.
+        for stamm in _grundformen(begriff):
+            if erste := sammle(stamm, gesehen):
+                break
     zweite: list[str] = []
     for zwischenbegriff in erste:
         zweite += sammle(zwischenbegriff, gesehen)
     return (erste + zweite)[:8]
+
+
+_BEUGUNGSENDUNGEN = ("n", "en", "s", "es")
+
+
+def _grundformen(begriff: str) -> list[str]:
+    """Kandidaten ohne deutsche Beugungsendung am letzten Wort ('Nekromanten' ->
+    'Nekromant', 'Riesen' -> 'Riese'). Kurze Woerter bleiben unangetastet."""
+    *vorn, letztes = begriff.split()
+    if len(letztes) < 5:
+        return []
+    return [" ".join([*vorn, letztes[:-len(e)]]) for e in _BEUGUNGSENDUNGEN
+            if letztes.lower().endswith(e)]
 
 
 _STOPPWOERTER = frozenset(_norm(w) for w in (
@@ -485,12 +504,14 @@ _STOPPWOERTER = frozenset(_norm(w) for w in (
     "ob und oder aber mit als auf in im an am zu zum zur von vom für fuer bei nach aus über "
     "ueber unter um ist sind bin bist hat habe haben wird werden nicht kein keine auch noch nur "
     "so gibt es "
+    # Kategoriewoerter: die Kategorie ist ein eigener Filter, im Text steht sie selten.
+    "klasse unterklasse zauber talent hintergrund spezies gegenstand monster regel "
     "the a an i you he she it we they my your can could may might do does is are be how what "
     "who when where why with as to of in on at for by from and or not"
 ).split())
 
 
-def _wortweise_alternativen(con: sqlite3.Connection, begriff: str) -> list[str]:
+def _wortweise_alternativen(con: sqlite3.Connection, begriff: str) -> tuple[list[str], bool]:
     """Uebersetzt eine Frage Wortgruppe fuer Wortgruppe statt als ganze Phrase: 'Kann ich einen
     Schild als Zauberfokus benutzen?' -> 'Shield Spellcasting Focus' und 'Schild Zauberfokus'.
     Noetig, weil die FTS jedes Wort verlangt ('kann', 'ich') und das Glossar nur ganze Begriffe
@@ -498,29 +519,43 @@ def _wortweise_alternativen(con: sqlite3.Connection, begriff: str) -> list[str]:
 
     Nur EXAKTE Glossarzeilen, laengste Gruppe (bis 3 Woerter) zuerst; Woerter ohne Uebersetzung
     fallen weg. Erst ab zwei uebersetzten Begriffen - ein einzelnes 'Shield' waere so breit, dass
-    es jeden Tippfehler-Rueckfall auf die Fuzzy-Suche verdraengte."""
+    es jeden Tippfehler-Rueckfall auf die Fuzzy-Suche verdraengte. Ausnahme: Die Frage ist bis
+    auf Fuellwoerter ganz uebersetzt ('Nekromanten Klasse'); dann bleibt kein Tippfehler uebrig.
+
+    Zweiter Rueckgabewert: True, wenn die Frage genau EIN Glossarbegriff ist. Dann ist er
+    eine exakte Entsprechung der Anfrage und darf den Exakt-Boost bekommen."""
     from app import glossar as _gl
 
     woerter = [w for w in re.findall(r"[^\W_]+", begriff, re.UNICODE)
                if _norm(w) not in _STOPPWOERTER]
     englisch: list[str] = []
     deutsch: list[str] = []
+    uebersetzt = 0
     i = 0
     while i < len(woerter):
         for laenge in range(min(3, len(woerter) - i), 0, -1):
             gruppe = " ".join(woerter[i:i + laenge])
-            zeilen = [z for z in _gl.nachschlagen_exakt(con, gruppe, richtung="de_en")
-                      if z["quelle"] != "abkuerzung"]
+            zeilen = []
+            for form in [gruppe, *(_grundformen(gruppe) if laenge == 1 else [])]:
+                zeilen = [z for z in _gl.nachschlagen_exakt(con, form, richtung="de_en")
+                          if z["quelle"] != "abkuerzung"]
+                if zeilen:
+                    break
             if zeilen:
                 englisch.append(zeilen[0]["term_en"])
-                deutsch.append(gruppe)
+                deutsch.append(zeilen[0]["term_de"])
+                uebersetzt += laenge
                 i += laenge
                 break
         else:
             i += 1
-    if len(englisch) < 2:
-        return []
-    return [" ".join(englisch), " ".join(deutsch)]
+    # Ein einzelner Begriff nur, wenn die GANZE Frage uebersetzt ist ('Nekromanten Klasse');
+    # sonst verdraengte er den Tippfehler-Rueckfall ('Feuerbal Schaden').
+    mehrwortig = len(re.findall(r"[^\W_]+", begriff, re.UNICODE)) >= 2
+    ganz_uebersetzt = englisch and uebersetzt == len(woerter)
+    if len(englisch) < 2 and not (mehrwortig and ganz_uebersetzt):
+        return [], False
+    return [" ".join(englisch), " ".join(deutsch)], len(englisch) == 1
 
 
 def anfrage_varianten(con: sqlite3.Connection, begriff: str) -> set[str]:
@@ -897,12 +932,16 @@ def fts_suche(con: sqlite3.Connection, query: str, kategorie: str | None = None,
     # auch den deutschen 'Feuerball'-Eintrag liefern - deutscher Regeltext primaer (S10).
     alternativen = _glossar_alternativen(con, query)
     # Nur als Ersatz, nie zusaetzlich: kennt das Glossar die ganze Phrase, ist das die
-    # genauere Bruecke. Bewusst NICHT in `begriffe` - sonst hoebe der Exakt-Boost jeden
-    # 'Shield'-Eintrag nach vorn.
-    alternativen = alternativen or _wortweise_alternativen(con, query)
+    # genauere Bruecke.
+    ein_begriff = False
+    if not alternativen:
+        alternativen, ein_begriff = _wortweise_alternativen(con, query)
     # Exakt-Boost NUR aus exakten Beziehungen: eine Fuzzy-Alternative darf einen fremden
     # Begriff nie als exakten Treffer nach vorn heben (SYN-P0-001, 'Aktionen'~'Reaktionen').
-    begriffe = {query, *_glossar_alternativen(con, query, nur_exakt=True)}
+    # Wortweise Uebersetzungen nur, wenn die Frage genau EIN Begriff ist - aus 'Shield
+    # Spellcasting Focus' hoebe der Boost sonst jeden 'Shield'-Eintrag nach vorn.
+    begriffe = {query, *_glossar_alternativen(con, query, nur_exakt=True),
+                *(alternativen if ein_begriff else [])}
 
     roh, suchweg = _sammle_roh(con, query, alternativen, kategorie, quelle,
                                roh_limit, edition=edition)

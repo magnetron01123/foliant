@@ -618,7 +618,11 @@ def _liste_klassen() -> dict:
                 # Deutsch-first-Format 'Deutsch (English)' - der Klassenname saehe aus
                 # wie die englische Entsprechung der Unterklasse (S3/S4).
                 uz["name_en"] = km.group(1).strip()
-                uz["anzeige"] = uz["name_en"]
+                # Deutsch-first auch hier: 'Necromancer (Wizard)' -> 'Nekromant (Necromancer)'.
+                # Ohne Uebersetzung fand das Modell den 'Nekromanten' nicht in der Liste.
+                uz["anzeige"] = _aus._anzeige_name(con, {"name_de": None,
+                                                         "name_en": uz["name_en"],
+                                                         "sprache": "en"})
             ziel = next((z for g, z in zeilen if g["varianten"] & referenzen), None)
             if ziel is None and referenzen:
                 # Platzhalter fuer die fehlende Klasse statt die erste Waise zum Gruppenkopf
