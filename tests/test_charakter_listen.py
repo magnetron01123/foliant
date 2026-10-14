@@ -237,6 +237,20 @@ def test_unterklasse_aus_kontextpfad_haengt_an_ihrer_klasse(bestand):
     assert "Illusionist" not in oben, "haengt zugeordnet UND als Waise in der Liste"
 
 
+def test_unterklasse_mit_klammer_traegt_ihren_deutschen_namen(bestand):
+    """'BLADESINGER (WIZARD)' wurde zu 'BLADESINGER' gekuerzt, aber nie uebersetzt. Bei
+    'Necromancer (Wizard)' fand das Modell den 'Nekromanten' deshalb nicht in der Liste."""
+    con = sqlite3.connect(bestand)
+    con.execute("INSERT INTO glossar (term_en,term_de,offiziell,quelle,edition_quelle,seite)"
+                " VALUES ('Bladesinger','Klingensänger',1,'Ulisses-Glossar','2014',NULL)")
+    con.commit()
+    con.close()
+    magier = next(k for k in ch.foliant_liste_optionen("klasse")["klassen"]
+                  if k["name_de"] == "Magier")
+    anzeigen = {u["anzeige"] for u in magier["unterklassen"]}
+    assert "Klingensänger (BLADESINGER)" in anzeigen, anzeigen
+
+
 def test_zauberlisten_abschnitt_ist_keine_unterklasse(bestand):
     """'Illusionist Spells' liegt durch das flache Chunking im SELBEN Kontext wie die
     Unterklasse selbst und ist von ihr nur am Namen zu unterscheiden: er fuehrt den
