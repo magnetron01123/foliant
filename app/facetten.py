@@ -139,7 +139,9 @@ def schule_anzeige(schluessel: str | None) -> str | None:
 
 
 # --- Zauber-Klassen (srd-de: Klammern im Kopf; Open5e: 'Classes:'-Feld) -------
-_KLASSEN_PARENS = re.compile(r"\(([^)]{2,70})\)")
+# Bis 120 Zeichen: ein Zauber fuer neun Klassen ('(Artificer, Bard, Cleric, ...)') sind 76.
+# Eine laengere Klammer ohne Klassennamen schliesst zauber_klassen ohnehin aus.
+_KLASSEN_PARENS = re.compile(r"\(([^)]{2,120})\)")
 _KLASSEN_FELD = re.compile(r"classes?:?\**\s*([A-Za-z ,/&]+)", re.IGNORECASE)
 _KLASSEN_SYN: dict[str, str] = {}
 for _kanon, _formen in {
