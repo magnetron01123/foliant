@@ -7,7 +7,7 @@
 # Erneuern nach einem beabsichtigten Import:  make register-vom-pi
 # Buchtitel fehlen bewusst; beim Wiederherstellen von Hand nachtragen.
 #
-# Stand: 2026-09-28
+# Stand: 2026-10-14
 
 [[quelle]]
 kuerzel = "srd-de"
@@ -99,6 +99,17 @@ lizenz = "privat"
 prioritaet = 40
 dateipfad = "/app/data/private/ddb-artifacts/ddb-wa-en/20260711T085712Z"
 inhaltsart = "abenteuer_setting"
+
+[[quelle]]
+kuerzel = "arcana-2024-en"
+sprache = "en"
+edition = "2024"
+herkunft = "pdf"
+lizenz = "privat"
+prioritaet = 45
+dateipfad = "quellen/md/arcana-2024-en.md"
+inhaltsart = "regelwerk"
+quell_hash = "b3fdfd437dbd1d11b35864c3f46a65c407953ec2e9c0da2ee6265e4f4efbd4b1"
 
 [[quelle]]
 kuerzel = "efota-en"
