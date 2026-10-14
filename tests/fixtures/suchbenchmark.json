@@ -59,7 +59,7 @@
     {"frage": "waffenmeisterschaft", "ziel": "Meisterschaftseigenschaft", "kategorie": "gegenstand", "warum": "Terminologie-Divergenz PHB/srd-de (claude DND-006)"},
 
     {"frage": "silvery barbs", "ziel": null, "warum": "echter Zauber, BEWUSST nicht geladen — der Halluzinations-Köder der Abnahme (§2/A1)"},
-    {"frage": "wither and bloom", "ziel": null, "warum": "nicht SRD-lizenziert; 25 Nulltreffer im Protokoll sind KORREKTES Verhalten"},
+    {"frage": "wither and bloom", "ziel": "Wither and Bloom", "kategorie": "zauber", "nur_vollbestand": true, "warum": "25 Nulltreffer im Protokoll; seit dem Import von arcana-2024-en (14.10.2026) im Bestand"},
     {"frage": "erzwungene bewegung", "ziel": null, "warum": "der Bestand führt dazu keinen Eintrag — bewusst nicht gebrückt (BACKLOG M5)"},
     {"frage": "quatschbegriff ohne bestand", "ziel": null, "warum": "Kontrollfall: reine Erfindung muss leer bleiben"},
 

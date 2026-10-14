@@ -2,9 +2,9 @@
   "_zweck": "Erwarteter Korpus-Sollstand des Produktionsbestands. Vergleichsgrundlage fuer `admin check --vollbestand`: Eine fehlende Quelle oder ein Einbruch der Eintragszahl faellt damit auf, statt als neuer Basiswert durchzugehen.",
   "_pflege": "Nach einem beabsichtigten Import neu erheben: make soll-vom-pi (schreibt diese Datei).",
   "_ohne_titel": "Buchtitel stehen bewusst NICHT hier - ob DDB-Titel oeffentlich stehen duerfen, ist offen (BACKLOG M9). Die Kuerzel stehen ohnehin schon im Repo.",
-  "erhoben_an": "2026-09-25",
+  "erhoben_an": "2026-10-14",
   "schema_version": 3,
-  "eintraege_gesamt": 19286,
+  "eintraege_gesamt": 19487,
   "glossar_zeilen": 3856,
   "quellen": [
     {
@@ -69,6 +69,13 @@
       "sprache": "en",
       "inhaltsart": "abenteuer_setting",
       "eintraege": 116
+    },
+    {
+      "kuerzel": "arcana-2024-en",
+      "edition": "2024",
+      "sprache": "en",
+      "inhaltsart": "regelwerk",
+      "eintraege": 201
     },
     {
       "kuerzel": "efota-en",
