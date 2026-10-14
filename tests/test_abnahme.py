@@ -269,6 +269,9 @@ def test_begriff_mit_kategoriewort_ist_ein_begriff(bestand):
     for frage in ("Nekromanten Klasse", "Nekromant Klasse"):
         s = su.foliant_suche_bestand(frage)
         assert s["treffer"] and s["treffer"][0]["name_en"] == "Necromancer (Wizard)", frage
+        # Kein Hinweis, der zur Fehlanzeige raet, wenn der Name doch passt.
+        assert s["treffer"][0]["relevanz"] == "name", frage
+        assert "hinweis_geringe_relevanz" not in s, frage
 
 
 def test_t7b_bruecke_deutscher_begriff_englischer_bestand(bestand):

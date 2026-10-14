@@ -565,9 +565,16 @@ def anfrage_varianten(con: sqlite3.Connection, begriff: str) -> set[str]:
     "passt zur Anfrage" pruefen. Stand bis zum 31.07.2026 wortgleich zweimal da
     (app/tools/suche.py im Namenstreffer-Zaehler, app/tools/nachschlagen.py in der
     Exakt-Auswahl) - dieselbe Regel an zwei Orten, obwohl schon eine falsch gesetzte
-    Klammer dort zwei verschiedene Antworten erzeugt haette. NUR exakt (SYN-P0-001)."""
-    return {_gl_norm(begriff)} | {_gl_norm(a) for a
-                                  in _glossar_alternativen(con, begriff, nur_exakt=True)}
+    Klammer dort zwei verschiedene Antworten erzeugt haette. NUR exakt (SYN-P0-001).
+
+    Ist die Anfrage bis auf Fuellwoerter genau EIN Glossarbegriff ('Nekromanten Klasse'),
+    zaehlt er mit - dieselbe Regel wie beim Exakt-Boost der Suche. Sonst meldete die Suche
+    den Treffer, den sie selbst nach vorn gestellt hat, als 'passt nicht dem Namen nach'."""
+    exakt = _glossar_alternativen(con, begriff, nur_exakt=True)
+    if not exakt:
+        wortweise, ein_begriff = _wortweise_alternativen(con, begriff)
+        exakt = wortweise if ein_begriff else []
+    return {_gl_norm(begriff)} | {_gl_norm(a) for a in exakt}
 
 
 def _fuzzy_treffer(con: sqlite3.Connection, begriff: str, kategorie: str | None,
