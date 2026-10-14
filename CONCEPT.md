@@ -245,8 +245,12 @@ beim Standard eine ältere — aber nie ein Erratum oder eine Auslegung: das ist
 *über* eine Regel, nicht die Regel. In ihrer eigenen Edition bleiben sie Exakt-Treffer.
 
 **Browser-Druck-PDFs im Detail:** Textschichten sind beschädigt (Kerning-Risse,
-Mojibake-Fonts, fi/fl-Ligaturverlust). Zwei Muster-Piloten: `efota` (Original + kuratierte
-Reparatur) und `frhof` (Original + generiertes, sichtgeprüftes Reparatur-Modul). **Die
+Mojibake-Fonts, fi/fl-Ligaturverlust). Drei Muster: `efota` (Original + kuratierte
+Reparatur), `frhof` (Original + generiertes, sichtgeprüftes Reparatur-Modul) und
+`arcana-2024-en` (Text heil, nur die Struktur kaputt: Kapitel- und Abschnittstitel sind Grafik).
+Verlorene Köpfe erkennt die Reparatur an Mustern, nicht an Listen — eine Namenszeile vor der
+Typzeile eines Eintrags, ein Titel vor dem DDB-Zurück-Pfeil. Abenteuer-Anhänge werden dort
+abgeschnitten (Kernregel 4). Vollständigkeit belegen die Übersichtstabellen des Buchs selbst. **Die
 Konvertierung nach Markdown passiert am Mac**, das Markdown ist das Import-Artefakt
 (`quellen/md/<kuerzel>.md`, `dateipfad` zeigt darauf) — die pymupdf4llm-Heading-Erkennung ist
 für diese PDFs umgebungsempfindlich. Qualitätsnachweis per **Kreuz-Audit** (Original vs. OCR:

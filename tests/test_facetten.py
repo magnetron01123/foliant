@@ -51,6 +51,14 @@ def test_zauber_klassen_beide_formate():
     assert f.zauber_klassen("kein Klassenfeld") == []
 
 
+def test_zauber_klassen_lange_klammer():
+    """Ein Zauber fuer neun Klassen hat eine Klammer von 76 Zeichen - die alte Grenze von
+    70 lieferte dafuer gar keine Klassen, der klasse-Filter verfehlte ihn."""
+    kopf = ("Level 2 Abjuration (Artificer, Bard, Cleric, Druid, Paladin, Ranger, Sorcerer, "
+            "Warlock, Wizard)\n\nCasting Time: 10 minutes")
+    assert len(f.zauber_klassen(kopf)) == 9
+
+
 def test_klasse_passt_de_en_tolerant():
     klassen = ["Magier", "Zauberer"]
     assert f.klasse_passt(klassen, "Wizard")           # EN -> Magier
