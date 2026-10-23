@@ -9,8 +9,8 @@ starlette==1.9.0         # Charakterbogen-Web-App (app/charakterbogen/web.py) - 
                          # (bislang transitiv via fastmcp), deshalb explizit gepinnt (Auftrag §12).
 python-multipart==0.0.32 # Multipart-Upload fuer POST /bogen (starlette braucht es fuer Forms).
 httpx==0.28.1            # dnddeutsch.de-API, Open5e (nur Import)
-pymupdf4llm==1.28.2      # PDF -> Markdown (Standard, kein GPU; use_ocr=False Pflicht!)
-pymupdf==1.28.2          # DDB-Widget-Extraktion (app/charakterbogen/ddb_pdf.py) - jetzt
+pymupdf4llm==2.0         # PDF -> Markdown (Standard, kein GPU; use_ocr=False Pflicht!)
+pymupdf==2.0             # DDB-Widget-Extraktion (app/charakterbogen/ddb_pdf.py) - jetzt
                          # DIREKTE Abhaengigkeit (nicht nur transitiv via pymupdf4llm),
                          # deshalb explizit gepinnt (Auftrag §12). Muss zu pymupdf4llm passen.
 rapidfuzz==3.14.6        # tolerante Begriffssuche (B3)
