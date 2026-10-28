@@ -17,7 +17,7 @@ rapidfuzz==3.14.6        # tolerante Begriffssuche (B3)
 discord.py==2.7.1        # Discord-Bot (app/discord_bot/) - bringt aiohttp transitiv mit
                          # (zweiter HTTP-Stack, bewusst akzeptiert: nur der Bot nutzt ihn;
                          # Anthropic-Aufrufe bleiben auf httpx, kein anthropic-SDK)
-pytest==9.1.1            # Abnahmetests T1-T12 (tests/test_abnahme.py)
+pytest==9.2.0            # Abnahmetests T1-T12 (tests/test_abnahme.py)
 # docling>=2.0           # optional: Fallback für schwierige Tabellen/Statblöcke (CPU/MLX)
 # tomllib ist ab Python 3.11 in der Standardbibliothek
 ocrmypdf==17.*           # OCR-Vorstufe für gescannte PDFs (laeuft nur im Pi-Container; Major gepinnt).
