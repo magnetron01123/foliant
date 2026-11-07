@@ -4,6 +4,11 @@ x-arcane:
   icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/5etools.svg
   urls:
     - https://dnd.magnetron.me
+  tags:
+    - name: MCP
+      color: blue
+    - name: App
+      color: green
 
 services:
   # MCP-Server. Haengt seit dem 26.08.2026 am GETEILTEN Router (Projekt "Homelab/cloudflare-tunnel",
