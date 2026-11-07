@@ -1,6 +1,6 @@
 # Foliant — Konzept & Betrieb (das „Wie")
 
-**Stand: 25.09.2026 · MVP live auf dem Raspberry Pi**
+**Stand: 07.11.2026 · MVP live auf dem Raspberry Pi**
 
 Die technische Sicht auf Foliant: Architektur, Datenmodell, Pipelines, Betrieb,
 Entscheidungen und Fallen. Das verbindliche **„Was"** steht in [SPEC.md](SPEC.md), das
@@ -92,7 +92,10 @@ einzelnes Projekt, aber ohne Mehrprojekt-Isolation und nicht auf den Mac portier
 | Übersetzung (Bogen) | **Anthropic-API** (httpx) | Modell-ID über `.env`, nicht hart kodiert |
 | Daten-Inspektion | **Datasette** (optional, lokal) | read-only Admin-Blick |
 
-Abhängigkeiten sind **exakt gepinnt** (`requirements.txt`, `requirements-ddb.txt`).
+Abhängigkeiten sind **exakt gepinnt** (`requirements.txt`, `requirements-ddb.txt`); die
+transitiven Pakete des Laufzeit-Images hält `constraints.txt` fest. Sie stammt aus dem
+`pip freeze` eines Pi-Builds mit grünen Gates und wird nie von Hand gepflegt: Ein Pin-Bump
+läuft über `make deploy-pi FREI=1`, das ohne sie baut und sie danach neu schreibt.
 Python 3.11+ (Container: 3.12).
 
 ---
@@ -567,8 +570,12 @@ Checkliste in [BACKLOG.md](BACKLOG.md) §2 im Connector durchspielen (T2/T10/T12
   print(urllib.request.urlopen('http://localhost:8000/ready').read())"` (503 bei
   kaputtem/leerem Bestand). Von außen geht das nicht mehr: der Dienst veröffentlicht keinen
   Host-Port, und `/ready` liegt hinter dem Router-Token.
-- **Uptime:** externer Monitor auf `https://dnd.magnetron.me/health` (Website) und
-  `https://mcp.magnetron.me/health` (Router; beide immer offen, nur Status).
+- **Uptime:** `.github/workflows/uptime.yml` fragt alle 30 Minuten
+  `https://dnd.magnetron.me/health` (Website) und `https://mcp.magnetron.me/health`
+  (Router; beide immer offen, nur Status) ab; ein Ausfall kommt als GitHub-Benachrichtigung
+  über einen roten Lauf. GitHub schaltet geplante Läufe nach 60 Tagen ohne Commit ab —
+  dann steht im Actions-Tab ein Hinweis, und der Workflow will von Hand wieder aktiviert
+  werden.
 - **Nächtliche Sicherung:** `make sicherung-cron-pi` trägt den Cron ein (03:00, idempotent;
   `make sicherung-cron-pi-aus` nimmt ihn zurück). `admin backup` erstellt ein **konsistentes**
   Online-Backup über die SQLite-Backup-API (verträgt einen laufenden Import — anders als
@@ -1118,6 +1125,8 @@ Connector läuft ohne Änderung weiter.
 | **Errata-Lizenz nicht „CC-BY…"** | Die Errata-PDFs sind frei verteilt, aber nicht frei lizenziert. Der Präfix `CC-BY` löst in `app/tools/ausgabe.py` automatisch die SRD-Attribution aus — sie hier anzuhängen wäre eine falsche Rechtsaussage |
 | **Antwortgerüst wird gemessen, nicht begutachtet** (07./08.08.2026) | Der LLM-Richter lag bei Strukturfragen in 2 von 3 Urteilen falsch, während der echte Verstoß unbemerkt in derselben Antwort stand — Struktur ist messbar (`pruefe_geruest`), der Richter behält nur Weiches. Drei Folge-Lehren aus derselben Woche: (1) Jedes neue Prüfmuster wird erst an den gespeicherten Antworten bezahlter Läufe kalibriert (vier von fünf F2-Fehlschlägen waren Fehlalarme des Musters, nicht des Modells). (2) Ein Kanal-3-Hinweis wirkt nur am Werkzeug, das die Antwort tatsächlich liefert — die „Rest-Streuung" waren Listen-Antworten, und die Optionslisten trugen als einziger Weg die Kopfzeilen-Regel nicht. (3) Wo eine Regel zweimal nicht wirkt, wirkt ein wörtliches Muster-Beispiel (DC4: 2/3 rot → 5/5 grün) |
 | **`max_tokens` 8000 + Runden-Cap-Schlussrunde ohne Werkzeuge** (08.08.2026) | Seit B15 setzt eine Unterklassen-Auskunft fünf Stufen-Merkmale zu EINER Antwort zusammen — die riss bei 4000 und 6000 jeweils kurz vor der Pflicht-Belegzeile ab. Und am Rundendeckel kam vorher eine LEERE Antwort zurück: acht Runden bezahlte Recherche, nichts geliefert. Die Schlussrunde geht ohne `tools` raus und braucht den expliziten Auftrag — ohne ihn produzierte das Modell einen Denkblock und keinen Text |
+| **Transitive Pins aus dem Pi-Build, Basis-Image ohne Digest** (07.11.2026) | `requirements.txt` deckte 12 von rund 100 Paketen; der Rest wurde bei jedem Rebuild neu aufgelöst. `constraints.txt` friert ihn auf dem Stand ein, der die Gates bestanden hat. Den Digest von `python:3.12-slim` pinnen wir bewusst nicht: Der wöchentliche Homelab-Lauf baut Foliant genau dann neu, wenn sich das Basis-Image ändert, und holt so dessen Sicherheitsupdates. Am selben Tag entfielen die drei stumm geschalteten `pip-audit`-Funde; fastmcp 4.1.5 und der aktuelle Paketstand haben sie behoben |
+| **Uptime-Wächter als GitHub-Workflow** (07.11.2026) | Er muss außerhalb des Pi laufen, und der Mac ist nicht immer an. GitHub Actions ist für das öffentliche Repo kostenlos, meldet über die vorhandenen Benachrichtigungen und braucht kein weiteres Konto |
 
 ### Entscheidung: Die falsche Kategorie ist ein Rückfall, keine Korrektur (19.09.2026)
 
@@ -1946,20 +1955,9 @@ für srd-de und die Druck-PDFs, `importer/import_glossar.py` für dnddeutsch.de)
   nur die kommerziellen Druck-Importe entfallen, die zugehörigen Tests überspringen sich
   selbst.
 - **Bekannte Schwachstellen der Abhängigkeiten** prüft `pip-audit` wöchentlich
-  (`.github/workflows/abhaengigkeiten.yml`) — melden, nicht anheben: Die Pins sind
-  bewusst exakt. Der erste Lauf am 19.09.2026 fand vier Funde; einer ist behoben, drei
-  sind bewertet und im Workflow mit ihrer Begründung stumm geschaltet, damit **neue**
-  Funde auffallen statt in einem dauerhaft roten Job unterzugehen.
-
-  | Fund | Bewertung |
-  |---|---|
-  | `markdownify` PYSEC-2026-1604 | **behoben** — Pin auf 0.14.1 angehoben, DDB-Suite grün |
-  | `fastmcp` PYSEC-2026-2475 | nicht betroffen: Command Injection unter **Windows** über `fastmcp install`; Foliant läuft im Linux-Container und ruft das Kommando nirgends auf |
-  | `fastmcp` PYSEC-2026-2476 | nicht betroffen: Confused Deputy im OAuthProxy — Foliant hat **kein** OAuth (Geheimpfad + WAF, §9). **Die Bewertung kippt**, sobald „OAuth-Identität statt Geheimpfad" (BACKLOG §4) umgesetzt wird |
-  | `diskcache` PYSEC-2026-2447 | nicht ausnutzbar: verwaistes transitives Paket — sein Träger `py-key-value-aio` ist nicht einmal installiert, und kein Foliant-Modul importiert es. Dass es trotzdem im Laufzeit-Image liegt, ist der Befund R16 in klein |
-
-  Die beiden `fastmcp`-Funde wären erst mit 3.2.0 behoben, also einem Major-Sprung; der
-  ist ein eigener Vorgang mit eigenem Gate (BACKLOG M10/R09), kein beiläufiges Anheben.
+  (`.github/workflows/abhaengigkeiten.yml`), und zwar die Versionen, die tatsächlich im
+  Image stecken (`requirements.txt` plus `constraints.txt`). Er meldet nur und hebt nichts
+  an; es gibt keine stumm geschalteten Funde, damit jeder rote Lauf etwas Neues ist.
 - **Schwachstellen melden:** nicht über öffentliche Issues, sondern über die private
   „Report a vulnerability"-Funktion (GitHub → *Security* → *Advisories*). Bitte betroffene
   Komponente, Reproduktionsschritte und mögliche Auswirkung angeben.

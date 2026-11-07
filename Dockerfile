@@ -20,9 +20,12 @@ WORKDIR /app
 # der stdout-Zeilen zusaetzlich verdeckt hat.
 ENV PYTHONUNBUFFERED=1
 
-# Abhaengigkeiten zuerst (Layer-Cache)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Abhaengigkeiten zuerst (Layer-Cache). constraints.txt haelt die transitiven Pakete auf
+# dem zuletzt geprueften Stand (M9); `make deploy-pi FREI=1` baut ohne sie (/dev/null),
+# wenn ein Bump neue transitive Versionen braucht.
+ARG CONSTRAINTS=constraints.txt
+COPY requirements.txt constraints.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -c ${CONSTRAINTS}
 
 # Projektcode
 COPY . .

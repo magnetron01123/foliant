@@ -1,6 +1,6 @@
 # Foliant — Backlog
 
-**Stand: 25.09.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
+**Stand: 07.11.2026 · MVP komplett und live.** Was noch zwischen „läuft" und „meine Runde
 nutzt es im Spiel" liegt. Das verbindliche „Was" steht in [SPEC.md](SPEC.md), das „Wie" in
 [CONCEPT.md](CONCEPT.md).
 
@@ -25,10 +25,10 @@ David**, nicht an Code:
 
 | offen | wartet auf |
 |---|---|
-| **M3** Off-Site-Spiegel · Uptime-Monitoring | Zielsystem festlegen — **kein Artefakt hat heute ein echtes Backup**: Jede Kopie ist entweder ein rsync-Spiegel (gibt Schaden weiter) oder ein Einzelexemplar, und Historie gibt es nur für das, was auf GitHub liegt. Zwei Verlustpfade, nicht einer — siehe M3 |
+| **M3** Off-Site-Spiegel | Zielsystem festlegen — **kein Artefakt hat heute ein echtes Backup**: Jede Kopie ist entweder ein rsync-Spiegel (gibt Schaden weiter) oder ein Einzelexemplar, und Historie gibt es nur für das, was auf GitHub liegt. Zwei Verlustpfade, nicht einer — siehe M3 |
 | **M4** Onboarding + Pilot-Session | eine Runde, die es benutzt |
 | **M7** Discord-Ausbau | zwei Echttests in der Guild (nach einem Neustart, und der Meldeweg mit 👎/👍) |
-| **M9** Nacharbeiten aus dem Grundsatz-Review | Off-Site-Spiegel (zurückgestellt), Restore-Probe, `constraints.txt` aus einem ARM-Build |
+| **M9** Nacharbeiten aus dem Grundsatz-Review | Off-Site-Spiegel (zurückgestellt), Serve-Pfad vom Import-Pfad trennen |
 | **M2** Abnahme: A4 (Websuche), E1 (Injektion) | beides nur im echten Chat prüfbar — die Server-Hälfte von E1 ist seit 03.08.2026 automatisiert |
 | **M1** dt. PHB 2024 | die PDFs |
 | **M5** Kurationsschleife | läuft — braucht aber echte Anfragen, um Signal zu liefern |
@@ -53,20 +53,17 @@ Voraussetzung für den Chat-Test: Claude-Projekt mit dem Text aus
 **Gate:** alle T1–T12 nachweislich erfüllt, Ergebnisse in §2 eingetragen.
 
 ### M3 — Betrieb für die Gruppe · *klein · Zugang steht, Betrieb teilweise*
-Zugang (Geheimpfad + WAF-Allowlist), Backup-Werkzeug und die Antwortzeiten unter
-Sessionlast sind erledigt — Belege in [CONCEPT.md](CONCEPT.md) §9 (Zugang) und §10
-(Lastmessung). Offen bleiben zwei Handlungen an Geräten:
+Zugang (Geheimpfad + WAF-Allowlist), Backup-Werkzeug, Uptime-Wächter und die Antwortzeiten
+unter Sessionlast sind erledigt — Belege in [CONCEPT.md](CONCEPT.md) §8 (Betrieb), §9
+(Zugang) und §10 (Lastmessung). Offen bleibt eine Handlung am Gerät:
 - ⬜ **Off-Site-Spiegel: das ZIEL festlegen** — das Werkzeug steht seit dem 19.09.2026
   (`make sicherung-holen`: zieht, prüft, hält sechs Generationen; die Restore-Probe ist
   gefahren und bestanden, [CONCEPT.md](CONCEPT.md) §8). Was fehlt, ist eine Zeile in
   `.env`: `SICHERUNG_ZIEL=/Volumes/<Platte>/Foliant`. Die Sicherungen tragen private
   Buchinhalte, deshalb ist die Wahl Davids und nicht beiläufig. Bis dahin liegen **alle
   Stände auf derselben SD-Karte wie der Bestand**.
-- ⬜ **Uptime-Monitoring** auf `/health` — zwei Ziele, seit Website und MCP auf getrennten
-  Hostnamen liegen. Braucht ein Gerät außerhalb des Pi: ein Wächter, der mit dem Bewachten
-  stirbt, meldet nichts.
 
-**Gate:** Backup liegt außerhalb des Pi, Dienst übersteht Neustart, Monitoring meldet Ausfälle.
+**Gate:** Backup liegt außerhalb des Pi.
 
 ### M4 — Onboarding & Pilot-Session · *klein · Anleitung steht, Pilot offen*
 Die spielerfeste Kurzanleitung steht auf der Charakterbogen-Website (inkl. B10-Fallback);
@@ -198,10 +195,6 @@ braucht eine Entscheidung oder eine Handlung an einem Gerät:
 - ⬜ **Buchtitel im Register.** Die 18 Titel fehlen bewusst (Entscheidung 14.08.2026,
   öffentliches Repo). Beim Wiederherstellen sind sie von Hand nachzutragen — alles
   andere, was Kernregel 2 zu raten verbietet, steht da.
-- ⬜ **`constraints.txt` aus einem geprüften Build.** Die Pins decken 12 von rund 100
-  installierten Paketen; das Basis-Image trägt keinen Digest. Muss auf dem Pi entstehen,
-  nicht auf dem Mac — ein Mac-Pin für einen ARM64/py3.12-Build ist geraten, und geraten
-  ist hier genau das Falsche.
 - ⬜ **Serve-Pfad vom Import-Pfad trennen.** Der einzige von außen erreichbare Container
   ist auch Import-Worker und Backup-Schreiber. Die Härtung ist nachgezogen (14.08.2026),
   aber `read_only` bleibt unmöglich, solange Importe in demselben Container laufen. Muster
@@ -222,14 +215,12 @@ belegt, nicht an Testdaten.
 | ID | offen | Inhalt |
 |---|---|---|
 | R01 | 🟡 | Mehrwort- und Satzanfragen scheitern an der UND-Verknüpfung. Der naheliegende ODER-Rückfall ist **in fünf Varianten gemessen und verworfen** — er tauscht ehrliche Nulltreffer gegen plausible Fehltreffer ([CONCEPT.md](CONCEPT.md) §10). Ein Weg bleibt: die Teiltreffer NEBEN den Leerbefund stellen statt in die Trefferliste. Eigener Entwurf, eigene Runde |
-| R09 | 🟡 | `pip-audit` läuft wöchentlich. Offen bleibt der **`fastmcp`-Sprung auf 3.x** — behebt zwei Funde, ist aber ein Major-Wechsel am MCP-Server und braucht ein eigenes Gate (Bewertung: [CONCEPT.md](CONCEPT.md) §13) |
 
 | R16 | ⬜ | Laufzeit-Image trägt die Import-Werkzeuge (deckt den M9-Posten „Serve-Pfad trennen") |
 | R17 | ⬜ | Statische Hinweise sind 35–40 % jeder Suchantwort — **nur messen, nicht auf Verdacht kürzen** |
 | R18 | ⬜ | 32 % der Codezeilen sind Kommentar/Docstring, 106 datierte Befundgeschichten. Beim Anfassen kürzen, kein Großumbau |
-| R19 | ⬜ | Dieser BACKLOG verstößt gegen seine eigene Regel 2 — `test_doku_pflege.py` prüft das nicht |
 
-R12–R15 (Off-Site-Spiegel, Restore-Probe, private Module, Monitoring) sind **dieselben
+R12–R14 (Off-Site-Spiegel, Restore-Probe, private Module) sind **dieselben
 Posten wie M3/M9** und stehen dort; sie werden nicht doppelt geführt.
 
 **Gate:** Kein Leerbefund mehr für einen Eintrag, den der Bestand führt — belegt am

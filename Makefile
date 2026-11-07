@@ -104,16 +104,31 @@ sichere-eval-reports-pi: _pi-ziel
 # Live-Schalten - die Golden-Suite braucht den Vollbestand und kann nicht vorher laufen,
 # aber die 1.220 lokalen Tests koennen es sehr wohl. Ein Umbau, den schon der Mac
 # durchfallen laesst, hat auf dem Pi nichts verloren.
+#
+# `FREI=1` baut ohne constraints.txt und schreibt sie nach gruenen Gates neu - der Weg fuer
+# jeden Pin-Bump, weil ein neues Paket oft auch neue transitive Versionen braucht.
 deploy-pi: _pi-ziel test sichere-eval-reports-pi tag-vorher-pi
 	rsync -a --exclude '.git' --exclude '.venv*' --exclude 'data' --exclude 'quellen' \
 	      --exclude 'config/foliant.toml' --exclude '.env' --exclude '.claude' \
 	      ./ $(PI):~/foliant/
-	ssh $(PI) 'cd ~/foliant && docker compose up -d --build --no-deps foliant web discord'
+	ssh $(PI) 'cd ~/foliant && docker compose build $(if $(FREI),--build-arg CONSTRAINTS=/dev/null) foliant web discord \
+		&& docker compose up -d --no-deps foliant web discord'
 	@echo "--- Rebuild durch, jetzt die Pflicht-Pruefung am Vollbestand ---"
 	$(MAKE) test-golden-pi PI=$(PI)
 	@echo "--- Regel-Semantik ok, jetzt die DATENQUALITAET am Vollbestand ---"
 	$(MAKE) check-pi PI=$(PI)
 	$(MAKE) verwerfe-vorher-pi PI=$(PI)
+	$(if $(FREI),$(MAKE) constraints-pi PI=$(PI))
+
+# M9: Die transitiven Pakete des laufenden, gerade geprueften Images festhalten. Laeuft nach
+# `deploy-pi FREI=1` von selbst; die geaenderte constraints.txt gehoert in denselben Commit
+# wie der Bump.
+.PHONY: constraints-pi
+constraints-pi: _pi-ziel
+	ssh $(PI) 'docker exec foliant-mcp pip freeze' \
+		| .venv/bin/python deploy/constraints_schreiben.py > constraints.txt.neu
+	mv constraints.txt.neu constraints.txt
+	@git diff --stat -- constraints.txt
 
 # Der Rueckweg. Bis zum 14.08.2026 gab es keinen: Auf dem Pi lagen ausschliesslich
 # `:latest`-Tags, der alte Stand war nach dem Build ueberschrieben. Die Gates laufen nach
