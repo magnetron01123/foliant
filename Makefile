@@ -113,6 +113,7 @@ deploy-pi: _pi-ziel test sichere-eval-reports-pi tag-vorher-pi
 	$(MAKE) test-golden-pi PI=$(PI)
 	@echo "--- Regel-Semantik ok, jetzt die DATENQUALITAET am Vollbestand ---"
 	$(MAKE) check-pi PI=$(PI)
+	$(MAKE) verwerfe-vorher-pi PI=$(PI)
 
 # Der Rueckweg. Bis zum 14.08.2026 gab es keinen: Auf dem Pi lagen ausschliesslich
 # `:latest`-Tags, der alte Stand war nach dem Build ueberschrieben. Die Gates laufen nach
@@ -129,7 +130,22 @@ tag-vorher-pi: _pi-ziel
 			|| echo "Hinweis: foliant-$$d:latest gibt es noch nicht - nichts zu sichern."; \
 	done
 
-# Zurueck auf den Stand VOR dem letzten `make deploy-pi`. Kein Build, kein rsync: Es
+# Die Sicherung lebt nur so lange, wie ein Gate noch rot werden kann (seit 07.11.2026).
+# Sind Golden-Suite und check-pi gruen, hat `:vorher` seinen Zweck erfuellt: Danach lagen
+# drei alte Images (je 1,65 GB) bis zum naechsten Deploy herum, und die Docker-Oberflaeche
+# Arcane meldete fuer sie Fehler, weil Tags ausserhalb der Compose-Datei fuer sie nach
+# einer Registry aussehen. Ein spaeter entdeckter Fehler geht ueber den Repo-Stand zurueck
+# (alten Commit auschecken, `make deploy-pi`), nicht ueber ein liegengebliebenes Image.
+# `docker image rm` auf einen Tag entfernt nur diesen Namen; das Image selbst nur, wenn
+# es sonst niemand nutzt.
+.PHONY: verwerfe-vorher-pi
+verwerfe-vorher-pi: _pi-ziel
+	@ssh $(PI) 'for d in foliant web discord; do \
+		docker image rm "foliant-$$d:vorher" >/dev/null 2>&1 && echo "verworfen: foliant-$$d:vorher"; \
+	done; true'
+
+# Zurueck auf den Stand VOR dem letzten `make deploy-pi`, solange dessen Gates noch nicht
+# gruen waren (danach gibt es `:vorher` nicht mehr, siehe verwerfe-vorher-pi). Kein Build, kein rsync: Es
 # werden nur die gesicherten Images zurueckgetauscht und die Container neu erzeugt.
 # Der Arbeitsbaum auf dem Pi bleibt, wie der letzte rsync ihn hinterlassen hat - fuer
 # das laufende Image ist das egal, weil der Code ins Image gebacken ist (CONCEPT.md

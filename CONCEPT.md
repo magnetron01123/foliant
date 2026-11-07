@@ -785,18 +785,20 @@ make deploy-pi
 ```
 Das ist der **eine** Weg: `make test` → Eval-Reports retten → laufende Images als
 `:vorher` taggen → rsync → `docker compose up -d --build --no-deps foliant web discord` →
-Golden-Suite am Vollbestand → **`admin check --vollbestand`** (`make check-pi`). Die
+Golden-Suite am Vollbestand → **`admin check --vollbestand`** (`make check-pi`) →
+`:vorher` verwerfen. Die
 Schritte hängen zusammen, weil das Weglassen jedes einzelnen schon schiefgegangen ist
 (Rebuild vergessen → alter Code meldet „Erfolg"; Golden vergessen → korpusabhängige
 Regression bleibt unentdeckt).
 
 **Warum die Gates trotzdem hinten stehen — und was daraus folgt:** Die Golden-Suite
 braucht den Vollbestand, und der liegt nur auf dem Pi; sie kann also nicht vor dem
-Live-Schalten laufen. Genau deshalb gibt es seit dem 14.08.2026 zwei Ergänzungen: `test`
-als *Vorbedingung* (was schon der Mac durchfallen lässt, hat auf dem Pi nichts verloren)
-und `make rollback-pi` als Rückweg — die vorherigen Images liegen als `:vorher` bereit,
-werden zurückgetauscht und durchlaufen dieselben Gates. Vorher gab es auf dem Pi
-ausschließlich `:latest`, der alte Stand war nach dem Build überschrieben.
+Live-Schalten laufen. Deshalb ist `test` *Vorbedingung* (was schon der Mac durchfallen
+lässt, hat auf dem Pi nichts verloren), und `make rollback-pi` ist der Rückweg, solange ein
+Gate rot ist: Die vorherigen Images liegen als `:vorher` bereit, werden zurückgetauscht und
+durchlaufen dieselben Gates. Sind alle Gates grün, verwirft der Deploy `:vorher`; ein später
+entdeckter Fehler geht über den Repo-Stand zurück, weil liegengebliebene Tags außerhalb der
+Compose-Datei Platz kosten und in der Docker-Oberfläche Arcane als Fehler erscheinen.
 
 **Wartung:** `make pflege-pi` zeigt die Belegung; erst `make pflege-pi LOESCHEN=ja` gibt
 Build-Cache älter als sieben Tage frei. Bewusst nicht Teil des Deploys — ein Löschschritt,
@@ -1033,7 +1035,7 @@ docker compose up -d --no-deps web
 
 ### DDB-Buchimport auf dem Pi
 ```sh
-docker compose --profile ddb build ddb-exporter    # einmalig (apsw-sqlite3mc fuer arm64)
+docker compose --profile ddb build ddb-exporter    # vor jedem Import (apsw-sqlite3mc fuer arm64)
 
 # 1. Cobalt aus einer angemeldeten dndbeyond.com-Sitzung nach ~/.ddb-cobalt legen
 #    (Entwicklertools -> Application -> Cookies). Wie ein Passwort behandeln.
@@ -1046,6 +1048,10 @@ rm -f ~/.ddb-cobalt        # Secret SOFORT entfernen
 docker compose run --rm -v ./data/private:/app/data/private \
   foliant python -m app.admin ddb-import-all
 docker compose restart foliant
+
+# 3. Das Exporter-Image braucht nur der Import; `build` legt es beim naechsten Mal neu an
+#    (liegt es herum, meldet Arcane es als Fehler, weil es in keiner Registry steht)
+docker image rm foliant-ddb-exporter
 ```
 
 **Was `sync` lädt:** alle eigenen Regelbücher, automatisch über das öffentliche

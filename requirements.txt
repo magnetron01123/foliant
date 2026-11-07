@@ -2,22 +2,22 @@
 # baut das Image neu - offene Ranges zogen bei jedem Rebuild potenziell andere Versionen,
 # ausgerechnet pymupdf4llm ist als umgebungsempfindlich dokumentiert (CONCEPT.md §4).
 # Update = bewusst Pin anheben + `make test` + Import-Stichprobe, nie beilaeufig.
-fastmcp==4.1.0          # MCP-Server. Bringt das MCP-SDK 2.x mit; `get_tools()` heisst
+fastmcp==4.1.5          # MCP-Server. Bringt das MCP-SDK 2.x mit; `get_tools()` heisst
                          # seit 3.0 `list_tools()` und liefert eine Liste (nur Tests betroffen).
 uvicorn[standard]==0.54.0  # ASGI-Server fuer den HTTP-Endpunkt (Deployment)
-starlette==1.7.0         # Charakterbogen-Web-App (app/charakterbogen/web.py) - DIREKT genutzt
+starlette==1.10.0        # Charakterbogen-Web-App (app/charakterbogen/web.py) - DIREKT genutzt
                          # (bislang transitiv via fastmcp), deshalb explizit gepinnt (Auftrag §12).
-python-multipart==0.0.32 # Multipart-Upload fuer POST /bogen (starlette braucht es fuer Forms).
+python-multipart==0.0.33 # Multipart-Upload fuer POST /bogen (starlette braucht es fuer Forms).
 httpx==0.28.1            # dnddeutsch.de-API, Open5e (nur Import)
-pymupdf4llm==1.28.2      # PDF -> Markdown (Standard, kein GPU; use_ocr=False Pflicht!)
-pymupdf==1.28.2          # DDB-Widget-Extraktion (app/charakterbogen/ddb_pdf.py) - jetzt
+pymupdf4llm==2.0         # PDF -> Markdown (Standard, kein GPU; use_ocr=False Pflicht!)
+pymupdf==2.0             # DDB-Widget-Extraktion (app/charakterbogen/ddb_pdf.py) - jetzt
                          # DIREKTE Abhaengigkeit (nicht nur transitiv via pymupdf4llm),
                          # deshalb explizit gepinnt (Auftrag §12). Muss zu pymupdf4llm passen.
 rapidfuzz==3.14.6        # tolerante Begriffssuche (B3)
 discord.py==2.7.1        # Discord-Bot (app/discord_bot/) - bringt aiohttp transitiv mit
                          # (zweiter HTTP-Stack, bewusst akzeptiert: nur der Bot nutzt ihn;
                          # Anthropic-Aufrufe bleiben auf httpx, kein anthropic-SDK)
-pytest==9.1.1            # Abnahmetests T1-T12 (tests/test_abnahme.py)
+pytest==9.2.0            # Abnahmetests T1-T12 (tests/test_abnahme.py)
 # docling>=2.0           # optional: Fallback für schwierige Tabellen/Statblöcke (CPU/MLX)
 # tomllib ist ab Python 3.11 in der Standardbibliothek
 ocrmypdf==17.*           # OCR-Vorstufe für gescannte PDFs (laeuft nur im Pi-Container; Major gepinnt).
