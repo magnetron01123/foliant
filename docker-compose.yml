@@ -1,3 +1,10 @@
+# Icon und Link fuer die Docker-Oberflaeche Arcane auf dem Pi (Homelab/arcane).
+# Docker Compose ignoriert diesen Block, die Container bleiben unberuehrt.
+x-arcane:
+  icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/5etools.svg
+  urls:
+    - https://dnd.magnetron.me
+
 services:
   # MCP-Server. Haengt seit dem 26.08.2026 am GETEILTEN Router (Projekt "Homelab/cloudflare-tunnel",
   # auf dem Pi ~/cloudflare-tunnel), der alle MCP-Server des Geraets unter mcp.magnetron.me
