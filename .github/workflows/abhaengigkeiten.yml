@@ -26,10 +26,10 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Python 3.12 einrichten
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -39,32 +39,9 @@ jobs:
 
       # Beide Anforderungsdateien: Die DDB-Kette laeuft zwar nur lokal, zieht aber
       # SQLCipher und einen eigenen HTTP-Stack - sie hier auszulassen hiesse, den
-      # unbequemeren Teil nicht anzusehen.
-      #
-      # Die drei --ignore-vuln sind die Funde des ERSTEN Laufs (19.09.2026), einzeln
-      # geprueft und in CONCEPT.md §13 mit ihren Belegen festgehalten. Sie stehen hier und
-      # nicht als dauerhaft rotes Ergebnis, weil ein Job, der immer rot ist, nach zwei
-      # Wochen niemanden mehr erreicht - NEUE Funde sollen auffallen. Jede Zeile nennt die
-      # Bedingung, unter der die Bewertung kippt; faellt sie weg, gehoert die Zeile weg.
-      #
-      #   PYSEC-2026-2475  fastmcp: Command Injection unter WINDOWS ueber `fastmcp
-      #                    install`. Foliant laeuft im Linux-Container und ruft das
-      #                    Kommando nirgends auf.
-      #   PYSEC-2026-2476  fastmcp: Confused Deputy im OAuthProxy/GitHubProvider. Foliant
-      #                    hat KEIN OAuth - der Zugang laeuft ueber Geheimpfad und WAF
-      #                    (§9). >>> Kippt, sobald BACKLOG §4 "OAuth-Identitaet statt
-      #                    Geheimpfad" umgesetzt wird. <<<
-      #   PYSEC-2026-2447  diskcache: Pickle-Deserialisierung. Verwaistes transitives
-      #                    Paket - sein Traeger py-key-value-aio ist gar nicht
-      #                    installiert, und kein Foliant-Modul importiert es.
-      #
-      # Behoben waeren die beiden fastmcp-Funde erst mit 3.2.0, also einem Major-Sprung.
-      # Der ist ein eigener Vorgang mit eigenem Test-Gate (BACKLOG M10/R09), kein
-      # beilaeufiges Anheben.
+      # unbequemeren Teil nicht anzusehen. constraints.txt kommt dazu, damit die
+      # transitiven Pakete in genau der Version geprueft werden, die im Image steckt.
       - name: pip-audit (Laufzeit + DDB)
         run: |
-          pip-audit --strict --requirement requirements.txt \
-            --ignore-vuln PYSEC-2026-2475 \
-            --ignore-vuln PYSEC-2026-2476 \
-            --ignore-vuln PYSEC-2026-2447
+          pip-audit --strict --requirement requirements.txt --requirement constraints.txt
           pip-audit --strict --requirement requirements-ddb.txt

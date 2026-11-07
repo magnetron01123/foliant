@@ -1,0 +1,34 @@
+name: Uptime
+
+# Externer Waechter fuer Website und MCP-Router (M3). Er laeuft bewusst NICHT auf dem Pi:
+# Ein Waechter, der mit dem Bewachten ausfaellt, meldet nichts. Ein roter Lauf erzeugt die
+# GitHub-Benachrichtigung fuer fehlgeschlagene Workflows - das ist der ganze Meldeweg.
+#
+# `/health` ist auf beiden Hostnamen offen und von der Cloudflare-Regel ausgenommen
+# (CONCEPT.md §9); es liefert nur einen Status, keine Inhalte. Die Wiederholungen fangen
+# einen kurzen Neustart (Deploy, apt-Upgrade) ab, damit nur echte Ausfaelle melden.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        url:
+          - https://dnd.magnetron.me/health
+          - https://mcp.magnetron.me/health
+    steps:
+      - name: ${{ matrix.url }}
+        run: |
+          curl --fail --silent --show-error --max-time 20 \
+               --retry 5 --retry-delay 30 --retry-all-errors \
+               --output /dev/null --write-out '%{http_code} in %{time_total}s\n' \
+               "${{ matrix.url }}"
